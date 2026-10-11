@@ -217,6 +217,23 @@ Issues and pull requests are welcome. Run the checks before sending a change:
 cd server && pip install -e ".[dev]" && ruff check . && pytest
 ```
 
+## Related projects
+
+Other ways people drive an iPhone with code or AI, and how this project differs. Corrections welcome.
+
+| Project | Approach | Needs on the phone / host | Difference from this project |
+|---|---|---|---|
+| [VersaiOS](https://github.com/zhaodashuaibi/VersaiOS) | UxPlay mirroring + ESP32-S3 Bluetooth mouse + vision model | ESP32 tethered to a computer over USB serial; desktop GUI, mainly Windows | Closest in spirit. One tap per instruction, no planning step or before/after screen check |
+| [ja1chen/actell](https://github.com/ja1chen/actell) | Agent app on the iPhone, screenshots and taps via Apple's CoreDevice debug channel | Developer Mode, pairing + Developer Disk Image, Xcode self-signing | This project needs no Developer Mode, no app on the phone and no signing |
+| [AidenAI-IO/aiden-firmware](https://github.com/AidenAI-IO/aiden-firmware) | Dedicated board: HDMI capture + USB keyboard/mouse + multimodal model | HDMI capture chip and dock; mainly Android | Uses AirPlay instead of HDMI capture, so no capture hardware |
+| [yoyicue/glassbox](https://github.com/yoyicue/glassbox) | PicoKVM HDMI capture + USB HID, observe/decide/act/verify loop | macOS controller and PicoKVM | Runs on Linux with a single ESP32 |
+| [boboabw/phone-agent](https://github.com/boboabw/phone-agent) | ESP32-S3 Bluetooth HID + AssistiveTouch, agent runs as an iPhone app | Mac + Xcode to build and sign the app | Nothing to install on the phone |
+| [dovydaskel/Iphone-control-for-social-media](https://github.com/dovydaskel/Iphone-control-for-social-media) | ESP32 Bluetooth mouse with OpenCV pointer correction, scripted posting | Mac | Similar closed-loop pointer idea; this project adds a vision-model planner/executor |
+| [VKCOM/devicehub](https://github.com/VKCOM/devicehub) | ESP32 Bluetooth mouse for iOS device farms | Farm infrastructure | Device-farm tooling, no AI agent |
+| [NolanCotter/AirBridge](https://github.com/NolanCotter/AirBridge) / [gbulog/pcairplay](https://github.com/gbulog/pcairplay) | UxPlay on Linux + the PC's own Bluetooth as keyboard/mouse | Linux PC with Bluetooth | Manual remote control, no AI |
+
+Other routes: WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobile-next/mobile-mcp) and [Midscene](https://github.com/web-infra-dev/midscene) need a Mac and code signing; tools built on macOS iPhone Mirroring need a Mac.
+
 ## Acknowledgements
 
 [UxPlay](https://github.com/FDH2/UxPlay) (AirPlay receiver) ·

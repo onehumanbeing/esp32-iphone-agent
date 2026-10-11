@@ -208,6 +208,23 @@ server/     Agent、网页界面、屏幕采集和板子连接（Python，FastAP
 cd server && pip install -e ".[dev]" && ruff check . && pytest
 ```
 
+## 相关项目
+
+其他用代码或 AI 操作 iPhone 的方案，以及与本项目的区别。如有错误欢迎指正。
+
+| 项目 | 做法 | 手机 / 主机需要 | 与本项目的区别 |
+|---|---|---|---|
+| [VersaiOS](https://github.com/zhaodashuaibi/VersaiOS) | UxPlay 镜像 + ESP32-S3 蓝牙鼠标 + 视觉模型 | ESP32 通过 USB 串口连电脑；桌面 GUI，主要是 Windows | 思路最接近。一条指令点一次，没有规划步骤，也不比对前后画面 |
+| [ja1chen/actell（执言）](https://github.com/ja1chen/actell) | iPhone 上装 agent App，通过苹果 CoreDevice 调试通道截屏和点按 | 开发者模式、配对 + Developer Disk Image、Xcode 自签 | 本项目不需要开发者模式，不用在手机上装 App，也不用签名 |
+| [AidenAI-IO/aiden-firmware](https://github.com/AidenAI-IO/aiden-firmware) | 专用板：HDMI 采集 + USB 键鼠 + 多模态模型 | HDMI 采集芯片和扩展坞；以 Android 为主 | 本项目用 AirPlay 代替 HDMI 采集，不需要采集硬件 |
+| [yoyicue/glassbox](https://github.com/yoyicue/glassbox) | PicoKVM HDMI 采集 + USB HID，观察/决策/执行/验证循环 | macOS 控制端和 PicoKVM | 本项目在 Linux 上运行，只要一块 ESP32 |
+| [boboabw/phone-agent](https://github.com/boboabw/phone-agent) | ESP32-S3 蓝牙 HID + 辅助触控，agent 是 iPhone App | 需要 Mac + Xcode 编译签名 | 本项目手机上什么都不用装 |
+| [dovydaskel/Iphone-control-for-social-media](https://github.com/dovydaskel/Iphone-control-for-social-media) | ESP32 蓝牙鼠标 + OpenCV 指针校正，脚本化发帖 | Mac | 指针闭环思路相近；本项目多了视觉模型的规划/执行 |
+| [VKCOM/devicehub](https://github.com/VKCOM/devicehub) | ESP32 蓝牙鼠标，用于 iOS 设备农场 | 设备农场基础设施 | 设备农场工具，没有 AI agent |
+| [NolanCotter/AirBridge](https://github.com/NolanCotter/AirBridge) / [gbulog/pcairplay](https://github.com/gbulog/pcairplay) | Linux 上的 UxPlay + 电脑自带蓝牙模拟键鼠 | 带蓝牙的 Linux 电脑 | 人工远程操作，没有 AI |
+
+其他路线：基于 WebDriverAgent/XCUITest 的工具（如 [mobile-mcp](https://github.com/mobile-next/mobile-mcp)、[Midscene](https://github.com/web-infra-dev/midscene)）需要 Mac 和代码签名；基于 macOS iPhone 镜像的工具需要 Mac。
+
 ## 致谢
 
 [UxPlay](https://github.com/FDH2/UxPlay)（AirPlay 接收端） ·
