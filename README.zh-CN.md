@@ -141,6 +141,8 @@ set -a && . ./.env && set +a && .venv/bin/python -m hidagent
 | `HIDAGENT_DATA` | `~/.hidagent` | 校准数据和调试记录 |
 | `HIDAGENT_DEBUG` | `0` | 调试模式，见下文 |
 
+表中的 `LLM_BASE_URL` 是未设置环境变量时的程序回退值。复制 `server/.env.example` 后，该文件会把它设为 `https://api.openai.com/v1`。使用其他服务时，请改为该服务的 `/v1` 根地址（不要填完整的 `/chat/completions` 路径），按需填写 API Key，并选择支持图像输入的模型。
+
 ### 本地模型（可选）
 
 用云端 API 就够了。如果想全部跑在自己的硬件上，下面是本项目开发和测速时用的配置：
