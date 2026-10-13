@@ -148,6 +148,8 @@ Set in `server/.env` (see [`.env.example`](server/.env.example)):
 | `HIDAGENT_DATA` | `~/.hidagent` | Calibration and debug traces |
 | `HIDAGENT_DEBUG` | `0` | Debug mode, see below |
 
+The `LLM_BASE_URL` value in this table is the code fallback when no environment variable is set. Copying `server/.env.example` sets it to `https://api.openai.com/v1` instead. Change that value to your provider's `/v1` root (not the full `/chat/completions` path), set its API key if required, and choose a model that accepts image input.
+
 ### Local model (optional)
 
 A cloud API is enough. If you want everything on your own hardware, this is the setup the project was developed
