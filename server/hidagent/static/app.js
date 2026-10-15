@@ -161,14 +161,30 @@ $("zoom").addEventListener("click", () => $("zoom").close());
 // ---- live phone: click = tap, drag = swipe, wheel = scroll --------------------------
 
 const live = $("live");
-let down = null, calibrating = false;
+let down = null, calibrating = false, calibrationBusy = false;
+let typingReady = false;
+const keyboard = $("phone-keyboard");
+const manualInput = createKeyboardQueue(
+  (path, body) => typingReady && !calibrating && !calibrationBusy ? post(path, body) : Promise.resolve(null),
+  () => say("keyboardFailed"),
+);
+connectPhoneKeyboard({
+  element: keyboard,
+  available: () => typingReady && !calibrating && !calibrationBusy && !$("zoom").open && live.hasAttribute("src"),
+  text: text => manualInput.push("/api/type", { text }),
+  key: text => manualInput.push("/api/key", { text }),
+  blocked: () => say("keyboardBlocked"),
+  release: () => stop(),
+});
+keyboard.addEventListener("blur", () => manualInput.clear());
+window.addEventListener("blur", () => { manualInput.clear(); keyboard.blur(); });
 function frac(e) {
   const r = live.getBoundingClientRect(), ratio = live.naturalWidth / live.naturalHeight || r.width / r.height;
   const w = Math.min(r.width, r.height * ratio), h = w / ratio;  // object-fit: contain box
   const x = (e.clientX - r.left - (r.width - w) / 2) / w, y = (e.clientY - r.top - (r.height - h) / 2) / h;
   return { x: Math.min(Math.max(x, 0), 1), y: Math.min(Math.max(y, 0), 1) };
 }
-live.addEventListener("pointerdown", (e) => { down = frac(e); });
+live.addEventListener("pointerdown", (e) => { keyboard.focus({ preventScroll: true }); down = frac(e); });
 live.addEventListener("pointerup", async (e) => {
   if (!down) return;
   const up = frac(e), from = down;
@@ -178,9 +194,9 @@ live.addEventListener("pointerup", async (e) => {
     const ok = await post("/api/calibrate/finish", up);
     calibrationHint(ok ? "calOk" : null);
   } else if (Math.hypot(up.x - from.x, up.y - from.y) < 0.02) {
-    post("/api/tap", up);
+    manualInput.push("/api/tap", up);
   } else {
-    post("/api/swipe", { x1: from.x, y1: from.y, x2: up.x, y2: up.y });
+    manualInput.push("/api/swipe", { x1: from.x, y1: from.y, x2: up.x, y2: up.y });
   }
 });
 let wheelAt = 0;
@@ -188,13 +204,14 @@ live.addEventListener("wheel", (e) => {
   e.preventDefault();
   if (Date.now() - wheelAt < 250) return;
   wheelAt = Date.now();
-  post("/api/scroll", { ...frac(e), lines: e.deltaY > 0 ? -3 : 3 });
+  manualInput.push("/api/scroll", { ...frac(e), lines: e.deltaY > 0 ? -3 : 3 });
 }, { passive: false });
 
 // Show a frame, or nothing when the phone is gone, so a stale screenshot never lingers.
 function showFrame(url) {
   const old = live.src;
   if (url) live.src = url; else live.removeAttribute("src");
+  if (!url) { typingReady = false; manualInput.clear(); keyboard.blur(); }
   if (old.startsWith("blob:")) URL.revokeObjectURL(old);
   $("hint").hidden = Boolean(url);
 }
@@ -210,7 +227,7 @@ async function refreshLive() {
 
 // ---- controls ------------------------------------------------------------------------
 
-document.querySelectorAll("[data-post]").forEach((b) => b.addEventListener("click", () => post(b.dataset.post)));
+document.querySelectorAll("[data-post]").forEach((b) => b.addEventListener("click", () => manualInput.push(b.dataset.post)));
 // Calibration instructions show right under the phone, where the user is looking.
 function calibrationHint(key) {
   $("caption").textContent = t(key || "liveCaption");
@@ -219,26 +236,39 @@ function calibrationHint(key) {
   if (key === "calOk") setTimeout(() => calibrationHint(null), 4000);
 }
 $("cal").addEventListener("click", async () => {
+  manualInput.clear();
+  keyboard.blur();
   calibrationHint("calFinding");
-  const r = await post("/api/calibrate/start");
+  calibrationBusy = true;
+  let r;
+  try { r = await post("/api/calibrate/start"); } finally { calibrationBusy = false; }
   if (!r) return calibrationHint(null);
   if (r.auto) return calibrationHint("calOk");  // found the pointer by itself
   calibrating = true;
   calibrationHint("calNow");
 });
-$("type").addEventListener("click", async () => { if (await post("/api/type", { text: $("text").value })) $("text").value = ""; });
-$("press").addEventListener("click", () => post("/api/key", { text: $("key").value }));
+$("type").addEventListener("click", async () => { if (await manualInput.push("/api/type", { text: $("text").value })) $("text").value = ""; });
+$("press").addEventListener("click", () => manualInput.push("/api/key", { text: $("key").value }));
 function start(task) {
   if (!task) return say("needTask");
+  typingReady = false;
+  manualInput.clear();
+  keyboard.blur();
   post("/api/agent", { text: task });
 }
 $("run").addEventListener("click", () => start($("task").value.trim()));
-$("stop").addEventListener("click", () => post("/api/agent/stop"));
+function stop() {
+  manualInput.clear();
+  keyboard.blur();
+  down = null;
+  return post("/api/agent/stop");
+}
+$("stop").addEventListener("click", stop);
 $("clear").addEventListener("click", async () => {
   if (await post("/api/agent/clear")) { $("task").value = ""; say(null); }
 });
-$("estop").addEventListener("click", () => post("/api/agent/stop"));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("zoom").open) post("/api/agent/stop"); });
+$("estop").addEventListener("click", stop);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("zoom").open) stop(); });
 
 // ---- polling -------------------------------------------------------------------------
 
@@ -246,6 +276,9 @@ let shown = "";
 async function poll() {
   try {
     const s = await (await fetch("/api/status")).json();
+    const nextTypingReady = s.device && s.screen && !s.agent.running;
+    if (!nextTypingReady) { manualInput.clear(); keyboard.blur(); }
+    typingReady = nextTypingReady;
     let ready = true;
     $("setup").querySelectorAll("li").forEach((li) => { const ok = s[li.dataset.key]; li.classList.toggle("done", ok); ready &&= ok; });
     $("setup").classList.toggle("all-done", ready);

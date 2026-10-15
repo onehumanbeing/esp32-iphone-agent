@@ -203,7 +203,24 @@ class Phone:
         await self.device.send(f"scroll {lines} 0")
 
     async def type(self, text: str) -> None:
-        await self.device.send(f"type {text}")
+        if not text.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in text):
+            raise ValueError("send printable ASCII key sequences; the phone's keyboard handles the language")
+        # Firmware trims the whole protocol line, so send trailing spaces as keys.
+        body = text.rstrip(" ")
+        if body:
+            await self.device.send(f"type {body}")
+        for _ in range(len(text) - len(body)):
+            await self.key("space")
+
+    async def edit_text(self, text: str, replace: bool = False, submit: bool = False) -> None:
+        """Edit an already focused field; only submit when explicitly requested."""
+        if not text or not text.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in text):
+            raise ValueError("text must be printable ASCII on one line")
+        if replace:
+            await self.key("cmd+a")
+        await self.type(text)
+        if submit:
+            await self.key("enter")
 
     async def key(self, combo: str) -> None:
         await self.device.send(f"key {combo}")

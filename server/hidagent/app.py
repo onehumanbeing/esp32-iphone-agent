@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StrictBool
 
 from .agent import Agent
 from .debug import Trace
@@ -53,28 +53,52 @@ app.mount("/static", Static(directory=Path(__file__).parent / "static"), name="s
 
 
 class Point(BaseModel):
-    x: float
-    y: float
+    x: float = Field(ge=0, le=1, allow_inf_nan=False)
+    y: float = Field(ge=0, le=1, allow_inf_nan=False)
 
 
 class Swipe(BaseModel):
-    x1: float
-    y1: float
-    x2: float
-    y2: float
+    x1: float = Field(ge=0, le=1, allow_inf_nan=False)
+    y1: float = Field(ge=0, le=1, allow_inf_nan=False)
+    x2: float = Field(ge=0, le=1, allow_inf_nan=False)
+    y2: float = Field(ge=0, le=1, allow_inf_nan=False)
 
 
 class Scroll(Point):
-    lines: int
+    lines: int = Field(ge=-100, le=100)
 
 
 class Text(BaseModel):
     text: str
 
 
-async def act(coro):
+class KeyboardText(Text):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class EditText(KeyboardText):
+    replace: StrictBool = False
+    submit: StrictBool = False
+
+
+def check_keyboard(text):
+    if not text.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in text):
+        raise HTTPException(422, "keyboard input must be printable ASCII on one line")
+
+
+manual_lock = asyncio.Lock()
+
+
+def check_manual():
+    if agent.running or manual_lock.locked():
+        raise HTTPException(409, "phone is busy; stop the agent or wait for the current action")
+
+
+async def act(action):
+    check_manual()
     try:
-        await coro
+        async with manual_lock:
+            await action()
     except (DeviceError, RuntimeError) as e:
         raise HTTPException(409, str(e)) from e
     return {"ok": True}
@@ -109,37 +133,45 @@ def step_shot(index: int):
 
 @app.post("/api/tap")
 async def tap(p: Point):
-    return await act(phone.tap(p.x, p.y))
+    return await act(lambda: phone.tap(p.x, p.y))
 
 
 @app.post("/api/swipe")
 async def swipe(s: Swipe):
-    return await act(phone.swipe(s.x1, s.y1, s.x2, s.y2))
+    return await act(lambda: phone.swipe(s.x1, s.y1, s.x2, s.y2))
 
 
 @app.post("/api/scroll")
 async def scroll(s: Scroll):
-    return await act(phone.scroll(s.x, s.y, s.lines))
+    return await act(lambda: phone.scroll(s.x, s.y, s.lines))
 
 
 @app.post("/api/type")
-async def type_text(t: Text):
-    return await act(phone.type(t.text))
+async def type_text(t: KeyboardText):
+    check_keyboard(t.text)
+    return await act(lambda: phone.type(t.text))
+
+
+@app.post("/api/edit_text")
+async def edit_text(t: EditText):
+    check_keyboard(t.text)
+    return await act(lambda: phone.edit_text(t.text, replace=t.replace, submit=t.submit))
 
 
 @app.post("/api/key")
-async def key(t: Text):
-    return await act(phone.key(t.text))
+async def key(t: KeyboardText):
+    check_keyboard(t.text)
+    return await act(lambda: phone.key(t.text))
 
 
 @app.post("/api/home")
 async def home():
-    return await act(phone.go_home())
+    return await act(phone.go_home)
 
 
 @app.post("/api/back")
 async def back():
-    return await act(phone.go_back())
+    return await act(phone.go_back)
 
 
 @app.post("/api/raw")
@@ -147,26 +179,33 @@ async def raw(t: Text):
     """Debug only: send one protocol line to the board as-is."""
     if not DEBUG:
         raise HTTPException(404)
-    return await act(device.send(t.text))
+    return await act(lambda: device.send(t.text))
 
 
 @app.post("/api/calibrate/start")
 async def calibrate_start():
     """Calibrate the pointer. {"auto": true}: done by itself; otherwise the user clicks the pointer next."""
+    check_manual()
     try:
-        return {"ok": True, "auto": await phone.start_calibration(), "span": phone.span}
+        async with manual_lock:
+            return {"ok": True, "auto": await phone.start_calibration(), "span": phone.span}
     except (DeviceError, RuntimeError) as e:
         raise HTTPException(409, str(e)) from e
 
 
 @app.post("/api/calibrate/finish")
-def calibrate_finish(p: Point):
+async def calibrate_finish(p: Point):
+    check_manual()
+    if not 0 < p.x < 1 or not 0 < p.y < 1:
+        raise HTTPException(422, "calibration pointer must be inside the screen")
     phone.finish_calibration(p.x, p.y)
     return {"ok": True, "span": phone.span}
 
 
 @app.post("/api/agent")
 async def agent_start(t: Text):
+    if manual_lock.locked():
+        raise HTTPException(409, "phone is busy; wait for the current action")
     try:
         agent.start(t.text)
     except RuntimeError as e:
@@ -179,7 +218,13 @@ async def agent_stop():
     """Emergency stop: cancel the agent and release the mouse button."""
     agent.stop()
     await asyncio.sleep(0.1)  # let a gesture in flight finish its own release
-    return await act(phone.reset()) if device.connected else {"ok": True}
+    # Emergency stop must stay available even while a direct action holds the lock.
+    try:
+        if device.connected:
+            await phone.reset()
+    except (DeviceError, RuntimeError) as e:
+        raise HTTPException(409, str(e)) from e
+    return {"ok": True}
 
 
 @app.post("/api/agent/clear")

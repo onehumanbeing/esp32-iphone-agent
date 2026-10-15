@@ -134,6 +134,9 @@ Type a goal (for example *"Open Settings and go to Wi-Fi"*) and press **Start**,
 
 ## Configuration
 
+External agents can use the optional [CLI and MCP bridge](docs/remote-agents.md)
+to control this legacy server. Direct controls require no model credentials.
+
 Set in `server/.env` (see [`.env.example`](server/.env.example)):
 
 | Variable | Default | Meaning |
@@ -225,7 +228,9 @@ These are directions, not promises. If you're interested, or you've tried someth
 
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them.
 - Mirroring stops when the phone locks; keep auto-lock off while the agent works.
-- Keyboard input is ASCII only.
+- Keyboard commands carry ASCII key sequences. The selected iOS hardware keyboard/input method handles
+  language composition; see [direct preview typing and keyboard switching](docs/remote-agents.md#type-with-the-phones-keyboard).
+  Arbitrary Unicode injection and host IME paste are unsupported.
 - Re-calibrate after changing AssistiveTouch tracking speed.
 - Landscape apps are not supported yet: drawings and taps there land in the wrong place.
 - On Linux machines with several network interfaces, limit Avahi (mDNS) to the interface on the phone's network

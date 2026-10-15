@@ -10,11 +10,12 @@
 <main>
   <!-- 1. the real phone -->
   <section class="col phone">
-    <div class="screen">
+    <div class="screen" id="phone-keyboard" tabindex="0" role="region" aria-label="Phone preview keyboard" aria-describedby="keyboard-hint">
       <img id="live" alt="">
       <div class="hint" id="hint" data-i18n="waiting"></div>
     </div>
     <p class="caption" id="caption" data-i18n="liveCaption"></p>
+    <p class="caption" id="keyboard-hint" data-i18n="keyboardHint"></p>
     <button class="estop" id="estop" data-i18n="estop"></button>
     <p class="caption" data-i18n="estopHint"></p>
     <details class="manual">
@@ -76,6 +77,7 @@
 <dialog id="zoom"><div class="zoombox"><img id="zoom-img" alt=""><div class="overlay" id="zoom-overlay"></div></div><p id="zoom-text"></p></dialog>
 
 <script src="/static/i18n.js"></script>
+<script src="/static/keyboard.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

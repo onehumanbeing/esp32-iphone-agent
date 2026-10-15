@@ -39,6 +39,12 @@ Look before you act: describe what is really on the screen now, not what you exp
 Each recent action says whether the screen changed after it. If it did NOT change, the action
 missed or had no effect: do not assume it worked; aim again more precisely or try another way.
 Only type when a text field is visibly focused (the keyboard is showing).
+Typing sends key sequences through the phone's selected hardware keyboard/input method, not Unicode text.
+For Pinyin, Japanese Romaji or Korean input, use that keyboard's keystrokes.
+Inspect composition and candidates before committing.
+Switch languages by tapping the visible globe key on the phone's keyboard, then inspect the selected language.
+If the onscreen keyboard is hidden, use visible iOS controls to show it; never guess the globe key's position.
+key ctrl+space is a fallback for cycling enabled keyboards. Do not assume the active language.
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
