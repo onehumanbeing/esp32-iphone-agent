@@ -17,3 +17,9 @@ hardware/hid_bridge/build/
 .DS_Store
 .idea/
 .vscode/
+
+# BLE HID bridge (bluetooth variant)
+hardware/hid_bridge_ble/secrets.h
+hardware/hid_bridge_ble/build/
+hardware/build_ble/
+hardware/build_purehid/
