@@ -98,7 +98,8 @@ Plug the board into the iPhone and open **ESP32 Agent**. Setup walks through fou
 1. **Plug Me In** — pair the board over Bluetooth.
 2. **Let Me See the Screen** — join the board's Wi-Fi, then Control Center → Screen Mirroring → *ESP32 Agent*.
 3. **Let Me Use the Pointer** — turn on AssistiveTouch; the app calibrates the pointer by itself.
-4. **Give Me a Brain** — enter your model endpoint and key (stored in the Keychain).
+4. **Give Me a Brain** — enter your model endpoint and key (stored in the Keychain), then choose a vision model
+   from the endpoint's model list (or enter its model ID).
 
 ### 4. Give it a task
 
@@ -108,7 +109,8 @@ or come back to the app. Siri, Shortcuts, widgets and Control Center can run sav
 ## Model and prompts
 
 - Any OpenAI-compatible vision endpoint works (vLLM, SGLang, llama.cpp, Ollama, cloud APIs). The app lists the
-  endpoint's models and picks one; you can override it, and set a separate planner and actor model.
+  endpoint's models for you to choose one explicitly; you can also enter a model ID, and set a separate planner
+  and actor model.
 - The prompts are plain text in [`prompts/`](prompts/) and bundled with the app: edit them, rebuild, done.
 - The project was developed with [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)
   served on two DGX Sparks ([TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)).
