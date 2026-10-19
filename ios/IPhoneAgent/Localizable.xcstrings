@@ -8264,12 +8264,22 @@
         }
       }
     },
-    "The board lost its pairing with this iPhone. In Settings › Bluetooth, tap ⓘ next to ESP32 Agent, choose Forget This Device, then come back." : {
+    "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "板子丢失了与这台 iPhone 的配对。请到 设置 › 蓝牙，点 ESP32 Agent 旁边的 ⓘ，选择「忽略此设备」，然后回到 App。"
+            "value" : "配对失败。请重新插拔板子，再到 设置 › 蓝牙 忽略 ESP32 Agent。"
+          }
+        }
+      }
+    },
+    "Pair %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对 %@"
           }
         }
       }

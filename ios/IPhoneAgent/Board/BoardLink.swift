@@ -21,6 +21,7 @@ import Foundation
     @Published private(set) var status: BoardStatus?
     @Published private(set) var net: NetConfig?
     @Published private(set) var lastError = ""
+    @Published private(set) var pairingLost = false  // iOS and the board disagree about their bond: see forgetBoard
     @Published private(set) var signalStrength: Int?
 
     let commands = CommandChannel()
@@ -183,13 +184,16 @@ import Foundation
     /// radio, e.g. right as Screen Mirroring starts: 2026-10-19), backing off to 30 s; firmware problems are not.
     private var encryptFailures = 0
 
+    /// The board takes new phones only in the 3 minutes after power-on (ble_link.cpp PAIR_WINDOW_MS); outside them
+    /// it drops a new bond, and iOS then keeps a bond the board no longer has. Fix: replug the board, forget it on
+    /// the phone, pair again. Apps cannot forget a bond themselves.
     static var forgetBoard: String {
-        String(localized: "The board lost its pairing with this iPhone. In Settings › Bluetooth, tap ⓘ next to ESP32 Agent, choose Forget This Device, then come back.")
+        String(localized: "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
     }
 
-    /// iOS says "Peer removed pairing information" when the board was reflashed: same fix as the encrypt failures.
+    /// iOS says "Peer removed pairing information" when the board was reflashed or refused a new bond.
     private func describe(_ error: Error?) -> String {
-        if (error as? CBError)?.code == .peerRemovedPairingInformation { return Self.forgetBoard }
+        if (error as? CBError)?.code == .peerRemovedPairingInformation { pairingLost = true; return Self.forgetBoard }
         return error?.localizedDescription ?? "connect failed"
     }
 
@@ -198,9 +202,8 @@ import Foundation
         // The board no longer knows this phone's pairing keys (e.g. it was reflashed or paired with other
         // devices): iOS keeps failing to encrypt until the phone forgets the board, so say how.
         encryptFailures = message.localizedCaseInsensitiveContains("encrypt") ? encryptFailures + 1 : 0
-        lastError = encryptFailures >= 2
-            ? Self.forgetBoard
-            : message
+        if encryptFailures >= 2 { pairingLost = true }
+        lastError = pairingLost ? Self.forgetBoard : message
         log("BLE setup failed: \(message)")
         let previous = peripheral
         peripheral = nil
@@ -432,8 +435,10 @@ extension BoardLink: CBCentralManagerDelegate {
             DebugLog.write(String(format: "BLE disconnect: %@ %d: %@; last notification %.1f s ago; link up %.0f s",
                                   e?.domain ?? "no error", e?.code ?? 0, e?.localizedDescription ?? "-",
                                   lastNotify > 0 ? now() - lastNotify : -1, readySince > 0 ? now() - readySince : -1))
+            // Dropped while pairing (before the encrypted read): the board refused this phone, outside its window.
+            if linking && (error as? CBError)?.code == .peripheralDisconnected { pairingLost = true }
             setDisconnected()
-            if let error { lastError = describe(error) }
+            if let error { lastError = pairingLost ? Self.forgetBoard : describe(error) }
             retryTask?.cancel()
             retryTask = Task { [weak self] in
                 guard (try? await Task.sleep(nanoseconds: 2_000_000_000)) != nil else { return }
@@ -510,6 +515,7 @@ extension BoardLink: CBPeripheralDelegate {
                         connected = true
                         linking = false
                         lastError = ""
+                        pairingLost = false
                         pairedID = p.identifier
                         UserDefaults.standard.set(p.identifier.uuidString, forKey: Self.pairedKey)
                         readySince = now()

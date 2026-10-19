@@ -79,12 +79,10 @@ struct ConnectPage: View {
         } else if board.pairedID == nil, board.found.count == 1, let f = board.found.first {
             CheckRow(title: "Found \(f.name)", done: false, active: true, waiting: true)
         } else if !board.found.isEmpty {
-            Text("Choose your board:").font(.subheadline).foregroundStyle(.secondary)
-                .padding(.bottom, Space.s)
             ForEach(board.found) { f in
                 Button { board.pair(f.id) } label: {
                     HStack {
-                        Text(verbatim: f.name)
+                        Text("Pair \(f.name)").lineLimit(1)
                         Spacer()
                         Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                     }
@@ -94,15 +92,20 @@ struct ConnectPage: View {
         } else {
             CheckRow(title: "Searching for the board over Bluetooth…", done: false, active: true, waiting: board.scanning)
         }
-        if !board.connected || (board.signalStrength ?? 0) < -80 {
+        if board.pairingLost {
+            // Short: a long warning pushed the button off small screens.
+            Text("Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+                .font(.footnote).foregroundStyle(Palette.warning).lineLimit(2).minimumScaleFactor(0.85)
+                .padding(.top, Space.s)
+        } else if !board.connected || (board.signalStrength ?? 0) < -80 {
             Text((board.signalStrength ?? 0) < -80
                  ? "Weak signal? Try placing the board right against the side of your phone, or attach its antenna."
                  : "No antenna? Try placing the board right against the side of your phone.")
                 .font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
         }
-        if !board.connected {
+        if !board.connected && !board.pairingLost {
             if !board.lastError.isEmpty {
-                Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning)
+                Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning).lineLimit(2)
             }
         }
     }
