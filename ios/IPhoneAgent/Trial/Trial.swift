@@ -27,6 +27,7 @@ import UIKit
     enum Status { case unknown, free, waiting, busy, usedUp, unavailable }
     @Published private(set) var status = Status.unknown
     private var lease: (id: String, token: String, run: String)?
+    private var keepAlive: Task<Void, Never>?
     private weak var app: AppModel?
     private let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -91,7 +92,7 @@ import UIKit
     func begin() async throws {
         end()
         let token = try await enrolledToken()
-        struct Lease: Decodable { let lease_id: String; let lease_token: String }
+        struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
         // often as the server says. Cancel ends the wait (the place lapses on the server by itself).
@@ -110,10 +111,33 @@ import UIKit
         app?.homeHint = String(localized: "Preparing the run…")
         lease = (taken.lease_id, taken.lease_token, run)
         status = .busy
+        startKeepAlive(generation: taken.generation, token: token)
+    }
+
+    /// The server ends a lease after 30 s without model work or actions. A run can pause longer between model
+    /// calls (2026-10-20: 38 s getting back out of this app after a stray tap, then every call got 503 busy), so
+    /// report the run's activity every 10 s while it holds the line.
+    private func startKeepAlive(generation: Int?, token: String) {
+        keepAlive?.cancel()
+        guard let generation, let lease else { return }
+        keepAlive = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                guard let self, !Task.isCancelled, self.lease?.id == lease.id else { return }
+                do {
+                    let _: Empty = try await self.call("POST", "/trial/leases/\(lease.id)/action", token: token,
+                                                       leaseToken: lease.token, body: ["generation": generation])
+                } catch {
+                    DebugLog.write("trial: keep-alive failed: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 
     /// After a run (or a failed start): give the line back; the server also ends it on its own when idle.
     func end() {
+        keepAlive?.cancel()
+        keepAlive = nil
         guard let lease, let token else { return }
         self.lease = nil
         Task { let _: Empty? = try? await call("DELETE", "/trial/leases/\(lease.id)", token: token, leaseToken: lease.token) }

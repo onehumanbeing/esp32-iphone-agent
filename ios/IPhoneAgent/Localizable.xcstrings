@@ -2126,7 +2126,16 @@
         }
       }
     },
-    "Found %@" : {},
+    "Found %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找到 %@"
+          }
+        }
+      }
+    },
     "GOP buffered" : {
       "localizations" : {
         "zh-Hans" : {
@@ -8260,6 +8269,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免费线路正忙。请稍后再试，或切换到你自己的模型。"
+          }
+        }
+      }
+    },
+    "The free line is busy or ended this run. Tap Retry in a moment." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙，或已结束本次运行。请稍后点「重试」。"
           }
         }
       }
