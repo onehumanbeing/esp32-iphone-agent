@@ -183,13 +183,23 @@ import Foundation
     /// radio, e.g. right as Screen Mirroring starts: 2026-10-19), backing off to 30 s; firmware problems are not.
     private var encryptFailures = 0
 
+    static var forgetBoard: String {
+        String(localized: "The board lost its pairing with this iPhone. In Settings › Bluetooth, tap ⓘ next to ESP32 Agent, choose Forget This Device, then come back.")
+    }
+
+    /// iOS says "Peer removed pairing information" when the board was reflashed: same fix as the encrypt failures.
+    private func describe(_ error: Error?) -> String {
+        if (error as? CBError)?.code == .peerRemovedPairingInformation { return Self.forgetBoard }
+        return error?.localizedDescription ?? "connect failed"
+    }
+
     private func failConnection(_ message: String, retry: Bool = true) {
         retryTask?.cancel()
         // The board no longer knows this phone's pairing keys (e.g. it was reflashed or paired with other
         // devices): iOS keeps failing to encrypt until the phone forgets the board, so say how.
         encryptFailures = message.localizedCaseInsensitiveContains("encrypt") ? encryptFailures + 1 : 0
         lastError = encryptFailures >= 2
-            ? String(localized: "The board lost its pairing with this iPhone. In Settings › Bluetooth, tap ⓘ next to ESP32 Agent, choose Forget This Device, then come back.")
+            ? Self.forgetBoard
             : message
         log("BLE setup failed: \(message)")
         let previous = peripheral
@@ -407,7 +417,7 @@ extension BoardLink: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
         MainActor.assumeIsolated {
             guard p === peripheral else { return }
-            lastError = error?.localizedDescription ?? "connect failed"
+            lastError = describe(error)
             let e = error as NSError?
             DebugLog.write("BLE connect failed: \(e?.domain ?? "-") \(e?.code ?? 0): \(lastError)")
             failConnection(lastError)
@@ -423,7 +433,7 @@ extension BoardLink: CBCentralManagerDelegate {
                                   e?.domain ?? "no error", e?.code ?? 0, e?.localizedDescription ?? "-",
                                   lastNotify > 0 ? now() - lastNotify : -1, readySince > 0 ? now() - readySince : -1))
             setDisconnected()
-            if let error { lastError = error.localizedDescription }
+            if let error { lastError = describe(error) }
             retryTask?.cancel()
             retryTask = Task { [weak self] in
                 guard (try? await Task.sleep(nanoseconds: 2_000_000_000)) != nil else { return }
