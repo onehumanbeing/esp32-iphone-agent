@@ -113,14 +113,14 @@ import XCTest
         XCTAssertEqual(device.sent[2], "move 200 400")
     }
 
-    func testNonASCIITextIsPastedPlainASCIIIsTyped() async throws {
+    func testChineseIsTypedAsPinyinNeverPasted() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         let pointer = Pointer(device: device, calibrationFile: file)
         try await pointer.type("hello world")
-        try await pointer.type("你好 👋")
-        XCTAssertEqual(device.sent, ["type hello world", "key cmd+v"])
-        XCTAssertEqual(UIPasteboard.general.string, "你好 👋")
+        try await pointer.type("卫生纸 3卷")
+        try await pointer.type("café 👋")
+        XCTAssertEqual(device.sent, ["type hello world", "type weishengzhi 3juan", "type cafe"])
     }
 
     func testShortStatusNotifyIsMergedWithTheFullRead() throws {

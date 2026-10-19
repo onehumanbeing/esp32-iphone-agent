@@ -1,5 +1,4 @@
 import UIKit
-import UniformTypeIdentifiers
 
 /// Touch-like gestures on the phone, built from relative mouse moves. Port of phone.py.
 ///
@@ -291,16 +290,30 @@ import UniformTypeIdentifiers
         try await device.send("scroll \(lines) 0")
     }
 
-    /// The board types printable ASCII only (one key per character); other text (Chinese, emoji, line breaks)
-    /// goes through this iPhone's clipboard and Cmd+V. Kept off Universal Clipboard and cleared after a minute.
+    /// The board types printable ASCII only (one key per character). Chinese goes in as toneless pinyin, which
+    /// most Chinese apps' search boxes accept; other non-ASCII (emoji, accents) is folded or dropped. The clipboard
+    /// is no route: iOS refuses a background app's write (a Mac's Universal Clipboard text got pasted instead,
+    /// 2026-10-20) and other apps ask "Allow Paste" every time.
     func type(_ text: String) async throws {
-        if text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) {
-            _ = try await device.send("type \(text)")
-            return
+        let ascii = Self.typeable(text)
+        if ascii != text { DebugLog.write("type: \(text.count) chars as ASCII \"\(ascii)\"") }
+        guard !ascii.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII only)") }
+        _ = try await device.send("type \(ascii)")
+    }
+
+    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
+    static func typeable(_ text: String) -> String {
+        guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
+        var out = ""
+        for ch in text {
+            let s = String(ch)
+            let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
+            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
+                .applyingTransform(.stripDiacritics, reverse: false) ?? s
+            let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
+            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
         }
-        UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]],
-                                      options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(60)])
-        try await key("cmd+v")
+        return out.trimmingCharacters(in: .whitespaces)
     }
     func key(_ combo: String) async throws { try await device.send("key \(combo)") }
     /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
