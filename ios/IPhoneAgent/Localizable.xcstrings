@@ -1,12 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "New board? Install the firmware first, from a computer's browser." : {
+    "New board?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新板子？先在电脑浏览器里给它装上固件。"
+            "value" : "新板子？"
           }
         }
       }

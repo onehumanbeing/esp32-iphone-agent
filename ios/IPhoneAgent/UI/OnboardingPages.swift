@@ -112,21 +112,28 @@ struct ConnectPage: View {
 struct FirmwareLinks: View {
     static let install = URL(string: "https://handsy.tech/install")!
 
+    /// One line, so both links stay above the bottom button on every iPhone.
     var body: some View {
-        VStack(spacing: Space.s) {
-            Text("New board? Install the firmware first, from a computer's browser.")
-                .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            HStack(spacing: Space.l) {
-                Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
-                Link(destination: AboutView.repo) {
-                    Label { Text(verbatim: "GitHub") } icon: {
-                        Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
-                    }
+        HStack(spacing: Space.m) {
+            Text("New board?").foregroundStyle(.secondary)
+            Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
+            Link(destination: AboutView.repo) {
+                Label { Text(verbatim: "GitHub") } icon: {
+                    Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
                 }
             }
-            .font(.footnote.weight(.semibold))
-            .tint(.primary)
         }
+        .font(.footnote.weight(.semibold))
+        .labelStyle(TightLabel())
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .tint(.primary)
+    }
+}
+
+private struct TightLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Space.xs) { configuration.icon; configuration.title }
     }
 }
 
