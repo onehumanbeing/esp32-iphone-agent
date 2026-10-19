@@ -12,7 +12,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB"
-port() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && { echo "$p"; return; }; done; }
+ports() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && echo "$p"; done; return 0; }
 PORT="" DEFS="" BUILD_ONLY=0
 for a in "$@"; do
   case $a in
@@ -30,10 +30,19 @@ FLAGS=(--build-property "compiler.cpp.extra_flags=$DEFS" --build-property "compi
 
 arduino-cli compile -b "$FQBN" "${FLAGS[@]}" --output-dir build hid_bridge
 (( BUILD_ONLY )) && exit 0
-PORT=${PORT:-$(port)}
-OLD=$PORT
+BEFORE=$(ports)
+PORT=${PORT:-$(head -n 1 <<<"$BEFORE")}
+[[ -n $PORT ]] || { echo "no board found (looked for /dev/cu.usbmodem* and /dev/ttyACM*)"; exit 1; }
 stty -f "$PORT" 1200 2>/dev/null || stty -F "$PORT" 1200 2>/dev/null || true
-for _ in $(seq 20); do sleep 0.5; PORT=$(port); [[ -n "$PORT" && "$PORT" != "$OLD" ]] && break; done
+# The ROM bootloader may come back under a new name. Follow the port that appeared after the
+# reset rather than the first one listed, so other connected boards are never picked up.
+new_ports() { comm -13 <(sort <<<"$BEFORE") <(ports | sort); }
+for _ in $(seq 20); do sleep 0.5; [[ -n $(new_ports) ]] && break; done
 sleep 1  # let the ROM bootloader's serial come up
-PORT=$(port)
+NEW=$(new_ports)
+case $(grep -c . <<<"$NEW" || true) in
+  0) [[ -e $PORT ]] || { echo "$PORT is gone after the reset and no new port appeared"; exit 1; } ;;
+  1) PORT=$NEW ;;
+  *) echo "several ports appeared after the reset, not guessing:" $NEW; exit 1 ;;
+esac
 arduino-cli upload -b "$FQBN" -p "$PORT" --input-dir build hid_bridge
