@@ -56,6 +56,7 @@ struct ConnectPage: View {
                     boards
                 }
             }
+            if !board.connected { FirmwareLinks() }
         }
         .onAppear { board.scan(); autoPair() }
         .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
@@ -103,6 +104,28 @@ struct ConnectPage: View {
             if !board.lastError.isEmpty {
                 Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning)
             }
+        }
+    }
+}
+
+/// A board fresh from the shop has no firmware and never shows up: point to the browser installer and the source.
+struct FirmwareLinks: View {
+    static let install = URL(string: "https://handsy.tech/install")!
+
+    var body: some View {
+        VStack(spacing: Space.s) {
+            Text("New board? Install the firmware first, from a computer's browser.")
+                .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            HStack(spacing: Space.l) {
+                Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
+                Link(destination: AboutView.repo) {
+                    Label { Text(verbatim: "GitHub") } icon: {
+                        Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
+                    }
+                }
+            }
+            .font(.footnote.weight(.semibold))
+            .tint(.primary)
         }
     }
 }

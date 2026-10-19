@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "New board? Install the firmware first, from a computer's browser." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新板子？先在电脑浏览器里给它装上固件。"
+          }
+        }
+      }
+    },
     "Demo data is on: no board, no model, nothing is tapped or sent. Turn it off in Settings." : {
       "localizations" : {
         "zh-Hans" : {
