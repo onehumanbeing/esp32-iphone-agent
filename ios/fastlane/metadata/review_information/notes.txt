@@ -1,9 +1,0 @@
-ESP32 Agent needs a small ESP32-S3 USB board running our open-source firmware, plugged into the iPhone. The board receives Screen Mirroring (that is how the model sees the screen) and acts as a standard USB HID mouse and keyboard; the app talks to it over Bluetooth LE. The app uses no private APIs and never reads other apps' content itself: it only sees what the user mirrors to the board.
-
-The attached video shows the full flow on a real device: 1) connect the board and mirror the screen, 2) calibrate the pointer, 3) run a task (set a daily 7 AM alarm; parts sped up), 4) review and replay the recorded run. It was recorded on a pre-release build that still showed the old working name "iPhone Agent".
-
-Without a board: turn on Settings › Demo data, then quit and reopen the app. It fakes a board, a finished run and the whole setup, so every screen can be reviewed.
-
-The AI model is chosen by the user (OpenAI, Gemini, Qwen, DeepSeek, OpenRouter or any OpenAI-compatible vision endpoint, with the user's own key). Nothing is sent to the developer.
-
-Source code: https://github.com/onehumanbeing/esp32-iphone-agent
