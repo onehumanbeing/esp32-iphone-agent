@@ -145,7 +145,7 @@ extension AppModel {
             }
             lines.append(PyJSON.dumps(line, ascii: false))
         }
-        add("task", ["task": .str(IntentStore.examples[0].prompt)])
+        add("task", ["task": .str(String(localized: "Example: ") + IntentStore.alarm.prompt)])  // labeled sample run
         for step in Self.mockSteps + [["thought": .str("Every day is checked and the alarm is saved."),
                                        "action": .str("done"), "answer": .str("The 7:00 AM alarm repeats every day.")]] {
             add("llm", ["role": .str("actor"), "seconds": .num(1.4)], shot: true)

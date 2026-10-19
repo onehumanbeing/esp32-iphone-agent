@@ -7,6 +7,7 @@ struct AccessUnit: Equatable {
     var config: Bool
     var snap: Bool
     var boardMs: UInt32  // board timestamp from the START chunk
+    var generation = 0  // local receive generation; not part of the wire protocol
 }
 
 /// Rebuilds access units from `video` notifies: `[seq u16 LE][flags u8][payload]` (docs/ble-protocol.md).

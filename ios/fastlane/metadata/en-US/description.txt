@@ -1,19 +1,19 @@
-ESP32 Agent lets an AI model use your iPhone the way you do: it looks at the screen, taps, swipes and types until the task is done.
+ESP32 Agent is an AI assistant for your iPhone. It looks at your mirrored screen and carries out the steps of a task you give it, one at a time, while you watch.
 
-It works through a small ESP32 USB board. Plug the board into your iPhone and the app connects to it over Bluetooth. Mirror the screen to the board once, and the model can see. The board then moves the pointer and types like a mouse and keyboard. No jailbreak, no Mac, no laptop.
+It works through a small ESP32 USB board. Plug the board into your iPhone and the app connects to it over Bluetooth. Mirror the screen to the board once, and the assistant can see. The board then moves the pointer and types like a standard USB mouse and keyboard. Nothing else to install.
 
 HOW IT WORKS
 • Plug it in. The board connects to the app over Bluetooth.
-• Mirror once. Screen Mirroring to the board gives the model its eyes.
-• Just tell it what to do. Type a task, and the agent works it out step by step.
+• Mirror once. Screen Mirroring to the board lets the assistant see the screen.
+• Say what you need. Type a task; the assistant works through it step by step.
+• Stay in charge. Stop any run at any time. By default it asks you before paying, sending a message or deleting something; you can turn this off in Settings.
 • Every step is recorded. Replay a run, fix a step, and save it as your own intent.
 
-YOUR MODEL, YOUR DATA
-Use any OpenAI-compatible vision model: a cloud API or your own server at home. Screenshots go only to the endpoint you set up. Runs, logs and crash reports stay on your iPhone until you share them.
+CHOOSE YOUR MODEL
+Use the free Handsy line (limited capacity, not available in every region) or connect a vision model you choose: a cloud API or your own server. Before anything is sent, the app tells you where screenshots and task text go and asks for your consent. Runs and logs stay on your iPhone until you share them.
 
 OPEN SOURCE
 The app and the board firmware are open source: github.com/onehumanbeing/esp32-iphone-agent
 
 REQUIREMENTS
 • An ESP32-S3 board running the ESP32 Agent firmware (see the GitHub page)
-• An endpoint for an OpenAI-compatible vision model

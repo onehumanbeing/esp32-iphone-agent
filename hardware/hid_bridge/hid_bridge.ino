@@ -9,6 +9,7 @@
 
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
+#include <esp_wifi.h>
 #include "USB.h"
 #include "USBHIDMouse.h"
 #include "USBHIDKeyboard.h"
@@ -17,6 +18,9 @@
 #include "ble_link.h"
 #include "netcfg.h"
 #include "video_link.h"
+#include "wifi_video.h"
+#include "ota.h"
+#include "version.h"
 #include "src/airplay/airplay.h"
 
 const int STEP = 10;      // max pointer delta per report while moving
@@ -138,6 +142,7 @@ String board(const String &line, const String &id) {
   }
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
+    if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
   if (cmd == "snap") { video_snap(id); return ""; }  // replies when the GOP is sent
@@ -158,6 +163,10 @@ String board(const String &line, const String &id) {
     airplay_set_display(cfg_width(), cfg_height(), a);
     return "ok";
   }
+  if (cmd == "txpower") {  // A/B knob in 0.25 dBm (8-84), not stored: every boot starts at 5 dBm
+    if (n < 1 || a < 8 || a > 84 || esp_wifi_set_max_tx_power(a) != ESP_OK) return "err usage: txpower 8-84";
+    return "ok";
+  }
   if (cmd == "coex") {  // A/B knob, not stored: every boot starts at balance
     if (arg.length() && !net_coex(arg)) return "err usage: coex bt|balance|wifi";
     return String("ok ") + net_coex_mode();
@@ -173,20 +182,22 @@ String board(const String &line, const String &id) {
 String statusJson(bool full) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats();
-  char s[384];
+  char s[480];
   snprintf(s, sizeof s,
-           "{\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
-           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,"
-           "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d}}",
-           millis(), resetReason(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
+           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,"
+           "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d},"
+           "\"udp\":{\"n\":%d,\"kbps\":%lu,\"nack\":%lu,\"drop\":%lu}}",
+           FW_VERSION, millis(), resetReason(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), usbState(), net_mode(), net_ip().c_str(), net_peers(),
            apStates[airplay_state()], cfg_width(), cfg_height(), (unsigned long)v.kbps, v.fps, (unsigned long)v.idr_ms,
-           (unsigned long)v.gop_bytes, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
-           (unsigned long)ble_reply_drops(), ble_peers());
+           (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
+           (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
+           (unsigned long)wv_nacks(), (unsigned long)wv_drops());
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"ble\":{\"mtu\":%u}}",
-           millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], ble_mtu());
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"ble\":{\"mtu\":%u}}",
+           FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], ble_mtu());
   return s;
 }
 
@@ -200,10 +211,25 @@ void statusTask(void *) {
   }
 }
 
+// AirPlay log lines: to USB serial, and to the app ("blog ...", into its debug.log) so a stall on a board
+// plugged into the phone leaves evidence. At most 4 a second; the rest are counted and reported later.
 void logLine(const char *msg) {
 #if DEBUG_SERIAL
   Serial.printf("[%lu] %s\n", millis(), msg);
 #endif
+  static uint32_t windowStart, sent, skipped;
+  static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+  uint32_t now = millis();
+  bool send = false;
+  uint32_t dropped = 0;
+  portENTER_CRITICAL(&mux);
+  if (now - windowStart >= 1000) { windowStart = now; sent = 0; }
+  if (sent < 16) { sent++; send = true; dropped = skipped; skipped = 0; } else skipped++;
+  portEXIT_CRITICAL(&mux);
+  if (!send || !ble_connected()) return;
+  String line = String("blog ") + now + " " + msg;
+  if (dropped) line += String(" (+") + dropped + " skipped)";
+  ble_reply(line);
 }
 
 void startAirplay() {
@@ -222,6 +248,10 @@ void startAirplay() {
 
 void setup() {
   Serial.begin(115200);
+#if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, to check the rollback after an update
+  delay(3000);
+  abort();
+#endif
 #if DEBUG_SERIAL
   for (int i = 0; i < 30 && !Serial; i++) delay(100);  // give a serial monitor 3 s to catch the boot lines
 #endif
@@ -236,10 +266,12 @@ void setup() {
 
   net_begin();
   if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
+  if (!wv_begin()) Serial.println("video: Wi-Fi video channel failed to start");
+  if (!ota_begin()) Serial.println("ota: failed to start");
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
-  Serial.printf("boot %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(),
+  Serial.printf("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), resetReason());
@@ -255,12 +287,18 @@ void loop() {
     video_stream(false);
   }
   linked = ble_connected();
+  // A freshly updated image is kept once it has run a while or the app got through; a crash or watchdog
+  // reset before that makes the bootloader go back to the previous one.
+  static bool confirmed = false;
+  if (!confirmed && (linked || millis() > 30000)) { ota_confirm(); confirmed = true; }
 
   String line;
   if (Serial.available()) {  // USB serial takes the same `<id> <command>` lines, for debugging from a Mac
     line = Serial.readStringUntil('\n');
     line.trim();
     if (line.startsWith("0 net ")) { net_request(line.substring(6)); Serial.println("0 ok"); return; }
+    if (line == "0 netinfo") { Serial.println("0 " + net_json()); return; }  // what the app reads over BLE (incl. vtok)
+    if (line == "0 status") { Serial.println("0 " + statusJson(true)); return; }
     int sp = line.indexOf(' ');
     String id = sp < 0 ? line : line.substring(0, sp);
     Serial.println(id + " " + board(sp < 0 ? "" : line.substring(sp + 1), id));

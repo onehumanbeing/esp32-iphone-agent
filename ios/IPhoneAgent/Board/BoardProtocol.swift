@@ -18,6 +18,11 @@ struct BoardStatus: Codable, Equatable {
     struct BLE: Codable, Equatable {
         var mtu: Int?, phy: Int?, kbps: Double?, drop: Int?
     }
+    /// The Wi-Fi video session (VideoSocket): n = 1 while the board sends video over UDP.
+    struct UDP: Codable, Equatable {
+        var n: Int?, kbps: Double?, nack: Int?, drop: Int?
+    }
+    var fw: FirmwareVersion?  // firmware version (hardware/hid_bridge/version.h); boards before OTA don't send it
     var up: Int?
     var rst: String?
     var heap: Int?
@@ -29,7 +34,9 @@ struct BoardStatus: Codable, Equatable {
     var ap: String?    // idle | connected | streaming
     var w: Int?, h: Int?
     var kbps: Double?, fps: Double?, idr: Int?, gop: Int?
+    var vage: Int?     // ms since the board's last frame from AirPlay (firmware 0.2.1+)
     var ble: BLE?
+    var udp: UDP?
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
@@ -37,12 +44,14 @@ struct BoardStatus: Codable, Equatable {
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
+        m.fw = n.fw ?? fw
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
-        m.gop = n.gop ?? gop
+        m.gop = n.gop ?? gop; m.vage = n.vage ?? vage
         let a = ble ?? BLE(), b = n.ble ?? BLE()
         m.ble = BLE(mtu: b.mtu ?? a.mtu, phy: b.phy ?? a.phy, kbps: b.kbps ?? a.kbps, drop: b.drop ?? a.drop)
+        m.udp = n.udp ?? udp
         return m
     }
 }
@@ -53,6 +62,7 @@ struct NetConfig: Codable, Equatable {
     var ssid: String?
     var pass: String?
     var ip: String?
+    var vtok: String?  // per-boot token for the Wi-Fi video channel (VideoSocket)
 }
 
 /// A `reply` notify: `<id> ok [extra]` or `<id> err <reason>`.

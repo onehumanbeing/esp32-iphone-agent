@@ -10,8 +10,39 @@ extension AppModel {
             Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                           frameAt: FrameMode.current == .snap ? now() : feed.updated)  // snap mode: restore snaps a fresh one
         }
-        agent.onRecover = { [weak self] stage in self?.recover(stage) }
+        agent.onRecover = { [weak self] stage in
+            guard let self, self.linkRecoveryDisplay == nil else { return }
+            self.recover(stage)
+        }
         agent.restore = { [weak self] in try await self?.restoreRun() }
+    }
+
+    /// Surface a disconnect even while a model HTTP request is still in flight.
+    func beginLinkRecoveryDisplay() {
+        guard agent.running else { return }
+        if linkRecoveryDisplay == nil { linkRecoveryDisplay = Recovery(at: now()) }
+        refreshLinkRecoveryDisplay()
+    }
+
+    /// UI only: the existing tick and BLE status callback drive this; AgentLoop owns hardware recovery.
+    func refreshLinkRecoveryDisplay() {
+        guard agent.running, var display = linkRecoveryDisplay else {
+            linkRecoveryDisplay = nil
+            return
+        }
+        let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+                                 frameAt: FrameMode.current == .snap ? now() : feed.updated)
+        switch display.next(link, at: now()) {
+        case .wait(let stage):
+            linkRecoveryDisplay = display
+            if stage != recovering { recover(stage) }
+        case .live:
+            linkRecoveryDisplay = nil
+            recover(nil)
+            if let lastRunDoing { doing(lastRunDoing) }
+        case .giveUp:
+            linkRecoveryDisplay = display  // the agent's bounded recovery decides the outcome
+        }
     }
 
     func recover(_ stage: Recovery.Stage?) {
@@ -47,7 +78,7 @@ extension AppModel {
         switch part {
         case .board: return .board
         case .hotspot: return .wifi
-        case .mirroring: return .mirroring
+        case .mirroring, .frames: return .mirroring
         }
     }
 
@@ -56,6 +87,7 @@ extension AppModel {
         case .board: return String(localized: "Board disconnected")
         case .hotspot: return String(localized: "iPhone left the board's Wi-Fi")
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")
+        case .frames: return String(localized: "Waiting for a screen image")
         }
     }
 }

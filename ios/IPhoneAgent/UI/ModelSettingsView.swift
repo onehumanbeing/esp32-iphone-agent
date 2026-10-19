@@ -6,6 +6,8 @@ struct ModelSettingsView: View {
     @ObservedObject var settings: Settings
     @State private var testing = false
     @State private var advanced = false
+    @AppStorage(ModelImage.key) private var shrinkImage = true
+    @AppStorage(AppModel.prewarmKey) private var prewarm = true
 
     var body: some View {
         Form {
@@ -46,6 +48,12 @@ struct ModelSettingsView: View {
                     }
                     TextField("Extra body JSON", text: $settings.extraBody, prompt: Text(verbatim: "{}"))
                         .font(.body.monospaced())
+                    Toggle("Smaller screenshots", isOn: $shrinkImage)
+                    Toggle("Pre-warm screen stream", isOn: $prewarm)
+                }
+            } footer: {
+                if advanced {
+                    Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
                 }
             }
         }

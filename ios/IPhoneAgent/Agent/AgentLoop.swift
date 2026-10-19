@@ -58,13 +58,25 @@ extension Pointer: Gestures {}
     var onStep: (() -> Void)?
     /// What the agent is busy with between steps, for the Dynamic Island (looking, thinking, about to act).
     var onDoing: ((Doing) -> Void)?
+    /// Every model request, answered or failed (timing and token counts, for usage stats).
+    var onModelCall: ((ModelCall) -> Void)?
     enum Doing { case looking, waiting, planning, thinking, retrying, acting(JObject) }
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
+    /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
+    var replay = Replay()
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
     private var helpAsked = 0
+    /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
+    private var acceptedLookLinks: Int?
+    private enum InvalidatedLook: Error { case connectionChanged }
     enum HelpChoice { case resume, skip, stop }
+    /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
+    /// off = it goes on by itself. Continue = do it, Skip = don't, Stop = end the run.
+    var onConfirm: ((String) async -> HelpChoice)?
+    static let askBeforeRiskyKey = "askBeforeRisky"
+    static var askBeforeRisky: Bool { UserDefaults.standard.object(forKey: askBeforeRiskyKey) as? Bool ?? true }
 
     init(phone: Gestures?, screen: ScreenSource?, actor: ChatModel?, planner: ChatModel?, trace: TraceStore?,
          maxSteps: Int = 40, maxFailures: Int = 3) {
@@ -80,6 +92,8 @@ extension Pointer: Gestures {}
         pointerAt = .zero
         lastActed = 0
         helpAsked = 0
+        acceptedLookLinks = nil
+        replay.restart()
         if !traceStarted { trace?.start(task: task) }
         running = true
         job = Task { [weak self] in
@@ -96,6 +110,7 @@ extension Pointer: Gestures {}
     func clear() throws {
         if running { throw DeviceError(message: "stop the agent first") }
         task = ""; plan = ""; steps = []; shots = [:]
+        acceptedLookLinks = nil
     }
 
     private func record(_ shot: Data? = nil, _ step: JObject) {
@@ -110,19 +125,38 @@ extension Pointer: Gestures {}
     /// The screen is gone (board, hotspot or mirroring lost): pause the run until it is back, in stages.
     /// Returns how many seconds it took, or nil if the screen was there all along. Never ends the run for a
     /// lost link before Recovery.limit.
-    func waitForScreen(poll: Double = 0.5) async throws -> Double? {
-        guard let screen, !screen.live else { return nil }
-        var recovery = Recovery(at: now(), limit: recoveryLimit)
+    func waitForScreen(poll: Double = 0.5, forceRestore: Bool = false,
+                       deadline: Double? = nil) async throws -> Double? {
+        guard let screen, forceRestore || !screen.live else { return nil }
+        let deadline = deadline ?? now() + recoveryLimit
+        var recovery = Recovery(at: now(), limit: max(0, deadline - now()))
         var shown: Recovery.Stage?
         defer { if shown != nil { onRecover?(nil) } }
         while true {
             try Task.checkCancellation()
-            let state = link?() ?? Recovery.Link(connected: phone?.device.connected ?? true, sta: nil,
+            guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board)) }
+            var state = link?() ?? Recovery.Link(connected: phone?.device.connected ?? true, sta: nil,
                                         ap: screen.live ? "streaming" : nil, frameAt: screen.live ? now() : 0)
+            if forceRestore, state.connected, state.sta != 0, state.ap == "streaming" {
+                // In snap mode no new frame arrives until restore requests it. The restore handler,
+                // not this synthetic timestamp, must validate the newly decoded image.
+                guard restore != nil else { throw BlindError() }
+                state.frameAt = now()
+            }
             switch recovery.next(state, at: now()) {
-            case .live where screen.live:
-                try await restore?()
+            case .live where screen.live || forceRestore:
+                let restoringLinks = phone?.device.links
+                do { try await restore?() }
+                catch {
+                    try Task.checkCancellation()
+                    if connectionChanged(since: restoringLinks) { break }
+                    throw error
+                }
+                guard !connectionChanged(since: restoringLinks), screen.live else { break }
                 await screen.settled()
+                try Task.checkCancellation()
+                guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board)) }
+                guard !connectionChanged(since: restoringLinks) else { break }
                 return now() - recovery.started
             case .live: break
             case .wait(let stage):
@@ -134,61 +168,114 @@ extension Pointer: Gestures {}
         }
     }
 
+    private func connectionChanged(since revision: Int?) -> Bool {
+        guard let device = phone?.device else { return false }
+        return !device.connected || revision.map { device.links != $0 } == true
+    }
+
     private func ask(_ role: String, _ llm: ChatModel, _ system: String, _ prompt: String,
-                     temperature: Double = 0, retryTimeout: Bool = true) async throws -> (String, Double, Data?) {
-        try await gate?()
+                     temperature: Double = 0, retryTimeout: Bool = true,
+                     reconnectUntil: Double? = nil) async throws -> (String, Double, Data?) {
         var prompt = prompt
-        if let lost = try await waitForScreen() {
-            record(nil, ["action": .str("reconnected"), "reason": .str(String(format: "connection lost for %.0f s and restored", lost))])
-            prompt += "\n\nNote: the connection was lost and restored; re-check the screen before acting."
-            try await gate?()  // the user may have opened this app while it was paused
-        }
-        guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
-        let frame = screen.frame, started = now()
-        onDoing?(retryTimeout ? .waiting : .retrying)
-        let reporting = llm as? ModelProgressReporting
-        reporting?.onProgress = { [weak self] progress in
-            switch progress {
-            case .waiting: self?.onDoing?(retryTimeout ? .waiting : .retrying)
-            case .receiving: self?.onDoing?(role == "planner" ? .planning : .thinking)
+        var reconnectDeadline = reconnectUntil
+        while true {
+            try await gate?()
+            let forceRestore = connectionChanged(since: acceptedLookLinks)
+            if (forceRestore || screen?.live == false) && reconnectDeadline == nil {
+                reconnectDeadline = now() + recoveryLimit
             }
+            if let lost = try await waitForScreen(forceRestore: forceRestore, deadline: reconnectDeadline) {
+                let restoredLinks = phone?.device.links
+                record(nil, ["action": .str("reconnected"), "reason": .str(String(format: "connection lost for %.0f s and restored", lost))])
+                let note = "\n\nNote: the connection was lost and restored; re-check the screen before acting."
+                if !prompt.hasSuffix(note) { prompt += note }
+                try await gate?()  // the user may have opened this app while it was paused
+                if connectionChanged(since: restoredLinks) {
+                    acceptedLookLinks = restoredLinks
+                    continue
+                }
+                acceptedLookLinks = restoredLinks
+            }
+            guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
+            let frame = screen.frame, started = now(), requestLinks = phone?.device.links
+            let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
+            onDoing?(retryTimeout ? .waiting : .retrying)
+            let reporting = llm as? ModelProgressReporting
+            reporting?.onProgress = { [weak self] progress in
+                switch progress {
+                case .waiting: self?.onDoing?(retryTimeout ? .waiting : .retrying)
+                case .receiving: self?.onDoing?(role == "planner" ? .planning : .thinking)
+                }
+            }
+            defer { reporting?.onProgress = nil }
+            let reply: ChatResult
+            let maxTokens = Self.maxTokens[role] ?? 1000
+            do {
+                DebugLog.write("model request starting (\(role)): \(llm.model), maxTokens \(maxTokens), image \((sent?.count ?? 0) / 1024) KB")
+                reply = try await llm.chat(system: system, text: prompt, image: sent,
+                                           maxTokens: maxTokens, temperature: temperature)
+            } catch {
+                if !Task.isCancelled {
+                    onModelCall?(ModelCall(role: role, model: llm.model, reply: nil, error: error, imageKB: (sent?.count ?? 0) / 1024))
+                }
+                try Task.checkCancellation()
+                if connectionChanged(since: requestLinks) {
+                    DebugLog.write("model request interrupted by a changed board connection; restoring before retry")
+                    acceptedLookLinks = requestLinks
+                    if reconnectDeadline == nil { reconnectDeadline = now() + recoveryLimit }
+                    continue
+                }
+                guard retryTimeout, ModelRequestFailure.isTimeout(error), !Task.isCancelled else { throw error }
+                DebugLog.write("model request timed out (\(role)); retrying once with a fresh screen")
+                onDoing?(.retrying)
+                try await Task.sleep(for: .seconds(2))
+                // Re-enter the gate and screen checks before retrying; no gesture is repeated.
+                return try await ask(role, llm, system, prompt, temperature: temperature, retryTimeout: false,
+                                     reconnectUntil: reconnectDeadline)
+            }
+            let seconds = ((now() - started) * 100).rounded() / 100
+            metrics?.llm(first: reply.firstToken, total: reply.total)
+            onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
+            var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(prompt),
+                                "reply": .str(reply.text), "seconds": .num(seconds)]
+            if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
+            if lastActed > 0 { rec["frame_after_action_s"] = .num(((screen.capturedAt - lastActed) * 100).rounded() / 100) }
+            trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
+            try Task.checkCancellation()
+            if connectionChanged(since: requestLinks) {
+                DebugLog.write("model reply discarded: board connection changed; restoring the screen before another look")
+                acceptedLookLinks = requestLinks
+                if reconnectDeadline == nil { reconnectDeadline = now() + recoveryLimit }
+                continue
+            }
+            acceptedLookLinks = requestLinks
+            return (reply.text, seconds, frame)
         }
-        defer { reporting?.onProgress = nil }
-        let reply: ChatResult
-        do {
-            reply = try await llm.chat(system: system, text: prompt, image: frame,
-                                       maxTokens: Self.maxTokens[role] ?? 1000, temperature: temperature)
-        } catch {
-            guard retryTimeout, ModelRequestFailure.isTimeout(error), !Task.isCancelled else { throw error }
-            DebugLog.write("model request timed out (\(role)); retrying once with a fresh screen")
-            onDoing?(.retrying)
-            try await Task.sleep(for: .seconds(2))
-            // Re-enter the gate and screen checks before retrying; no gesture is repeated.
-            return try await ask(role, llm, system, prompt, temperature: temperature, retryTimeout: false)
-        }
-        let seconds = ((now() - started) * 100).rounded() / 100
-        metrics?.llm(first: reply.firstToken, total: reply.total)
-        var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(prompt),
-                            "reply": .str(reply.text), "seconds": .num(seconds)]
-        if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
-        if lastActed > 0 { rec["frame_after_action_s"] = .num(((screen.capturedAt - lastActed) * 100).rounded() / 100) }
-        trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
-        return (reply.text, seconds, frame)
     }
 
     func run() async {
         var failures = 0
         do {
-            try await replan()
+            if replay.current == nil { try await replan() }
             for _ in 0..<maxSteps {
                 do {
+                    if plan.isEmpty {  // replaying: the model plans once the recording no longer fits
+                        if try await replayStep() { continue }
+                        try await replan()
+                    }
                     if try await step() {
                         guard steps.last?["action"]?.str == "fail", try await askForHelp() else { return finish() }
                         continue
                     }
                     failures = 0
+                } catch is InvalidatedLook {
+                    // No gesture was sent. Replanning re-enters the forced restore before its look.
+                    try await replan(stuck: true)
+                    failures = 0
                 } catch let e where e is BlindError || e is CancellationError || Task.isCancelled {
                     throw e
+                } catch let e as LLMError where e.kind == "rate_limit_day" {
+                    throw e  // no point retrying today: ends the run with the message
                 } catch {  // a bad reply or a dropped link: recover, don't crash
                     record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)
@@ -236,10 +323,65 @@ extension Pointer: Gestures {}
         return true
     }
 
+    /// The actor asked before a risky step. True = the run is over (stopped).
+    private func confirm(_ reason: String) async throws -> Bool {
+        guard let onConfirm, Self.askBeforeRisky else {
+            record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (asking first is off): \(reason)")])
+            return false
+        }
+        let choice = await onConfirm(reason)
+        try Task.checkCancellation()
+        switch choice {
+        case .stop:
+            record(nil, ["action": .str("stopped")])
+            return true
+        case .resume:
+            record(nil, ["action": .str("confirmed"), "reason": .str("the user said yes, do it now: \(reason)")])
+        case .skip:
+            record(nil, ["action": .str("skipped"), "reason": .str("the user said no, do not do this: \(reason)")])
+            await screen?.settled()
+            try await replan(stuck: true)
+        }
+        return false
+    }
+
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
         let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule
-        return hints.isEmpty ? base : base + "\n\nHints for this task:\n" + hints.map { "- " + $0 }.joined(separator: "\n")
+        let all = hints + replay.hints
+        return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
+    }
+
+    /// Does the next recorded step if the screen matches its reference. False = the model takes over for good.
+    private func replayStep() async throws -> Bool {
+        guard let step = replay.current else { return false }
+        let n = replay.next + 1
+        let seen = screen?.frame
+        if case .handOver(let why) = Replay.decide(step, screen: seen) { return handOver(n, why) }
+        try await gate?()
+        var act = step.action
+        onDoing?(.acting(act))
+        let started = now()
+        try await perform(act)
+        lastActed = now()
+        act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
+        let spots = [pointerAt] + pointerPath(act)
+        pointerAt = spots.last!
+        _ = await settle()
+        let changed = act["action"]?.str == "wait" || Vision.changed(seen, screen?.frame, ignore: spots)
+        act["replay"] = .bool(true)
+        act["changed"] = .bool(changed)
+        record(seen, act)
+        guard changed else { return handOver(n, "no change") }
+        DebugLog.write("replay step \(n): hit")
+        replay.advance()
+        return true
+    }
+
+    private func handOver(_ n: Int, _ why: String) -> Bool {
+        DebugLog.write("replay step \(n): \(why) → AI")
+        replay.stop()
+        return false
     }
 
     private func finish() {
@@ -263,8 +405,15 @@ extension Pointer: Gestures {}
                 try await replan(stuck: stuck)
                 return false
             }
+            if name == "confirm" {
+                record(planned.shot, act)
+                return try await confirm(act["reason"]?.str ?? "")
+            }
             if name != "done" && name != "fail" {
                 try await gate?()
+                guard !connectionChanged(since: acceptedLookLinks) else {
+                    throw InvalidatedLook.connectionChanged
+                }
                 onDoing?(.acting(act))  // the thought (on the first act) names the target
                 let started = now()
                 try await perform(act)
@@ -328,7 +477,7 @@ extension Pointer: Gestures {}
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
-        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed"]
+        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed", "replay"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             let effect = s["changed"] == .bool(true) ? " -> screen changed"
                 : s["changed"] == .bool(false) ? " -> screen did NOT change" : ""

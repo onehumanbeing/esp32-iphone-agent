@@ -8,12 +8,12 @@ enum Actions {
     }
 
     /// Bookkeeping keys that are not part of the action itself.
-    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed"]
+    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
-        "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"],
+        "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
         "home": [], "back": [], "wait": [], "replan": [],
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason"]
@@ -51,8 +51,27 @@ enum Actions {
         let zh = firstGroup(#"^\s*ZH\s*[:：]\s*(.*?)\s*$"#, in: text, multiline: true)
         var acts = try allGroups(#"^\s*DO\s*[:：]\s*(.*?)\s*$"#, in: text).map(parseCommand).prefix(6).map { $0 }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
+        acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
         return acts
+    }
+
+    /// The part of a batch that can run without a new look. `done` only counts on its own: after other actions the
+    /// model hasn't seen their result. After `type` only keys follow: typing can open a keyboard or panel that moves
+    /// what the next tap aims at. (A chat run's blind "tap field, type, tap send" missed the field, the "send" tap
+    /// opened another panel, and a trailing "done" ended the run unsent.)
+    static func blindSafe(_ acts: [JObject]) -> [JObject] {
+        let ending: Set<String?> = ["done", "fail", "confirm"]
+        var out: [JObject] = []
+        var typed = false
+        for a in acts {
+            let name = a["action"]?.str
+            if !out.isEmpty && (ending.contains(name) || typed && name != "key") { break }
+            out.append(a)
+            if ending.contains(name) { break }
+            typed = typed || name == "type"
+        }
+        return out
     }
 
     /// Split an optional EN: / ZH: plan reply; a plain reply is used for both.

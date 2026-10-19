@@ -1,9 +1,11 @@
-// Host unit tests for the board's pure-C parts: bplist codec and the GOP buffer / video chunker.
+// Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
+// mirroring keystream.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../hid_bridge/src/bplist/bplist.h"
 #include "../hid_bridge/src/video/gop.h"
+#include "../hid_bridge/src/airplay/keystream.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -145,11 +147,69 @@ static void test_chunker(void) {
   CHECK(vchunk_next(&c, out, 20, 1) == 0);
 }
 
+
+// An AVCC frame of n bytes: one slice NAL (type 1) filling it, with random content.
+static void make_frame(uint8_t *f, size_t n) {
+  uint32_t len = (uint32_t)(n - 4);
+  f[0] = len >> 24, f[1] = len >> 16, f[2] = len >> 8, f[3] = len;
+  f[4] = 0x41;
+  for (size_t i = 5; i < n; i++) f[i] = (uint8_t)rand();
+}
+
+// The sender encrypts every frame on one continuous CTR keystream but drops some before sending; the
+// receiver must find where to pick up again, and then decode every following frame in step.
+static void test_keystream_resync(void) {
+  static const uint8_t k16[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_enc(&aes, k16, 128);
+  ks_key key = {.aes = &aes};
+  memset(key.iv0, 0xfe, 16);  // near a carry across all counter bytes
+  key.iv0[0] = 0x11;
+
+  // ks_at(pos) is where mbedtls leaves the keystream after pos bytes
+  for (uint64_t pos = 0; pos < 70; pos += 7) {
+    uint8_t iv[16], stream[16] = {0}, buf[80] = {0};
+    size_t off = 0;
+    memcpy(iv, key.iv0, 16);
+    mbedtls_aes_crypt_ctr(&aes, pos, &off, iv, stream, buf, buf);
+    keystream at;
+    ks_at(&key, &at, pos);
+    CHECK(at.off == off && !memcmp(at.iv, iv, 16) && (!off || !memcmp(at.stream, stream, 16)));
+  }
+
+  uint8_t snd_iv[16], snd_stream[16] = {0};
+  size_t snd_off = 0;
+  memcpy(snd_iv, key.iv0, 16);
+  keystream rx = {.off = 0};
+  memcpy(rx.iv, key.iv0, 16);
+  static uint8_t frame[40000], cipher[40000], plain[40000];
+  int decoded = 0, resynced = 0;
+  for (int i = 0; i < 60; i++) {
+    size_t n = 100 + (size_t)(rand() % (i % 9 == 0 ? 35000 : 3000));  // now and then a big keyframe
+    make_frame(frame, n);
+    mbedtls_aes_crypt_ctr(&aes, n, &snd_off, snd_iv, snd_stream, frame, cipher);
+    bool dropped = i == 20 || i == 21 || i == 40;  // encrypted, never sent
+    if (dropped) continue;
+    keystream next;
+    if (ks_try(&key, &rx, &next, cipher, plain, n) && avcc_to_annexb(plain, n)) {
+      rx = next, decoded++;
+    } else if (ks_resync(&key, &rx, &next, cipher, plain, n, 512 * 1024, NULL)) {
+      CHECK(!memcmp(plain, frame, n));
+      rx = next, decoded++, resynced++;
+    }
+  }
+  CHECK(decoded == 57);
+  CHECK(resynced == 2);
+  mbedtls_aes_free(&aes);
+}
+
 int main(void) {
   test_bplist_roundtrip();
   test_bplist_utf16();
   test_gop();
   test_chunker();
+  test_keystream_resync();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

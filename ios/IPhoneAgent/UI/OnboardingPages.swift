@@ -117,10 +117,7 @@ struct SeePage: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
-    // The board counts hotspot clients, so joining by hand is detected without the hotspot entitlement.
-    private var joined: Bool {
-        app.otherWiFi == nil && (onWiFi || app.join == .joined || app.hotspotSSID != nil || streaming || (board.connected && (board.status?.sta ?? 0) > 0))
-    }
+    private var joined: Bool { app.onBoardHotspot(manual: onWiFi) }
     private var failure: String? { if case .failed(let why) = app.join { return why } else { return nil } }
 
     var body: some View {
@@ -137,8 +134,12 @@ struct SeePage: View {
             }
             if !joined {
                 if let net = app.manualHotspot, let ssid = net.ssid, failure != nil { manual(ssid: ssid, pass: net.pass) }
-                Label("Internet uses cellular data while on the board's Wi-Fi.", systemImage: "antenna.radiowaves.left.and.right")
-                    .font(.footnote).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Label("Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi.",
+                          systemImage: "personalhotspot")
+                    Label("Internet uses cellular data while on the board's Wi-Fi.", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .font(.footnote).foregroundStyle(.secondary)
                 Button("I'm already on the board's Wi-Fi") { onWiFi = true }.font(.footnote)
             } else if !streaming {
                 Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")

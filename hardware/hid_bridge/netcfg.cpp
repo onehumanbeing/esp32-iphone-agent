@@ -7,6 +7,7 @@
 #include <esp_netif.h>
 #include <esp_coexist.h>
 #include <esp_wifi.h>
+#include "wifi_video.h"
 
 #if STA_FROM_SECRETS
 #if __has_include("secrets.h")
@@ -195,7 +196,7 @@ void net_poll() {
 String net_json() {
   bool sta = mode == "sta";
   return String("{\"mode\":\"") + mode + "\",\"ssid\":\"" + jsonEsc(sta ? staSsid : apSsid) + "\",\"pass\":\"" +
-         jsonEsc(sta ? staPass : apPass) + "\",\"ip\":\"" + net_ip() + "\"}";
+         jsonEsc(sta ? staPass : apPass) + "\",\"ip\":\"" + net_ip() + "\",\"vtok\":\"" + wv_token() + "\"}";
 }
 
 const char *net_mode() {

@@ -79,11 +79,12 @@ extension AppModel {
         snap.intents = intents.items.map { .init(id: $0.id, name: $0.name, prompt: $0.prompt, symbol: $0.symbol) }
         let old = widgetSnapshot
         snap.lastIntent = currentIntent?.id ?? old?.lastIntent
-        if !agent.running, let last = runs.runs.first(where: { !$0.id.hasPrefix("rec-") }), let step = last.steps.last {
+        if let last = runs.runs.first(where: {
+            !$0.id.hasPrefix("rec-") && !$0.steps.isEmpty && outcome(for: $0) != .running
+        }),
+           let step = last.steps.last {
             snap.lastRun = .init(task: last.task, ok: last.outcome == .done,
                                  line: step.action["answer"]?.str ?? step.action["reason"]?.str ?? "", date: last.date)
-        } else {
-            snap.lastRun = old?.lastRun
         }
         snap.demo = MockMode.on
         guard snap != old else { return }

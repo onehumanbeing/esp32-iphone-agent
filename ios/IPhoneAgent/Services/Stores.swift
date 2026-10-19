@@ -7,8 +7,11 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var prompt: String
     var icon: String?
     var hints: [String]?     // checklist, appended to the actor prompt as hints when it runs
+    var refRecording: String? // folder name of the original demonstration
     var refRun: String?      // the run it was made from
+    var steps: [RecordedStep]? // replayed before asking the model (Replay)
     var history: [RunStat]?  // its runs, newest last
+    var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
 
     var symbol: String { icon ?? "bolt.fill" }
     var checklist: [String] { hints ?? [] }
@@ -29,23 +32,38 @@ struct RunStat: Codable, Equatable, Hashable {
     @Published private(set) var items: [SavedTask] = []
     private let defaults: UserDefaults
     private static let key = "savedTasks"
+    private static let diagnosticsKey = "seededDiagnosticsIntent"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.key), let saved = try? JSONDecoder().decode([SavedTask].self, from: data) {
             items = saved
+            if !defaults.bool(forKey: Self.diagnosticsKey) {  // existing installs get it once; deleting it sticks
+                defaults.set(true, forKey: Self.diagnosticsKey)
+                if !items.contains(where: { $0.builtin == Self.diagnostics.builtin }) { items.append(Self.diagnostics); save() }
+            }
         } else {
+            defaults.set(true, forKey: Self.diagnosticsKey)
             items = Self.examples
             save()
         }
     }
 
-    static var examples: [SavedTask] {
-        [SavedTask(name: String(localized: "8 AM Mon & Tue alarm"),
-                   prompt: String(localized: "Set an alarm for 8:00 AM that repeats every Monday and Tuesday, then save it")),
-         SavedTask(name: String(localized: "Draw a smiley"), prompt: String(localized: "Open Whiteboard and draw a smiley face")),
-         SavedTask(name: String(localized: "Wi-Fi settings"), prompt: String(localized: "Open Settings and go to Wi-Fi")),
-         SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))]
+    /// First launch: one intent for Notes and one for Clock (the demo run is the alarm).
+    static var examples: [SavedTask] { [note, alarm, diagnostics] }
+    static var note: SavedTask {
+        SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))
+    }
+    static var alarm: SavedTask {
+        SavedTask(name: String(localized: "7 AM daily alarm"),
+                  prompt: String(localized: "Set an alarm for 7:00 AM that repeats every day, then save it"))
+    }
+
+    /// Sends the debug log, board state and crash reports to the developer (DiagnosticReport).
+    static var diagnostics: SavedTask {
+        SavedTask(name: String(localized: "Send diagnostics"),
+                  prompt: String(localized: "Send the debug log, board state and crash reports to the developer"),
+                  icon: "paperplane", builtin: "diagnostics")
     }
 
     func add(name: String, prompt: String) {
@@ -55,11 +73,13 @@ struct RunStat: Codable, Equatable, Hashable {
     }
 
     func delete(at offsets: IndexSet) {
+        offsets.forEach { IntentFrames.delete(items[$0].id) }
         items.remove(atOffsets: offsets)
         save()
     }
 
     func delete(_ id: UUID) {
+        IntentFrames.delete(id)
         items.removeAll { $0.id == id }
         save()
     }
@@ -161,8 +181,8 @@ struct Run: Identifiable, Equatable {
         runs.first { $0.id == id } ?? Self.load(traces.root.appendingPathComponent(id))
     }
 
-    func delete(_ run: Run) {
-        try? FileManager.default.removeItem(at: run.folder)
+    func delete(_ run: Run) throws {
+        try FileManager.default.removeItem(at: run.folder)
         runs.removeAll { $0.id == run.id }
     }
 }

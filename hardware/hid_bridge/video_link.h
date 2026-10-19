@@ -12,6 +12,7 @@ void video_bench(const String &id, uint32_t kb);  // replies "<id> ok <ms>"
 
 struct VideoStats {
   uint32_t kbps, idr_ms, gop_bytes;
+  uint32_t age_ms;  // since the last frame from AirPlay (0: none yet); grows on a still screen too
   float fps;
 };
 VideoStats video_stats();

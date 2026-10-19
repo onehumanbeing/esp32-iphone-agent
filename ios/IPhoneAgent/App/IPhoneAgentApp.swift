@@ -5,8 +5,10 @@ struct IPhoneAgentApp: App {
     @StateObject private var app = AppModel.shared
 
     init() {
+        CrashTrace.install()
         _ = AppModel.shared  // also on a background launch for an App Intent, which shows no scene
         CrashReports.shared.start()
+        Analytics.start()
     }
 
     var body: some Scene {
@@ -34,7 +36,7 @@ struct RootView: View {
         TabView(selection: $app.tab) {
             HomeView(app: app, board: app.board, feed: app.feed, agent: app.agent, settings: settings,
                      intents: app.intents, recorder: app.recorder)
-                .tabItem { Label("Agent", systemImage: "face.smiling") }
+                .tabItem { Label("Agent", image: "AgentGlyph") }  // the character, not an SF smiley
                 .tag(AppTab.agent)
             RunsView(app: app, runs: app.runs, agent: app.agent)
                 .tabItem { Label("Runs", systemImage: "play.rectangle.on.rectangle") }
@@ -43,7 +45,22 @@ struct RootView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppTab.settings)
         }
-        .fullScreenCover(item: $app.review) { draft in ReviewView(draft: draft, app: app) }
+        .alert(Text(verbatim: app.notice ?? ""), isPresented: Binding(get: { app.notice != nil }, set: { if !$0 { app.notice = nil } })) {
+            Button("OK") {}
+        }
+        .confirmationDialog("Send diagnostics?", isPresented: $app.askDiagnostics, titleVisibility: .visible) {
+            Button("Send") { Task { app.notice = await DiagnosticReport.send(app) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(verbatim: DiagnosticReport.contents.map { "• " + $0 }.joined(separator: "\n"))
+        }
+        .fullScreenCover(item: $app.review) { draft in
+            if draft.showSaveOnOpen {
+                SaveIntentSheet(draft: draft, intents: app.intents) { app.review = nil }
+            } else {
+                ReviewView(draft: draft, app: app)
+            }
+        }
         .background {
             Color.clear.fullScreenCover(item: $app.setupPage) { page in
             OnboardingView(app: app, board: app.board, feed: app.feed, settings: settings, calibrator: app.calibrator,
@@ -52,11 +69,21 @@ struct RootView: View {
             }
         }
         .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet() } }
+        .sheet(item: Binding(get: { app.aiConsentRun.map(PendingRun.init) }, set: { app.aiConsentRun = $0?.task })) { pending in
+            AIConsentSheet(baseURL: settings.baseURL) {
+                settings.consentChanged()
+                Task { await app.startAgent(pending.task) }
+            }
+        }
         .onAppear {
             if privacyAsked { setUp() } else { consent = true }  // what is kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
         }
         .onOpenURL { url in
+            if url.isFileURL && url.pathExtension.lowercased() == IntentArchive.fileExtension {  // shared intents
+                app.importIntents(url)
+                return
+            }
             if url.isFileURL && url.pathExtension.lowercased() == "zip" {  // a shared run archive
                 do { try app.importRuns(url) } catch { app.say("import: \(error.localizedDescription)") }
                 return
@@ -74,4 +101,9 @@ struct RootView: View {
         privacyAsked = true
         if !settings.onboarded && app.setupPage == nil { app.setupPage = .welcome }
     }
+}
+
+private struct PendingRun: Identifiable {
+    let task: String
+    var id: String { task }
 }

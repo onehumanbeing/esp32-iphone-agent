@@ -14,6 +14,23 @@ struct IslandStatus: Equatable {
 
     static let compactLimit = 16
 
+    static var leavingApp: Self {
+        Self(short: String(localized: "See you later!"), full: String(localized: "See you later!"),
+             look: CGPoint(x: 0, y: -0.6), minimal: String(localized: "Start"))
+    }
+
+    static var waitingForBoard: Self {
+        Self(short: String(localized: "Reconnecting…"),
+             full: String(localized: "Board disconnected. Move it closer; I’ll continue when it reconnects."),
+             look: nil, minimal: String(localized: "Board"))
+    }
+
+    static var boardSlow: Self {
+        Self(short: String(localized: "Board slow"),
+             full: String(localized: "Board not responding. Move it closer or reconnect."),
+             look: nil, minimal: String(localized: "Board"))
+    }
+
     static var pausedInApp: Self {
         Self(short: String(localized: "Paused"),
              full: String(localized: "Paused while you're here. Go to the Home Screen and I'll go on."),
@@ -22,6 +39,15 @@ struct IslandStatus: Equatable {
 
     static var looking: Self {
         Self(short: String(localized: "Looking…"), full: String(localized: "Looking at the screen…"), look: nil, minimal: String(localized: "Look"))
+    }
+
+    static var getReady: Self {
+        Self(short: String(localized: "Get ready"), full: String(localized: "Get ready to do the task"),
+             look: CGPoint(x: 0, y: 0.6), minimal: String(localized: "Ready"))
+    }
+
+    static var watching: Self {
+        Self(short: String(localized: "Watching you"), full: String(localized: "Watching you"), look: CGPoint(x: 0, y: 0.6))
     }
 
     static var thinking: Self {
@@ -44,6 +70,10 @@ struct IslandStatus: Equatable {
 
     static var help: Self {
         Self(short: String(localized: "Need help"), full: String(localized: "Need your help"), look: .zero, minimal: String(localized: "Help"))
+    }
+
+    static var confirm: Self {
+        Self(short: String(localized: "OK to go on?"), full: String(localized: "Waiting for your OK"), look: .zero, minimal: String(localized: "OK?"))
     }
 
     static var yourTurn: Self {

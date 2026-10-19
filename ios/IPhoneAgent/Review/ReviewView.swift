@@ -116,10 +116,13 @@ struct ReviewView: View {
             video = draft.runID.flatMap { app.runs.run($0) }?.video ?? []
             videoTime = steps.first?.t ?? 0
             if let firstUnsure = steps.firstIndex(where: \.uncertain) { index = firstUnsure }
-            if draft.showSaveOnOpen { saving = true; draft.showSaveOnOpen = false }
         }
+        .alert("Could not save changes", isPresented: Binding(get: { draft.persistenceError != nil }, set: { if !$0 { draft.persistenceError = nil } })) {
+            Button("Try Again") { draft.saveEdits() }
+            Button("Cancel", role: .cancel) { draft.persistenceError = nil }
+        } message: { Text(verbatim: draft.persistenceError ?? "") }
         .sheet(item: $fixing) { s in FixSheet(draft: draft, step: s) }
-        .sheet(isPresented: $saving) { SaveIntentSheet(draft: draft, intents: app.intents) { dismiss() } }
+        .sheet(isPresented: $saving) { SaveIntentSheet(draft: draft, intents: app.intents) { app.recorder.markSaved(draft); dismiss() } }
         .sheet(isPresented: $optimizing) { OptimizeSheet(draft: draft, app: app) }
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
         .alert("Insert a step", isPresented: $inserting) {
@@ -194,7 +197,7 @@ struct ReviewView: View {
                     Image(systemName: StepText.symbol(step.name)).foregroundStyle(.secondary)
                     Text(verbatim: StepText.title(step.action)).font(.headline).lineLimit(1)
                     if step.uncertain {
-                        Text("Unsure").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 2)
+                        Label("Unsure", systemImage: "questionmark.circle").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(Color.yellow.opacity(0.35)))
                     }
                     Spacer()
@@ -351,7 +354,7 @@ struct ReviewView: View {
                 if draft.runID != nil, outcome == .failed || outcome == .stopped {
                     Button("Retry", systemImage: "arrow.clockwise", action: retryRun)
                         .buttonStyle(BigButton())
-                        .disabled(retrying || app.startingAgent || app.agent.running || app.recorder.recording)
+                        .disabled(retrying || app.startingAgent || app.agent.running || app.recorder.busy)
                     if retrying { ProgressView("Reconnecting…") }
                 }
                 HStack(spacing: Space.m) {
@@ -367,7 +370,7 @@ struct ReviewView: View {
     }
 
     private func retryRun() {
-        guard !retrying, !app.startingAgent, !app.agent.running, !app.recorder.recording,
+        guard !retrying, !app.startingAgent, !app.agent.running, !app.recorder.busy,
               let id = draft.runID, let run = app.runs.run(id) else { return }
         let intent = app.intents.item(draft.intentID)
         playing = false

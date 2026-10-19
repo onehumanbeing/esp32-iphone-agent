@@ -1,6 +1,136 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Waiting frame…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待画面…"
+          }
+        }
+      }
+    },
+    "Mirroring is connected. Waiting for a fresh screen image…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜像已连接，正在等待新的屏幕画面…"
+          }
+        }
+      }
+    },
+    "No new frame": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有新画面"
+          }
+        }
+      }
+    },
+    "Mirroring is connected, but no new screen image has arrived.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜像已连接，但仍未收到新的屏幕画面。"
+          }
+        }
+      }
+    },
+    "Frame": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面"
+          }
+        }
+      }
+    },
+    "Mirror": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜像"
+          }
+        }
+      }
+    },
+    "Wi-Fi": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi"
+          }
+        }
+      }
+    },
+    "Going to the Home Screen…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在返回主屏幕…"
+          }
+        }
+      }
+    },
+    "Reconnecting…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重连…"
+          }
+        }
+      }
+    },
+    "Board slow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "板子响应慢"
+          }
+        }
+      }
+    },
+    "Board disconnected. Move it closer; I’ll continue when it reconnects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "板子已断开。请移近，重新连接后我会继续。"
+          }
+        }
+      }
+    },
+    "Board not responding. Move it closer or reconnect.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "板子没有响应，请移近或重新连接。"
+          }
+        }
+      }
+    },
+    "Board": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "板子"
+          }
+        }
+      }
+    },
     "Board offline" : {
       "localizations" : {
         "zh-Hans" : {

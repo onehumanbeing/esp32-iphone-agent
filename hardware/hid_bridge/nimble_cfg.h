@@ -30,3 +30,11 @@
 #undef CONFIG_BT_NIMBLE_LOG_LEVEL_INFO
 #define CONFIG_BT_NIMBLE_LOG_LEVEL 5
 #define CONFIG_NIMBLE_CPP_LOG_LEVEL 0
+// Room for the phone, a replacement phone and Macs running the debug harness: with 3, a new bond pushed out
+// the oldest (the phone), which then failed to encrypt until it forgot the board (2026-10-20).
+#undef CONFIG_BT_NIMBLE_MAX_BONDS
+#define CONFIG_BT_NIMBLE_MAX_BONDS 8
+#define MYNEWT_VAL_BLE_STORE_MAX_BONDS 8
+#undef CONFIG_BT_NIMBLE_MAX_CCCDS
+#define CONFIG_BT_NIMBLE_MAX_CCCDS 48
+#define MYNEWT_VAL_BLE_STORE_MAX_CCCDS 48

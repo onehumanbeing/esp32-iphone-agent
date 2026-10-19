@@ -2,6 +2,7 @@
 #include "video_link.h"
 #include <esp_heap_caps.h>
 #include "ble_link.h"
+#include "wifi_video.h"
 #include "src/video/gop.h"
 
 // GOP since the latest IDR; overflow drops it until the next IDR. A still screen gets an IDR only every
@@ -24,19 +25,25 @@ static QueueHandle_t reqs;
 static TaskHandle_t task;
 static volatile bool streaming;
 static uint16_t seq;
-static uint8_t chunk[VCHUNK_HDR + MAX_CHUNK];
+static uint8_t chunk[VCHUNK_HDR + WV_PAYLOAD];
 static uint32_t winStart, winBytes, winFrames, lastIdr;
+static volatile uint32_t lastAu;
 static volatile uint32_t statKbps, statIdrMs, statAt;
 static volatile float statFps;
 
 // One access unit as notifies. A failed chunk still consumes its seq, so the app sees a gap.
+// Video goes over Wi-Fi (UDP) while the app holds a session there, else over BLE notifications.
+static size_t videoRoom(bool wifi) { return wifi ? WV_PAYLOAD : min(ble_video_room(), MAX_CHUNK); }
+static bool videoSend(bool wifi, const uint8_t *p, size_t n) { return wifi ? wv_send(p, n) : ble_video_send(p, n); }
+
 static bool sendAu(const uint8_t *p, size_t n, uint8_t flags, uint32_t ts) {
-  size_t room = min(ble_video_room(), MAX_CHUNK);
+  bool wifi = wv_active();  // one transport per access unit
+  size_t room = videoRoom(wifi);
   if (room < 5) return false;
   vchunk c;
   vchunk_begin(&c, p, n, flags, ts);
   for (size_t len; (len = vchunk_next(&c, chunk, room, seq)) > 0;) {
-    bool ok = ble_video_send(chunk, len);
+    bool ok = videoSend(wifi, chunk, len);
     seq++;
     if (!ok) return false;
   }
@@ -69,18 +76,18 @@ static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint3
 
 static String doSnap() {
   static uint8_t cfg[GOP_CFG_MAX];
-  if (!ble_video_room()) return "err video not subscribed";
+  if (!videoRoom(wv_active())) return "err video not subscribed";
   for (int attempt = 0; attempt < 3; attempt++) {
     uint32_t gen, cfg_ts;
     size_t cfg_len;
     int n;
     if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts)) return "err no video (start screen mirroring)";
-    if (!sendAu(cfg, cfg_len, VF_CONFIG | VF_SNAP, cfg_ts)) return "err ble send failed";
+    if (!sendAu(cfg, cfg_len, VF_CONFIG | VF_SNAP, cfg_ts)) return "err video send failed";
     bool complete = true;
     for (int i = 0; i < n && complete; i++) {
       gop_au au;
       complete = copyAu(gen, i, &au);
-      if (complete && !sendAu(scratch, au.len, VF_SNAP | (au.idr ? VF_IDR : 0), au.ts)) return "err ble send failed";
+      if (complete && !sendAu(scratch, au.len, VF_SNAP | (au.idr ? VF_IDR : 0), au.ts)) return "err video send failed";
     }
     if (complete) return "ok";  // else a new IDR replaced the GOP mid-send: start over with it
   }
@@ -88,7 +95,8 @@ static String doSnap() {
 }
 
 static String doBench(uint32_t kb) {
-  size_t room = min(ble_video_room(), MAX_CHUNK);
+  bool wifi = wv_active();
+  size_t room = videoRoom(wifi);
   if (!room) return "err video not subscribed";
   uint32_t start = millis();
   memset(chunk + VCHUNK_HDR, 0xA5, room);
@@ -97,9 +105,9 @@ static String doBench(uint32_t kb) {
     chunk[0] = (uint8_t)seq;
     chunk[1] = (uint8_t)(seq >> 8);
     chunk[2] = VF_BENCH;
-    bool ok = ble_video_send(chunk, VCHUNK_HDR + n);
+    bool ok = videoSend(wifi, chunk, VCHUNK_HDR + n);
     seq++;
-    if (!ok) return "err ble send failed";
+    if (!ok) return "err video send failed";
     left -= n;
   }
   return "ok " + String(millis() - start);
@@ -112,7 +120,19 @@ static void streamStep() {
   static uint32_t txGen = UINT32_MAX;
   static int next;
   static uint8_t cfg[GOP_CFG_MAX];
-  if (!streaming || !ble_video_room()) {
+  static bool lastWifi, catchingUp;
+  bool wifi = wv_active();
+  // A new transport, or the app lost chunks it can't get back: resend config + whole GOP. Not again while the
+  // last resend is still going: a GOP can be MBs (the next IDR may be minutes away), and restarting it at every
+  // request (the app asks every 2 s) kept the air full, so mirroring and BLE starved (2026-10-20 03:00 log).
+  bool resyncAsked = wv_take_resync();
+  if (wifi != lastWifi || (resyncAsked && !catchingUp)) txGen = UINT32_MAX;
+  lastWifi = wifi;
+  // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
+  // at a run start meant resending the whole GOP since mirroring began (a minute and more of P-frames), and the
+  // run waited for it (2026-10-20 "waiting frame" log: 1 frame/s arriving, 57 s behind). AirPlay sends little
+  // while the screen is still, so the steady stream is cheap.
+  if (!(streaming || wifi) || !videoRoom(wifi)) {
     txGen = UINT32_MAX;  // resend config + whole GOP when streaming resumes
     return;
   }
@@ -123,10 +143,12 @@ static void streamStep() {
   if (gen != txGen) {
     txGen = gen;
     next = 0;
+    catchingUp = true;
     if (!sendAu(cfg, cfg_len, VF_CONFIG, cfg_ts)) { txGen = UINT32_MAX; return; }
   }
   for (gop_au au; next < n && copyAu(gen, next, &au); next++)
     if (!sendAu(scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { txGen = UINT32_MAX; return; }
+  if (next >= n) catchingUp = false;
 }
 
 static void videoTask(void *) {
@@ -134,9 +156,7 @@ static void videoTask(void *) {
     Req r;
     if (xQueueReceive(reqs, &r, 0) == pdTRUE) {
       String reply = String(r.id) + " " + (r.bench ? doBench(r.kb) : doSnap());
-#if DEBUG_SERIAL
       Serial.println("video: " + reply);  // the reply only goes over BLE; mirror it for serial-driven tests
-#endif
       ble_reply(reply);
     }
     streamStep();
@@ -163,6 +183,7 @@ void video_on_config(const uint8_t *sps_pps, size_t len) {
 
 void video_on_au(const uint8_t *au, size_t len, bool idr) {
   uint32_t now = millis();
+  lastAu = now;
   winBytes += len;
   winFrames++;
   if (idr) {
@@ -198,5 +219,6 @@ VideoStats video_stats() {
   xSemaphoreTake(lock, portMAX_DELAY);
   uint32_t gopBytes = gop.used;
   xSemaphoreGive(lock);
-  return {fresh ? statKbps : 0, statIdrMs, gopBytes, fresh ? statFps : 0};
+  uint32_t age = lastAu ? millis() - lastAu : 0;
+  return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0};
 }

@@ -4,11 +4,11 @@ import UserNotifications
 /// Local notifications for runs: done / failed / needs help / mirroring lost / board disconnected, with
 /// actions (Review, Retry, Stop, Continue, Skip, Take over). Tapping one opens the run's review.
 @MainActor final class Notifier: NSObject, UNUserNotificationCenterDelegate {
-    enum Kind: String { case done, failed, help, takeover, mirroring, board, wifi }
-    enum Action: String { case review, retry, stop, resume, skip, takeOver }
+    enum Kind: String { case done, failed, trouble, help, confirm, takeover, mirroring, board, wifi }
+    enum Action: String { case review, retry, stop, resume, skip, takeOver, report }
 
-    /// Called with the action (nil = the notification itself was tapped) and the run id.
-    var onAction: ((Action?, String) -> Void)?
+    /// Called with the action (nil = the notification itself was tapped), the run id and the notification's kind.
+    var onAction: ((Action?, String, Kind?) -> Void)?
     private let center = UNUserNotificationCenter.current()
     static let askedKey = "askedNotifications"
 
@@ -24,10 +24,15 @@ import UserNotifications
         let resume = UNNotificationAction(identifier: Action.resume.rawValue, title: String(localized: "Continue"))
         let skip = UNNotificationAction(identifier: Action.skip.rawValue, title: String(localized: "Skip step"))
         let takeOver = UNNotificationAction(identifier: Action.takeOver.rawValue, title: String(localized: "Take over"))
+        let report = UNNotificationAction(identifier: Action.report.rawValue, title: String(localized: "Send diagnostics"),
+                                          options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Kind.done.rawValue, actions: [review], intentIdentifiers: []),
-            UNNotificationCategory(identifier: Kind.failed.rawValue, actions: [review, retry], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Kind.failed.rawValue, actions: [review, retry, report], intentIdentifiers: []),
+            // The run couldn't start (board, mirroring, frames): tapping it asks to send diagnostics.
+            UNNotificationCategory(identifier: Kind.trouble.rawValue, actions: [report, review], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.help.rawValue, actions: [takeOver, skip, stop], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Kind.confirm.rawValue, actions: [resume, skip, stop], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.takeover.rawValue, actions: [resume, stop], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.mirroring.rawValue, actions: [stop, review], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.board.rawValue, actions: [stop, review], intentIdentifiers: []),
@@ -49,15 +54,15 @@ import UserNotifications
         content.body = body
         content.categoryIdentifier = kind.rawValue
         content.userInfo = ["run": run]
-        let urgent: Set<Kind> = [.help, .mirroring, .board, .wifi]  // the run waits for the user
+        let urgent: Set<Kind> = [.help, .confirm, .mirroring, .board, .wifi]  // the run waits for the user
         content.sound = urgent.contains(kind) ? .default : nil
         content.interruptionLevel = urgent.contains(kind) ? .timeSensitive : .active
-        center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.takeover.rawValue])
+        center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.confirm.rawValue, Kind.takeover.rawValue])
         center.add(UNNotificationRequest(identifier: kind.rawValue, content: content, trigger: nil))
     }
 
     func clearHelp() {
-        center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.takeover.rawValue])
+        center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.confirm.rawValue, Kind.takeover.rawValue])
     }
 
     /// The link is back: the "start mirroring / check the board / join Wi-Fi" asks are stale.
@@ -74,6 +79,7 @@ import UserNotifications
         let run = response.notification.request.content.userInfo["run"] as? String ?? ""
         let id = response.actionIdentifier
         let action = id == UNNotificationDefaultActionIdentifier ? nil : Action(rawValue: id)
-        await MainActor.run { onAction?(action, run) }
+        let kind = Kind(rawValue: response.notification.request.content.categoryIdentifier)
+        await MainActor.run { onAction?(action, run, kind) }
     }
 }

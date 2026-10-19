@@ -32,7 +32,7 @@ targets:
         CFBundleLocalizations: [en, zh-Hans]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        ITSAppUsesNonExemptEncryption: false  # HTTPS only
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
@@ -43,6 +43,10 @@ targets:
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSBluetoothAlwaysUsageDescription: ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.
+        NSLocalNetworkUsageDescription: ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
+        NSBonjourServices: [_esp32agent._tcp]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UIBackgroundModes: [bluetooth-central]
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
@@ -50,11 +54,27 @@ targets:
           - CFBundleTypeName: ESP32 Agent runs
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.zip-archive]
+          - CFBundleTypeName: ESP32 Agent intent
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.onehumanbeing.esp32agent.intent]
+        UTExportedTypeDeclarations:  # saved intents shared as .esp32intent (JSON)
+          - UTTypeIdentifier: com.onehumanbeing.esp32agent.intent
+            UTTypeDescription: ESP32 Agent intent
+            UTTypeConformsTo: [public.json, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [esp32intent]
+              public.mime-type: [application/vnd.esp32agent.intent+json]
         # Optional build-time LLM preset from Config/Local.xcconfig (empty in the open-source build)
         IAPresetBaseURL: $(IA_PRESET_BASE_URL)
         IAPresetModel: $(IA_PRESET_MODEL)
         IAPresetKey: $(IA_PRESET_KEY)
         IAAppGroup: group.$(IA_BUNDLE_ID)
+        # Anonymous usage stats (opt-in); empty key = the build sends nothing
+        IAPostHogKey: $(IA_POSTHOG_KEY)
+        IAPostHogHost: $(IA_POSTHOG_HOST)
+        IAStoreBuild: $(IA_STORE_BUILD)
+        # The free line (Trial/): its server, set only in the store build; empty = no free line
+        IATrialOrigin: $(IA_TRIAL_ORIGIN)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(IA_BUNDLE_ID)
@@ -102,6 +122,16 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/IPhoneAgent.app/IPhoneAgent"
         BUNDLE_LOADER: "$(TEST_HOST)"
+  IPhoneAgentUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [IPhoneAgentUITests]
+    dependencies:
+      - target: IPhoneAgent
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(IA_BUNDLE_ID).uitests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   IPhoneAgent:
     build:
@@ -109,4 +139,4 @@ schemes:
         IPhoneAgent: all
         IPhoneAgentTests: [test]
     test:
-      targets: [IPhoneAgentTests]
+      targets: [IPhoneAgentTests, IPhoneAgentUITests]

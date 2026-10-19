@@ -1,4 +1,5 @@
-import Foundation
+import UIKit
+import UniformTypeIdentifiers
 
 /// Touch-like gestures on the phone, built from relative mouse moves. Port of phone.py.
 ///
@@ -290,7 +291,17 @@ import Foundation
         try await device.send("scroll \(lines) 0")
     }
 
-    func type(_ text: String) async throws { try await device.send("type \(text)") }
+    /// The board types printable ASCII only (one key per character); other text (Chinese, emoji, line breaks)
+    /// goes through this iPhone's clipboard and Cmd+V. Kept off Universal Clipboard and cleared after a minute.
+    func type(_ text: String) async throws {
+        if text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) {
+            _ = try await device.send("type \(text)")
+            return
+        }
+        UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]],
+                                      options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(60)])
+        try await key("cmd+v")
+    }
     func key(_ combo: String) async throws { try await device.send("key \(combo)") }
     /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
     /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
@@ -299,9 +310,19 @@ import Foundation
         if (try? await device.send("homescreen")) != nil { return }
         try await key("cmd+h")
         try await Task.sleep(nanoseconds: 350_000_000)
-        try await swipe(0.5, 0.995, 0.5, 0.45, hold: false)
-        pos = nil  // starting at the screen's edge may have clamped the pointer: re-home before the next move
+        try await homeSwipe()
     }
+
+    /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
+    func aimHomeBar() async throws { try await point(0.5, 0.995) }
+
+    /// A real home-bar flick, independent of consumer-key and keyboard acknowledgements.
+    func homeSwipe() async throws {
+        defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
+        try Task.checkCancellation()
+        try await swipe(0.5, 0.995, 0.5, 0.15, hold: false)  // to the middle only (0.45) left the app card half-way (2026-10-19)
+    }
+
     func goBack() async throws {
         try await swipe(0.005, 0.45, 0.6, 0.45, hold: false)
         pos = nil

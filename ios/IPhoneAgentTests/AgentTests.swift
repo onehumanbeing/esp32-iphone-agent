@@ -3,6 +3,105 @@ import XCTest
 
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
+    func testReconnectDuringHTTPDiscardsOldCoordinatesAndRestoresBeforeLookingAgain() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let device = try XCTUnwrap(phone.device as? FakeDevice)
+        let oldFrame = screen.frame, freshFrame = Data([2])
+        let model = FakeModel { call in
+            if call == 1 {
+                device.links += 1  // reconnect while the actor's HTTP request is outstanding
+                return "THINK: old screen\nDO: tap 900 900"
+            }
+            return "THINK: fresh screen\nDO: tap 100 200"
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        var restored = 0, calls: [ModelCall] = []
+        agent.restore = {
+            restored += 1
+            screen.frame = freshFrame
+            screen.updated = now()
+        }
+        agent.onModelCall = { calls.append($0) }
+        _ = try await agent.step()
+        XCTAssertEqual(restored, 1)
+        XCTAssertEqual(model.images, [oldFrame, freshFrame])
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.1, y: 0.2)])
+        XCTAssertEqual(calls.count, 2, "The discarded completed request still contributes usage")
+        XCTAssertTrue(calls.allSatisfy { $0.reply != nil })
+    }
+
+    func testPlannerNetworkFailureAfterReconnectRestoresAndRetries() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let device = try XCTUnwrap(phone.device as? FakeDevice)
+        let model = ConnectionFailureModel { device.links += 1 }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        var restored = 0, calls: [ModelCall] = []
+        agent.restore = { restored += 1; screen.frame = Data([3]); screen.updated = now() }
+        agent.onModelCall = { calls.append($0) }
+        try await agent.replan()
+        XCTAssertEqual(model.calls, 2)
+        XCTAssertEqual(restored, 1)
+        XCTAssertEqual(agent.plan, "1. Observe the new screen")
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertNotNil(calls.first?.error)
+        XCTAssertNotNil(calls.last?.reply)
+    }
+
+    func testLinkChangesAtActionGateCannotExecuteAcceptedOldReply() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let device = try XCTUnwrap(phone.device as? FakeDevice)
+        let actor = FakeModel { call in
+            call == 1 ? "THINK: old screen\nDO: tap 900 900"
+                : call == 2 ? "THINK: fresh screen\nDO: tap 100 200" : "THINK: done\nDO: done ok"
+        }
+        let planner = FakeModel { _ in "1. Tap the visible control" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: planner, trace: nil)
+        var gates = 0, restored = 0
+        agent.gate = {
+            gates += 1
+            if gates == 3 { device.links += 1 }  // planner look, actor look, then its first action gate
+        }
+        agent.restore = { restored += 1; screen.frame = Data([4]); screen.updated = now() }
+        await agent.run()
+        XCTAssertEqual(restored, 1)
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.1, y: 0.2)])
+        XCTAssertEqual(agent.steps.last?["action"], .str("done"))
+    }
+
+    func testCancelledRequestRecoveryDoesNotWaitForTheBoard() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let device = try XCTUnwrap(phone.device as? FakeDevice)
+        let replied = expectation(description: "Old response returned after the board disconnected")
+        let actor = FakeModel { _ in
+            device.connected = false
+            replied.fulfill()
+            return "THINK: stale\nDO: tap 900 900"
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: actor, trace: nil)
+        let query = Task { try await agent.nextActions() }
+        await fulfillment(of: [replied], timeout: 1)
+        query.cancel()
+        do { _ = try await query.value; XCTFail("Recovery must observe cancellation") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(phone.calls.isEmpty)
+    }
+
+    func testRepeatedReconnectsShareOneRecoveryDeadline() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let device = try XCTUnwrap(phone.device as? FakeDevice)
+        let actor = FakeModel { _ in
+            device.links += 1
+            return "THINK: stale\nDO: tap 900 900"
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: actor, trace: nil)
+        agent.recoveryLimit = 0.02
+        agent.restore = { screen.frame = Data([5]); screen.updated = now() }
+        do { _ = try await agent.nextActions(); XCTFail("Flapping must not retry forever") }
+        catch { XCTAssertTrue(error is BlindError) }
+        XCTAssertLessThanOrEqual(actor.prompts.count, 2)
+        XCTAssertTrue(phone.calls.isEmpty)
+    }
+
     func testPlannerTimeoutRetriesOnceAndChecksGateAgain() async throws {
         let model = TimeoutModel(failures: 1)
         let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: model, trace: nil)
@@ -63,6 +162,16 @@ import XCTest
         XCTAssertEqual(acts[0]["text"], .str("Whiteboard"))
         XCTAssertEqual(acts[1]["combo"], .str("enter"))
         XCTAssertNil(acts[1]["thought"])
+    }
+
+    func testParseStopsWhereTheModelIsBlind() throws {
+        let send = try Actions.parseActions("THINK: Focus, type, send.\nDO: tap 420 908\nDO: type 你好\nDO: tap 917 908")
+        XCTAssertEqual(send.map { $0["action"]?.str }, ["tap", "type"])
+        let search = try Actions.parseActions("THINK: Search.\nDO: tap 500 815\nDO: type Notes\nDO: key enter\nDO: tap 1 1")
+        XCTAssertEqual(search.map { $0["action"]?.str }, ["tap", "type", "key"])
+        let early = try Actions.parseActions("THINK: Check it.\nDO: wait\nTHINK: Sent.\nDO: done")
+        XCTAssertEqual(early.map { $0["action"]?.str }, ["wait"])
+        XCTAssertEqual(try Actions.parseActions("THINK: Sent.\nDO: done").map { $0["action"]?.str }, ["done"])
     }
 
     func testParseCapsAtSixActions() throws {
@@ -180,12 +289,14 @@ import XCTest
 @MainActor final class FakeModel: ChatModel {
     let model = "fake"
     private(set) var prompts: [String] = []
+    private(set) var images: [Data?] = []
     private let reply: (Int) -> String
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
+        images.append(image)
         return ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
     }
 }
@@ -209,7 +320,8 @@ import XCTest
 @MainActor final class FakeGestures: Gestures {
     let device: HIDDevice = FakeDevice()
     var calls: [String] = []
-    func tap(_ x: Double, _ y: Double, aim: Bool) async throws { calls.append("tap") }
+    var taps: [CGPoint] = []
+    func tap(_ x: Double, _ y: Double, aim: Bool) async throws { calls.append("tap"); taps.append(CGPoint(x: x, y: y)) }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     func type(_ text: String) async throws { calls.append("type") }
@@ -217,6 +329,21 @@ import XCTest
     func goHome() async throws { calls.append("home") }
     func goBack() async throws { calls.append("back") }
     func reset() async throws { calls.append("reset") }
+}
+
+@MainActor private final class ConnectionFailureModel: ChatModel {
+    let model = "connection-failure-test"
+    private(set) var calls = 0
+    let onFirst: () -> Void
+    init(_ onFirst: @escaping () -> Void) { self.onFirst = onFirst }
+    func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
+        calls += 1
+        if calls == 1 {
+            onFirst()
+            throw URLError(.networkConnectionLost)
+        }
+        return ChatResult(text: "1. Observe the new screen", total: 0)
+    }
 }
 
 @MainActor private final class TimeoutModel: ChatModel {

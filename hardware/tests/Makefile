@@ -2,8 +2,10 @@
 SRC = ../hid_bridge/src
 CFLAGS = -std=c11 -Wall -Wextra -g -fsanitize=address,undefined
 
-test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c
-	$(CC) $(CFLAGS) -o $@ $^
+MBEDTLS = $(shell brew --prefix mbedtls 2>/dev/null || echo /opt/homebrew)
+
+test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c $(SRC)/airplay/keystream.c
+	$(CC) $(CFLAGS) -I$(MBEDTLS)/include -o $@ $^ -L$(MBEDTLS)/lib -lmbedcrypto
 	./test
 
 clean:

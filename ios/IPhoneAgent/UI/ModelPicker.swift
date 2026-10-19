@@ -7,6 +7,8 @@ struct ModelPicker: View {
     @Binding var selection: String
     let automatic: String
     var allowsDefault = true
+    /// Instead of writing `selection` (the shared model also takes a tested model's parameters).
+    var onChoose: ((String) -> Void)? = nil
     @State private var showingModels = false
 
     var body: some View {
@@ -26,7 +28,7 @@ struct ModelPicker: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingModels) {
-            ModelSelectionView(settings: settings, selection: $selection, allowsDefault: allowsDefault)
+            ModelSelectionView(settings: settings, selection: $selection, allowsDefault: allowsDefault, onChoose: onChoose)
         }
     }
 }

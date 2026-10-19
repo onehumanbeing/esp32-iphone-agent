@@ -1,0 +1,129 @@
+import XCTest
+import UIKit
+@testable import IPhoneAgent
+
+/// Tap first, ask later: replaying a saved intent's recorded steps.
+@MainActor final class ReplayTests: XCTestCase {
+    /// A white screen with a black block at `block` (fractions), `size` points.
+    static func screen(_ block: CGRect, size: CGSize = CGSize(width: 180, height: 390), badge: Bool = false) -> Data {
+        UIGraphicsImageRenderer(size: size).image { ctx in
+            UIColor.white.setFill(); ctx.fill(CGRect(origin: .zero, size: size))
+            UIColor.black.setFill()
+            ctx.fill(CGRect(x: block.minX * size.width, y: block.minY * size.height,
+                            width: block.width * size.width, height: block.height * size.height))
+            if badge { UIColor.red.setFill(); ctx.fill(CGRect(x: size.width * 0.8, y: size.height * 0.5, width: 4, height: 4)) }
+        }.jpegData(compressionQuality: 0.9)!
+    }
+
+    let a = screen(CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.2))
+    let b = screen(CGRect(x: 0.1, y: 0.6, width: 0.8, height: 0.3))
+    let c = screen(CGRect(x: 0.3, y: 0.3, width: 0.5, height: 0.5))
+
+    func testSimilarIgnoresSizeAndSmallThings() {
+        XCTAssertTrue(Vision.similar(a, Self.screen(CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.2), size: CGSize(width: 360, height: 780))))
+        XCTAssertTrue(Vision.similar(a, Self.screen(CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.2), badge: true)))
+        XCTAssertFalse(Vision.similar(a, b))
+        XCTAssertFalse(Vision.similar(a, nil))
+    }
+
+    func testDecide() {
+        let tap: JObject = ["action": .str("tap"), "x": .int(300), "y": .int(300)]
+        XCTAssertEqual(Replay.decide(.init(action: tap, sure: true, frame: a), screen: a), .perform)
+        XCTAssertEqual(Replay.decide(.init(action: tap, sure: true, frame: a), screen: b), .handOver("miss (screen differs)"))
+        XCTAssertEqual(Replay.decide(.init(action: tap, sure: false, frame: a), screen: a), .handOver("unsure"))
+        XCTAssertEqual(Replay.decide(.init(action: tap, sure: true, frame: nil), screen: a), .handOver("no reference screen"))
+        let blank: JObject = ["action": .str("type"), "text": .str("")]
+        XCTAssertEqual(Replay.decide(.init(action: blank, sure: true, frame: a), screen: a), .handOver("unknown text"))
+        let note: JObject = ["action": .str("note"), "text": .str("tap Save")]
+        XCTAssertEqual(Replay.decide(.init(action: note, sure: true, frame: a), screen: a), .handOver("not a move"))
+    }
+
+    private func steps(_ frames: [Data?]) -> Replay {
+        Replay(steps: frames.enumerated().map { i, f in
+            .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)
+        })
+    }
+
+    /// Two matching steps run without the model; then it plans once and says done.
+    func testMatchingStepsSkipTheModel() async {
+        let screen = FakeScreen(); screen.frame = a
+        let phone = ScriptedPhone { n in screen.frame = n == 1 ? self.b : self.c }
+        let model = FakeModel { call in call == 1 ? "1. Check it is done" : "THINK: done\nDO: done ok" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        agent.replay = steps([a, b])
+        await agent.run()
+        XCTAssertEqual(phone.taps, 2)
+        XCTAssertEqual(model.prompts.count, 2, "planner and one actor call, none for the replayed steps")
+        XCTAssertEqual(agent.steps.filter { $0["replay"] == .bool(true) }.count, 2)
+        XCTAssertTrue(agent.actorPrompt.contains("Recorded step 2 (done)"))
+    }
+
+    /// The screen doesn't match the first step: the model does everything.
+    func testMismatchHandsOverAtOnce() async {
+        let screen = FakeScreen(); screen.frame = c
+        let phone = ScriptedPhone { _ in }
+        let model = FakeModel { call in call == 1 ? "1. Do it" : "THINK: done\nDO: done ok" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        agent.replay = steps([a, b])
+        await agent.run()
+        XCTAssertEqual(phone.taps, 0)
+        XCTAssertEqual(model.prompts.count, 2)
+    }
+
+    /// A replayed tap that changes nothing stops the replay; the second step is never tried.
+    func testNoChangeHandsOver() async {
+        let screen = FakeScreen(); screen.frame = a
+        let phone = ScriptedPhone { _ in }
+        let model = FakeModel { call in call == 1 ? "1. Do it" : "THINK: done\nDO: done ok" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        agent.replay = steps([a, a])
+        await agent.run()
+        XCTAssertEqual(phone.taps, 1)
+        XCTAssertEqual(agent.steps.first { $0["replay"] == .bool(true) }?["changed"], .bool(false))
+        XCTAssertEqual(model.prompts.count, 2)
+    }
+
+    /// Saving a demonstration: unsure and wrong steps, a fixed position, screens copied next to the intent.
+    func testRecordedStepsFromADemonstration() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let f1 = dir.appendingPathComponent("k001.jpg"); try a.write(to: f1)
+        let f2 = dir.appendingPathComponent("k002.jpg"); try b.write(to: f2)
+        var fixed = DraftStep(action: ["action": .str("tap"), "x": .int(10), "y": .int(10)], frame: f2, uncertain: true)
+        fixed.fix = CGPoint(x: 900, y: 80)
+        var wrong = DraftStep(action: ["action": .str("swipe"), "x1": .int(1), "y1": .int(1), "x2": .int(2), "y2": .int(2)], frame: f2)
+        wrong.verdict = false
+        let draft = ReviewDraft(source: .recording, folder: nil, runID: nil, outcome: nil, steps: [
+            DraftStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(814)], frame: f1),
+            DraftStep(action: ["action": .str("type"), "text": .str("Clock")], frame: nil, uncertain: true),
+            fixed, wrong,
+            DraftStep(action: ["action": .str("note"), "text": .str("then save")], frame: f2),
+        ], name: "Alarm", prompt: "Set an alarm")
+        let id = UUID()
+        defer { IntentFrames.delete(id) }
+        let saved = try XCTUnwrap(draft.recordedSteps(for: id))
+        XCTAssertEqual(saved.map(\.sure), [true, false, true])
+        XCTAssertEqual(saved[2].object?["x"], .int(900))
+        XCTAssertEqual(saved.map(\.frame), ["s01.jpg", nil, "s03.jpg"])
+        XCTAssertEqual(IntentFrames.data(id, "s01.jpg"), a)
+        var item = SavedTask(name: "Alarm", prompt: "Set an alarm"); item.id = id; item.steps = saved
+        XCTAssertEqual(Replay(intent: item).steps.first?.frame, a)
+    }
+}
+
+/// Taps that change the screen, like the real phone.
+@MainActor final class ScriptedPhone: Gestures {
+    let device: HIDDevice = FakeDevice()
+    private(set) var taps = 0
+    let onTap: (Int) -> Void
+    init(_ onTap: @escaping (Int) -> Void) { self.onTap = onTap }
+    func tap(_ x: Double, _ y: Double, aim: Bool) async throws { taps += 1; onTap(taps) }
+    func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws {}
+    func drag(_ points: [CGPoint], hold: Bool) async throws {}
+    func type(_ text: String) async throws {}
+    func key(_ combo: String) async throws {}
+    func goHome() async throws {}
+    func goBack() async throws {}
+    func reset() async throws {}
+}

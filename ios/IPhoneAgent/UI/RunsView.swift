@@ -8,6 +8,8 @@ struct RunsView: View {
     @ObservedObject var agent: AgentLoop
     @State private var importing = false
     @State private var importError: String?
+    @State private var showingDeleteError = false
+    @State private var deleteError = ""
 
     var body: some View {
         NavigationStack {
@@ -21,8 +23,9 @@ struct RunsView: View {
                         ForEach(runs.runs) { run in
                             Button { app.openReview(run: run.id) } label: { RunRow(run: run, running: isRunning(run)) }
                                 .buttonStyle(.plain)
+                                .deleteDisabled(!app.canDeleteRun(run))
                         }
-                        .onDelete { offsets in offsets.map { runs.runs[$0] }.forEach(runs.delete) }
+                        .onDelete(perform: delete)
                     }
                 }
             }
@@ -39,6 +42,9 @@ struct RunsView: View {
             .alert("Could not import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(verbatim: importError ?? "") }
+            .alert("Could not delete run", isPresented: $showingDeleteError) {} message: {
+                Text(verbatim: deleteError)
+            }
             .refreshable { runs.reload() }
             .onAppear { runs.reload() }
         }
@@ -46,6 +52,12 @@ struct RunsView: View {
 
     private func isRunning(_ run: Run) -> Bool {
         app.outcome(for: run) == .running
+    }
+
+    private func delete(at offsets: IndexSet) {
+        let selected = offsets.map { runs.runs[$0] }
+        do { for run in selected { try app.deleteRun(run) } }
+        catch { deleteError = error.localizedDescription; showingDeleteError = true }
     }
 }
 

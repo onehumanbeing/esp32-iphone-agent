@@ -16,6 +16,7 @@
 static_assert(MYNEWT_VAL(MSYS_1_BLOCK_COUNT) == 64 && MYNEWT_VAL(MSYS_1_BLOCK_SIZE) == 320,
               "nimble_cfg.h not applied: build with hardware/flash.sh");
 static_assert(MYNEWT_VAL(MSYS_2_BLOCK_COUNT) == 0 && MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT) == 24, "nimble_cfg.h");
+static_assert(MYNEWT_VAL(BLE_STORE_MAX_BONDS) == 8, "nimble_cfg.h: bond slots");
 static_assert(MYNEWT_VAL(BLE_ATT_PREFERRED_MTU) == 517 && MYNEWT_VAL(BLE_HS_LOG_LVL) == 5, "nimble_cfg.h");
 static_assert(MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM) == 1 && MYNEWT_VAL(BLE_L2CAP_COC_MPS) == 247, "nimble_cfg.h");
 
@@ -58,6 +59,25 @@ static volatile uint32_t lastCmdMs;  // last `cmd` write: replies are expected, 
 #else
 #define BLE_LOG(...) ((void)0)
 #endif
+
+// New phones may pair only this long after power-on (the board is powered by the phone it plugs into, so
+// setup always falls in it). Later, only phones bonded before can connect: nobody nearby can pair and drive it.
+const uint32_t PAIR_WINDOW_MS = 3 * 60 * 1000;
+static uint32_t pairOpened;  // power-on, or the last unpair
+static NimBLEAddress known[8];  // bonds at boot plus those made in the window
+static int knownCount;
+
+static bool isKnown(const NimBLEAddress &a) {
+  for (int i = 0; i < knownCount; i++)
+    if (known[i] == a) return true;
+  return false;
+}
+
+// Commands and notifications need an encrypted (bonded) link: a stranger's plain link gets nothing.
+static bool encrypted(int h) {
+  ble_gap_conn_desc d;
+  return h >= 0 && ble_gap_conn_find(h, &d) == 0 && d.sec_state.encrypted;
+}
 
 static int slotOf(int h) {
   for (int i = 0; i < MAX_PEERS; i++)
@@ -128,13 +148,23 @@ class ServerCb : public NimBLEServerCallbacks {
   void onPhyUpdate(NimBLEConnInfo &ci, uint8_t tx, uint8_t rx) override {
     BLE_LOG("conn %u: phy tx %uM rx %uM\n", ci.getConnHandle(), tx, rx);
   }
-  void onAuthenticationComplete(NimBLEConnInfo &ci) override { logConn("security", ci); }
+  void onAuthenticationComplete(NimBLEConnInfo &ci) override {
+    logConn("security", ci);
+    if (!ci.isEncrypted()) return;
+    NimBLEAddress a = ci.getIdAddress();
+    if (isKnown(a)) return;
+    if (millis() - pairOpened < PAIR_WINDOW_MS && knownCount < 8) { known[knownCount++] = a; return; }
+    BLE_LOG("conn %u: new phone outside the pairing window, refused\n", ci.getConnHandle());
+    NimBLEDevice::deleteBond(a);
+    server->disconnect(ci.getConnHandle());
+  }
 };
 
 class CharCb : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
     const NimBLEAttValue &raw = c->getValue();
     String v(raw.c_str(), raw.length());
+    if (!ci.isEncrypted()) return;
     if (c == netChar) { net_request(v); return; }
     char line[CMD_MAX] = {0};
     v.trim();
@@ -188,7 +218,7 @@ static bool notifyOne(int slot, int ch, const uint8_t *p, size_t n, uint32_t sta
   int need = blocksFor(n) + (video ? MBUF_RESERVE : 0);
   for (;;) {
     int h = peers[slot];
-    if (h < 0 || !subscribed[slot][ch]) return false;
+    if (h < 0 || !subscribed[slot][ch] || !encrypted(h)) return false;
     if (!(video && (ctrlPending > 0 || !ctrlRoom(n))) && os_msys_num_free() >= need) {
       os_mbuf *om = ble_hs_mbuf_from_flat(p, n);
       int rc = om ? ble_gatts_notify_custom(h, chars[ch]->getHandle(), om) : BLE_HS_ENOMEM;  // om consumed
@@ -263,12 +293,16 @@ void ble_begin(const String &name) {
   NimBLEDevice::setCustomGapHandler(onGap);
 #endif
 
+  for (int i = 0; i < NimBLEDevice::getNumBonds() && knownCount < 8; i++) known[knownCount++] = NimBLEDevice::getBondedAddress(i);
+
   server = NimBLEDevice::createServer();
   server->setCallbacks(new ServerCb());
   NimBLEService *svc = server->createService(UUID("0000"));
-  NimBLECharacteristic *cmd = svc->createCharacteristic(UUID("0001"), NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+  NimBLECharacteristic *cmd = svc->createCharacteristic(UUID("0001"), NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR |
+                                                                                   NIMBLE_PROPERTY::WRITE_ENC);
   chars[CH_REPLY] = svc->createCharacteristic(UUID("0002"), NIMBLE_PROPERTY::NOTIFY);
-  chars[CH_STATUS] = svc->createCharacteristic(UUID("0003"), NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::READ);
+  chars[CH_STATUS] = svc->createCharacteristic(UUID("0003"), NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::READ |
+                                                                    NIMBLE_PROPERTY::READ_ENC);
   chars[CH_VIDEO] = svc->createCharacteristic(UUID("0004"), NIMBLE_PROPERTY::NOTIFY);
   netChar = svc->createCharacteristic(UUID("0005"), NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE |
                                                         NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
@@ -366,6 +400,8 @@ void ble_unpair() {
   for (int i = 0; i < 100 && ctrlPending > 0; i++) vTaskDelay(pdMS_TO_TICKS(10));  // let the `ok` go out
   NimBLEDevice::deleteAllBonds();  // unpairs each bond (also drops it from the controller's resolving list)
   ble_store_clear();               // and any CCCD/peer records left in NVS
+  knownCount = 0;                  // forgotten phones are strangers now; a new pairing window opens
+  pairOpened = millis();
   bool any = false;
   for (int i = 0; i < MAX_PEERS; i++)
     if (peers[i] >= 0) { server->disconnect(peers[i]); any = true; }  // onDisconnect restarts advertising
