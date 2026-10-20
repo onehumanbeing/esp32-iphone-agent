@@ -173,7 +173,7 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 
 ## Acknowledgements
 
-[UxPlay](https://github.com/FDH2/UxPlay) (the AirPlay receiver the firmware's is ported from) ·
+[UxPlay](https://github.com/FDH2/UxPlay) (the AirPlay receiver the firmware is ported from) ·
 [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) ·
 [Arduino ESP32 core](https://github.com/espressif/arduino-esp32) and [TinyUSB](https://github.com/hathach/tinyusb)
 
