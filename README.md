@@ -72,6 +72,25 @@ uses the same paths a person uses — the screen and a pointer — so the phone 
 
 Use a USB-C hub with power pass-through if the phone should keep charging while the board is plugged in.
 
+## Bluetooth variant (no USB cable)
+
+`hardware/hid_bridge_ble/` is a variant of the bridge that speaks **Bluetooth HID instead of USB**: the phone
+pairs with the board as a Bluetooth mouse, and the board connects to the server over Wi-Fi exactly like the
+USB version (same wire protocol, same server, zero server changes). The board and the phone then need no
+cable between them — the board can sit anywhere, powered by a charger, and the phone keeps its port free.
+
+Use it when the phone's USB port is unavailable, already taken (charging), or when the board's USB device
+mode is unusable (some repurposed boards expose their USB port in host mode only).
+
+- Flash `hardware/hid_bridge_ble/` the same way as `hid_bridge` (same `secrets.h`).
+- On the phone: Settings → Bluetooth → tap **HID Bridge** to pair (AssistiveTouch shows the pointer once
+  paired). The phone remembers the pairing across board restarts.
+- The pointer works exactly like the USB one (AssistiveTouch), including calibration and the web UI.
+- Keyboard input over BLE HID is **not included yet**: this build is pointer-only, so tasks that must type
+  need the USB bridge. Everything else (taps, swipes, scroll, the home gesture) works.
+
+Tested on an ESP32-S3 with iOS 18 over a Wi-Fi + Bluetooth coexistence link while AirPlay mirroring runs.
+
 ## Quick start
 
 > **Set up with an AI coding agent.** Paste this into Claude Code, Codex or a similar agent on the computer the
