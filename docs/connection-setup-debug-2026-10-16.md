@@ -15,7 +15,7 @@ Branch: codex/diagnose-board-pairing.
 - Bound scanning to 12 seconds and connection/pairing to 30 seconds; expose errors and a Scan Again action. Retain discovered peripheral references and ignore obsolete callbacks.
 - Read encrypted configuration before marking the board ready and persisting its identity. Reconnect after disconnection with a delay.
 - Firmware uses 9 dBm and 1M PHY instead of 0 dBm and forced 2M, favoring link reliability. Video throughput under this setting has not been re-benchmarked.
-- Sample RSSI for diagnostics. Only weak signal displays a short proximity/antenna hint; no permanent antenna instructions or links in setup.
+- Sample RSSI for diagnostics. Only a weak signal displays a short proximity/antenna hint; no permanent antenna instructions or links in setup.
 - Compact provider/key/model rows; Others exposes Base URL inline. Models remain editable when a list is available. OpenRouter Free presets openrouter/free; OpenAI, Gemini, Qwen China/International, DeepSeek, and OpenRouter provide endpoints and key links.
 - Do not automatically choose the first model in an API response. Connection testing sends a generated color image; configuration changes invalidate previous results. Keys do not carry across hosts.
 
