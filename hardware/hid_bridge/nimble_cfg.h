@@ -45,3 +45,13 @@
 #define CONFIG_BT_NIMBLE_MAX_EXT_ADV_INSTANCES 2
 #undef CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN
 #define CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN 31
+// The controller numbers connections from the same pool as advertising sets, so with two sets a connection got
+// handle 4 while the host sizes some per-handle arrays (ble_gap.c slave_conn, g_max_*) by MAX_CONNECTIONS + 1:
+// at 3, handle 4 wrote past them and the next connect hit ble_gap_master_timer's assert (2026-10-21). With 5 the
+// arrays cover handles 0-5. NimBLE-Arduino sizes the controller's pool as MAX_CONNECTIONS + broadcaster +
+// observer; we never scan, so dropping the observer role keeps it at 6 (was 5). Peers stay capped at 2.
+#undef CONFIG_BT_NIMBLE_MAX_CONNECTIONS
+#define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 5
+#undef CONFIG_NIMBLE_ROLE_OBSERVER  // else nimconfig_rename.h redefines the one below as empty
+#undef CONFIG_BT_NIMBLE_ROLE_OBSERVER
+#define CONFIG_BT_NIMBLE_ROLE_OBSERVER 0

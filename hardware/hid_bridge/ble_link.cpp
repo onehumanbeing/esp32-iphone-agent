@@ -21,6 +21,7 @@ static_assert(MYNEWT_VAL(MSYS_1_BLOCK_COUNT) == 64 && MYNEWT_VAL(MSYS_1_BLOCK_SI
 static_assert(MYNEWT_VAL(MSYS_2_BLOCK_COUNT) == 0 && MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT) == 24, "nimble_cfg.h");
 static_assert(MYNEWT_VAL(BLE_STORE_MAX_BONDS) == 8, "nimble_cfg.h: bond slots");
 static_assert(MYNEWT_VAL(BLE_ATT_PREFERRED_MTU) == 517 && MYNEWT_VAL(BLE_HS_LOG_LVL) == 5, "nimble_cfg.h");
+static_assert(MYNEWT_VAL(BLE_MAX_CONNECTIONS) == 5 && !MYNEWT_VAL(BLE_ROLE_OBSERVER), "nimble_cfg.h: handles");
 static_assert(MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM) == 1 && MYNEWT_VAL(BLE_L2CAP_COC_MPS) == 247, "nimble_cfg.h");
 
 #define UUID(s) "6e400001-a9e8-4b1b-9c39-6d6f8a3c" s
