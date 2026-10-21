@@ -41,7 +41,8 @@ var (
 	numProp = map[string]any{"type": "number"}
 	tools   = []tool{
 		{"screenshot", "The iPhone's screen now (after the last action has settled). Coordinates for the other tools are pixels of this image.", schema(nil, map[string]any{})},
-		{"tap", "Tap at x, y (screenshot pixels).", schema([]string{"x", "y"}, map[string]any{"x": numProp, "y": numProp})},
+		{"tap", "Tap at x, y (screenshot pixels).", schema([]string{"x", "y"}, map[string]any{"x": numProp, "y": numProp,
+			"count": map[string]any{"type": "integer", "description": "taps in a row at the point; 2 is a double tap (default 1)"}})},
 		{"longpress", "Press and hold at x, y.", schema([]string{"x", "y"}, map[string]any{"x": numProp, "y": numProp,
 			"duration_ms": map[string]any{"type": "integer", "description": "default 1000"}})},
 		{"swipe", "Swipe from x1, y1 to x2, y2 (rests at the end, so lists stop there).", schema([]string{"x1", "y1", "x2", "y2"},
@@ -136,7 +137,7 @@ func (a *App) callTool(name string, args map[string]any) map[string]any {
 	case "screenshot":
 		req.Cmd = "screenshot"
 	case "tap", "longpress":
-		req.Cmd, req.Pts, req.Ms = name, []float64{f("x"), f("y")}, int(f("duration_ms"))
+		req.Cmd, req.Pts, req.Ms, req.Count = name, []float64{f("x"), f("y")}, int(f("duration_ms")), int(f("count"))
 	case "swipe":
 		req.Cmd, req.Pts = "swipe", []float64{f("x1"), f("y1"), f("x2"), f("y2")}
 	case "type_text":

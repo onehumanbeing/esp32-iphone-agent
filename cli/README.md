@@ -33,7 +33,7 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `devices` | boards nearby (`id`, `paired`, `connected`) |
 | `pair`, `unpair` | pair this computer; forget the board here |
 | `screenshot [--format png\|jpeg] [--quality N] [--scale F] [--max-size N] [--output PATH\|DIR/\|-]` | the screen after the last action settled; default a file in the current directory |
-| `io tap X,Y [--aim]` | coordinates are pixels of a full-size screenshot |
+| `io tap X,Y [--aim] [--count N]` | coordinates are pixels of a full-size screenshot; `--count 2` double-taps |
 | `io longpress X,Y [--duration MS]` | |
 | `io swipe X1,Y1,X2,Y2` | |
 | `io text 'TEXT'` | ASCII; Chinese is typed as pinyin |

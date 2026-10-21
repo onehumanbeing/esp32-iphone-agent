@@ -34,8 +34,8 @@ func TestActionsAreRecordedAndKeysPaced(t *testing.T) {
 	}
 	call(t, c, Request{Cmd: "keys", Text: "backspace"})
 	call(t, c, Request{Cmd: "keys", Text: "backspace"})
-	r, data := call(t, c, Request{Cmd: "text", Text: "卫生纸"})
-	if r.Status != "ok" || data["typed_as"] != "weishengzhi" || !strings.Contains(data["note"].(string), "globe key") {
+	r, data := call(t, c, Request{Cmd: "text", Text: "拿铁"})
+	if r.Status != "ok" || data["typed_as"] != "natie" || !strings.Contains(data["note"].(string), "globe key") {
 		t.Fatalf("text: %+v", r)
 	}
 	if _, data := call(t, c, Request{Cmd: "text", Text: "ok"}); data["typed_as"] != nil {
@@ -63,7 +63,7 @@ func TestActionsAreRecordedAndKeysPaced(t *testing.T) {
 		got = append(got, st.JSON())
 	}
 	want := []string{`{"action": "tap", "x": 500, "y": 500}`, `{"action": "key", "combo": "backspace"}`, `{"action": "key", "combo": "backspace"}`,
-		`{"action": "type", "text": "卫生纸"}`, `{"action": "type", "text": "ok"}`, `{"action": "swipe", "x1": 500, "x2": 500, "y1": 865, "y2": 192}`}
+		`{"action": "type", "text": "拿铁"}`, `{"action": "type", "text": "ok"}`, `{"action": "swipe", "x1": 500, "x2": 500, "y1": 865, "y2": 192}`}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("recorded:\n%s", strings.Join(got, "\n"))
 	}

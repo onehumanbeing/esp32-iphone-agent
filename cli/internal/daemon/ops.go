@@ -226,7 +226,7 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 		switch req.Cmd {
 		case "tap":
 			x, y := pt(0)
-			return p.Tap(ctx, x, y, req.Aim)
+			return p.Tap(ctx, x, y, req.Aim, req.Count)
 		case "longpress":
 			x, y := pt(0)
 			d := time.Duration(req.Ms) * time.Millisecond

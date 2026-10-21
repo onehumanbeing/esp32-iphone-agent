@@ -22,7 +22,7 @@ plus history, intent_list, intent_show and intent_save.
 2. Decide one action from what you see.
 3. Act, with coordinates in pixels of that screenshot (full size: don't pass `--scale`/`--max-size` if you
    take coordinates from it):
-   - `esp32agent io tap X,Y` (add `--aim` after a missed tap: finds the pointer and corrects first)
+   - `esp32agent io tap X,Y` (add `--aim` after a missed tap: finds the pointer and corrects first; `--count 2` double-taps, e.g. to zoom a map or select a word)
    - `esp32agent io longpress X,Y --duration 1500`
    - `esp32agent io swipe X1,Y1,X2,Y2` (scroll a list: swipe up from the lower to the upper middle)
    - `esp32agent io text 'hello'`, `esp32agent io keys enter`, `esp32agent io keys cmd+a`
@@ -31,7 +31,7 @@ plus history, intent_list, intent_show and intent_save.
 
 ## Typing
 - The board types printable ASCII only, one key per character.
-- Chinese is typed as pinyin: `io text '卫生纸'` types `weishengzhi` (the reply says `typed_as`). With the iPhone's Chinese (pinyin)
+- Chinese is typed as pinyin: `io text '拿铁'` types `natie` (the reply says `typed_as`). With the iPhone's Chinese (pinyin)
   keyboard active, commit the first candidate with `io keys space`, or screenshot and tap the right candidate.
   Many search boxes accept the plain pinyin as well.
 - The board is a hardware keyboard, so iOS may hide the on-screen keyboard; the text field still takes the keys.

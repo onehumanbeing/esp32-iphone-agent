@@ -27,7 +27,7 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   devices                          boards nearby
   pair | unpair                    pair this computer (within 3 min of plugging the board in)
   screenshot [--format png|jpeg] [--quality N] [--scale F] [--max-size N] [--output PATH|-]
-  io tap X,Y [--aim]               coordinates are screenshot pixels
+  io tap X,Y [--aim] [--count N]   coordinates are screenshot pixels; --count 2 double-taps
   io longpress X,Y [--duration MS]
   io swipe X1,Y1,X2,Y2
   io text 'TEXT'                   ASCII; Chinese is typed as pinyin
@@ -190,6 +190,7 @@ func newFS(dev *string) *flag.FlagSet {
 func (a *App) io(fs *flag.FlagSet, dev *string, args []string) int {
 	aim := fs.Bool("aim", false, "find the pointer on screen and correct a miss before tapping")
 	ms := fs.Int("duration", 1000, "long press, ms")
+	count := fs.Int("count", 1, "taps in a row at the point (2: double tap)")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return a.fail(err)
@@ -198,7 +199,7 @@ func (a *App) io(fs *flag.FlagSet, dev *string, args []string) int {
 		return a.fail(errors.New("usage: esp32agent io tap|longpress|swipe|text|keys|button ..."))
 	}
 	sub, arg := pos[0], strings.Join(pos[1:], " ")
-	req := daemon.Request{Cmd: sub, Device: *dev, Aim: *aim, Ms: *ms, Text: arg}
+	req := daemon.Request{Cmd: sub, Device: *dev, Aim: *aim, Ms: *ms, Count: *count, Text: arg}
 	switch sub {
 	case "tap", "longpress", "swipe":
 		n := 2

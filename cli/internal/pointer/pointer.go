@@ -410,12 +410,15 @@ func (p *Pointer) Reset(ctx context.Context) error {
 	return nil
 }
 
-func (p *Pointer) Tap(ctx context.Context, x, y float64, aim bool) error {
+// Tap clicks count times (at least once) at x, y without moving in between: 2 is a double tap.
+func (p *Pointer) Tap(ctx context.Context, x, y float64, aim bool, count int) error {
 	if err := p.Point(ctx, x, y, aim); err != nil {
 		return err
 	}
-	if err := p.send(ctx, "click"); err != nil {
-		return err
+	for i := 0; i < max(count, 1); i++ {
+		if err := p.send(ctx, "click"); err != nil {
+			return err
+		}
 	}
 	return p.Sleep(ctx, TapGap)
 }
@@ -471,7 +474,22 @@ func (p *Pointer) Type(ctx context.Context, text string) (string, error) {
 	if ascii == "" {
 		return "", errors.New("nothing typeable in that text (the board types ASCII only)")
 	}
-	return ascii, p.send(ctx, "type %s", ascii)
+	// Spaces go as their own key: inside a `type` line iOS dropped every one ("coffee near East Broadway" came
+	// out "coffeenearEastBroadway" in Maps, 2026-10-21), while a separate space key always landed.
+	for i, word := range strings.Split(ascii, " ") {
+		if i > 0 {
+			if err := p.Key(ctx, "space"); err != nil {
+				return ascii, err
+			}
+		}
+		if word == "" {
+			continue
+		}
+		if err := p.send(ctx, "type %s", word); err != nil {
+			return ascii, err
+		}
+	}
+	return ascii, nil
 }
 
 func (p *Pointer) Key(ctx context.Context, combo string) error { return p.send(ctx, "key %s", combo) }

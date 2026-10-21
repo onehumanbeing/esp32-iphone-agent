@@ -134,7 +134,7 @@ func TestSimPairScreenshotTapText(t *testing.T) {
 	if o := run(t, a, "io", "tap", "240,520"); o.Status != "ok" {
 		t.Fatalf("tap: %+v", o)
 	}
-	if o := run(t, a, "io", "text", "卫生纸 ok"); o.Status != "ok" {
+	if o := run(t, a, "io", "text", "拿铁 ok"); o.Status != "ok" {
 		t.Fatalf("text: %+v", o)
 	}
 	if o := run(t, a, "device", "info"); o.Status != "ok" || o.Data["ap"] != "streaming" {
@@ -165,7 +165,7 @@ func TestSimPairScreenshotTapText(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	logged, _ := os.ReadFile(filepath.Join(dir, "sim.log"))
-	for _, want := range []string{" stream on\n", " home\n", " move 200 430\n", " click\n", " type weishengzhi ok\n"} {
+	for _, want := range []string{" stream on\n", " home\n", " move 200 430\n", " click\n", " type natie\n", " key space\n", " type ok\n"} {
 		if !strings.Contains(string(logged), want) {
 			t.Errorf("the board never got %q:\n%s", strings.TrimSpace(want), logged)
 		}

@@ -72,16 +72,28 @@ func TestPointerRehomesEveryTenGestures(t *testing.T) {
 	}
 }
 
+func TestDoubleTapClicksTwiceInPlace(t *testing.T) {
+	d := &fakeDevice{}
+	p := newPointer(t, d, nil)
+	p.FinishCalibration(0.5, 0.25)
+	if err := p.Tap(context.Background(), 0.5, 0.5, false, 2); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(d.sent); n < 2 || d.sent[n-1] != "click" || d.sent[n-2] != "click" {
+		t.Fatalf("sent %v", d.sent)
+	}
+}
+
 func TestChineseIsTypedAsPinyin(t *testing.T) {
 	d := &fakeDevice{}
 	p := newPointer(t, d, nil)
-	for _, s := range []string{"hello world", "卫生纸 3卷", "café 👋"} {
+	for _, s := range []string{"hello world", "拿铁 3杯", "café 👋"} {
 		p.Type(context.Background(), s)
 	}
 	if _, err := p.Type(context.Background(), "👋"); err == nil {
 		t.Fatal("emoji-only text was typed")
 	}
-	want := []string{"type hello world", "type weishengzhi 3juan", "type cafe"}
+	want := []string{"type hello", "key space", "type world", "type natie", "key space", "type 3bei", "type cafe"}
 	if fmt.Sprint(d.sent) != fmt.Sprint(want) {
 		t.Fatalf("sent %q", d.sent)
 	}
