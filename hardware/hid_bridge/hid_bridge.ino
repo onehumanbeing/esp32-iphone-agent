@@ -10,6 +10,7 @@
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
 #include <esp_wifi.h>
+#include <esp_core_dump.h>
 #include "USB.h"
 #include "USBHIDMouse.h"
 #include "USBHIDKeyboard.h"
@@ -153,6 +154,22 @@ const char *usbState() {
   return tud_suspended() ? "asleep" : "ok";
 }
 
+// The last crash saved in the core dump partition (kept until the next one): task, PC, backtrace. Read at boot,
+// so a crash on a board plugged into the phone can be looked up over BLE (`crash`) without a serial cable.
+static String lastCrash = "none";
+
+void readCrash() {
+  auto *c = (esp_core_dump_summary_t *)malloc(sizeof(esp_core_dump_summary_t));
+  if (c && esp_core_dump_image_check() == ESP_OK && esp_core_dump_get_summary(c) == ESP_OK) {
+    char b[200];
+    int n = snprintf(b, sizeof b, "%.16s pc %08lx bt", c->exc_task, (unsigned long)c->exc_pc);
+    for (int i = 0; i < (int)c->exc_bt_info.depth && i < 12 && n < (int)sizeof b - 10; i++)
+      n += snprintf(b + n, sizeof b - n, " %08lx", (unsigned long)c->exc_bt_info.bt[i]);
+    lastCrash = b;
+  }
+  free(c);
+}
+
 // Board-level commands from the app or the CLI (who); everything else is an HID command for run().
 String board(const String &line, const String &id, char who) {
   int sp = line.indexOf(' ');
@@ -174,6 +191,7 @@ String board(const String &line, const String &id, char who) {
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
+  if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;
   if (cmd == "snap") { video_snap(id, who); return ""; }  // replies when the GOP is sent
   if (cmd == "bench") {
     if (n < 1 || a <= 0 || a > 4096) return "err usage: bench KB (1-4096)";
@@ -299,6 +317,7 @@ void setup() {
   esp_task_wdt_config_t wdt = {.timeout_ms = WATCHDOG_MS, .idle_core_mask = 0, .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt);
   esp_task_wdt_add(NULL);
+  readCrash();
 
   net_begin();
   if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
@@ -339,8 +358,18 @@ void loop() {
   if (!confirmed && (linked || millis() > 30000)) { ota_confirm(); confirmed = true; }
 
   String line;
-  if (Serial.available()) {  // USB serial takes the same `<id> <command>` lines, for debugging from a Mac
-    line = Serial.readStringUntil('\n');
+  // USB serial takes the same `<id> <command>` lines, for debugging from a Mac. Never wait for the rest of a line:
+  // bytes without a newline (esptool's sync, say) held the loop until the watchdog reset the board.
+  static String serialLine;
+  bool serialDone = false;
+  while (Serial.available() && !serialDone) {
+    char ch = Serial.read();
+    if (ch == '\n') serialDone = true;
+    else if (serialLine.length() < 512) serialLine += ch;
+  }
+  if (serialDone) {
+    line = serialLine;
+    serialLine = "";
     line.trim();
     if (line.startsWith("0 net ")) { net_request(line.substring(6)); Serial.println("0 ok"); return; }
     if (line == "0 netinfo") { Serial.println("0 " + net_json()); return; }  // what the app reads over BLE (incl. vtok)

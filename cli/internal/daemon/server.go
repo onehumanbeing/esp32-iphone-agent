@@ -181,6 +181,13 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 		return s.calibrate(ctx, c)
 	case "tap", "longpress", "swipe", "text", "keys", "button":
 		return s.io(ctx, c, req)
+	case "send": // debugging: one raw board command; afterwards the pointer position is unknown
+		reply, err := c.Send(ctx, req.Text)
+		c.pointer(s.Dir).Forget()
+		if err != nil {
+			return fail(err)
+		}
+		return ok(map[string]string{"reply": reply})
 	}
 	return fail(fmt.Errorf("unknown command %q", req.Cmd))
 }
@@ -307,7 +314,12 @@ func (s *Server) open(ctx context.Context, f ble.Found, sel string, l proto.Link
 	defer cancel()
 	var err error
 	if l == nil {
-		if l, err = s.Transport.Connect(ctx, f); err != nil {
+		// macOS's first connect after a peripheral reboots, or after the daemon restarts, sometimes times out
+		// discovering services (2026-10-21); the second goes through.
+		if l, err = s.Transport.Connect(ctx, f); err != nil && ctx.Err() == nil {
+			l, err = s.Transport.Connect(ctx, f)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}

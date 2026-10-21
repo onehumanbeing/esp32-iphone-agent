@@ -134,6 +134,9 @@ func (a *App) Run(args []string) int {
 		if err != nil {
 			return a.fail(err)
 		}
+		if len(pos) >= 2 && pos[0] == "send" { // undocumented: one raw board command, for debugging
+			return a.call(daemon.Request{Cmd: "send", Device: *dev, Text: strings.Join(pos[1:], " ")})
+		}
 		if len(pos) == 0 || pos[0] != "info" {
 			return a.fail(errUnsupported)
 		}

@@ -108,6 +108,9 @@ func New(dev Device, screen Screen, file string) *Pointer {
 
 func (p *Pointer) Calibrated() bool { return p.Span != nil }
 
+// Forget makes the position unknown (someone else moved the pointer): the next gesture homes first.
+func (p *Pointer) Forget() { p.pos = nil }
+
 func (p *Pointer) remember(axis string, sample [2]float64) {
 	s := append(p.seen[axis], sample)
 	if len(s) > 12 { // deque(maxlen=12)
@@ -471,20 +474,57 @@ func (p *Pointer) Type(ctx context.Context, text string) (string, error) {
 
 func (p *Pointer) Key(ctx context.Context, combo string) error { return p.send(ctx, "key %s", combo) }
 
-// GoHome uses the board's consumer-control Home key; boards without it (older firmware) answer an error,
-// then Cmd+H and the flick up from the home bar.
+// GoHome goes to the Home Screen like the app's leaveApp: the consumer-control Home key, then Cmd+H, then the flick
+// up from the home bar, each until the screen really changes. The board acknowledges a key iOS ignores (seen on
+// an iPhone in a video app, 2026-10-21), so an "ok" alone proves nothing; without video the key's "ok" is all there is.
 func (p *Pointer) GoHome(ctx context.Context) error {
-	err := p.send(ctx, "homescreen")
-	if err == nil || strings.HasPrefix(err.Error(), "busy") {
-		return err
+	tries := []func() error{
+		func() error { return p.send(ctx, "homescreen") },
+		func() error { return p.Key(ctx, "cmd+h") },
+		func() error {
+			if !p.Calibrated() {
+				if err := p.Calibrate(ctx); err != nil {
+					return err
+				}
+			}
+			return p.HomeSwipe(ctx)
+		},
 	}
-	if err := p.Key(ctx, "cmd+h"); err != nil {
-		return err
+	var last error
+	for i, try := range tries {
+		before, sent := p.frame(), time.Now()
+		err := try()
+		if err != nil && strings.HasPrefix(err.Error(), "busy") {
+			return err
+		}
+		if err == nil && before == nil && i != 1 {
+			return nil // no video to check against: trust the Home key, and after Cmd+H still flick (as before)
+		}
+		if err == nil && before != nil && p.changedSince(ctx, before, sent) {
+			return nil
+		}
+		last = err
 	}
-	if err := p.Sleep(ctx, 350*time.Millisecond); err != nil {
-		return err
+	if last != nil {
+		return last
 	}
-	return p.HomeSwipe(ctx)
+	return errors.New("the Home Screen did not come up (Home key, Cmd+H and the swipe up all left the screen as it was)")
+}
+
+func (p *Pointer) frame() image.Image {
+	if p.screen == nil || !p.screen.Live() {
+		return nil
+	}
+	return p.screen.Frame()
+}
+
+// changedSince: a frame captured after `sent` differs from before in more than a sliver (the pointer alone is not it).
+func (p *Pointer) changedSince(ctx context.Context, before image.Image, sent time.Time) bool {
+	if p.screen.Fresh(ctx, sent, 1500*time.Millisecond) == nil {
+		return false
+	}
+	p.screen.Settled(ctx, 300*time.Millisecond, 300*time.Millisecond, 1500*time.Millisecond)
+	return Changed(before, p.screen.Frame(), 0.05)
 }
 
 // HomeSwipe is a real home-bar flick (a flick, not a rest: resting opens the app switcher).

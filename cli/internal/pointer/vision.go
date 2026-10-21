@@ -76,3 +76,25 @@ func Locate(before, after image.Image, near Point, shift float64, reach Point) (
 	cy := float64(sy)/float64(n) + float64(top)
 	return Point{cx/fw - shift/2, cy / fh}, true
 }
+
+// Changed reports whether more than `frac` of a coarse grid of pixels differ clearly between two frames, so a
+// moved pointer or a ticking clock doesn't count but a new screen does.
+func Changed(a, b image.Image, frac float64) bool {
+	if a == nil || b == nil || a.Bounds() != b.Bounds() {
+		return a != b
+	}
+	ga, gb := ToGray(a), ToGray(b)
+	const grid = 64
+	n, diff := 0, 0
+	for gy := 0; gy < grid; gy++ {
+		for gx := 0; gx < grid; gx++ {
+			i := (gy*ga.H/grid)*ga.W + gx*ga.W/grid
+			d := int(ga.Px[i]) - int(gb.Px[i])
+			if d > 24 || d < -24 {
+				diff++
+			}
+			n++
+		}
+	}
+	return float64(diff) > frac*float64(n)
+}
