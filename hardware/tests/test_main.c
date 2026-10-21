@@ -1,11 +1,12 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream.
+// mirroring keystream, the CLI link crypto.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../hid_bridge/src/bplist/bplist.h"
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
+#include "../hid_bridge/src/cli/cli_proto.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -215,12 +216,68 @@ static void test_keystream_resync(void) {
   mbedtls_aes_free(&aes);
 }
 
+static void hex(const char *s, uint8_t *out) {
+  for (size_t i = 0; s[2 * i]; i++) sscanf(s + 2 * i, "%2hhx", &out[i]);
+}
+
+void cli_random(uint8_t *p, size_t n) {
+  for (size_t i = 0; i < n; i++) p[i] = (uint8_t)rand();
+}
+
+// docs/cli-protocol.md vectors (cli/testdata/vectors.json, made with Python's cryptography).
+static void test_cli_proto(void) {
+  uint8_t b_priv[32], c_pub[32], b_pub[32], k[32], want[32], id[16], mac[16], cn[16], bn[16], c2b[16], b2c[16];
+  hex("65666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081828384", b_priv);
+  hex("07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c", c_pub);
+  CHECK(cli_pair(b_priv, c_pub, b_pub, k));
+  hex("5714769d116bf76436ae74bc793d2c30ad1903c59ac5273805c7e2698b410c36", want);
+  CHECK(!memcmp(b_pub, want, 32));
+  hex("efcbf0a5e51d114b9d6c9570183c9e44cb623c0581ee3ae762c00d6acc18fbf9", want);
+  CHECK(!memcmp(k, want, 32));
+  hex("a0a1a2a3a4a5a6a7a8a9aaabacadaeaf", id);
+  cli_mac(k, "paired", id, 16, NULL, 0, mac);
+  hex("53ce351ad116adba4688e0c848c1fc64", want);
+  CHECK(!memcmp(mac, want, 16));
+  uint8_t zero[32] = {0};
+  CHECK(!cli_pair(b_priv, zero, b_pub, k));  // low-order point: refused
+
+  hex("efcbf0a5e51d114b9d6c9570183c9e44cb623c0581ee3ae762c00d6acc18fbf9", k);
+  hex("101112131415161718191a1b1c1d1e1f", cn);
+  hex("202122232425262728292a2b2c2d2e2f", bn);
+  CHECK(cli_session(k, cn, bn, c2b, b2c));
+  hex("776bc8c110fb6e0440169cfef36ba161", want);
+  CHECK(!memcmp(c2b, want, 16));
+  hex("93478dfeacc3cf696f2764d316a5dff7", want);
+  CHECK(!memcmp(b2c, want, 16));
+  cli_mac(k, "hello", cn, 16, bn, 16, mac);
+  hex("c204a4e56de057834bf60fba723d5ffa", want);
+  CHECK(!memcmp(mac, want, 16));
+
+  uint8_t frame[64], plain[64], expect[64];
+  uint32_t ctr = 0;
+  hex("100100000068afc0f78c919458f5b70b4012515053649a24", expect);
+  int n = cli_open(c2b, 'C', expect, 24, &ctr, plain);
+  CHECK(n == 7 && ctr == 1 && !memcmp(plain, "c7 ping", 7));
+  CHECK(cli_open(c2b, 'B', expect, 24, &ctr, plain) == -1);  // wrong stream: other nonce
+  expect[7] ^= 1;
+  CHECK(cli_open(c2b, 'C', expect, 24, &ctr, plain) == -1);  // tampered
+  CHECK(cli_seal(b2c, CLI_DATA, 'B', 2, (const uint8_t *)"r7 ok", 5, frame) == 22);
+  hex("1002000000caf6fbb8977c45ee4dff70db24f7ebd04d", expect);
+  CHECK(!memcmp(frame, expect, 22));
+  uint8_t v[8];
+  hex("0100050000000001", v);
+  CHECK(cli_seal(b2c, CLI_VIDEO, 'V', 1, v, 8, frame) == 25);
+  hex("110100000038443201752074c91e78396e0bca7521a4e30a63", expect);
+  CHECK(!memcmp(frame, expect, 25));
+}
+
 int main(void) {
   test_bplist_roundtrip();
   test_bplist_utf16();
   test_gop();
   test_chunker();
   test_keystream_resync();
+  test_cli_proto();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

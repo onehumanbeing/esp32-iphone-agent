@@ -38,3 +38,10 @@
 #undef CONFIG_BT_NIMBLE_MAX_CCCDS
 #define CONFIG_BT_NIMBLE_MAX_CCCDS 48
 #define MYNEWT_VAL_BLE_STORE_MAX_CCCDS 48
+// Two advertising sets (ble_link.cpp): the app's on the public address, the CLI's on a random one per boot.
+#undef CONFIG_BT_NIMBLE_EXT_ADV
+#define CONFIG_BT_NIMBLE_EXT_ADV 1
+#undef CONFIG_BT_NIMBLE_MAX_EXT_ADV_INSTANCES
+#define CONFIG_BT_NIMBLE_MAX_EXT_ADV_INSTANCES 2
+#undef CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN
+#define CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN 31

@@ -16,6 +16,9 @@ Service `6e400001-a9e8-4b1b-9c39-6d6f8a3c0000`
 
 Full UUID = `6e400001-a9e8-4b1b-9c39-6d6f8a3c` + 4-hex suffix, e.g. cmd = `6e400001-a9e8-4b1b-9c39-6d6f8a3c0001`.
 
+A computer (the `esp32agent` CLI) can be connected at the same time on its own service `...0010`, with its own
+video stream and replies: see [cli-protocol.md](cli-protocol.md).
+
 ## cmd
 `<id>` is a decimal request id chosen by the app; the reply echoes it.
 Existing HID commands, unchanged semantics from the old TCP protocol:

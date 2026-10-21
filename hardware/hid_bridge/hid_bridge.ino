@@ -18,6 +18,7 @@
 #include "ble_link.h"
 #include "netcfg.h"
 #include "video_link.h"
+#include "cli_link.h"
 #include "wifi_video.h"
 #include "ota.h"
 #include "version.h"
@@ -128,8 +129,8 @@ const char *usbState() {
   return tud_suspended() ? "asleep" : "ok";
 }
 
-// Board-level commands from the app; everything else is an HID command for run().
-String board(const String &line, const String &id) {
+// Board-level commands from the app or the CLI (who); everything else is an HID command for run().
+String board(const String &line, const String &id, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String arg = sp < 0 ? "" : line.substring(sp + 1);
@@ -137,18 +138,19 @@ String board(const String &line, const String &id) {
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
   if (cmd == "stream") {
     if (arg != "on" && arg != "off") return "err usage: stream on|off";
-    video_stream(arg == "on");
+    video_stream(arg == "on", who);
     return "ok";
   }
+  if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair")) return "err not available from the CLI";
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
-  if (cmd == "snap") { video_snap(id); return ""; }  // replies when the GOP is sent
+  if (cmd == "snap") { video_snap(id, who); return ""; }  // replies when the GOP is sent
   if (cmd == "bench") {
     if (n < 1 || a <= 0 || a > 4096) return "err usage: bench KB (1-4096)";
-    video_bench(id, a);
+    video_bench(id, a, who);
     return "";
   }
   if (cmd == "res") {
@@ -179,9 +181,9 @@ String board(const String &line, const String &id) {
   return run(line);
 }
 
-String statusJson(bool full) {
+String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
-  VideoStats v = video_stats();
+  VideoStats v = video_stats(who);
   char s[480];
   snprintf(s, sizeof s,
            "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
@@ -205,9 +207,10 @@ void statusTask(void *) {
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
     if (!ble_connected()) continue;
-    String s = statusJson(true);
-    if (s.length() > ble_mtu() - 3u) s = statusJson(false);
+    String s = statusJson(true, FROM_APP);
+    if (s.length() > ble_mtu() - 3u) s = statusJson(false, FROM_APP);
     ble_status(s);
+    if (cli_slot() >= 0) ble_cli_status(statusJson(true, FROM_CLI), statusJson(false, FROM_CLI));
   }
 }
 
@@ -268,6 +271,7 @@ void setup() {
   if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
   if (!wv_begin()) Serial.println("video: Wi-Fi video channel failed to start");
   if (!ota_begin()) Serial.println("ota: failed to start");
+  cli_begin();
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
@@ -278,15 +282,18 @@ void setup() {
 }
 
 void loop() {
-  static bool linked = false;
+  static bool linked = false, cliLinked = false;
   esp_task_wdt_reset();
   net_poll();
-  if (linked && !ble_connected()) {
+  bool cli = cli_slot() >= 0;
+  if ((linked && !ble_connected()) || (cliLinked && !cli)) {
     mouse.release(MOUSE_LEFT);  // a gesture cut off mid-way must not leave the button held (long press)
     keyboard.releaseAll();
-    video_stream(false);
+    if (!ble_connected()) video_stream(false, FROM_APP);
+    if (!cli) video_stream(false, FROM_CLI);
   }
   linked = ble_connected();
+  cliLinked = cli;
   // A freshly updated image is kept once it has run a while or the app got through; a crash or watchdog
   // reset before that makes the bootloader go back to the previous one.
   static bool confirmed = false;
@@ -298,13 +305,14 @@ void loop() {
     line.trim();
     if (line.startsWith("0 net ")) { net_request(line.substring(6)); Serial.println("0 ok"); return; }
     if (line == "0 netinfo") { Serial.println("0 " + net_json()); return; }  // what the app reads over BLE (incl. vtok)
-    if (line == "0 status") { Serial.println("0 " + statusJson(true)); return; }
+    if (line == "0 status") { Serial.println("0 " + statusJson(true, FROM_APP)); return; }
     int sp = line.indexOf(' ');
     String id = sp < 0 ? line : line.substring(0, sp);
-    Serial.println(id + " " + board(sp < 0 ? "" : line.substring(sp + 1), id));
+    Serial.println(id + " " + board(sp < 0 ? "" : line.substring(sp + 1), id, FROM_APP));
     return;
   }
-  if (!ble_pop_cmd(line, 50)) return;
+  char who;
+  if (!ble_pop_cmd(line, who, 50)) return;
   int sp = line.indexOf(' ');
   String id = sp < 0 ? line : line.substring(0, sp);
   String rest = sp < 0 ? "" : line.substring(sp + 1);
@@ -312,8 +320,8 @@ void loop() {
 #if DEBUG_SERIAL
   unsigned long started = millis();
 #endif
-  String reply = id.toInt() || id == "0" ? board(rest, id) : "err missing request id";
-  if (reply.length()) ble_reply(id + " " + reply);
+  String reply = id.toInt() || id == "0" ? board(rest, id, who) : "err missing request id";
+  if (reply.length()) ble_reply(id + " " + reply, who);
 #if DEBUG_SERIAL
   Serial.printf("%s -> %s (%lu ms)\n", line.c_str(), reply.c_str(), millis() - started);
 #endif

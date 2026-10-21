@@ -28,3 +28,7 @@ hardware/dist/
 
 # Cloudflare CLI local cache (account id/name)
 .cloudflare/
+hardware/tests/sim/cli_sim
+hardware/tests/sim/cli_sim.dSYM/
+hardware/tests/sim/*.o
+hardware/tests/sim/screen.h264
