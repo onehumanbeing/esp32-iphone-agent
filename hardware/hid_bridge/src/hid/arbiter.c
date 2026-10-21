@@ -1,78 +1,22 @@
 #include "arbiter.h"
-#include <stdlib.h>
 #include <string.h>
 
-static bool is(const char *cmd, const char *name) { return strcmp(cmd, name) == 0; }
+void arb_init(arb_state *s) { s->pressed = ARB_NONE; }
 
-// Commands whose effect depends on where the pointer is.
-static bool aimed(const char *cmd) {
-  return is(cmd, "move") || is(cmd, "press") || is(cmd, "click") || is(cmd, "scroll");
-}
+int arb_owner(bool app, bool cli) { return app ? ARB_APP : cli ? ARB_CLI : ARB_NONE; }
 
-static bool hid(const char *cmd) { return !is(cmd, "ping"); }
+const char *arb_owner_name(int owner) { return owner == ARB_APP ? "app" : owner == ARB_CLI ? "cli" : "none"; }
 
-// The app's keep-awake nudge while idle and mirroring ("move 1 0", "move -1 0" every 25 s; Pointer.swift doesn't
-// count it either): not driving, so it neither holds the phone nor moves anyone's pointer.
-static bool nudge(int side, const char *cmd, long a, long b) {
-  return side == ARB_APP && is(cmd, "move") && labs(a) <= 1 && labs(b) <= 1;
-}
+bool arb_allowed(int side, bool app) { return side == ARB_APP || !app; }
 
-void arb_init(arb_state *s) {
-  memset(s, 0, sizeof *s);
-  s->mover = s->pressed = -1;
-}
-
-bool arb_app_busy(const arb_state *s, uint32_t now) { return s->appSeen && now - s->appAt < ARB_LEASE_MS; }
-
-arb_plan arb_before(arb_state *s, int side, const char *cmd, long a, long b, uint32_t now) {
-  arb_plan plan = {0};
-  if (!hid(cmd) || nudge(side, cmd, a, b)) return plan;
-  if (side == ARB_CLI && arb_app_busy(s, now)) {
-    plan.refuse = true;
-    return plan;
-  }
-  if (side == ARB_APP) {
-    s->appSeen = true;
-    s->appAt = now;
-  }
-  if (s->pressed >= 0 && s->pressed != side) {
-    plan.release = true;
-    s->pressed = -1;
-  }
-  arb_pointer *p = &s->p[side];
-  if (aimed(cmd) && s->mover >= 0 && s->mover != side && p->known) {
-    plan.restore = true;
-    plan.x = p->x;
-    plan.y = p->y;
-  }
-  if (aimed(cmd) || is(cmd, "home")) s->mover = side;
-  return plan;
-}
-
-void arb_after(arb_state *s, int side, const char *cmd, long a, long b, bool ok) {
-  arb_pointer *p = &s->p[side];
-  if (nudge(side, cmd, a, b)) return;
-  if (!ok) {  // e.g. the phone's USB asleep: the side can't tell where the pointer went
-    if (aimed(cmd) || is(cmd, "home")) p->known = false;
-    return;
-  }
-  if (is(cmd, "home")) {
-    p->known = true;
-    p->x = p->y = 0;
-  } else if (is(cmd, "move")) {
-    p->x += a;
-    p->y += b;
-  } else if (is(cmd, "press")) {
-    s->pressed = side;
-  } else if (is(cmd, "release") || is(cmd, "click")) {
-    if (s->pressed == side) s->pressed = -1;
-  }
+void arb_after(arb_state *s, int side, const char *cmd, bool ok) {
+  if (!ok) return;
+  if (strcmp(cmd, "press") == 0) s->pressed = side;
+  else if ((strcmp(cmd, "release") == 0 || strcmp(cmd, "click") == 0) && s->pressed == side) s->pressed = ARB_NONE;
 }
 
 bool arb_gone(arb_state *s, int side) {
-  s->p[side].known = false;  // mover stays: the pointer is still where that side left it
-  if (side == ARB_APP) s->appSeen = false;
   if (s->pressed != side) return false;
-  s->pressed = -1;
+  s->pressed = ARB_NONE;
   return true;
 }

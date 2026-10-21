@@ -48,6 +48,7 @@ type Conn struct {
 	frameSubs map[chan image.Image]bool
 	wake      chan struct{} // closed and replaced on every new frame
 
+	onApp      func() // the board said the app is using it
 	ptr        *pointer.Pointer
 	lastAction time.Time
 	lastShot   time.Time
@@ -163,7 +164,17 @@ func (c *Conn) Send(ctx context.Context, line string) (string, error) {
 		if r == "ok" || strings.HasPrefix(r, "ok ") {
 			return strings.TrimPrefix(strings.TrimPrefix(r, "ok"), " "), nil
 		}
+		if strings.HasPrefix(r, "err busy: the app") {
+			c.appBusy()
+			return "", ErrAppBusy
+		}
 		return "", errors.New(strings.TrimPrefix(r, "err "))
+	}
+}
+
+func (c *Conn) appBusy() {
+	if c.onApp != nil {
+		c.onApp()
 	}
 }
 
@@ -188,6 +199,9 @@ func (c *Conn) onStatus(b []byte) {
 		c.status[k] = v
 	}
 	c.statusAt = now
+	if m["owner"] == "app" || m["busy"] == float64(1) {
+		defer c.appBusy() // after mu is released
+	}
 	if up, ok := m["up"].(float64); ok {
 		c.learnClock(now, uint32(up))
 	}

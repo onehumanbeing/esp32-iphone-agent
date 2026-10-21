@@ -70,7 +70,7 @@ func TestPairInfoAndBusy(t *testing.T) {
 	busy := false
 	b.Handle = func(cmd string) string {
 		if busy && cmd != "stream on" {
-			return "err busy: the app is using the phone"
+			return "err busy: the app is using the board"
 		}
 		return "ok"
 	}
@@ -107,7 +107,7 @@ func TestPairInfoAndBusy(t *testing.T) {
 		t.Fatalf("screenshot without mirroring: %+v", r)
 	}
 	busy = true
-	if r, _ := call(t, c, Request{Cmd: "text", Text: "hi"}); r.Status != "error" || r.Error != "busy: the app is using the phone" {
+	if r, _ := call(t, c, Request{Cmd: "text", Text: "hi"}); r.Status != "error" || r.Error != ErrAppBusy.Error() {
 		t.Fatalf("busy: %+v", r)
 	}
 	b.Status(`{"ap":"streaming","fz":1}`)

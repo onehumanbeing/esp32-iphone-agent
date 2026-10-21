@@ -114,26 +114,15 @@ String run(const String &line) {
   return "err unknown command";
 }
 
-static arb_state arb;  // the app and the CLI share the mouse and keyboard, src/hid/arbiter.h
+static arb_state arb;  // the app or the CLI drives the phone, never both: src/hid/arbiter.h
+const char *const APP_BUSY = "err busy: the app is using the board";
 
-// An HID command from who: refused while the app holds the phone, else with the pointer put back where who left it.
+// An HID command from who; the side that leaves lets go of the button it held (loop()).
 String drive(const String &line, char who) {
-  int side = who == FROM_CLI ? ARB_CLI : ARB_APP;
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
-  long a = 0, b = 0;
-  if (sp > 0) sscanf(line.c_str() + sp + 1, "%ld %ld", &a, &b);
-  arb_plan plan = arb_before(&arb, side, cmd.c_str(), a, b, millis());
-  if (plan.refuse) return "err busy: the app is using the phone";
-  if ((plan.release || plan.restore) && usbReady()) {
-    if (plan.release) mouse.release(MOUSE_LEFT);
-    if (plan.restore) {
-      run("home");
-      movePaced(plan.x, plan.y);
-    }
-  }
   String reply = run(line);
-  arb_after(&arb, side, cmd.c_str(), a, b, reply == "ok");
+  arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");
   return reply;
 }
 
@@ -177,6 +166,7 @@ String board(const String &line, const String &id, char who) {
   String arg = sp < 0 ? "" : line.substring(sp + 1);
   long a = 0, b = 0;
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
+  if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_connected()) && cmd != "crash") return APP_BUSY;
   if (cmd == "stream") {
     if (arg != "on" && arg != "off") return "err usage: stream on|off";
     video_stream(arg == "on", who);
@@ -229,7 +219,7 @@ String board(const String &line, const String &id, char who) {
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
-  char s[480];
+  char s[560];
   snprintf(s, sizeof s,
            "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
@@ -241,15 +231,21 @@ String statusJson(bool full, char who) {
            (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, (unsigned long)v.overflows, v.frozen, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
            (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
            (unsigned long)wv_nacks(), (unsigned long)wv_drops());
-  if (who == FROM_CLI) {  // 1 while the app holds the phone (its HID commands win, the CLI's are refused)
-    size_t len = strlen(s);
-    snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", arb_app_busy(&arb, millis()));
+  // owner: who drives the phone (app, cli, none); the CLI's busy is 1 while that is the app
+  bool app = ble_app_connected();
+  const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
+  size_t len = strlen(s);
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
+  if (who == FROM_CLI) {
+    len = strlen(s);
+    snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
   }
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
   snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
-  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d", arb_app_busy(&arb, millis()));
+  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
+  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d", app);
   strlcat(s, "}", sizeof s);
   return s;
 }
@@ -349,6 +345,22 @@ void loop() {
   if (cliLinked && !cli) {
     if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
     video_stream(false, FROM_CLI);
+  }
+  // The app wins: a CLI session up alongside it stops at once and is dropped shortly after, once its status
+  // (owner app, busy 1) and the `err busy` replies to anything it sent are out, so it doesn't load the radio.
+  static uint32_t cliDropAt = 0;
+  if (app && cli) {
+    if (!cliDropAt) {
+      if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
+      video_stream(false, FROM_CLI);
+      ble_cli_status(statusJson(true, FROM_CLI), statusJson(false, FROM_CLI));
+      cliDropAt = millis() + 300;
+    } else if ((int32_t)(millis() - cliDropAt) >= 0) {
+      ble_cli_drop(cli_slot());
+      cliDropAt = millis() + 2000;  // once more later if it's still there
+    }
+  } else {
+    cliDropAt = 0;
   }
   linked = app;
   cliLinked = cli;

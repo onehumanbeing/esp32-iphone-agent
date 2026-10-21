@@ -272,62 +272,25 @@ static void test_cli_proto(void) {
   CHECK(!memcmp(frame, expect, 25));
 }
 
-// Runs cmd from side as the sketch's drive() does; returns the plan.
-static arb_plan arb_run(arb_state *s, int side, const char *cmd, long a, long b, uint32_t now) {
-  arb_plan p = arb_before(s, side, cmd, a, b, now);
-  if (!p.refuse) arb_after(s, side, cmd, a, b, true);
-  return p;
-}
-
 static void test_arbiter(void) {
+  // the app wins whenever its link is up; the CLI only alone
+  CHECK(arb_owner(false, false) == ARB_NONE);
+  CHECK(arb_owner(false, true) == ARB_CLI);
+  CHECK(arb_owner(true, true) == ARB_APP);
+  CHECK(!strcmp(arb_owner_name(ARB_APP), "app") && !strcmp(arb_owner_name(ARB_NONE), "none"));
+  CHECK(!arb_allowed(ARB_CLI, true) && arb_allowed(ARB_CLI, false) && arb_allowed(ARB_APP, true));
+  // only the side that left lets go of the button it held
   arb_state s;
   arb_init(&s);
-  // the CLI alone: no restore, it knows where it is
-  CHECK(!arb_run(&s, ARB_CLI, "home", 0, 0, 0).restore);
-  CHECK(!arb_run(&s, ARB_CLI, "move", 100, 200, 10).restore);
-  // the app takes over: its pointer is unknown (never homed), so nothing to restore; it homes itself
-  CHECK(!arb_run(&s, ARB_APP, "home", 0, 0, 1000).refuse);
-  arb_run(&s, ARB_APP, "move", 30, 40, 1010);
-  // the app holds the phone: the CLI is refused, also ping is not HID
-  CHECK(arb_run(&s, ARB_CLI, "move", 1, 1, 1000 + ARB_LEASE_MS - 1).refuse);
-  CHECK(arb_run(&s, ARB_CLI, "type", 0, 0, 2000).refuse);
-  CHECK(!arb_run(&s, ARB_CLI, "ping", 0, 0, 2000).refuse);
-  CHECK(arb_app_busy(&s, 1010 + ARB_LEASE_MS - 1) && !arb_app_busy(&s, 1010 + ARB_LEASE_MS));
-  // lease over: the CLI gets its own pointer back
-  uint32_t t = 1010 + ARB_LEASE_MS;
-  arb_plan p = arb_run(&s, ARB_CLI, "click", 0, 0, t);
-  CHECK(!p.refuse && p.restore && p.x == 100 && p.y == 200);
-  CHECK(!arb_run(&s, ARB_CLI, "move", 5, 5, t + 1).restore);  // still its own pointer
-  // the app's next pointer command: back to (30, 40), even with the CLI holding the button
-  arb_run(&s, ARB_CLI, "press", 0, 0, t + 2);
-  p = arb_run(&s, ARB_APP, "move", 5, 0, t + 3);
-  CHECK(p.release && p.restore && p.x == 30 && p.y == 40);
-  CHECK(!arb_run(&s, ARB_APP, "click", 0, 0, t + 4).restore);
-  // keys don't touch the pointer: no restore, the app's stays at (35, 40)
-  CHECK(!arb_run(&s, ARB_APP, "key", 0, 0, t + 5).restore);
-  // the app's link went down: its lease ends, and its pointer is unknown until it homes again
-  arb_run(&s, ARB_APP, "press", 0, 0, t + 6);
-  CHECK(arb_gone(&s, ARB_APP));      // it held the button
-  CHECK(!arb_gone(&s, ARB_CLI));     // the CLI did not
-  p = arb_run(&s, ARB_CLI, "move", 0, 0, t + 7);
-  CHECK(!p.refuse && !p.restore);    // CLI gone too: unknown, it homes on its own
-  // the app's idle keep-awake nudge: not driving, no lease, no restore, nobody's pointer moves
-  arb_init(&s);
-  arb_run(&s, ARB_CLI, "home", 0, 0, 0);
-  arb_run(&s, ARB_CLI, "move", 50, 60, 1);
-  CHECK(!arb_run(&s, ARB_APP, "move", 1, 0, 2).restore);
-  arb_run(&s, ARB_APP, "move", -1, 0, 3);
-  CHECK(!arb_app_busy(&s, 4));
-  p = arb_run(&s, ARB_CLI, "click", 0, 0, 5);
-  CHECK(!p.refuse && !p.restore);    // still the CLI's pointer, still at (50, 60)
-  // a failed move (phone asleep) makes the side's pointer unknown
-  arb_init(&s);
-  arb_run(&s, ARB_APP, "home", 0, 0, 0);
-  arb_before(&s, ARB_APP, "move", 10, 10, 0);
-  arb_after(&s, ARB_APP, "move", 10, 10, false);
-  t = ARB_LEASE_MS;
-  arb_run(&s, ARB_CLI, "home", 0, 0, t);
-  CHECK(!arb_run(&s, ARB_APP, "move", 5, 5, t + 1).restore);
+  arb_after(&s, ARB_CLI, "press", true);
+  CHECK(!arb_gone(&s, ARB_APP));
+  CHECK(arb_gone(&s, ARB_CLI));
+  CHECK(!arb_gone(&s, ARB_CLI));  // once
+  arb_after(&s, ARB_APP, "press", true);
+  arb_after(&s, ARB_APP, "click", true);
+  CHECK(!arb_gone(&s, ARB_APP));
+  arb_after(&s, ARB_APP, "press", false);  // failed: nothing held
+  CHECK(!arb_gone(&s, ARB_APP));
 }
 
 int main(void) {

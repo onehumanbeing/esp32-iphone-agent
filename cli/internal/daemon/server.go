@@ -59,6 +59,7 @@ type Server struct {
 	last   time.Time
 	active int
 	linkMu sync.Mutex // one scan or connect at a time
+	appAt  time.Time  // the board last said the app is using it (it then drops us)
 	stop   chan struct{}
 	once   sync.Once
 }
@@ -286,6 +287,24 @@ func explain(err error) error {
 	return err
 }
 
+// ErrAppBusy: the app owns the board (docs/cli-protocol.md, "Sharing the phone with the app").
+var ErrAppBusy = errors.New("busy: the app is using the board; try again when it's closed")
+
+// The board drops the CLI while the app's link is up: don't reconnect for appWait after it said so.
+const appWait = 30 * time.Second
+
+func (s *Server) noteApp() {
+	s.mu.Lock()
+	s.appAt = time.Now()
+	s.mu.Unlock()
+}
+
+func (s *Server) appBusy() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.appAt.IsZero() && time.Since(s.appAt) < appWait
+}
+
 // conn returns the connected board for sel, connecting (scan + HELLO) if needed.
 func (s *Server) conn(ctx context.Context, sel string) (*Conn, error) {
 	var live []*Conn
@@ -298,6 +317,9 @@ func (s *Server) conn(ctx context.Context, sel string) (*Conn, error) {
 	s.mu.Unlock()
 	if len(live) == 1 {
 		return live[0], nil
+	}
+	if s.appBusy() {
+		return nil, ErrAppBusy
 	}
 	f, err := s.pick(ctx, sel, true)
 	if err != nil {
@@ -338,6 +360,7 @@ func (s *Server) open(ctx context.Context, f ble.Found, sel string, l proto.Link
 	if c == nil {
 		ff, _ := video.FFmpeg()
 		c = newConn(id, f.Name, ff)
+		c.onApp = s.noteApp
 		s.conns[id] = c
 	}
 	s.mu.Unlock()
