@@ -49,6 +49,7 @@ class Screen:
                 sock.shutdown(socket.SHUT_RDWR)  # wakes the follower's recv(); close() alone does not on Linux
             except OSError:
                 pass
+            sock.close()  # and on Windows only close() does
 
     def restart(self) -> None:
         """Restart UxPlay (its supervisor starts a new one); the phone must choose it in Screen Mirroring again."""
