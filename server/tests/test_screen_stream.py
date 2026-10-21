@@ -4,6 +4,7 @@ end the phone's Screen Mirroring session."""
 import os
 import socket
 import subprocess
+import sys
 import threading
 import time
 
@@ -20,6 +21,9 @@ def wait_for(check, timeout=3.0):
             return True
         time.sleep(0.02)
     return False
+
+
+SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]  # no `sleep` on Windows
 
 
 def listener():
@@ -62,7 +66,7 @@ def test_the_stream_is_followed_again_after_the_receiver_restarts():
 
 def test_restart_stops_the_standalone_receiver_so_its_loop_starts_a_new_one(tmp_path):
     srv, port = listener()
-    fake_uxplay = subprocess.Popen(["sleep", "30"])
+    fake_uxplay = subprocess.Popen(SLEEP)
     pidfile = tmp_path / "uxplay.pid"
     pidfile.write_text(str(fake_uxplay.pid))
     screen = Screen(stream=f"127.0.0.1:{port}", pidfile=pidfile)
@@ -81,7 +85,7 @@ def test_restart_stops_the_standalone_receiver_so_its_loop_starts_a_new_one(tmp_
 
 def test_restart_signals_nothing_when_no_receiver_is_streaming(tmp_path):
     # the receiver is gone, so the pid it recorded may belong to an unrelated process by now
-    other = subprocess.Popen(["sleep", "30"])
+    other = subprocess.Popen(SLEEP)
     pidfile = tmp_path / "uxplay.pid"
     pidfile.write_text(str(other.pid))
     try:
@@ -140,17 +144,43 @@ def test_the_receiver_forwards_new_frames_and_says_when_the_phone_is_gone():
     screen.stop()
 
 
+def fake_uxplay(tmp_path, monkeypatch, code="import time; time.sleep(30)"):
+    """A stand-in `uxplay` that runs `code` (with UxPlay's arguments in sys.argv)."""
+    script = tmp_path / "fake_uxplay.py"
+    script.write_text(code)
+    if os.name == "nt":
+        fake = tmp_path / "uxplay.cmd"
+        fake.write_text(f'@"{sys.executable}" "{script}" %*\n')
+    else:
+        fake = tmp_path / "uxplay"
+        fake.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n')
+        fake.chmod(0o755)
+    monkeypatch.setenv("UXPLAY", str(fake))
+
+
 def test_uxplay_s_pid_is_recorded_for_the_server_s_restart(tmp_path, monkeypatch):
-    fake = tmp_path / "uxplay"
-    fake.write_text("#!/bin/sh\nexec sleep 30\n")
-    fake.chmod(0o755)
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    fake_uxplay(tmp_path, monkeypatch)
     pidfile = tmp_path / "uxplay.pid"
     screen = Screen(pidfile=pidfile)
     screen.start()
     try:
         assert wait_for(lambda: screen._proc is not None and pidfile.exists()
                         and pidfile.read_text() == str(screen._proc.pid))
+    finally:
+        screen.stop()
+
+
+def test_on_windows_uxplay_sends_frames_to_a_local_socket(tmp_path, monkeypatch):
+    # no pipe can be handed to UxPlay there: its pipeline ends in a tcpclientsink to the server
+    fake_uxplay(tmp_path, monkeypatch, "import re, socket, sys, time\n"
+                "port = int(re.search(r'port=(\\d+)', sys.argv[-1]).group(1))\n"
+                "with socket.create_connection(('127.0.0.1', port)) as s:\n"
+                "    s.sendall(b'\\xff\\xd8frame\\xff\\xd9')\n"
+                "    time.sleep(30)\n")
+    screen = Screen()
+    threading.Thread(target=screen._run_with_socket, daemon=True).start()
+    try:
+        assert wait_for(lambda: screen.frame == b"\xff\xd8frame\xff\xd9", timeout=10)
     finally:
         screen.stop()
 

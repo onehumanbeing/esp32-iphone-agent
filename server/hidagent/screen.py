@@ -87,21 +87,44 @@ class Screen:
     def _supervise(self) -> None:
         """Keep UxPlay running: it exits on some disconnects, so restart it every time."""
         while not self._stopping:
-            read_fd, write_fd = os.pipe()
-            sink = (f"videorate drop-only=true ! video/x-raw,framerate={self.fps}/1 ! "
-                    f"jpegenc quality={self.quality} ! fdsink fd={write_fd}")
-            self._proc = subprocess.Popen(
-                ["uxplay", "-n", self.name, "-nh", "-a", "-reset", "0", "-vs", sink],
-                pass_fds=(write_fd,))  # UxPlay logs to stdout: keep them in ours
-            os.close(write_fd)
-            if self.pidfile:
-                Path(self.pidfile).write_text(str(self._proc.pid))
-            log.info("AirPlay receiver '%s' started (pid %d)", self.name, self._proc.pid)
-            self._read(read_fd)  # returns when UxPlay closes the pipe
+            if os.name == "nt":
+                self._run_with_socket()
+            else:
+                read_fd, write_fd = os.pipe()
+                self._launch(f"fdsink fd={write_fd}", pass_fds=(write_fd,))
+                os.close(write_fd)
+                self._read(read_fd)  # returns when UxPlay closes the pipe
             code = self._proc.wait()
             self.frame = None
             log.warning("AirPlay receiver exited (code %s), restarting", code)
             time.sleep(1)
+
+    def _launch(self, sink: str, **popen) -> None:
+        sink = (f"videorate drop-only=true ! video/x-raw,framerate={self.fps}/1 ! "
+                f"jpegenc quality={self.quality} ! {sink}")
+        uxplay = os.environ.get("UXPLAY", "uxplay")  # e.g. C:/msys64/ucrt64/bin/uxplay.exe
+        self._proc = subprocess.Popen([uxplay, "-n", self.name, "-nh", "-a", "-reset", "0", "-vs", sink],
+                                      **popen)  # UxPlay logs to stdout: keep them in ours
+        if self.pidfile:
+            Path(self.pidfile).write_text(str(self._proc.pid))
+        log.info("AirPlay receiver '%s' started (pid %d)", self.name, self._proc.pid)
+
+    def _run_with_socket(self) -> None:
+        """Windows cannot hand UxPlay a pipe, so its pipeline connects back to a local socket instead."""
+        with socket.create_server(("127.0.0.1", 0)) as srv:
+            srv.settimeout(0.5)
+            self._launch(f"tcpclientsink host=127.0.0.1 port={srv.getsockname()[1]}")
+            while self._proc.poll() is None:  # the pipeline reconnects whenever UxPlay rebuilds it
+                try:
+                    conn, _ = srv.accept()
+                except TimeoutError:
+                    continue
+                with conn:
+                    conn.settimeout(None)
+                    try:
+                        self._consume(lambda c=conn: c.recv(1 << 16))
+                    except OSError:
+                        pass  # UxPlay went away mid-frame
 
     @property
     def live(self) -> bool:

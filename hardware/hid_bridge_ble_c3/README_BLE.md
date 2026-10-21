@@ -15,7 +15,7 @@ Library: NimBLE-Arduino 2.5.1 (h2zero), on the esp32 Arduino core 3.3.x. The mou
 3. Plug in the board and flash it:
    - ESP32-C3: `hardware/flash_ble.sh` (add `--debug` to log commands over USB serial)
    - Classic ESP32 (WROOM-32E): `hardware/flash_ble.sh --classic`
-   - You can pass a port too, for example `hardware/flash_ble.sh /dev/ttyACM0`. If a C3 won't upload, hold BOOT while you plug it in.
+   - You can pass a port too, for example `hardware/flash_ble.sh /dev/ttyACM0`. If a C3 won't upload, hold BOOT while you plug it in. On Windows, run it in Git Bash and pass a COM port if needed (`COM5`); CP210x and CH340 boards may need the vendor's USB driver.
 
 ## Pairing with the iPhone
 1. On the iPhone, open Settings > Bluetooth and tap **iPhone Agent HID**. Accept the pairing request.

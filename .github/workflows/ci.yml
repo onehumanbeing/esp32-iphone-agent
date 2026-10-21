@@ -7,10 +7,14 @@ on:
 
 jobs:
   server:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest]
         python: ["3.10", "3.12"]
+        include:
+          - os: windows-latest
+            python: "3.12"
     defaults:
       run:
         working-directory: server
@@ -22,6 +26,19 @@ jobs:
       - run: pip install -e ".[dev,mcp]"
       - run: ruff check .
       - run: pytest -q
+
+  flash-scripts-windows:  # Git Bash: the scripts parse and the COM port lookup runs
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          for f in hardware/*.sh; do bash -n "$f"; done
+          source hardware/ports.sh
+          windows
+          out=$(serial_port 303A 2>&1); [[ -z $out ]] || { echo "$out"; exit 1; }
 
   firmware:
     runs-on: ubuntu-latest

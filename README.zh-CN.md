@@ -35,7 +35,7 @@ USB 鼠标加键盘。大脑可以是任何兼容 OpenAI 接口的视觉模型�
 |--------------------------|------------------------|--------------------------------|
 | Apple 开发者账号         | **不需要**             | 需要（给测试程序签名）         |
 | Xcode                    | **不需要**             | 需要                           |
-| 电脑                     | Mac **或 Linux**       | Mac                            |
+| 电脑                     | Mac、Linux **或 Windows** | Mac                            |
 | 手机上安装 App           | **不需要**             | 需要装测试程序                 |
 | 越狱                     | 不需要                 | 不需要                         |
 | 额外硬件                 | ESP32-S3 开发板（约 40 多元） | USB 线                    |
@@ -60,7 +60,7 @@ USB 鼠标加键盘。大脑可以是任何兼容 OpenAI 接口的视觉模型�
 |---|---|
 | **ESP32-S3 开发板** | 实测使用 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/cn/xiao_esp32s3_getting_started/) 普通版、未焊排针（不是带摄像头的 Sense 版，也不是 Plus 版）。国内在淘宝搜“XIAO ESP32S3”就能买到，约 40 多元。任何 USB-C 口直连 S3 原生 USB 的 ESP32-S3 板子都可以。 |
 | **iPhone** | USB-C 机型直接插；Lightning 机型用 Lightning 转 USB 相机转换器。板子由手机供电。 |
-| **电脑** | macOS 或 Linux，和手机在同一个局域网；运行 UxPlay 和服务端。 |
+| **电脑** | macOS、Linux 或 Windows，和手机在同一个局域网；运行 UxPlay 和服务端。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的对话模型。本地部署是可选的。 |
 
 <p align="center"><img src="docs/images/setup.png" alt="插在 iPhone 上的 XIAO ESP32S3，旁边是网页界面" width="100%"></p>
@@ -111,6 +111,26 @@ set -a && . ./.env && set +a && MIRROR_STREAM=127.0.0.1:8891 .venv/bin/python -m
 
 浏览器打开 `http://127.0.0.1:8890`。服务端没有密码，所以默认只监听本机；设置 `HOST=0.0.0.0` 才会对局域网开放。
 
+### Windows
+
+上面的命令都在 **Git Bash**（Git for Windows 自带）里运行。`hardware/flash.sh` 会自己找到板子的 COM 口，也可以手动指定：
+`hardware/flash.sh COM5`。服务端：
+
+- 按 [UxPlay 的 Windows 说明](https://github.com/FDH2/UxPlay#building-uxplay-on-microsoft-windows-using-msys2-with-the-mingw-64-compiler)
+  用 MSYS2（UCRT64）编译 `uxplay.exe`，并安装 `gst-plugins-good`、`gst-plugins-bad`、`gst-libav`。UxPlay 1.74 起自带 mDNS，
+  更早的版本需要 Apple 的 Bonjour。
+- 在 Windows 防火墙里放行 `uxplay.exe` 和 Python（手机连 UxPlay，板子连 7300 端口）。
+- 在 `.env` 里用 `UXPLAY` 指向 UxPlay，并把 `.venv/bin/` 换成 `.venv/Scripts/`：
+
+```bash
+cd server
+python -m venv .venv && .venv/Scripts/pip install -e .
+cp .env.example .env         # 另外设置 UXPLAY=C:/msys64/ucrt64/bin/uxplay.exe
+set -a && . ./.env && set +a && .venv/Scripts/python -m hidagent
+```
+
+Windows 上不能输入 ASCII 以外的文字（比如中文）：这要靠“通用剪贴板”，只有 Mac 才有。
+
 ### 3. 设置手机（只需一次）
 
 1. **设置 → 辅助功能 → 触控 → 辅助触控**：打开。
@@ -147,6 +167,7 @@ set -a && . ./.env && set +a && MIRROR_STREAM=127.0.0.1:8891 .venv/bin/python -m
 | `AIRPLAY_NAME` | `iPhone Agent` | 手机"屏幕镜像"列表里显示的名字 |
 | `HOST` | `127.0.0.1` | 网页和 API 监听的地址（`0.0.0.0` 对局域网开放，且没有密码） |
 | `PORT` / `DEVICE_PORT` | `8890` / `7300` | 网页端口 / 板子连接的端口 |
+| `UXPLAY` | `uxplay` | UxPlay 可执行文件（Windows 上如 `C:/msys64/ucrt64/bin/uxplay.exe`） |
 | `MIRROR_STREAM` / `MIRROR_PORT` | — / `8891` | 读取单独运行的接收端的画面（`127.0.0.1:8891`，见上文），不再由服务端自己启动 UxPlay / 接收端提供画面的端口 |
 | `HIDAGENT_DATA` | `~/.hidagent` | 校准数据和调试记录 |
 | `HIDAGENT_DEBUG` | `0` | 调试模式，见下文 |
@@ -224,7 +245,7 @@ server/     Agent、网页界面、屏幕采集和板子连接（Python，FastAP
 
 - iOS 不镜像部分界面（输入密码、Apple Pay、有版权保护的视频），Agent 看不到这些画面。
 - 手机锁屏后镜像会断开，Agent 工作时请关闭自动锁定。
-- 板子只能逐键输入 ASCII。中文等其他文字通过“通用剪贴板”粘贴，需要服务端跑在登录了手机同一 Apple 账户、开启“接力”的 Mac 上。
+- 板子只能逐键输入 ASCII。中文等其他文字通过“通用剪贴板”粘贴，需要服务端跑在登录了手机同一 Apple 账户、开启“接力”的 Mac 上；Linux 和 Windows 上只能输入 ASCII。
 - 修改辅助触控的跟踪速度后需要重新校准。
 - 暂不支持横屏 App：在横屏界面里的点按和绘图位置会偏。
 - 在有多个网卡的 Linux 机器上，如果手机列表里看不到接收端，把 Avahi（mDNS）限制在手机所在网络的网卡上。

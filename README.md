@@ -37,7 +37,7 @@ uses the same paths a person uses — the screen and a pointer — so the phone 
 |----------------------------------|---------------------------|-------------------------------|
 | Apple developer account          | **Not needed**            | Needed (to sign the runner)   |
 | Xcode                            | **Not needed**            | Needed                        |
-| Computer                         | Mac **or Linux**          | Mac                           |
+| Computer                         | Mac, Linux **or Windows** | Mac                           |
 | App installed on the phone       | **None**                  | Test runner app               |
 | Jailbreak                        | Not needed                | Not needed                    |
 | Extra hardware                   | ESP32-S3 board (~$7)      | USB cable                     |
@@ -65,7 +65,7 @@ uses the same paths a person uses — the screen and a pointer — so the phone 
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/), plain version without pre-soldered headers (not the Sense camera version, not the Plus). About $7 from Seeed, or about ¥40-50 on Taobao in China (search "XIAO ESP32S3"). Any ESP32-S3 board whose USB-C port is wired to the S3's native USB works. |
 | **iPhone** | USB-C models plug in directly. Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
-| **Computer** | macOS or Linux, on the same network as the phone; runs UxPlay and the server. |
+| **Computer** | macOS, Linux or Windows, on the same network as the phone; runs UxPlay and the server. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images. Running a model locally is optional. |
 
 <p align="center"><img src="docs/images/setup.png" alt="A XIAO ESP32S3 plugged into an iPhone, next to the web UI" width="100%"></p>
@@ -122,6 +122,28 @@ set -a && . ./.env && set +a && MIRROR_STREAM=127.0.0.1:8891 .venv/bin/python -m
 Open `http://127.0.0.1:8890` in a browser. The server listens on this computer only, because it has no password;
 set `HOST=0.0.0.0` to open it to your network.
 
+### Windows
+
+Run the commands above in **Git Bash** (from Git for Windows). `hardware/flash.sh` finds the board's COM port
+itself, or pass one: `hardware/flash.sh COM5`. For the server:
+
+- Build `uxplay.exe` with MSYS2 (UCRT64) as in
+  [UxPlay's Windows guide](https://github.com/FDH2/UxPlay#building-uxplay-on-microsoft-windows-using-msys2-with-the-mingw-64-compiler),
+  with the `gst-plugins-good`, `gst-plugins-bad` and `gst-libav` packages. UxPlay 1.74+ has its own mDNS; older
+  builds need Apple's Bonjour.
+- Allow `uxplay.exe` and Python through Windows Firewall (the phone connects to UxPlay, the board to port 7300).
+- Point the server at UxPlay with `UXPLAY` in `.env`, and use `.venv/Scripts/` instead of `.venv/bin/`:
+
+```bash
+cd server
+python -m venv .venv && .venv/Scripts/pip install -e .
+cp .env.example .env         # also set UXPLAY=C:/msys64/ucrt64/bin/uxplay.exe
+set -a && . ./.env && set +a && .venv/Scripts/python -m hidagent
+```
+
+Text other than ASCII (e.g. Chinese) cannot be typed from Windows: it goes through Universal Clipboard, which
+needs a Mac.
+
 ### 3. Set up the phone (once)
 
 1. **Settings → Accessibility → Touch → AssistiveTouch**: turn it on.
@@ -162,6 +184,7 @@ Set in `server/.env` (see [`.env.example`](server/.env.example)):
 | `AIRPLAY_NAME` | `iPhone Agent` | Receiver name in the phone's Screen Mirroring list |
 | `HOST` | `127.0.0.1` | Address the web UI and API listen on (`0.0.0.0` opens them to the network, without a password) |
 | `PORT` / `DEVICE_PORT` | `8890` / `7300` | Web UI port / port the board connects to |
+| `UXPLAY` | `uxplay` | UxPlay executable (e.g. `C:/msys64/ucrt64/bin/uxplay.exe` on Windows) |
 | `MIRROR_STREAM` / `MIRROR_PORT` | — / `8891` | Follow a standalone receiver (`127.0.0.1:8891`, see above) instead of running UxPlay as a child / port that receiver serves frames on |
 | `HIDAGENT_DATA` | `~/.hidagent` | Calibration and debug traces |
 | `HIDAGENT_DEBUG` | `0` | Debug mode, see below |
@@ -244,7 +267,7 @@ These are directions, not promises. If you're interested, or you've tried someth
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them.
 - Mirroring stops when the phone locks; keep auto-lock off while the agent works.
 - The board types ASCII only. Other text (e.g. Chinese) is pasted through Universal Clipboard, so it needs the
-  server on a Mac signed in to the phone's Apple Account, with Handoff on.
+  server on a Mac signed in to the phone's Apple Account, with Handoff on; on Linux and Windows only ASCII is typed.
 - Re-calibrate after changing AssistiveTouch tracking speed.
 - Landscape apps are not supported yet: drawings and taps there land in the wrong place.
 - On Linux machines with several network interfaces, limit Avahi (mDNS) to the interface on the phone's network

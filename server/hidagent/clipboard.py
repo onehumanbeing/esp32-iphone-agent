@@ -2,7 +2,8 @@
 
 The board is a US keyboard, so it only has keys for ASCII. For anything else the server puts the text on
 this Mac's clipboard; Universal Clipboard (same Apple Account on both, Handoff, Bluetooth and Wi-Fi on)
-offers it to the iPhone, and Cmd+V from the board pastes it into the focused field.
+offers it to the iPhone, and Cmd+V from the board pastes it into the focused field. On Linux and Windows
+there is no Universal Clipboard, so only ASCII can be typed there.
 """
 
 import os

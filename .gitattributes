@@ -1,0 +1,10 @@
+# Keep LF on Windows checkouts: a CRLF shebang or a trailing CR in a run: block breaks bash (Git Bash too).
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.ino text eol=lf
+*.h text eol=lf
+.env.example text eol=lf
