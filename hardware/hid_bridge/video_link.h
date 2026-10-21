@@ -6,7 +6,7 @@
 bool video_begin();
 void video_on_config(const uint8_t *sps_pps, size_t len);  // AirPlay callbacks (mirror task)
 void video_on_au(const uint8_t *au, size_t len, bool idr);
-void video_stream(bool on, char who);             // who: FROM_APP or FROM_CLI (ble_link.h); each has its own stream
+void video_stream(bool on, char who);             // who: FROM_APP or FROM_CLI (ble_link.h); one is sent at a time, the app first
 void video_snap(const String &id, char who);      // replies "<id> ok" when the GOP is sent, to who
 void video_bench(const String &id, uint32_t kb, char who);  // replies "<id> ok <ms>"
 

@@ -38,18 +38,15 @@
 #undef CONFIG_BT_NIMBLE_MAX_CCCDS
 #define CONFIG_BT_NIMBLE_MAX_CCCDS 48
 #define MYNEWT_VAL_BLE_STORE_MAX_CCCDS 48
-// Two advertising sets (ble_link.cpp): the app's on the public address, the CLI's on a random one per boot.
+// One legacy advertising set (ble_link.cpp): extended advertising also turns on the controller's BLE 5.0 features,
+// ~9 KB of internal RAM in all (measured 2026-10-21).
 #undef CONFIG_BT_NIMBLE_EXT_ADV
-#define CONFIG_BT_NIMBLE_EXT_ADV 1
-#undef CONFIG_BT_NIMBLE_MAX_EXT_ADV_INSTANCES
-#define CONFIG_BT_NIMBLE_MAX_EXT_ADV_INSTANCES 2
-#undef CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN
-#define CONFIG_BT_NIMBLE_MAX_EXT_ADV_DATA_LEN 31
-// The controller numbers connections from the same pool as advertising sets, so with two sets a connection got
-// handle 4 while the host sizes some per-handle arrays (ble_gap.c slave_conn, g_max_*) by MAX_CONNECTIONS + 1:
-// at 3, handle 4 wrote past them and the next connect hit ble_gap_master_timer's assert (2026-10-21). With 5 the
-// arrays cover handles 0-5. NimBLE-Arduino sizes the controller's pool as MAX_CONNECTIONS + broadcaster +
-// observer; we never scan, so dropping the observer role keeps it at 6 (was 5). Peers stay capped at 2.
+#define CONFIG_BT_NIMBLE_EXT_ADV 0
+// The host sizes some per-handle arrays (ble_gap.c slave_conn, g_max_*) by MAX_CONNECTIONS + 1, while the controller
+// hands out handles from a pool of MAX_CONNECTIONS + broadcaster + observer activities: with two advertising sets
+// and MAX_CONNECTIONS 3 a connection got handle 4, wrote past them, and the next connect hit ble_gap_master_timer's
+// assert (2026-10-21). We never scan, so without the observer role the pool is MAX_CONNECTIONS + 1 and every handle
+// fits whatever MAX_CONNECTIONS is. Peers stay capped at 2.
 #undef CONFIG_BT_NIMBLE_MAX_CONNECTIONS
 #define CONFIG_BT_NIMBLE_MAX_CONNECTIONS 5
 #undef CONFIG_NIMBLE_ROLE_OBSERVER  // else nimconfig_rename.h redefines the one below as empty

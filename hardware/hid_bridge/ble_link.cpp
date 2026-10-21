@@ -9,6 +9,7 @@
 // blocks free, and never sends while a reply or status is waiting.
 #include "ble_link.h"
 #include <atomic>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <NimBLEDevice.h>
 #include "nimble/nimble/host/include/host/ble_hs.h"
@@ -22,6 +23,7 @@ static_assert(MYNEWT_VAL(MSYS_2_BLOCK_COUNT) == 0 && MYNEWT_VAL(BLE_TRANSPORT_AC
 static_assert(MYNEWT_VAL(BLE_STORE_MAX_BONDS) == 8, "nimble_cfg.h: bond slots");
 static_assert(MYNEWT_VAL(BLE_ATT_PREFERRED_MTU) == 517 && MYNEWT_VAL(BLE_HS_LOG_LVL) == 5, "nimble_cfg.h");
 static_assert(MYNEWT_VAL(BLE_MAX_CONNECTIONS) == 5 && !MYNEWT_VAL(BLE_ROLE_OBSERVER), "nimble_cfg.h: handles");
+static_assert(!MYNEWT_VAL(BLE_EXT_ADV), "nimble_cfg.h: one legacy advertising set");
 static_assert(MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM) == 1 && MYNEWT_VAL(BLE_L2CAP_COC_MPS) == 247, "nimble_cfg.h");
 
 #define UUID(s) "6e400001-a9e8-4b1b-9c39-6d6f8a3c" s
@@ -37,9 +39,12 @@ const int MBUF_DATA = MYNEWT_VAL(MSYS_1_BLOCK_SIZE) - 16;  // payload per block 
 // Up to MAX_PEERS centrals at once: the phone's app, plus a computer (the esp32agent CLI, or a debug harness).
 const int MAX_PEERS = 2;
 const uint32_t PLAIN_GRACE_MS = 15000;     // a link neither encrypted (app) nor a CLI session by then is dropped
-// Advertising sets: 0 = public address for the app; 1 = a random static address made at boot for the CLI, which
-// never bonds, so no central holds a stale bond for it (docs/cli-protocol.md).
-const uint8_t ADV_APP = 0, ADV_CLI = 1;
+// One legacy advertising set wears one identity at a time: the app's (public address, service 0000) or the CLI's
+// (a random static address made at boot, service 0010; it never bonds, so no central holds a stale bond for it,
+// docs/cli-protocol.md). Two sets at once need extended advertising, which cost ~9 KB of internal RAM (2026-10-21).
+// A link up on one identity advertises the other; with none, the app's holds 3/4 of each second.
+enum AdvId { ADV_NONE, ADV_APP, ADV_CLI };
+const uint32_t ADV_CYCLE_MS = 1000, ADV_CLI_MS = 250;
 
 enum { CH_REPLY, CH_STATUS, CH_VIDEO, CH_CLI, CH_COUNT };
 
@@ -146,7 +151,7 @@ class ServerCb : public NimBLEServerCallbacks {
     connAt[i] = millis();
     logConn("connect", ci);
     tuneLink(ci.getConnHandle());
-    advertise();  // the set that got the link stopped; restart it while there is room
+    advertise();  // advertising stopped with this link; go on as the other side, while there is room
   }
   void onDisconnect(NimBLEServer *s, NimBLEConnInfo &ci, int reason) override {
     int i = slotOf(ci.getConnHandle());
@@ -306,6 +311,7 @@ static void txTask(void *) {
       ctrlPending--;
     }
     dropIdlePlainLinks();
+    advertise();  // with nobody connected, the identities take turns
   }
 }
 
@@ -314,43 +320,69 @@ static void toText(Text &t, const String &s) {
   memcpy(t.s, s.c_str(), t.len);
 }
 
-static std::string advName;
+static NimBLEAdvertisementData appAdv, cliAdv;
+static SemaphoreHandle_t advLock;
+static AdvId advNow = ADV_NONE;
 
-// Legacy PDUs (iOS and every OS scan them), connectable, name in the scan response.
-static void setUpAdvertising(uint8_t inst, const char *service) {
-  NimBLEExtAdvertisement data, scan;
-  for (auto *a : {&data, &scan}) {
-    a->setLegacyAdvertising(true);
-    a->setConnectable(true);
-    a->setScannable(true);
-  }
-  data.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
-  data.setCompleteServices(NimBLEUUID(service));
-  scan.setName(advName);
-  if (inst == ADV_CLI) {
-    uint8_t a[6];
-    esp_fill_random(a, sizeof a);
-    a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
-    NimBLEAddress addr(a, BLE_ADDR_RANDOM);
-    data.setAddress(addr);
-    scan.setAddress(addr);
-  }
-  NimBLEExtAdvertising *adv = NimBLEDevice::getAdvertising();
-  if (!adv->setInstanceData(inst, data) || !adv->setScanResponseData(inst, scan))
-    Serial.printf("ble: advertising set %u failed\n", inst);
+// The identity a link came in on: our own address on it is the CLI's random one, or the public one.
+static bool viaCli(int h) {
+  ble_gap_conn_desc d;
+  return h >= 0 && ble_gap_conn_find(h, &d) == 0 && d.our_ota_addr.type == BLE_ADDR_RANDOM;
 }
 
-// Restarts the sets that stopped (a connection ends its set), while a slot is free.
+static AdvId wantedAdv() {
+  if (peerCount() >= MAX_PEERS) return ADV_NONE;
+  bool app = false, cli = false;
+  for (int i = 0; i < MAX_PEERS; i++)
+    if (peers[i] >= 0) (viaCli(peers[i]) ? cli : app) = true;
+  if (app && cli) return ADV_NONE;
+  if (app) return ADV_CLI;  // the CLI still learns the app holds the board (owner app, busy)
+  if (cli) return ADV_APP;  // the app can always come and take over
+  return millis() % ADV_CYCLE_MS < ADV_CLI_MS ? ADV_CLI : ADV_APP;
+}
+
+// Brings advertising to the identity wanted now; a connection ends it, so this also restarts it.
 static void advertise() {
-  if (peerCount() >= MAX_PEERS) return;
-  NimBLEExtAdvertising *adv = NimBLEDevice::getAdvertising();
-  for (uint8_t inst : {ADV_APP, ADV_CLI})
-    if (!adv->isActive(inst)) adv->start(inst);
+  xSemaphoreTake(advLock, portMAX_DELAY);
+  AdvId want = wantedAdv();
+  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+  bool active = adv->isAdvertising();
+  if (!active || want != advNow) {
+    if (active) adv->stop();
+    advNow = ADV_NONE;
+    if (want != ADV_NONE && NimBLEDevice::setOwnAddrType(want == ADV_CLI ? BLE_OWN_ADDR_RANDOM : BLE_OWN_ADDR_PUBLIC) &&
+        adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) && adv->start())
+      advNow = want;
+  }
+  xSemaphoreGive(advLock);
+}
+
+static void setUpAdvertising(const std::string &name) {
+  for (auto *d : {&appAdv, &cliAdv}) d->setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
+  appAdv.setCompleteServices(NimBLEUUID(UUID("0000")));
+  cliAdv.setCompleteServices(NimBLEUUID(UUID("0010")));
+  NimBLEAdvertisementData scan;
+  scan.setName(name);
+  NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+  uint8_t a[6];
+  esp_fill_random(a, sizeof a);
+  a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
+  if (!NimBLEDevice::setOwnAddr(a)) Serial.println("ble: no random address for the CLI");
+}
+
+// Queue storage in PSRAM (the two below hold ~7 KB); only the control block stays in internal RAM.
+static QueueHandle_t psramQueue(UBaseType_t n, UBaseType_t size) {
+  StaticQueue_t *q = (StaticQueue_t *)heap_caps_malloc(sizeof(StaticQueue_t), MALLOC_CAP_INTERNAL);
+  uint8_t *buf = (uint8_t *)heap_caps_malloc(n * size, MALLOC_CAP_SPIRAM);
+  if (q && buf) return xQueueCreateStatic(n, size, buf, q);
+  free(q);
+  free(buf);
+  return xQueueCreate(n, size);
 }
 
 void ble_begin(const String &name) {
-  cmdQueue = xQueueCreate(6, CMD_MAX);
-  replyQueue = xQueueCreate(8, sizeof(Text));
+  cmdQueue = psramQueue(6, CMD_MAX);
+  replyQueue = psramQueue(8, sizeof(Text));
   statusLock = xSemaphoreCreateMutex();
   NimBLEDevice::init(name.c_str());
   NimBLEDevice::setMTU(517);
@@ -386,9 +418,8 @@ void ble_begin(const String &name) {
   for (auto *c : chars) c->setCallbacks(&charCb);
   server->start();
 
-  advName = name.c_str();
-  setUpAdvertising(ADV_APP, UUID("0000"));
-  setUpAdvertising(ADV_CLI, UUID("0010"));
+  advLock = xSemaphoreCreateMutex();
+  setUpAdvertising(name.c_str());
   advertise();
   xTaskCreatePinnedToCore(txTask, "ble_tx", 3072, NULL, 3, NULL, 1);
   ctrlMax = ble_hs_hci_avail_pkts;

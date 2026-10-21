@@ -6,10 +6,14 @@ break it, and Windows/Linux need no pairing dialog. Instead the link is authenti
 application layer.
 
 ## Discovery
-The board runs two advertising sets (legacy PDUs, connectable):
-- set 0: the board's public address, service `...0000` — the iOS app (docs/ble-protocol.md).
-- set 1: a random static address picked at every boot, service `...0010`, same name `ESP32 Agent XXXX`.
+The board advertises (legacy PDUs, connectable) under one of two identities at a time:
+- the app's: the board's public address, service `...0000` (docs/ble-protocol.md).
+- the CLI's: a random static address picked at every boot, service `...0010`, same name `ESP32 Agent XXXX`.
   No central can hold a bond for an address that changes every boot, so the OS never tries to encrypt.
+
+With the app connected it advertises the CLI's (which then gets `owner app`, busy); with the CLI connected, the app's
+(the app can always take over); with neither, they take turns, the app's 750 ms and the CLI's 250 ms of each second.
+One set, not two at once: two need extended advertising, ~9 KB of the board's internal RAM.
 
 Both addresses lead to the same GATT server. Full UUID = `6e400001-a9e8-4b1b-9c39-6d6f8a3c` + suffix.
 

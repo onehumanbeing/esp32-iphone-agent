@@ -1,6 +1,7 @@
 // CLI link, see cli_link.h.
 #include "cli_link.h"
 #include <Preferences.h>
+#include <esp_heap_caps.h>
 #include <esp_mac.h>
 #include <esp_random.h>
 #include "ble_link.h"
@@ -25,6 +26,9 @@ static PairedClient clients[MAX_CLIENTS];
 static int clientCount, nextClient;
 static Session sessions[SLOTS];
 static uint8_t boardId[6];
+// Frame buffers in PSRAM (~2 KB): one for frames from the computer (host task), one per sending task.
+static uint8_t *rxText, *ctrlBuf, *ctrlOut, *videoOut;
+const size_t TEXT_CAP = 520, OUT_CAP = 520 + CLI_OVERHEAD;
 
 extern "C" void cli_random(uint8_t *p, size_t n) { esp_fill_random(p, n); }
 
@@ -37,6 +41,12 @@ static void saveClients() {
 }
 
 void cli_begin() {
+  uint8_t *p = (uint8_t *)heap_caps_malloc(TEXT_CAP * 2 + OUT_CAP * 2, MALLOC_CAP_SPIRAM);
+  if (!p) p = (uint8_t *)malloc(TEXT_CAP * 2 + OUT_CAP * 2);
+  rxText = p;
+  ctrlBuf = p + TEXT_CAP;
+  ctrlOut = p + TEXT_CAP * 2;
+  videoOut = p + TEXT_CAP * 2 + OUT_CAP;
   esp_read_mac(boardId, ESP_MAC_BT);
   prefs.begin("cli", true);
   clientCount = prefs.getUChar("n", 0);
@@ -114,9 +124,9 @@ static void hello(int slot, const uint8_t *p, size_t n) {
 
 static void data(int slot, const uint8_t *p, size_t n) {
   Session &s = sessions[slot];
-  static uint8_t text[520];
+  uint8_t *text = rxText;
   uint32_t ctr;
-  if (!s.welcomed || n > sizeof text + CLI_OVERHEAD) return;
+  if (!s.welcomed || !text || n > TEXT_CAP + CLI_OVERHEAD) return;
   int len = cli_open(s.c2b, 'C', p, n, &ctr, text);
   if (len < 0) return;  // forged or for another session: ignore
   if (ctr != s.rx + 1) { ble_cli_drop(slot); return; }  // a replay, or a lost frame: start over
@@ -155,7 +165,7 @@ bool cli_send_ctrl(char kind, const char *text, size_t n, uint32_t timeout_ms) {
   int slot = cli_slot();
   if (slot < 0) return false;
   Session &s = sessions[slot];
-  static uint8_t buf[520], out[520 + CLI_OVERHEAD];
+  uint8_t *buf = ctrlBuf, *out = ctrlOut;
   size_t room = ble_cli_mtu(slot) - 3 - CLI_OVERHEAD - 1;
   if (n > room) n = room;
   buf[0] = (uint8_t)kind;
@@ -179,8 +189,8 @@ bool cli_send_video(const uint8_t *chunk, size_t n) {
   int slot = cli_slot();
   if (slot < 0) return false;
   Session &s = sessions[slot];
-  static uint8_t out[520 + CLI_OVERHEAD];
-  if (n > sizeof out - CLI_OVERHEAD) return false;
+  uint8_t *out = videoOut;
+  if (n > OUT_CAP - CLI_OVERHEAD) return false;
   size_t len = cli_seal(s.b2c, CLI_VIDEO, 'V', s.txVideo + 1, chunk, n, out);
   s.txVideo++;  // a chunk that fails is a gap the CLI handles like a seq gap
   return len && ble_cli_notify(slot, out, len, true, VIDEO_TIMEOUT_MS);
