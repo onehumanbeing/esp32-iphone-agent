@@ -1,4 +1,5 @@
 #include "arbiter.h"
+#include <stdlib.h>
 #include <string.h>
 
 static bool is(const char *cmd, const char *name) { return strcmp(cmd, name) == 0; }
@@ -10,6 +11,12 @@ static bool aimed(const char *cmd) {
 
 static bool hid(const char *cmd) { return !is(cmd, "ping"); }
 
+// The app's keep-awake nudge while idle and mirroring ("move 1 0", "move -1 0" every 25 s; Pointer.swift doesn't
+// count it either): not driving, so it neither holds the phone nor moves anyone's pointer.
+static bool nudge(int side, const char *cmd, long a, long b) {
+  return side == ARB_APP && is(cmd, "move") && labs(a) <= 1 && labs(b) <= 1;
+}
+
 void arb_init(arb_state *s) {
   memset(s, 0, sizeof *s);
   s->mover = s->pressed = -1;
@@ -17,9 +24,9 @@ void arb_init(arb_state *s) {
 
 bool arb_app_busy(const arb_state *s, uint32_t now) { return s->appSeen && now - s->appAt < ARB_LEASE_MS; }
 
-arb_plan arb_before(arb_state *s, int side, const char *cmd, uint32_t now) {
+arb_plan arb_before(arb_state *s, int side, const char *cmd, long a, long b, uint32_t now) {
   arb_plan plan = {0};
-  if (!hid(cmd)) return plan;
+  if (!hid(cmd) || nudge(side, cmd, a, b)) return plan;
   if (side == ARB_CLI && arb_app_busy(s, now)) {
     plan.refuse = true;
     return plan;
@@ -44,6 +51,7 @@ arb_plan arb_before(arb_state *s, int side, const char *cmd, uint32_t now) {
 
 void arb_after(arb_state *s, int side, const char *cmd, long a, long b, bool ok) {
   arb_pointer *p = &s->p[side];
+  if (nudge(side, cmd, a, b)) return;
   if (!ok) {  // e.g. the phone's USB asleep: the side can't tell where the pointer went
     if (aimed(cmd) || is(cmd, "home")) p->known = false;
     return;

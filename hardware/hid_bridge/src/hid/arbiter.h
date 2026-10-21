@@ -34,8 +34,8 @@ typedef struct {
 } arb_plan;
 
 void arb_init(arb_state *s);
-// Before HID command cmd (its first word) from side; a refused command must not run.
-arb_plan arb_before(arb_state *s, int side, const char *cmd, uint32_t now);
+// Before HID command cmd (its first word, a and b its numbers) from side; a refused command must not run.
+arb_plan arb_before(arb_state *s, int side, const char *cmd, long a, long b, uint32_t now);
 // After it ran (ok: the board answered "ok"); a, b: the move's deltas.
 void arb_after(arb_state *s, int side, const char *cmd, long a, long b, bool ok);
 // The side's link went down: true when it held the button (the caller releases it).

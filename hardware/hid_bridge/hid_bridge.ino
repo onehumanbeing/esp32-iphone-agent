@@ -122,7 +122,7 @@ String drive(const String &line, char who) {
   String cmd = sp < 0 ? line : line.substring(0, sp);
   long a = 0, b = 0;
   if (sp > 0) sscanf(line.c_str() + sp + 1, "%ld %ld", &a, &b);
-  arb_plan plan = arb_before(&arb, side, cmd.c_str(), millis());
+  arb_plan plan = arb_before(&arb, side, cmd.c_str(), a, b, millis());
   if (plan.refuse) return "err busy: the app is using the phone";
   if ((plan.release || plan.restore) && usbReady()) {
     if (plan.release) mouse.release(MOUSE_LEFT);
