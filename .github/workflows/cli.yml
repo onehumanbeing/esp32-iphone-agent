@@ -103,3 +103,24 @@ jobs:
           gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "esp32agent ${GITHUB_REF_NAME#cli-v}" --notes "esp32agent CLI ${GITHUB_REF_NAME#cli-v}. Install: see cli/README.md."
           gh release upload "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --clobber esp32agent_* checksums.txt
+      - name: versions.json (for handsy.tech/cli/versions.json; published by hand, see cli/install/versions.example.json)
+        run: |
+          cd dist
+          python3 - <<'PY'
+          import datetime, json, os
+          tag = os.environ["GITHUB_REF_NAME"]
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}/"
+          assets = {}
+          for line in open("checksums.txt"):
+              sha, name = line.split()
+              key = name.removeprefix("esp32agent_").removesuffix(".tar.gz").removesuffix(".zip")
+              assets[key] = {"url": base + name, "sha256": sha}
+          version = tag.removeprefix("cli-v")
+          doc = {"latest": version, "versions": [{"version": version, "date": datetime.date.today().isoformat(), "assets": assets}]}
+          json.dump(doc, open("versions.json", "w"), indent=2)
+          print(open("versions.json").read())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: versions.json
+          path: dist/versions.json

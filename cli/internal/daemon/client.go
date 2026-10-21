@@ -123,3 +123,14 @@ func (c *Client) Stream(req Request, w io.Writer) ([]byte, error) {
 	_, err = io.Copy(w, r)
 	return line, err
 }
+
+// StopRunning stops a running daemon (never starts one); false when none was running.
+func (c *Client) StopRunning() bool {
+	conn, err := c.dial()
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	_, err = c.roundTrip(Request{Cmd: "stop"})
+	return err == nil
+}

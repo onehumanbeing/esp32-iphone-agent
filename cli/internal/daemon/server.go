@@ -18,6 +18,7 @@ import (
 
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/ble"
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/config"
+	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/history"
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/proto"
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/video"
 )
@@ -62,6 +63,7 @@ type Server struct {
 	appAt  time.Time  // the board last said the app is using it (it then drops us)
 	stop   chan struct{}
 	once   sync.Once
+	hist   *history.Recorder
 }
 
 func (s *Server) Serve(l net.Listener) error {

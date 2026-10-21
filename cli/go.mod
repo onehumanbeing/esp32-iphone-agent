@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/mozillazg/go-pinyin v0.21.0
 	golang.org/x/image v0.47.0
+	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 	tinygo.org/x/bluetooth v0.16.0
 )

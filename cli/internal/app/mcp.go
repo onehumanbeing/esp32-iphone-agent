@@ -95,7 +95,7 @@ func (a *App) handleRPC(m rpcMsg) *rpcMsg {
 	case "ping":
 		resp.Result = raw(map[string]any{})
 	case "tools/list":
-		resp.Result = raw(map[string]any{"tools": tools})
+		resp.Result = raw(map[string]any{"tools": append(append([]tool{}, tools...), localTools...)})
 	case "tools/call":
 		var p struct {
 			Name      string         `json:"name"`
@@ -122,6 +122,9 @@ func textResult(s string, isErr bool) map[string]any {
 }
 
 func (a *App) callTool(name string, args map[string]any) map[string]any {
+	if r, ok := a.callLocal(name, args); ok {
+		return r
+	}
 	f := func(k string) float64 { v, _ := args[k].(float64); return v }
 	s := func(k string) string { v, _ := args[k].(string); return v }
 	dev := s("device")

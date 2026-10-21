@@ -36,6 +36,14 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   screencapture --format h264|mjpeg   video to stdout
   device info                      board status
   calibrate                        measure the pointer (automatic on the first tap)
+  history list | show RUN | new    what was done on the phone (runs; a new one after 10 min idle)
+  intent list | show NAME          saved intents (the app's format)
+  intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]
+  intent delete NAME
+  intent export NAME... [--screenshots] [--output FILE]   .esp32intent file for the iOS app
+  intent import FILE
+  report --intent NAME [--screenshots]   prepare a mail to the developer with one intent; you send it
+  upgrade [--check] [--force]      install the latest release
   mcp                              MCP server on stdio
   skill install                    agent skill for Claude Code / Codex
   daemon [stop]                    the background process (started automatically)
@@ -48,6 +56,7 @@ var errUnsupported = errors.New("not supported on ESP32 Agent")
 
 // App runs commands; Out gets the JSON (or raw bytes), Client reaches the daemon.
 type App struct {
+	In     io.Reader // report's confirmation; os.Stdin when nil
 	Out    io.Writer
 	Err    io.Writer
 	Client *daemon.Client
@@ -119,6 +128,14 @@ func (a *App) Run(args []string) int {
 		return a.daemon(*idle)
 	case "mcp":
 		return a.mcp(os.Stdin)
+	case "history":
+		return a.history(rest)
+	case "intent", "intents":
+		return a.intent(rest)
+	case "report":
+		return a.report(rest)
+	case "upgrade":
+		return a.upgrade(rest)
 	case "skill":
 		if len(rest) == 0 || rest[0] != "install" {
 			return a.fail(errors.New("usage: esp32agent skill install"))

@@ -52,7 +52,13 @@ type Conn struct {
 	ptr        *pointer.Pointer
 	lastAction time.Time
 	lastShot   time.Time
+
+	keyMu   sync.Mutex // held across the gap and the send of key/type commands
+	lastKey time.Time  // when the board acknowledged the last one
 }
+
+// KeyGap separates key and type commands: sent back to back, iOS dropped a backspace (2026-10-21).
+const KeyGap = 80 * time.Millisecond
 
 func newConn(id, name, ffmpeg string) *Conn {
 	return &Conn{ID: id, Name: name, ffmpeg: ffmpeg, pending: map[string]chan string{}, status: map[string]any{},
@@ -396,6 +402,14 @@ type device struct{ c *Conn }
 func (d device) Send(ctx context.Context, line string) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	if strings.HasPrefix(line, "key ") || strings.HasPrefix(line, "type ") {
+		d.c.keyMu.Lock()
+		defer d.c.keyMu.Unlock()
+		if err := sleepCtx(ctx, time.Until(d.c.lastKey.Add(KeyGap))); err != nil {
+			return err
+		}
+		defer func() { d.c.lastKey = time.Now() }()
+	}
 	_, err := d.c.Send(ctx, line)
 	return err
 }
