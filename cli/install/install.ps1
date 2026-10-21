@@ -1,10 +1,12 @@
-# Installs esp32agent on Windows from GitHub Releases:
+# Installs esp32agent on Windows from the release list (https://handsy.tech/cli/versions.json), else GitHub Releases:
 #   irm https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.ps1 | iex
 # Env: ESP32AGENT_VERSION (default: latest), ESP32AGENT_BIN_DIR (default ~\.local\bin),
+#      ESP32AGENT_VERSIONS_URL (default https://handsy.tech/cli/versions.json),
 #      ESP32AGENT_ARCHIVE=C:\path\esp32agent_windows_<arch>.zip for a local build (checksums.txt next to it, or
 #      ESP32AGENT_CHECKSUMS), ESP32AGENT_FFMPEG=yes|no to answer the ffmpeg question without a prompt.
 $ErrorActionPreference = 'Stop'
 $repo = 'onehumanbeing/esp32-iphone-agent'
+$versionsUrl = if ($env:ESP32AGENT_VERSIONS_URL) { $env:ESP32AGENT_VERSIONS_URL } else { 'https://handsy.tech/cli/versions.json' }
 $binDir = if ($env:ESP32AGENT_BIN_DIR) { $env:ESP32AGENT_BIN_DIR } else { Join-Path $HOME '.local\bin' }
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'arm64' } 'AMD64' { 'amd64' } default { throw "unsupported CPU $env:PROCESSOR_ARCHITECTURE" } }
@@ -21,15 +23,30 @@ try {
         Write-Host "installing esp32agent from $env:ESP32AGENT_ARCHIVE"
     } else {
         $version = $env:ESP32AGENT_VERSION
-        if (-not $version) {
-            $tag = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=50" | Where-Object { $_.tag_name -like 'cli-v*' } | Select-Object -First 1).tag_name
-            if (-not $tag) { throw "no cli-v* release found on github.com/$repo" }
-            $version = $tag.Substring(5)
+        $asset = $null
+        try {
+            $list = Invoke-RestMethod $versionsUrl
+            if (-not $version) { $version = $list.latest }
+            $rel = $list.versions | Where-Object { $_.version -eq $version } | Select-Object -First 1
+            if ($rel) { $asset = $rel.assets."windows_$arch" }
+        } catch {
+            Write-Host "could not read $versionsUrl; trying GitHub Releases"
         }
-        $url = "https://github.com/$repo/releases/download/cli-v$version"
-        Write-Host "downloading esp32agent $version (windows/$arch)"
-        Invoke-WebRequest "$url/$name" -OutFile $zip -UseBasicParsing
-        Invoke-WebRequest "$url/checksums.txt" -OutFile $sums -UseBasicParsing
+        if ($asset -and $asset.url -and $asset.sha256) {
+            Write-Host "downloading esp32agent $version (windows/$arch)"
+            Invoke-WebRequest $asset.url -OutFile $zip -UseBasicParsing
+            "$($asset.sha256)  $name" | Set-Content $sums
+        } else {
+            if (-not $version) {
+                $tag = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=50" | Where-Object { $_.tag_name -like 'cli-v*' } | Select-Object -First 1).tag_name
+                if (-not $tag) { throw "no cli-v* release found on github.com/$repo" }
+                $version = $tag.Substring(5)
+            }
+            $url = "https://github.com/$repo/releases/download/cli-v$version"
+            Write-Host "downloading esp32agent $version (windows/$arch)"
+            Invoke-WebRequest "$url/$name" -OutFile $zip -UseBasicParsing
+            Invoke-WebRequest "$url/checksums.txt" -OutFile $sums -UseBasicParsing
+        }
     }
 
     $line = Get-Content $sums | Where-Object { ($_ -split '\s+')[1] -in @($name, "*$name") } | Select-Object -First 1

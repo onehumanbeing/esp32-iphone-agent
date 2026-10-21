@@ -1,12 +1,14 @@
 #!/bin/sh
-# Installs esp32agent from GitHub Releases:
+# Installs esp32agent from the release list (https://handsy.tech/cli/versions.json), else from GitHub Releases:
 #   curl -fsSL https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.sh | sh
 # Env: ESP32AGENT_VERSION=0.1.0 (default: latest), ESP32AGENT_BIN_DIR (default ~/.local/bin),
+#      ESP32AGENT_VERSIONS_URL (default https://handsy.tech/cli/versions.json),
 #      ESP32AGENT_ARCHIVE=/path/esp32agent_<os>_<arch>.tar.gz to install a local build (checksums.txt next to it,
 #      or ESP32AGENT_CHECKSUMS=/path), ESP32AGENT_FFMPEG=yes|no to answer the ffmpeg question without a prompt.
 set -eu
 
 REPO=onehumanbeing/esp32-iphone-agent
+VERSIONS_URL=${ESP32AGENT_VERSIONS_URL:-https://handsy.tech/cli/versions.json}
 BIN_DIR=${ESP32AGENT_BIN_DIR:-$HOME/.local/bin}
 
 say() { printf '%s\n' "$*"; }
@@ -41,15 +43,38 @@ if [ -n "${ESP32AGENT_ARCHIVE:-}" ]; then
   say "installing esp32agent from $ESP32AGENT_ARCHIVE"
 else
   version=${ESP32AGENT_VERSION:-}
-  if [ -z "$version" ]; then
-    version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=50" |
-      sed -n 's/.*"tag_name": *"cli-v\([^"]*\)".*/\1/p' | head -n 1)
-    [ -n "$version" ] || die "no cli-v* release found on github.com/$REPO"
+  # versions.json: {"latest":"X","versions":[{"version":"X","assets":{"<os>_<arch>":{"url":"…","sha256":"…"}}}]}
+  # (each "version" before its "assets", as the release workflow writes it)
+  flat=$(curl -fsSL "$VERSIONS_URL" 2>/dev/null | tr -d ' \t\r\n') || flat=""
+  if [ -n "$flat" ]; then
+    [ -n "$version" ] || version=$(printf '%s' "$flat" | sed -n 's/.*"latest":"\([^"]*\)".*/\1/p')
+    rel=${flat#*\"version\":\"$version\"}
+    if [ -n "$version" ] && [ "$rel" != "$flat" ]; then
+      rel=${rel%%\"version\":*}
+      asset=${rel#*\"${os}_${arch}\":\{}
+      asset=${asset%%\}*}
+      if [ "$asset" != "$rel" ]; then
+        aurl=$(printf '%s' "$asset" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')
+        asha=$(printf '%s' "$asset" | sed -n 's/.*"sha256":"\([0-9a-fA-F]*\)".*/\1/p')
+      fi
+    fi
   fi
-  url=https://github.com/$REPO/releases/download/cli-v$version
-  say "downloading esp32agent $version ($os/$arch)"
-  curl -fsSL -o "$tmp/$name" "$url/$name" || die "download failed: $url/$name"
-  curl -fsSL -o "$tmp/checksums.txt" "$url/checksums.txt" || die "download failed: $url/checksums.txt"
+  if [ -n "${aurl:-}" ] && [ -n "${asha:-}" ]; then
+    say "downloading esp32agent $version ($os/$arch)"
+    curl -fsSL -o "$tmp/$name" "$aurl" || die "download failed: $aurl"
+    printf '%s  %s\n' "$asha" "$name" >"$tmp/checksums.txt"
+  else
+    [ -n "$flat" ] && say "no $os/$arch build of ${version:-the latest version} in $VERSIONS_URL; trying GitHub Releases"
+    if [ -z "$version" ]; then
+      version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=50" |
+        sed -n 's/.*"tag_name": *"cli-v\([^"]*\)".*/\1/p' | head -n 1)
+      [ -n "$version" ] || die "no cli-v* release found on github.com/$REPO"
+    fi
+    url=https://github.com/$REPO/releases/download/cli-v$version
+    say "downloading esp32agent $version ($os/$arch)"
+    curl -fsSL -o "$tmp/$name" "$url/$name" || die "download failed: $url/$name"
+    curl -fsSL -o "$tmp/checksums.txt" "$url/checksums.txt" || die "download failed: $url/checksums.txt"
+  fi
 fi
 
 want=$(awk -v n="$name" '$2 == n || $2 == "*"n { print $1 }' "$tmp/checksums.txt")
