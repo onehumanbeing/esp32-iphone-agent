@@ -134,6 +134,7 @@ func (s *Server) screenshot(ctx context.Context, c *Conn, req Request) Response 
 	if req.Format == "jpeg" || req.Format == "jpg" {
 		format = "jpeg"
 	}
+	s.recordShot(img, r.Dx(), r.Dy())
 	return ok(map[string]any{"format": format, "data": base64.StdEncoding.EncodeToString(data),
 		"width": r.Dx(), "height": r.Dy(), "device": c.ID})
 }
@@ -243,10 +244,16 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 	c.mu.Lock()
 	c.lastAction = time.Now()
 	c.mu.Unlock()
+	s.recordAction(c, req, err)
 	if err != nil {
 		return fail(err)
 	}
-	return ok(map[string]string{"message": req.Cmd + " done"})
+	out := map[string]string{"message": req.Cmd + " done"}
+	if req.Cmd == "text" && pointer.HasHan(req.Text) {
+		out["typed_as"] = pointer.Typeable(req.Text)
+		out["note"] = "needs the iPhone's Chinese (pinyin) keyboard; if letters appear, tap the globe key and type again"
+	}
+	return ok(out)
 }
 
 // screencapture streams raw H.264 (Annex-B, from the next keyframe) or MJPEG, after one JSON header line.

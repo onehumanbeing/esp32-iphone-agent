@@ -26,6 +26,8 @@ const (
 	Nudge           = 12                     // mouse units the pointer is wiggled by to find it on screen
 	AimTolerance    = 0.008                  // screen fraction; a bigger miss is corrected before pressing
 	MaxMiss         = 0.06                   // bigger misses are still corrected, but not learned from
+	SettleLag       = 300 * time.Millisecond // after a key, frames captured sooner still show the old screen
+	ChangeWait      = 5 * time.Second        // how long GoHome watches for the screen to change
 )
 
 // CalibrationStops are the distances at which calibration finds the pointer.
@@ -518,12 +520,13 @@ func (p *Pointer) frame() image.Image {
 	return p.screen.Frame()
 }
 
-// changedSince: a frame captured after `sent` differs from before in more than a sliver (the pointer alone is not
-// it). Watches every new frame for up to 3 s: over BLE the picture lags the phone, and the Home Screen animation
-// starts late, so one look after 1.5 s missed it and the next fallback ran on top (2026-10-21).
+// changedSince: a frame captured at least SettleLag after `sent` differs from before in more than a sliver (the
+// pointer alone is not it). Frames from the first SettleLag still show the old screen, and over BLE the picture
+// lags the phone and the Home Screen animation starts late: one look after 1.5 s, and later a 3 s window, missed
+// it and the next fallback ran on top (2026-10-21). So: board capture time >= sent+SettleLag, for up to ChangeWait.
 func (p *Pointer) changedSince(ctx context.Context, before image.Image, sent time.Time) bool {
-	deadline := sent.Add(3 * time.Second)
-	for since := sent; time.Now().Before(deadline); since = time.Now() {
+	deadline := sent.Add(ChangeWait)
+	for since := sent.Add(SettleLag); time.Now().Before(deadline); since = later(since, time.Now()) {
 		f := p.screen.Fresh(ctx, since, time.Until(deadline))
 		if f == nil {
 			return false
@@ -533,6 +536,13 @@ func (p *Pointer) changedSince(ctx context.Context, before image.Image, sent tim
 		}
 	}
 	return false
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // HomeSwipe is a real home-bar flick (a flick, not a rest: resting opens the app switcher).

@@ -12,6 +12,9 @@ var pinyinArgs = pinyin.NewArgs() // toneless, first reading of a heteronym
 
 func isHan(r rune) bool { return r >= 0x4e00 && r <= 0x9fff || r >= 0x3400 && r <= 0x4dbf }
 
+// HasHan: text has Chinese characters (typed as pinyin).
+func HasHan(text string) bool { return strings.ContainsFunc(text, isHan) }
+
 // Typeable turns text into what the board can type (printable ASCII, one key per character):
 // "卫生纸 3卷" → "weishengzhi 3juan". Han characters become joined toneless pinyin (ü as v, as the iOS
 // pinyin keyboard takes it), accents are folded, the rest is dropped.
