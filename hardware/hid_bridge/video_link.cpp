@@ -65,7 +65,7 @@ static void sendTo(Sink &s, char who) {
   unfollow(s);
 }
 
-static char owner() { return cli_slot() >= 0 && !ble_app_connected() && !wv_active() ? FROM_CLI : FROM_APP; }
+static char owner() { return cli_slot() >= 0 && !ble_app_active() ? FROM_CLI : FROM_APP; }
 
 // Chunk room and send, per sink. The app's video goes over Wi-Fi while it holds a session there, else BLE.
 static bool appWifi(const Sink &s) { return s.who == FROM_APP && wv_active(); }

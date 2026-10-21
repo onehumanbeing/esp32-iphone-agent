@@ -7,6 +7,7 @@
 void ble_begin(const String &name);
 bool ble_connected();
 bool ble_app_connected();  // an encrypted (bonded) link: the app, not the CLI
+bool ble_app_active();     // that link, and the app sent a real command lately: it holds the board
 // Where a command came from, and where its reply goes.
 const char FROM_APP = 'a', FROM_CLI = 'c';
 

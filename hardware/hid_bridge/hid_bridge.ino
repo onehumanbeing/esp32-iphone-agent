@@ -166,7 +166,7 @@ String board(const String &line, const String &id, char who) {
   String arg = sp < 0 ? "" : line.substring(sp + 1);
   long a = 0, b = 0;
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
-  if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_connected()) && cmd != "crash") return APP_BUSY;
+  if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_active()) && cmd != "crash") return APP_BUSY;
   if (cmd == "stream") {
     if (arg != "on" && arg != "off") return "err usage: stream on|off";
     video_stream(arg == "on", who);
@@ -232,7 +232,7 @@ String statusJson(bool full, char who) {
            (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
            (unsigned long)wv_nacks(), (unsigned long)wv_drops());
   // owner: who drives the phone (app, cli, none); the CLI's busy is 1 while that is the app
-  bool app = ble_app_connected();
+  bool app = ble_app_active();
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
@@ -336,7 +336,7 @@ void loop() {
   net_poll();
   bool cli = cli_slot() >= 0;
   // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.
-  bool app = ble_app_connected();
+  bool app = ble_app_connected(), appActive = ble_app_active();
   if (linked && !app) {
     if (arb_gone(&arb, ARB_APP)) mouse.release(MOUSE_LEFT);
     keyboard.releaseAll();
@@ -349,7 +349,7 @@ void loop() {
   // The app wins: a CLI session up alongside it stops at once and is dropped shortly after, once its status
   // (owner app, busy 1) and the `err busy` replies to anything it sent are out, so it doesn't load the radio.
   static uint32_t cliDropAt = 0;
-  if (app && cli) {
+  if (appActive && cli) {
     if (!cliDropAt) {
       if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
       video_stream(false, FROM_CLI);

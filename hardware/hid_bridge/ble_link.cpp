@@ -68,6 +68,17 @@ static uint32_t winStart, winBytes;  // touched by the video task only
 static volatile uint32_t kbps;
 static std::atomic<uint32_t> drops, replyDrops;
 static volatile uint32_t lastCmdMs;  // last `cmd` write: replies are expected, keep video's share small
+static volatile uint32_t appSeenMs;  // last command from the app that drives the phone
+// An app that only pings (every 2 s, in the background too) and logs is idle and lets the CLI in; its next real
+// command takes the board back (2026-10-21: the app in the background held the board for good).
+const uint32_t APP_IDLE_MS = 10000;
+
+// "<id> <command>": anything but ping, log and the keep-awake nudge (move 1 0, move -1 0) is the app at work.
+static bool appWorks(const String &line) {
+  int sp = line.indexOf(' ');
+  String cmd = sp < 0 ? line : line.substring(sp + 1);
+  return cmd != "ping" && !cmd.startsWith("log ") && cmd != "move 1 0" && cmd != "move -1 0";
+}
 
 #if DEBUG_SERIAL
 #define BLE_LOG(...) Serial.printf("ble: " __VA_ARGS__)
@@ -188,6 +199,7 @@ class CharCb : public NimBLECharacteristicCallbacks {
     if (!ci.isEncrypted()) return;
     if (c == netChar) { net_request(v); return; }
     v.trim();
+    if (appWorks(v)) appSeenMs = millis() | 1;
     ble_push_cmd(FROM_APP, v.c_str(), v.length());
   }
   void onRead(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
@@ -436,6 +448,8 @@ bool ble_app_connected() {
     if (encrypted(peers[i])) return true;
   return false;
 }
+
+bool ble_app_active() { return appSeenMs && millis() - appSeenMs < APP_IDLE_MS && ble_app_connected(); }
 
 void ble_push_cmd(char origin, const char *line, size_t n) {
   char buf[CMD_MAX] = {origin};
