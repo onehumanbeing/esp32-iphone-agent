@@ -518,13 +518,21 @@ func (p *Pointer) frame() image.Image {
 	return p.screen.Frame()
 }
 
-// changedSince: a frame captured after `sent` differs from before in more than a sliver (the pointer alone is not it).
+// changedSince: a frame captured after `sent` differs from before in more than a sliver (the pointer alone is not
+// it). Watches every new frame for up to 3 s: over BLE the picture lags the phone, and the Home Screen animation
+// starts late, so one look after 1.5 s missed it and the next fallback ran on top (2026-10-21).
 func (p *Pointer) changedSince(ctx context.Context, before image.Image, sent time.Time) bool {
-	if p.screen.Fresh(ctx, sent, 1500*time.Millisecond) == nil {
-		return false
+	deadline := sent.Add(3 * time.Second)
+	for since := sent; time.Now().Before(deadline); since = time.Now() {
+		f := p.screen.Fresh(ctx, since, time.Until(deadline))
+		if f == nil {
+			return false
+		}
+		if Changed(before, f, 0.05) {
+			return true
+		}
 	}
-	p.screen.Settled(ctx, 300*time.Millisecond, 300*time.Millisecond, 1500*time.Millisecond)
-	return Changed(before, p.screen.Frame(), 0.05)
+	return false
 }
 
 // HomeSwipe is a real home-bar flick (a flick, not a rest: resting opens the app switcher).
