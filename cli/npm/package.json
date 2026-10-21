@@ -1,0 +1,13 @@
+{
+  "name": "esp32agent",
+  "version": "0.1.0",
+  "description": "See and drive an iPhone through an ESP32 Agent board over Bluetooth (CLI + MCP server for coding agents)",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/onehumanbeing/esp32-iphone-agent.git", "directory": "cli" },
+  "bin": { "esp32agent": "bin/esp32agent.js" },
+  "scripts": { "postinstall": "node install.js" },
+  "files": ["bin/esp32agent.js", "install.js"],
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "engines": { "node": ">=18" }
+}

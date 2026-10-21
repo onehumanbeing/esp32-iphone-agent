@@ -1,0 +1,105 @@
+name: CLI
+
+on:
+  push:
+    branches: [main]
+    tags: ["cli-v*"]
+    paths: ["cli/**", ".github/workflows/cli.yml", "hardware/hid_bridge/cli_*", "hardware/hid_bridge/src/cli/**", "hardware/tests/sim/**"]
+  pull_request:
+    paths: ["cli/**", ".github/workflows/cli.yml", "hardware/hid_bridge/cli_*", "hardware/hid_bridge/src/cli/**", "hardware/tests/sim/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: ffmpeg (decoder tests)
+        run: if [ "$RUNNER_OS" = macOS ]; then brew install ffmpeg mbedtls; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+      - name: Simulated board (integration test; real cli_link.cpp)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: make -C ../hardware/tests/sim cli_sim screen.h264
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Cross-compile (CGO off)
+        if: runner.os == 'Linux'
+        run: |
+          for t in linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            CGO_ENABLED=0 GOOS=${t%/*} GOARCH=${t#*/} go build -o /dev/null ./cmd/esp32agent
+          done
+
+  build:
+    if: startsWith(github.ref, 'refs/tags/cli-v')
+    needs: test
+    strategy:
+      matrix:
+        include:
+          # CoreBluetooth (tinygo bluetooth via cbgo) needs cgo: darwin builds on macOS
+          - { runner: macos-latest, goos: darwin, goarch: arm64, cgo: "1" }
+          - { runner: macos-latest, goos: darwin, goarch: amd64, cgo: "1" }
+          # BlueZ (D-Bus) and WinRT are pure Go
+          - { runner: ubuntu-latest, goos: linux, goarch: amd64, cgo: "0" }
+          - { runner: ubuntu-latest, goos: linux, goarch: arm64, cgo: "0" }
+          - { runner: ubuntu-latest, goos: windows, goarch: amd64, cgo: "0" }
+          - { runner: ubuntu-latest, goos: windows, goarch: arm64, cgo: "0" }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo }}
+        run: |
+          version=${GITHUB_REF_NAME#cli-v}
+          exe=esp32agent; [ "$GOOS" = windows ] && exe=esp32agent.exe
+          mkdir -p dist/pkg
+          go build -trimpath -ldflags "-s -w -X github.com/onehumanbeing/esp32-iphone-agent/cli/internal/app.Version=$version" -o dist/pkg/$exe ./cmd/esp32agent
+          name=esp32agent_${GOOS}_${GOARCH}
+          if [ "$GOOS" = windows ]; then (cd dist/pkg && zip -q ../$name.zip $exe); else tar -czf dist/$name.tar.gz -C dist/pkg $exe; fi
+          rm -r dist/pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32agent_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: cli/dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum esp32agent_* > checksums.txt
+          cat checksums.txt
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "esp32agent ${GITHUB_REF_NAME#cli-v}" --notes "esp32agent CLI ${GITHUB_REF_NAME#cli-v}. Install: see cli/README.md."
+          gh release upload "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --clobber esp32agent_* checksums.txt
