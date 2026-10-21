@@ -8,7 +8,8 @@ extension AppModel {
     func wireRecovery() {
         agent.link = { [unowned self] in
             Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                          frameAt: FrameMode.current == .snap ? now() : feed.updated)  // snap mode: restore snaps a fresh one
+                          frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
+                          stalled: feed.frozen)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -31,7 +32,7 @@ extension AppModel {
             return
         }
         let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                                 frameAt: FrameMode.current == .snap ? now() : feed.updated)
+                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated, stalled: feed.frozen)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display

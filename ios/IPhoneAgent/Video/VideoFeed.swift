@@ -71,6 +71,9 @@ extension ScreenSource {
     private var noteLogged = 0.0
     private var clockOffset: Double?  // local s − board s, the smallest seen (≈ the link latency)
     var mirroring = false  // board status says ap == streaming
+    /// Board status fz: its GOP filled up and no stream goes on from it, so nothing newer than the shown frame
+    /// arrives until mirroring sends a keyframe (#25). The shown frame is stale, not "the screen didn't change".
+    var frozen = false
     var metrics: Metrics?
     weak var device: HIDDevice?
     /// The board streams every access unit over Wi-Fi while the app's session is up (see video_link.cpp), so
@@ -101,7 +104,7 @@ extension ScreenSource {
         }
     }
 
-    var live: Bool { mirroring && frame != nil && (device?.connected ?? false) }
+    var live: Bool { mirroring && !frozen && frame != nil && (device?.connected ?? false) }
 
     /// Frame width / height (portrait iPhone as a fallback).
     var aspect: Double { size.width > 0 && size.height > 0 ? size.width / size.height : 9 / 19.5 }
@@ -167,7 +170,7 @@ extension ScreenSource {
     func currentFrame(maxAge: Double = 1, wait: Double = 3) async throws -> String {
         if streamOn && mirroring {
             try Task.checkCancellation()
-            if !broken && frame != nil && now() - updated < maxAge { return "live" }
+            if !broken && !frozen && frame != nil && now() - updated < maxAge { return "live" }
             if await fresh(since: now() - maxAge, timeout: wait) != nil && !broken { return "live (waited)" }
         }
         do {
@@ -185,7 +188,7 @@ extension ScreenSource {
         try Task.checkCancellation()
         guard let device, device.connected else { throw DeviceError(message: "board not connected") }
         let started = now(), previousFrame = updated
-        if continuous() && mirroring && !broken && frame != nil {
+        if continuous() && mirroring && !broken && !frozen && frame != nil {
             // Already in step: take a newer frame if the screen moves within a second, else the current one is it
             // (2026-10-20: a 14 s snap stalled calibration, a 24 s one the run start).
             _ = await fresh(since: started, timeout: 1)
@@ -243,6 +246,7 @@ extension ScreenSource {
             } else {
                 await settled()
                 if await newer(than: since, timeout: 1.5) { return }
+                if frozen { return DebugLog.write("frame: none after the action; the board's video is frozen (no keyframe)") }
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
                 DebugLog.write("frame: stream stale (waiting for an IDR); snapping")
                 try await snap()

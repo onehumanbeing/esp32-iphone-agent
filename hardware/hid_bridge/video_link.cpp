@@ -5,10 +5,13 @@
 #include "wifi_video.h"
 #include "src/video/gop.h"
 
-// GOP since the latest IDR; overflow drops it until the next IDR. A still screen gets an IDR only every
-// few minutes, so room for ~27 min of AUs at 5 fps (P-frames of a still screen are tiny).
+// GOP since the latest IDR. A still screen gets an IDR only every few minutes (iOS 26: maybe once per mirroring
+// session), so room for ~27 min of AUs at 5 fps (P-frames of a still screen are tiny). When it fills, it freezes
+// (gop.h): a stream that is in step goes on from the tail below, everyone else needs the next IDR (status fz).
 const size_t GOP_CAP = 4 * 1024 * 1024;
 const int MAX_AUS = 8192;
+const size_t TAIL_CAP = 512 * 1024;     // AUs after a frozen GOP, until the stream has sent them
+const int TAIL_AUS = 1024;
 const size_t SCRATCH_CAP = 512 * 1024;   // largest access unit we forward
 const size_t MAX_CHUNK = 512;
 
@@ -18,7 +21,9 @@ struct Req {
   bool bench;
 };
 
-static gop_buf gop;
+static gop_buf gop, tail;
+static volatile uint32_t followGen = UINT32_MAX;  // the generation the stream sends in order, AU after AU
+static volatile bool tailLive;                     // the frozen GOP goes on in tail for that stream
 static SemaphoreHandle_t lock;
 static uint8_t *scratch;
 static QueueHandle_t reqs;
@@ -62,10 +67,52 @@ static bool copyAu(uint32_t gen, int i, gop_au *au) {
   return ok;
 }
 
-// Snapshot of the GOP state: generation, AU count, SPS/PPS.
-static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint32_t *cfg_ts) {
+// Copies tail AU i into scratch; false if there is none (yet) or the tail broke off. A stream that has sent
+// the whole tail empties it, so it only has to hold what the stream is behind.
+static bool copyTail(uint32_t gen, int i, gop_au *au) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  bool ok = gop.gen == gen && tailLive && i < tail.n && tail.aus[i].len <= SCRATCH_CAP;
+  if (ok) {
+    *au = tail.aus[i];
+    memcpy(scratch, tail.arena + au->off, au->len);
+  }
+  xSemaphoreGive(lock);
+  return ok;
+}
+
+static void tailSent(uint32_t gen, int *next) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  if (gop.gen == gen && *next >= tail.n) {
+    gop_clear(&tail);
+    *next = 0;
+  }
+  xSemaphoreGive(lock);
+}
+
+static bool frozenNow() {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  bool f = gop.frozen;
+  xSemaphoreGive(lock);
+  return f;
+}
+
+// The stream fell out of order: its frozen GOP can't go on, the next IDR has to come.
+static void unfollow() {
+  followGen = UINT32_MAX;
+  tailLive = false;
+}
+
+// Snapshot of the GOP state: generation, AU count, SPS/PPS. A frozen GOP counts as none (it may end minutes
+// ago), except for the stream that goes on from the tail.
+static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint32_t *cfg_ts, bool following) {
   xSemaphoreTake(lock, portMAX_DELAY);
   *gen = gop.gen;
+  if (gop.frozen && !(following && tailLive && followGen == gop.gen)) {
+    *n = 0;
+    *cfg_len = 0;
+    xSemaphoreGive(lock);
+    return false;
+  }
   *n = gop.wait_idr ? 0 : gop.n;
   *cfg_len = gop.cfg_len;
   *cfg_ts = gop.cfg_ts;
@@ -81,7 +128,8 @@ static String doSnap() {
     uint32_t gen, cfg_ts;
     size_t cfg_len;
     int n;
-    if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts)) return "err no video (start screen mirroring)";
+    if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts, false))
+      return frozenNow() ? "err video frozen (restart screen mirroring)" : "err no video (start screen mirroring)";
     if (!sendAu(cfg, cfg_len, VF_CONFIG | VF_SNAP, cfg_ts)) return "err video send failed";
     bool complete = true;
     for (int i = 0; i < n && complete; i++) {
@@ -115,10 +163,10 @@ static String doBench(uint32_t kb) {
 
 // Continuous mode: send every AU once, catching up from the GOP's IDR when streaming starts (P-frames
 // can't be skipped: each needs the one before, and the next IDR may be minutes away). After a failed
-// send, start over from the GOP's IDR.
+// send, start over from the GOP's IDR. Past a frozen GOP, go on with the tail.
 static void streamStep() {
   static uint32_t txGen = UINT32_MAX;
-  static int next;
+  static int next, tailNext;
   static uint8_t cfg[GOP_CFG_MAX];
   static bool lastWifi, catchingUp;
   bool wifi = wv_active();
@@ -128,27 +176,34 @@ static void streamStep() {
   bool resyncAsked = wv_take_resync();
   if (wifi != lastWifi || (resyncAsked && !catchingUp)) txGen = UINT32_MAX;
   lastWifi = wifi;
+  if (txGen == UINT32_MAX) unfollow();
   // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
   // at a run start meant resending the whole GOP since mirroring began (a minute and more of P-frames), and the
   // run waited for it (2026-10-20 "waiting frame" log: 1 frame/s arriving, 57 s behind). AirPlay sends little
   // while the screen is still, so the steady stream is cheap.
   if (!(streaming || wifi) || !videoRoom(wifi)) {
     txGen = UINT32_MAX;  // resend config + whole GOP when streaming resumes
+    unfollow();
     return;
   }
   uint32_t gen, cfg_ts;
   size_t cfg_len;
   int n;
-  if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts)) return;
+  if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts, true)) return;
   if (gen != txGen) {
     txGen = gen;
-    next = 0;
+    next = tailNext = 0;
     catchingUp = true;
-    if (!sendAu(cfg, cfg_len, VF_CONFIG, cfg_ts)) { txGen = UINT32_MAX; return; }
+    if (!sendAu(cfg, cfg_len, VF_CONFIG, cfg_ts)) { txGen = UINT32_MAX; unfollow(); return; }
+    followGen = gen;
   }
   for (gop_au au; next < n && copyAu(gen, next, &au); next++)
-    if (!sendAu(scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { txGen = UINT32_MAX; return; }
-  if (next >= n) catchingUp = false;
+    if (!sendAu(scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { txGen = UINT32_MAX; unfollow(); return; }
+  if (next < n) return;
+  catchingUp = false;
+  for (gop_au au; copyTail(gen, tailNext, &au); tailNext++)
+    if (!sendAu(scratch, au.len, 0, au.ts)) { txGen = UINT32_MAX; unfollow(); return; }
+  tailSent(gen, &tailNext);
 }
 
 static void videoTask(void *) {
@@ -168,8 +223,11 @@ bool video_begin() {
   uint8_t *arena = (uint8_t *)heap_caps_malloc(GOP_CAP, MALLOC_CAP_SPIRAM);
   gop_au *aus = (gop_au *)heap_caps_malloc(MAX_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
   scratch = (uint8_t *)heap_caps_malloc(SCRATCH_CAP, MALLOC_CAP_SPIRAM);
-  if (!arena || !aus || !scratch) return false;
+  uint8_t *tailArena = (uint8_t *)heap_caps_malloc(TAIL_CAP, MALLOC_CAP_SPIRAM);
+  gop_au *tailAus = (gop_au *)heap_caps_malloc(TAIL_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
+  if (!arena || !aus || !scratch || !tailArena || !tailAus) return false;
   gop_init(&gop, arena, GOP_CAP, aus, MAX_AUS);
+  gop_init(&tail, tailArena, TAIL_CAP, tailAus, TAIL_AUS);
   lock = xSemaphoreCreateMutex();
   reqs = xQueueCreate(4, sizeof(Req));
   return xTaskCreatePinnedToCore(videoTask, "video", 6 * 1024, NULL, 2, &task, 1) == pdPASS;
@@ -198,8 +256,21 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
     winStart = now;
   }
   xSemaphoreTake(lock, portMAX_DELAY);
+  bool wasFrozen = gop.frozen, wasLive = tailLive;
   gop_push(&gop, au, len, idr, now);
+  bool froze = gop.frozen && !wasFrozen;
+  if (froze) {
+    gop_clear(&tail);
+    tailLive = followGen == gop.gen;
+  }
+  if (gop.frozen && tailLive && gop_append(&tail, au, len, false, now) < 0) tailLive = false;  // the stream fell too far behind
+  bool tailBroke = gop.frozen && !froze && wasLive && !tailLive;
+  int aus = gop.n;
+  uint32_t kb = gop.used / 1024;
   xSemaphoreGive(lock);
+  if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); %s\n", aus, (unsigned long)kb,
+                           tailLive ? "the stream goes on from the tail" : "frozen until the next IDR");
+  if (tailBroke) Serial.println("video: stream fell behind the tail; frozen until the next IDR");
   xTaskNotifyGive(task);
 }
 
@@ -217,8 +288,9 @@ void video_bench(const String &id, uint32_t kb) { request(id, true, kb); }
 VideoStats video_stats() {
   bool fresh = millis() - statAt < 3000;  // mirroring stopped: report zeros, not stale numbers
   xSemaphoreTake(lock, portMAX_DELAY);
-  uint32_t gopBytes = gop.used;
+  uint32_t gopBytes = gop.used, overflows = gop.overflows;
+  bool frozen = gop.frozen && !tailLive;
   xSemaphoreGive(lock);
   uint32_t age = lastAu ? millis() - lastAu : 0;
-  return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0};
+  return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0, overflows, frozen};
 }

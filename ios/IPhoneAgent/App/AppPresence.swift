@@ -144,6 +144,7 @@ extension AppModel {
         // The board got no frame from AirPlay since before the cursor moved: the sender stalled while its
         // session stays up (heartbeats), and only restarting Screen Mirroring helps; ask for it now, not in 20 s.
         func airplayStalled() -> Bool {
+            if feed.frozen { return true }  // no keyframe will come by itself
             guard motionAt > 0, now() - motionAt > 4, let vage = board.status?.vage, vage > 0 else { return false }
             return Double(vage) / 1000 > now() - motionAt + 1
         }

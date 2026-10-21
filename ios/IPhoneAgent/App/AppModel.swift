@@ -142,6 +142,12 @@ import UIKit
             self?.statusRefreshError = nil
             let started = s.ap == "streaming" && self?.feed.mirroring == false
             self?.feed.mirroring = s.ap == "streaming"
+            let frozen = s.fz == 1
+            if frozen != self?.feed.frozen {
+                DebugLog.write(frozen ? "video: the board's GOP is full (overflows \(s.ovf ?? 0)); frozen until a keyframe"
+                                      : "video: unfrozen (new keyframe)")
+            }
+            self?.feed.frozen = frozen
             if s.ap == "streaming" { Analytics.captureOnce("mirroring_started") }
             if started { DebugLog.write("mirroring started"); self?.prewarmStream() }  // a pre-warm at link-up fails until mirroring runs
             if let up = s.up { self?.feed.boardClock(ms: up) }

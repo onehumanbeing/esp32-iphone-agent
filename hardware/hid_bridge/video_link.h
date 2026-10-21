@@ -14,5 +14,7 @@ struct VideoStats {
   uint32_t kbps, idr_ms, gop_bytes;
   uint32_t age_ms;  // since the last frame from AirPlay (0: none yet); grows on a still screen too
   float fps;
+  uint32_t overflows;  // times the GOP filled up since boot
+  bool frozen;         // GOP full and no stream going on from it: no new frame until the next IDR (#25)
 };
 VideoStats video_stats();

@@ -35,6 +35,8 @@ struct BoardStatus: Codable, Equatable {
     var w: Int?, h: Int?
     var kbps: Double?, fps: Double?, idr: Int?, gop: Int?
     var vage: Int?     // ms since the board's last frame from AirPlay (firmware 0.2.1+)
+    var ovf: Int?      // times the board's GOP buffer filled up (0.2.2+)
+    var fz: Int?       // 1: GOP full, no new frame until mirroring sends a keyframe (0.2.2+; nil = 0)
     var ble: BLE?
     var udp: UDP?
 
@@ -48,7 +50,7 @@ struct BoardStatus: Codable, Equatable {
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
-        m.gop = n.gop ?? gop; m.vage = n.vage ?? vage
+        m.gop = n.gop ?? gop; m.vage = n.vage ?? vage; m.ovf = n.ovf ?? ovf; m.fz = n.fz ?? fz
         let a = ble ?? BLE(), b = n.ble ?? BLE()
         m.ble = BLE(mtu: b.mtu ?? a.mtu, phy: b.phy ?? a.phy, kbps: b.kbps ?? a.kbps, drop: b.drop ?? a.drop)
         m.udp = n.udp ?? udp

@@ -24,23 +24,36 @@ static void restart(gop_buf *g) {
   g->gen++;
 }
 
-int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
-  if (idr) {
-    restart(g);
-    g->wait_idr = false;
-  } else if (g->wait_idr) {
-    return -1;
-  }
-  if (g->used + len > g->cap || g->n == g->max) {  // GOP too big: drop it and wait for the next IDR
-    restart(g);
-    g->wait_idr = true;
-    g->overflows++;
-    return -1;
-  }
+int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
+  if (g->used + len > g->cap || g->n == g->max) return -1;
   memcpy(g->arena + g->used, annexb, len);
   g->aus[g->n] = (gop_au){(uint32_t)g->used, (uint32_t)len, ts, idr};
   g->used += len;
   return g->n++;
+}
+
+void gop_clear(gop_buf *g) {
+  g->used = 0;
+  g->n = 0;
+}
+
+int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
+  if (idr) {
+    restart(g);
+    g->wait_idr = false;
+    g->frozen = false;
+  } else if (g->wait_idr || g->frozen) {
+    return -1;
+  }
+  int i = gop_append(g, annexb, len, idr, ts);
+  if (i < 0) {
+    // Full. Keep what we have: it still decodes, and iOS 26 may send no IDR for the rest of the mirroring
+    // session, so restarting would leave nothing to show at all (#25). Only an IDR too big leaves it empty.
+    if (g->n) g->frozen = true;
+    else g->wait_idr = true;
+    g->overflows++;
+  }
+  return i;
 }
 
 bool annexb_has_idr(const uint8_t *p, size_t len) {

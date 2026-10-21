@@ -95,9 +95,20 @@ static void test_gop(void) {
   CHECK(gop_push(&g, au, 30, true, 2) == 0);
   CHECK(gop_push(&g, au, 30, false, 3) == 1);
   CHECK(gop_push(&g, au, 30, false, 4) == 2 && g.used == 90);
-  CHECK(gop_push(&g, au, 30, false, 5) == -1 && g.n == 0 && g.wait_idr && g.overflows == 1);
-  CHECK(gop_push(&g, au, 10, false, 6) == -1);
-  CHECK(gop_push(&g, au, 10, true, 7) == 0 && !g.wait_idr);
+  uint32_t gen = g.gen;
+  CHECK(gop_push(&g, au, 30, false, 5) == -1 && g.n == 3 && g.frozen && !g.wait_idr && g.overflows == 1);
+  CHECK(gop_push(&g, au, 5, false, 6) == -1 && g.n == 3 && g.gen == gen);  // frozen: kept whole, nothing added
+  CHECK(gop_push(&g, au, 10, true, 7) == 0 && !g.frozen && g.gen != gen);
+  CHECK(gop_push(&g, arena, sizeof arena + 1, true, 8) == -1 && g.n == 0 && g.wait_idr && g.overflows == 2);
+
+  static uint8_t tarena[20];
+  static gop_au taus[2];
+  gop_buf t;
+  gop_init(&t, tarena, sizeof tarena, taus, 2);
+  CHECK(gop_append(&t, au, 10, false, 1) == 0 && gop_append(&t, au, 10, false, 2) == 1);
+  CHECK(gop_append(&t, au, 1, false, 3) == -1);
+  gop_clear(&t);
+  CHECK(t.n == 0 && t.used == 0 && gop_append(&t, au, 20, false, 4) == 0);
 
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));
