@@ -23,6 +23,7 @@
 #include "ota.h"
 #include "version.h"
 #include "src/airplay/airplay.h"
+#include "src/hid/arbiter.h"
 
 const int STEP = 10;      // max pointer delta per report while moving
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
@@ -112,6 +113,29 @@ String run(const String &line) {
   return "err unknown command";
 }
 
+static arb_state arb;  // the app and the CLI share the mouse and keyboard, src/hid/arbiter.h
+
+// An HID command from who: refused while the app holds the phone, else with the pointer put back where who left it.
+String drive(const String &line, char who) {
+  int side = who == FROM_CLI ? ARB_CLI : ARB_APP;
+  int sp = line.indexOf(' ');
+  String cmd = sp < 0 ? line : line.substring(0, sp);
+  long a = 0, b = 0;
+  if (sp > 0) sscanf(line.c_str() + sp + 1, "%ld %ld", &a, &b);
+  arb_plan plan = arb_before(&arb, side, cmd.c_str(), millis());
+  if (plan.refuse) return "err busy: the app is using the phone";
+  if ((plan.release || plan.restore) && usbReady()) {
+    if (plan.release) mouse.release(MOUSE_LEFT);
+    if (plan.restore) {
+      run("home");
+      movePaced(plan.x, plan.y);
+    }
+  }
+  String reply = run(line);
+  arb_after(&arb, side, cmd.c_str(), a, b, reply == "ok");
+  return reply;
+}
+
 const char *resetReason() {
   switch (esp_reset_reason()) {
     case ESP_RST_POWERON: return "power-on";
@@ -141,7 +165,10 @@ String board(const String &line, const String &id, char who) {
     video_stream(arg == "on", who);
     return "ok";
   }
-  if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair")) return "err not available from the CLI";
+  // The CLI must not change what the app relies on: the mirroring format, the radio, the pairing.
+  if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair" || cmd == "res" || cmd == "fps" ||
+                          cmd == "txpower" || cmd == "coex"))
+    return "err not available from the CLI";
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
@@ -178,7 +205,7 @@ String board(const String &line, const String &id, char who) {
     ble_unpair();
     return "";
   }
-  return run(line);
+  return drive(line, who);
 }
 
 String statusJson(bool full, char who) {
@@ -196,10 +223,16 @@ String statusJson(bool full, char who) {
            (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, (unsigned long)v.overflows, v.frozen, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
            (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
            (unsigned long)wv_nacks(), (unsigned long)wv_drops());
+  if (who == FROM_CLI) {  // 1 while the app holds the phone (its HID commands win, the CLI's are refused)
+    size_t len = strlen(s);
+    snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", arb_app_busy(&arb, millis()));
+  }
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}}",
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
+  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d", arb_app_busy(&arb, millis()));
+  strlcat(s, "}", sizeof s);
   return s;
 }
 
@@ -271,6 +304,7 @@ void setup() {
   if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
   if (!wv_begin()) Serial.println("video: Wi-Fi video channel failed to start");
   if (!ota_begin()) Serial.println("ota: failed to start");
+  arb_init(&arb);
   cli_begin();
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
@@ -286,13 +320,18 @@ void loop() {
   esp_task_wdt_reset();
   net_poll();
   bool cli = cli_slot() >= 0;
-  if ((linked && !ble_connected()) || (cliLinked && !cli)) {
-    mouse.release(MOUSE_LEFT);  // a gesture cut off mid-way must not leave the button held (long press)
+  // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.
+  bool app = ble_app_connected();
+  if (linked && !app) {
+    if (arb_gone(&arb, ARB_APP)) mouse.release(MOUSE_LEFT);
     keyboard.releaseAll();
-    if (!ble_connected()) video_stream(false, FROM_APP);
-    if (!cli) video_stream(false, FROM_CLI);
+    video_stream(false, FROM_APP);
   }
-  linked = ble_connected();
+  if (cliLinked && !cli) {
+    if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
+    video_stream(false, FROM_CLI);
+  }
+  linked = app;
   cliLinked = cli;
   // A freshly updated image is kept once it has run a while or the app got through; a crash or watchdog
   // reset before that makes the bootloader go back to the previous one.

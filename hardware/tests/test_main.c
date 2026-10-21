@@ -1,5 +1,5 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream, the CLI link crypto.
+// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +7,7 @@
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
+#include "../hid_bridge/src/hid/arbiter.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -271,6 +272,55 @@ static void test_cli_proto(void) {
   CHECK(!memcmp(frame, expect, 25));
 }
 
+// Runs cmd from side as the sketch's drive() does; returns the plan.
+static arb_plan arb_run(arb_state *s, int side, const char *cmd, long a, long b, uint32_t now) {
+  arb_plan p = arb_before(s, side, cmd, now);
+  if (!p.refuse) arb_after(s, side, cmd, a, b, true);
+  return p;
+}
+
+static void test_arbiter(void) {
+  arb_state s;
+  arb_init(&s);
+  // the CLI alone: no restore, it knows where it is
+  CHECK(!arb_run(&s, ARB_CLI, "home", 0, 0, 0).restore);
+  CHECK(!arb_run(&s, ARB_CLI, "move", 100, 200, 10).restore);
+  // the app takes over: its pointer is unknown (never homed), so nothing to restore; it homes itself
+  CHECK(!arb_run(&s, ARB_APP, "home", 0, 0, 1000).refuse);
+  arb_run(&s, ARB_APP, "move", 30, 40, 1010);
+  // the app holds the phone: the CLI is refused, also ping is not HID
+  CHECK(arb_run(&s, ARB_CLI, "move", 1, 1, 1000 + ARB_LEASE_MS - 1).refuse);
+  CHECK(arb_run(&s, ARB_CLI, "type", 0, 0, 2000).refuse);
+  CHECK(!arb_run(&s, ARB_CLI, "ping", 0, 0, 2000).refuse);
+  CHECK(arb_app_busy(&s, 1010 + ARB_LEASE_MS - 1) && !arb_app_busy(&s, 1010 + ARB_LEASE_MS));
+  // lease over: the CLI gets its own pointer back
+  uint32_t t = 1010 + ARB_LEASE_MS;
+  arb_plan p = arb_run(&s, ARB_CLI, "click", 0, 0, t);
+  CHECK(!p.refuse && p.restore && p.x == 100 && p.y == 200);
+  CHECK(!arb_run(&s, ARB_CLI, "move", 5, 5, t + 1).restore);  // still its own pointer
+  // the app's next pointer command: back to (30, 40), even with the CLI holding the button
+  arb_run(&s, ARB_CLI, "press", 0, 0, t + 2);
+  p = arb_run(&s, ARB_APP, "move", 1, 0, t + 3);
+  CHECK(p.release && p.restore && p.x == 30 && p.y == 40);
+  CHECK(!arb_run(&s, ARB_APP, "click", 0, 0, t + 4).restore);
+  // keys don't touch the pointer: no restore, the app's stays at (31, 40)
+  CHECK(!arb_run(&s, ARB_APP, "key", 0, 0, t + 5).restore);
+  // the app's link went down: its lease ends, and its pointer is unknown until it homes again
+  arb_run(&s, ARB_APP, "press", 0, 0, t + 6);
+  CHECK(arb_gone(&s, ARB_APP));      // it held the button
+  CHECK(!arb_gone(&s, ARB_CLI));     // the CLI did not
+  p = arb_run(&s, ARB_CLI, "move", 0, 0, t + 7);
+  CHECK(!p.refuse && !p.restore);    // CLI gone too: unknown, it homes on its own
+  // a failed move (phone asleep) makes the side's pointer unknown
+  arb_init(&s);
+  arb_run(&s, ARB_APP, "home", 0, 0, 0);
+  arb_before(&s, ARB_APP, "move", 0);
+  arb_after(&s, ARB_APP, "move", 10, 10, false);
+  t = ARB_LEASE_MS;
+  arb_run(&s, ARB_CLI, "home", 0, 0, t);
+  CHECK(!arb_run(&s, ARB_APP, "move", 1, 1, t + 1).restore);
+}
+
 int main(void) {
   test_bplist_roundtrip();
   test_bplist_utf16();
@@ -278,6 +328,7 @@ int main(void) {
   test_chunker();
   test_keystream_resync();
   test_cli_proto();
+  test_arbiter();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

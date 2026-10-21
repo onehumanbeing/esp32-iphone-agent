@@ -6,6 +6,7 @@
 
 void ble_begin(const String &name);
 bool ble_connected();
+bool ble_app_connected();  // an encrypted (bonded) link: the app, not the CLI
 // Where a command came from, and where its reply goes.
 const char FROM_APP = 'a', FROM_CLI = 'c';
 

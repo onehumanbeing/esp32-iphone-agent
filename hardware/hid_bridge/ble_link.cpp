@@ -266,7 +266,9 @@ static void sendText(int ch, const Text &t, uint32_t timeout_ms) {
 }
 
 // A plain link that is neither the app (it encrypts within a second) nor a CLI session: a stranger holding a slot.
+// Not within the pairing window: the app's first link stays plain while iOS shows its pairing dialog.
 static void dropIdlePlainLinks() {
+  if (ble_pair_window_open()) return;
   for (int i = 0; i < MAX_PEERS; i++) {
     int h = peers[i];
     if (h >= 0 && !encrypted(h) && !cli_authed(i) && millis() - connAt[i] > PLAIN_GRACE_MS) {
@@ -396,6 +398,12 @@ void ble_begin(const String &name) {
 }
 
 bool ble_connected() { return peerCount() > 0; }
+
+bool ble_app_connected() {
+  for (int i = 0; i < MAX_PEERS; i++)
+    if (encrypted(peers[i])) return true;
+  return false;
+}
 
 void ble_push_cmd(char origin, const char *line, size_t n) {
   char buf[CMD_MAX] = {origin};

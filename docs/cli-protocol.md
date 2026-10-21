@@ -72,7 +72,23 @@ Plaintext:
 - `C`: `'c'` + one command line `<id> <command>`, exactly the app's command set (docs/ble-protocol.md). `stream on|off`
   and `snap` act on the CLI's own video, independent of the app's.
 - `B`: `'r'` + reply line `<id> ok…|<id> err…` (only replies to the CLI's own commands), or `'s'` + status JSON
-  (once a second; the compact form when the full one does not fit).
+  (once a second; the compact form when the full one does not fit). The CLI's status has one extra field,
+  `busy` (1 while the app holds the phone, see below).
 - `V`: one video chunk exactly as on the app's `video` characteristic: `[seq u16 LE][flags u8][payload]`.
+
+## Sharing the phone with the app
+The app runs unchanged and never sees a new error; the CLI gives way (`hardware/hid_bridge/src/hid/arbiter.h`).
+- **The app wins.** For 20 s after the app's last HID command (`home move press release click scroll type key
+  homescreen`; a run thinks between steps) the CLI's HID commands answer `err busy: the app is using the phone`.
+  `ping`, `snap`, `stream` and status are always fine.
+- **A pointer per side.** Each side's position is dead-reckoned from its last `home`. Before a side's next pointer
+  command, if the other side moved the pointer meanwhile, the board homes and moves it back to where this side left
+  it, so each side's own model (Pointer.swift, the CLI's port) stays right. A button the other side left held is
+  released first; a side's link going down releases only a button it holds.
+- **Settings stay the app's.** `res fps txpower coex app log unpair` answer `err not available from the CLI`.
+- **Video.** The CLI's video runs on its own task and buffers, so a CLI catching up on a big GOP never holds up the
+  app's. Its BLE chunks only go in the app's pauses (none of the app's BLE video for 50 ms); over Wi-Fi the app
+  does not share the air with it.
+- **Intents** stay in the app: what the CLI does is not recorded there.
 
 Test vectors: `cli/testdata/vectors.json` (checked by `hardware/tests` and `go test ./cli/...`).

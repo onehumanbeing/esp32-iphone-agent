@@ -24,9 +24,15 @@ struct Req {
 };
 
 // One receiver of the video: the app (over Wi-Fi while its session is up, else BLE) or the CLI (its own BLE
-// link, cli_link.cpp). Each keeps its own place in the GOP and its own chunk numbering.
+// link, cli_link.cpp). Each keeps its own place in the GOP and its own chunk numbering, and runs on its own task
+// with its own buffers: a CLI catching up on MBs over BLE, or waiting for room, never holds up the app's video.
 struct Sink {
   char who;
+  uint8_t *scratch;  // the AU being sent
+  uint8_t *chunk;
+  uint8_t cfg[GOP_CFG_MAX];
+  QueueHandle_t reqs;
+  TaskHandle_t task;
   volatile bool streaming;  // asked for `stream on` (the app over Wi-Fi streams regardless)
   uint16_t seq;
   uint32_t txGen = UINT32_MAX;
@@ -40,10 +46,9 @@ static gop_buf gop, tail;
 static volatile bool tailLive;  // the tail holds every AU since the GOP froze
 static Sink sinks[2] = {{FROM_APP}, {FROM_CLI}};
 static SemaphoreHandle_t lock;
-static uint8_t *scratch;
-static QueueHandle_t reqs;
-static TaskHandle_t task;
-static uint8_t chunk[VCHUNK_HDR + WV_PAYLOAD];
+static uint8_t appChunk[VCHUNK_HDR + WV_PAYLOAD], cliChunk[VCHUNK_HDR + MAX_CHUNK];
+static volatile uint32_t appBleAt;  // last chunk of the app's video over BLE: the CLI's waits for a pause
+const uint32_t APP_BLE_PAUSE_MS = 50;
 static uint32_t winStart, winBytes, winFrames, lastIdr;
 static volatile uint32_t lastAu;
 static volatile uint32_t statKbps, statIdrMs, statAt;
@@ -57,9 +62,15 @@ static size_t videoRoom(const Sink &s) {
   if (s.who == FROM_CLI) return min(cli_video_room(), MAX_CHUNK);
   return appWifi(s) ? WV_PAYLOAD : min(ble_video_room(), MAX_CHUNK);
 }
+// The app's video over BLE comes first: the CLI's shares the same air, so it only goes in the app's pauses.
 static bool videoSend(const Sink &s, bool wifi, const uint8_t *p, size_t n) {
-  if (s.who == FROM_CLI) return cli_send_video(p, n);
-  return wifi ? wv_send(p, n) : ble_video_send(p, n);
+  if (s.who == FROM_CLI) {
+    while (millis() - appBleAt < APP_BLE_PAUSE_MS) vTaskDelay(pdMS_TO_TICKS(10));
+    return cli_send_video(p, n);
+  }
+  if (wifi) return wv_send(p, n);
+  appBleAt = millis();
+  return ble_video_send(p, n);
 }
 
 // One access unit as chunks. A failed chunk still consumes its seq, so the receiver sees a gap.
@@ -69,33 +80,33 @@ static bool sendAu(Sink &s, const uint8_t *p, size_t n, uint8_t flags, uint32_t 
   if (room < 5) return false;
   vchunk c;
   vchunk_begin(&c, p, n, flags, ts);
-  for (size_t len; (len = vchunk_next(&c, chunk, room, s.seq)) > 0;) {
-    bool ok = videoSend(s, wifi, chunk, len);
+  for (size_t len; (len = vchunk_next(&c, s.chunk, room, s.seq)) > 0;) {
+    bool ok = videoSend(s, wifi, s.chunk, len);
     s.seq++;
     if (!ok) return false;
   }
   return true;
 }
 
-// Copies AU i of generation gen into scratch; false if the GOP moved on.
-static bool copyAu(uint32_t gen, int i, gop_au *au) {
+// Copies AU i of generation gen into the sink's scratch; false if the GOP moved on.
+static bool copyAu(Sink &s, uint32_t gen, int i, gop_au *au) {
   xSemaphoreTake(lock, portMAX_DELAY);
   bool ok = gop.gen == gen && i < gop.n && gop.aus[i].len <= SCRATCH_CAP;
   if (ok) {
     *au = gop.aus[i];
-    memcpy(scratch, gop.arena + au->off, au->len);
+    memcpy(s.scratch, gop.arena + au->off, au->len);
   }
   xSemaphoreGive(lock);
   return ok;
 }
 
-// Copies tail AU i into scratch; false if there is none (yet) or the tail broke off.
-static bool copyTail(const Sink &s, uint32_t gen, int i, gop_au *au) {
+// Copies tail AU i into the sink's scratch; false if there is none (yet) or the tail broke off.
+static bool copyTail(Sink &s, uint32_t gen, int i, gop_au *au) {
   xSemaphoreTake(lock, portMAX_DELAY);
   bool ok = gop.gen == gen && tailLive && s.onTail && i < tail.n && tail.aus[i].len <= SCRATCH_CAP;
   if (ok) {
     *au = tail.aus[i];
-    memcpy(scratch, tail.arena + au->off, au->len);
+    memcpy(s.scratch, tail.arena + au->off, au->len);
   }
   xSemaphoreGive(lock);
   return ok;
@@ -147,7 +158,7 @@ static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint3
 }
 
 static String doSnap(Sink &s) {
-  static uint8_t cfg[GOP_CFG_MAX];
+  uint8_t *cfg = s.cfg;
   if (!videoRoom(s)) return "err video not subscribed";
   for (int attempt = 0; attempt < 3; attempt++) {
     uint32_t gen, cfg_ts;
@@ -159,8 +170,8 @@ static String doSnap(Sink &s) {
     bool complete = true;
     for (int i = 0; i < n && complete; i++) {
       gop_au au;
-      complete = copyAu(gen, i, &au);
-      if (complete && !sendAu(s, scratch, au.len, VF_SNAP | (au.idr ? VF_IDR : 0), au.ts)) return "err video send failed";
+      complete = copyAu(s, gen, i, &au);
+      if (complete && !sendAu(s, s.scratch, au.len, VF_SNAP | (au.idr ? VF_IDR : 0), au.ts)) return "err video send failed";
     }
     if (complete) return "ok";  // else a new IDR replaced the GOP mid-send: start over with it
   }
@@ -172,6 +183,7 @@ static String doBench(Sink &s, uint32_t kb) {
   size_t room = videoRoom(s);
   if (!room) return "err video not subscribed";
   uint32_t start = millis();
+  uint8_t *chunk = s.chunk;
   memset(chunk + VCHUNK_HDR, 0xA5, room);
   for (size_t left = kb * 1024; left;) {
     size_t n = min(left, room);
@@ -190,7 +202,7 @@ static String doBench(Sink &s, uint32_t kb) {
 // can't be skipped: each needs the one before, and the next IDR may be minutes away). After a failed
 // send, start over from the GOP's IDR. Past a frozen GOP, go on with the tail.
 static void streamStep(Sink &s) {
-  static uint8_t cfg[GOP_CFG_MAX];
+  uint8_t *cfg = s.cfg;
   bool wifi = appWifi(s);
   // A new transport, or the app lost chunks it can't get back: resend config + whole GOP. Not again while the
   // last resend is still going: a GOP can be MBs (the next IDR may be minutes away), and restarting it at every
@@ -219,25 +231,25 @@ static void streamStep(Sink &s) {
     if (!sendAu(s, cfg, cfg_len, VF_CONFIG, cfg_ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
     s.followGen = gen;
   }
-  for (gop_au au; s.next < n && copyAu(gen, s.next, &au); s.next++)
-    if (!sendAu(s, scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+  for (gop_au au; s.next < n && copyAu(s, gen, s.next, &au); s.next++)
+    if (!sendAu(s, s.scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
   if (s.next < n) return;
   s.catchingUp = false;
   for (gop_au au; copyTail(s, gen, s.tailNext, &au); s.tailNext++)
-    if (!sendAu(s, scratch, au.len, 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+    if (!sendAu(s, s.scratch, au.len, 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
   tailSent(gen);
 }
 
-static void videoTask(void *) {
+static void videoTask(void *arg) {
+  Sink &s = *(Sink *)arg;
   for (;;) {
     Req r;
-    if (xQueueReceive(reqs, &r, 0) == pdTRUE) {
-      Sink &s = sinkOf(r.who);
+    if (xQueueReceive(s.reqs, &r, 0) == pdTRUE) {
       String reply = String(r.id) + " " + (r.bench ? doBench(s, r.kb) : doSnap(s));
       Serial.println("video: " + reply);  // the reply only goes over BLE; mirror it for serial-driven tests
-      ble_reply(reply, r.who);
+      ble_reply(reply, s.who);
     }
-    for (Sink &s : sinks) streamStep(s);
+    streamStep(s);
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(20));
   }
 }
@@ -245,15 +257,24 @@ static void videoTask(void *) {
 bool video_begin() {
   uint8_t *arena = (uint8_t *)heap_caps_malloc(GOP_CAP, MALLOC_CAP_SPIRAM);
   gop_au *aus = (gop_au *)heap_caps_malloc(MAX_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
-  scratch = (uint8_t *)heap_caps_malloc(SCRATCH_CAP, MALLOC_CAP_SPIRAM);
   uint8_t *tailArena = (uint8_t *)heap_caps_malloc(TAIL_CAP, MALLOC_CAP_SPIRAM);
   gop_au *tailAus = (gop_au *)heap_caps_malloc(TAIL_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
-  if (!arena || !aus || !scratch || !tailArena || !tailAus) return false;
+  sinks[0].chunk = appChunk;
+  sinks[1].chunk = cliChunk;
+  for (Sink &s : sinks) {
+    s.scratch = (uint8_t *)heap_caps_malloc(SCRATCH_CAP, MALLOC_CAP_SPIRAM);
+    s.reqs = xQueueCreate(4, sizeof(Req));
+  }
+  if (!arena || !aus || !tailArena || !tailAus || !sinks[0].scratch || !sinks[0].reqs) return false;
   gop_init(&gop, arena, GOP_CAP, aus, MAX_AUS);
   gop_init(&tail, tailArena, TAIL_CAP, tailAus, TAIL_AUS);
   lock = xSemaphoreCreateMutex();
-  reqs = xQueueCreate(4, sizeof(Req));
-  return xTaskCreatePinnedToCore(videoTask, "video", 6 * 1024, NULL, 2, &task, 1) == pdPASS;
+  if (xTaskCreatePinnedToCore(videoTask, "video", 6 * 1024, &sinks[0], 2, &sinks[0].task, 1) != pdPASS) return false;
+  // The CLI's video is extra: without room for it the app's goes on, the CLI's snap answers "err busy"
+  if (!sinks[1].scratch || !sinks[1].reqs ||
+      xTaskCreatePinnedToCore(videoTask, "clivideo", 6 * 1024, &sinks[1], 2, &sinks[1].task, 1) != pdPASS)
+    Serial.println("video: no room for the CLI's video");
+  return true;
 }
 
 void video_on_config(const uint8_t *sps_pps, size_t len) {
@@ -299,7 +320,8 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); %s\n", aus, (unsigned long)kb,
                            tailLive ? "the streams in step go on from the tail" : "frozen until the next IDR");
   if (tailBroke) Serial.println("video: a stream fell behind the tail; frozen until the next IDR");
-  xTaskNotifyGive(task);
+  for (Sink &s : sinks)
+    if (s.task) xTaskNotifyGive(s.task);
 }
 
 void video_stream(bool on, char who) { sinkOf(who).streaming = on; }
@@ -307,7 +329,8 @@ void video_stream(bool on, char who) { sinkOf(who).streaming = on; }
 static void request(const String &id, bool bench, uint32_t kb, char who) {
   Req r = {{0}, kb, bench, who};
   strncpy(r.id, id.c_str(), sizeof r.id - 1);
-  if (xQueueSend(reqs, &r, 0) != pdTRUE) ble_reply(id + " err busy", who);
+  QueueHandle_t q = sinkOf(who).reqs;
+  if (!q || !sinkOf(who).task || xQueueSend(q, &r, 0) != pdTRUE) ble_reply(id + " err busy", who);
 }
 
 void video_snap(const String &id, char who) { request(id, false, 0, who); }
