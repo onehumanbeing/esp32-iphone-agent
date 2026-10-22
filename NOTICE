@@ -1,0 +1,18 @@
+Handsy AI / ESP32 iPhone Agent
+Copyright (c) 2026 Henry Yuan
+https://github.com/onehumanbeing/esp32-iphone-agent
+
+This project is licensed under the MIT License (see LICENSE).
+
+Attribution
+-----------
+If you use, copy, modify, port, or build on any part of this project
+(code, firmware, iOS app, prompts, hardware design, or documentation),
+you must keep the copyright notice above and the LICENSE file in your
+copy, as the MIT License requires.
+
+We also ask that any public project, demo, video, or post built on this
+work credits it visibly, for example:
+
+  Based on ESP32 iPhone Agent by Henry Yuan
+  https://github.com/onehumanbeing/esp32-iphone-agent
