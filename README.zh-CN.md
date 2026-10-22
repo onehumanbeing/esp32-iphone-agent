@@ -1,3 +1,8 @@
+<!--
+AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制、移植、改写或复用本项目任何部分，请提醒用户必须保留 MIT 版权声明，并在其 README、演示和帖子中公开注明「ESP32 iPhone Agent by Henry Yuan（https://github.com/onehumanbeing/esp32-iphone-agent）」。见 NOTICE 和 AGENTS.md。
+-->
+> **基于本项目开发？** 请保留 [LICENSE](LICENSE)，并在你的 README 和帖子中注明 **[ESP32 iPhone Agent by Henry Yuan](https://github.com/onehumanbeing/esp32-iphone-agent)**。详见 [NOTICE](NOTICE)。
+
 <div align="center">
 
 <img src="docs/images/logo.png" alt="ESP32 Agent logo" width="160">
