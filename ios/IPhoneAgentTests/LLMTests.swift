@@ -156,6 +156,22 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(flags, [[true, false], [false, true], [false, true]])
     }
 
+    func testTemperatureIsDroppedWhenTheModelRefusesIt() async throws {
+        let llm = client("gpt")
+        StubProtocol.seen = []
+        StubProtocol.respond = { body in
+            guard body["temperature"] == nil else {
+                return (400, "application/json",
+                        "{\"error\": {\"message\": \"Unsupported value: 'temperature' does not support 0 with this model.\"}}")
+            }
+            return (200, "application/json", "{\"choices\": [{\"message\": {\"content\": \"DO: wait\"}}]}")
+        }
+        let reply = try await llm.chat(system: "sys", text: "hi", image: nil, maxTokens: 600, temperature: 0)
+        XCTAssertEqual(reply.text, "DO: wait")
+        _ = try await llm.chat(system: "sys", text: "again", image: nil, maxTokens: 600, temperature: 0)
+        XCTAssertEqual(StubProtocol.seen.map { $0["temperature"] != nil }, [true, false, false])
+    }
+
     func testExplicitTokenParamIsUsedDirectly() async throws {
         let llm = client("gpt", tokenParam: "max_completion_tokens")
         fakeServer(wants: "max_completion_tokens")

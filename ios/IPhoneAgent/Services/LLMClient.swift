@@ -48,6 +48,8 @@ struct LLMError: LocalizedError {
     private let extra: [String: Any]
     private(set) var tokenParam: String
     private var auto: Bool
+    // some reasoning models allow only their default temperature; drop it for good once the server says so
+    private var sendsTemperature = true
     private let session: URLSession
 
     init(baseURL: String, model: String, apiKey: String = "", extra: [String: Any] = [:],
@@ -94,7 +96,8 @@ struct LLMError: LocalizedError {
             ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
         }
         content.append(["type": "text", "text": text])
-        var body: [String: Any] = ["model": model, "temperature": temperature]
+        var body: [String: Any] = ["model": model]
+        if sendsTemperature { body["temperature"] = temperature }
         extra.forEach { body[$0.key] = $0.value }
         body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
         body["stream"] = true
@@ -107,6 +110,12 @@ struct LLMError: LocalizedError {
             (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
             if status == 400 && auto && errorText.contains("max_completion_tokens") {
                 (tokenParam, auto) = ("max_completion_tokens", false)
+                (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
+            }
+            if status == 400 && sendsTemperature && errorText.contains("temperature") {
+                sendsTemperature = false
+                body["temperature"] = nil
+                DebugLog.write("llm: \(model) rejects an explicit temperature; retrying without it")
                 (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
             }
         } catch {
