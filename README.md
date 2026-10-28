@@ -144,8 +144,8 @@ Debugging without the phone app: `hardware/tools/board_test.py` plays the app ov
 
 ## Limitations
 
-- **AirPlay source must be an iPhone.** Screen Mirroring from macOS (and other non-iPhone clients) is not supported
-  yet: the handshake can look healthy while the board never receives video.
+- **AirPlay source must be an iPhone.** Screen Mirroring from macOS is not supported: the handshake can look healthy
+  while the board never receives video.
 - BLE carries about 300-500 kbps, so the screen is mirrored small (480×1040, ≤5 fps); each step takes a few seconds,
   most of it the model.
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them. Mirroring stops

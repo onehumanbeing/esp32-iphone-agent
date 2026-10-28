@@ -115,7 +115,7 @@ static void mirror_task(void *arg) {
     // Mac-as-source often completes RTSP/FairPlay then sends no H.264; surface that silence.
     if (m.sfd >= 0 && !m.got_codec && !m.logged_no_video && m.accepted_us &&
         esp_timer_get_time() - m.accepted_us >= 5000000) {
-      ap_log("mirror: no video received - AirPlay source must be an iPhone; macOS mirroring is not supported yet");
+      ap_log("mirror: no video 5s after connect (AirPlay source must be an iPhone; macOS mirroring is not supported)");
       m.logged_no_video = true;
     }
     struct timeval tv = {0, 100000};
