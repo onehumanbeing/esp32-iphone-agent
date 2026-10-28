@@ -27,6 +27,8 @@
 static struct {
   volatile bool run, done;
   volatile int64_t last_data_us;
+  int64_t accepted_us;
+  bool got_codec, logged_no_video;
   mbedtls_aes_context aes;
   uint8_t iv[16], stream[16];
   size_t off;
@@ -69,6 +71,7 @@ static void handle_codec(const uint8_t *p, size_t n) {
   memcpy(cfg + 4 + sps, sc, 4);
   memcpy(cfg + 8 + sps, p + sps + 11, pps);
   ap_log("mirror: SPS %u + PPS %u bytes", (unsigned)sps, (unsigned)pps);
+  m.got_codec = true;
   if (ap_cfg.on_config) ap_cfg.on_config(cfg, 8 + sps + pps);
 }
 
@@ -109,6 +112,12 @@ static void mirror_task(void *arg) {
     int fds[4] = {m.sfd >= 0 ? m.sfd : m.lfd, m.tfd, m.afd[0], m.afd[1]}, maxfd = -1;
     for (int i = 0; i < 4; i++)
       if (fds[i] >= 0) { FD_SET(fds[i], &rf); if (fds[i] > maxfd) maxfd = fds[i]; }
+    // Mac-as-source often completes RTSP/FairPlay then sends no H.264; surface that silence.
+    if (m.sfd >= 0 && !m.got_codec && !m.logged_no_video && m.accepted_us &&
+        esp_timer_get_time() - m.accepted_us >= 5000000) {
+      ap_log("mirror: no video received - AirPlay source must be an iPhone; macOS mirroring is not supported yet");
+      m.logged_no_video = true;
+    }
     struct timeval tv = {0, 100000};
     if (select(maxfd + 1, &rf, NULL, NULL, &tv) <= 0) continue;
     if (m.tfd >= 0 && FD_ISSET(m.tfd, &rf)) {
@@ -121,6 +130,9 @@ static void mirror_task(void *arg) {
       if (!FD_ISSET(m.lfd, &rf)) continue;
       m.sfd = accept(m.lfd, NULL, NULL);
       got = 0, need = 128, in_payload = false;
+      m.got_codec = false;
+      m.logged_no_video = false;
+      m.accepted_us = m.sfd >= 0 ? esp_timer_get_time() : 0;
       ap_log("mirror: data connection %s", m.sfd >= 0 ? "accepted" : "failed");
       continue;
     }
@@ -179,6 +191,9 @@ bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remo
   m.remote_ip = remote_ip;
   m.timing_rport = timing_rport;
   m.last_data_us = 0;
+  m.accepted_us = 0;
+  m.got_codec = false;
+  m.logged_no_video = false;
   m.lfd = bind_sock(SOCK_STREAM, AP_MIRROR_PORT);
   m.tfd = bind_sock(SOCK_DGRAM, AP_TIMING_PORT);
   m.afd[0] = bind_sock(SOCK_DGRAM, AP_AUDIO_DATA_PORT);
