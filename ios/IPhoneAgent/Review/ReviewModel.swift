@@ -133,7 +133,10 @@ struct DraftStep: Identifiable, Equatable {
     /// The moves to replay next time (Replay), their screens copied next to the intent so deleting the run or
     /// recording keeps them. nil = nothing to replay here (an intent opened without its steps): keep the old ones.
     func recordedSteps(for id: UUID) throws -> [RecordedStep]? {
-        let picked = steps.filter { Replay.replayable.contains($0.name) && !$0.inserted && ($0.verdict != false || $0.fix != nil) }
+        // A demonstration keeps script steps too; a note or an unsure move there becomes an AI step (ScriptRunner).
+        let demo = source == .recording
+        let kept = Replay.replayable.union(Replay.scriptKinds).union(demo ? ["note"] : [])
+        let picked = steps.filter { kept.contains($0.name) && !$0.inserted && ($0.verdict != false || $0.fix != nil) }
         guard !picked.isEmpty else { return source == .intent ? nil : [] }
         let folder = IntentFrames.folder(id)
         let staging = folder.deletingLastPathComponent().appendingPathComponent(id.uuidString + ".new")
@@ -147,6 +150,12 @@ struct DraftStep: Identifiable, Equatable {
                 sure = true
             }
             if step.verdict == true { sure = true }
+            if demo && (step.name == "note" || (!sure && Replay.replayable.contains(step.name))) {
+                let goal = step.name == "note" ? step.action["text"]?.str ?? "" : "Do this step: " + StepText.title(action)
+                action = ["action": .str("ai"), "goal": .str(goal)]
+                sure = true
+            }
+            if Replay.scriptKinds.contains(action["action"]?.str ?? "") { sure = true }
             var name: String?
             if let frame = step.frame, let data = try? Data(contentsOf: frame) {
                 name = String(format: "s%02d.jpg", i + 1)

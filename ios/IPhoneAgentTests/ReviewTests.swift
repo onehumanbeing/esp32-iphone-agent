@@ -88,6 +88,17 @@ import XCTest
         XCTAssertEqual(draft.steps[1].frame, frames[2])
     }
 
+    func testDemonstrationCanProposeAIAndReadSteps() {
+        let draft = DemoRecorder.draft("""
+        STEP 1: tap 500 814 | sure
+        STEP 1: ai "open the newest video" | sure
+        STEP 1: read "video titles" | sure
+        """, frames: [URL(fileURLWithPath: "/tmp/k001.jpg")], folder: URL(fileURLWithPath: "/tmp/none"))
+        XCTAssertEqual(draft.steps.map(\.name), ["tap", "ai", "read"])
+        XCTAssertEqual(draft.steps[1].action["goal"], .str("open the newest video"))
+        XCTAssertEqual(draft.steps[2].action["what"], .str("video titles"))
+    }
+
     func testCorrectionsReachTheOptimizerInput() {
         let draft = ReviewDraft(source: .run, folder: nil, runID: nil, outcome: .failed,
                                 steps: [DraftStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(2)])],

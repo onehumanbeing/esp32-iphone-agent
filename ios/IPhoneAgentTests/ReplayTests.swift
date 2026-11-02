@@ -103,9 +103,13 @@ import UIKit
         let id = UUID()
         defer { IntentFrames.delete(id) }
         let saved = try XCTUnwrap(draft.recordedSteps(for: id))
-        XCTAssertEqual(saved.map(\.sure), [true, false, true])
+        // the unsure type and the note become AI steps: the intent is a script now
+        XCTAssertEqual(saved.map { $0.object?["action"]?.str }, ["tap", "ai", "tap", "ai"])
+        XCTAssertEqual(saved[1].object?["goal"], .str("Do this step: Type “Clock”"))
+        XCTAssertEqual(saved[3].object?["goal"], .str("then save"))
+        XCTAssertEqual(saved.map(\.sure), [true, true, true, true])
         XCTAssertEqual(saved[2].object?["x"], .int(900))
-        XCTAssertEqual(saved.map(\.frame), ["s01.jpg", nil, "s03.jpg"])
+        XCTAssertEqual(saved.map(\.frame), ["s01.jpg", nil, "s03.jpg", "s04.jpg"])
         XCTAssertEqual(IntentFrames.data(id, "s01.jpg"), a)
         var item = SavedTask(name: "Alarm", prompt: "Set an alarm"); item.id = id; item.steps = saved
         XCTAssertEqual(Replay(intent: item).steps.first?.frame, a)

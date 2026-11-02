@@ -302,7 +302,8 @@ import UIKit
     NAME: <short name for the task>
     PROMPT: <one instruction that would make an AI agent repeat this task>
     STEP <frame number the action was done on>: <command> | sure or unsure
-    Commands: tap X Y, swipe X1 Y1 X2 Y2, type "text", home, back, wait.
+    Commands: tap X Y, swipe X1 Y1 X2 Y2, type "text", home, back, wait, ai "what to achieve", read "what".
+    Use tap / swipe / type for controls that stay in the same place every time. When a step depends on what     the screen shows this time (a search result, an item in a list that changes, a message), write     ai "what to achieve" instead, e.g. ai "open the newest video in the list". When the person was reading or     collecting information off the screen, write read "what", e.g. read "video titles".
     """
 
     /// Parses the model's reply into a draft (unparseable or "unsure" steps are marked uncertain).
@@ -338,6 +339,11 @@ import UIKit
             }) else { return nil }
         case "type": guard tokens.count > 1 else { return nil }
         case "home", "back", "wait": guard tokens.count == 1 else { return nil }
+        case "ai", "read":  // script steps (ScriptRunner): the rest of the line is the goal / what to read
+            let rest = command.trimmingCharacters(in: .whitespaces).drop { !$0.isWhitespace }.trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            guard !rest.isEmpty else { return nil }
+            return ["action": .str(head), (head == "ai" ? "goal" : "what"): .str(rest)]
         default: return nil
         }
         return try? Actions.parseCommand(command)

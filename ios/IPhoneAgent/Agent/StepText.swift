@@ -34,6 +34,8 @@ enum StepText {
         case "remember": return String(localized: "Remember")
         case "learn": return String(localized: "Learned")
         case "ai done": return String(localized: "Part done")
+        case "ai": return String(localized: "AI: \(s["goal"]?.str ?? "")")
+        case "manual": return String(localized: "You: \(s["reason"]?.str ?? "")")
         case "check": return String(localized: "Checked")
         default: return s["action"]?.str ?? ""
         }
