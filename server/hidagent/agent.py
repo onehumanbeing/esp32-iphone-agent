@@ -42,6 +42,9 @@ Only type when a text field is visibly focused (a blinking cursor; the on-screen
 since the board is a hardware keyboard).
 Chinese is typed as pinyin. With the iPhone's Chinese (pinyin) keyboard active, a candidate bar then shows
 the characters: commit the first one with key space, or tap the right one; check the field.
+The keyboard is either English or Chinese pinyin (pinyin: the space bar shows 拼, typed letters stay underlined
+over a candidate bar). key ctrl+space switches between them; do it alone and type only on the next screen.
+English text in pinyin mode comes out wrong: switch first. To clear a wrong text: key cmd+a, then key backspace.
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
@@ -59,7 +62,7 @@ Actions:
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
-  key COMBO                 (enter, backspace, esc, cmd+a, ...)
+  key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
   home | back | wait
   replan                    (the plan no longer fits the screen)
   done ANSWER               (the goal is reached; ANSWER is the result for the user)

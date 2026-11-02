@@ -172,6 +172,8 @@ import XCTest
         let early = try Actions.parseActions("THINK: Check it.\nDO: wait\nTHINK: Sent.\nDO: done")
         XCTAssertEqual(early.map { $0["action"]?.str }, ["wait"])
         XCTAssertEqual(try Actions.parseActions("THINK: Sent.\nDO: done").map { $0["action"]?.str }, ["done"])
+        let ime = try Actions.parseActions("THINK: English.\nDO: key cmd+a\nDO: key ctrl+space\nDO: type Hello")
+        XCTAssertEqual(ime.map { $0["combo"]?.str ?? $0["action"]?.str }, ["cmd+a", "ctrl+space"])
     }
 
     func testParseCapsAtSixActions() throws {

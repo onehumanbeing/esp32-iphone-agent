@@ -62,7 +62,9 @@ enum Actions {
     /// The part of a batch that can run without a new look. `done` only counts on its own: after other actions the
     /// model hasn't seen their result. After `type` only keys follow: typing can open a keyboard or panel that moves
     /// what the next tap aims at. (A chat run's blind "tap field, type, tap send" missed the field, the "send" tap
-    /// opened another panel, and a trailing "done" ended the run unsent.)
+    /// opened another panel, and a trailing "done" ended the run unsent.) Switching the keyboard (ctrl+space) ends
+    /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
+    /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
         let ending: Set<String?> = ["done", "fail", "confirm", "write"]
         var out: [JObject] = []
@@ -72,10 +74,15 @@ enum Actions {
             // `read` copies the screen the model looked at: only before any gesture
             if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
             out.append(a)
-            if ending.contains(name) { break }
+            if ending.contains(name) || isKeyboardSwitch(a) { break }
             typed = typed || name == "type"
         }
         return out
+    }
+
+    static func isKeyboardSwitch(_ a: JObject) -> Bool {
+        guard a["action"]?.str == "key", let combo = a["combo"]?.str?.lowercased() else { return false }
+        return combo.replacingOccurrences(of: " ", with: "") == "ctrl+space"
     }
 
     /// Split an optional EN: / ZH: plan reply; a plain reply is used for both.
