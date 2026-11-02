@@ -40,6 +40,6 @@ launch() {
   from=$(log_lines)
   xcrun devicectl device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
   rm -f "$f"
-  xcrun devicectl device process launch --device "$DEVICE" ${LAUNCH_FLAGS:-} "$BUNDLE" >/dev/null
+  [[ -n ${NO_LAUNCH:-} ]] || xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
   echo "$from"
 }
