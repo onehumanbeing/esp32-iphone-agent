@@ -18,3 +18,4 @@ struct VideoStats {
   bool frozen;         // GOP full and who's stream not going on from it: no new frame until the next IDR (#25)
 };
 VideoStats video_stats(char who);  // frozen is as seen by who's stream
+String video_debug();              // `vdbg`: the tail and the app stream's state, for a frozen screen

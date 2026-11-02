@@ -61,7 +61,7 @@ static volatile float statFps;
 
 static int sideOf(char who) { return who == FROM_CLI; }
 
-static void unfollow(Sink &s);
+static void unfollow(Sink &s, char why);
 static uint8_t resumeFlag(Sink &s) {
   bool r = s.resumed;
   s.resumed = false;
@@ -73,7 +73,7 @@ static void sendTo(Sink &s, char who) {
   if (s.who == who) return;
   s.who = who;
   s.txGen = UINT32_MAX;
-  unfollow(s);
+  unfollow(s, 'w');
 }
 
 static char owner() { return cli_slot() >= 0 && !ble_app_active() ? FROM_CLI : FROM_APP; }
@@ -148,8 +148,14 @@ static bool frozenNow() {
   return f;
 }
 
+// Why the sink last stopped following while it was in step, and when (vdbg): w new side, r resync, n not
+// streaming / no room, c/g/t a failed config / GOP / tail send.
+static char lastWhy = '-';
+static uint32_t lastWhyAt, tailBreaks;
+
 // The sink fell out of order: its frozen GOP can't go on, the next IDR has to come.
-static void unfollow(Sink &s) {
+static void unfollow(Sink &s, char why) {
+  if (s.followGen != UINT32_MAX) lastWhy = why, lastWhyAt = millis();
   s.followGen = UINT32_MAX;
   s.onTail = false;
   s.resumed = false;
@@ -251,14 +257,14 @@ static void streamStep(Sink &s) {
   bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
   if (!resume && (wifi != s.lastWifi || (resyncAsked && !s.catchingUp))) s.txGen = UINT32_MAX;
   s.lastWifi = wifi;
-  if (s.txGen == UINT32_MAX) unfollow(s);
+  if (s.txGen == UINT32_MAX) unfollow(s, 'r');
   // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
   // at a run start meant resending the whole GOP since mirroring began (a minute and more of P-frames), and the
   // run waited for it (2026-10-20 "waiting frame" log: 1 frame/s arriving, 57 s behind). AirPlay sends little
   // while the screen is still, so the steady stream is cheap.
   if (!(s.streaming[sideOf(s.who)] || wifi) || !videoRoom(s)) {
     s.txGen = UINT32_MAX;  // resend config + whole GOP when streaming resumes
-    unfollow(s);
+    unfollow(s, 'n');
     return;
   }
   uint32_t gen, cfg_ts;
@@ -269,15 +275,15 @@ static void streamStep(Sink &s) {
     s.txGen = gen;
     s.next = s.tailNext = 0;
     s.catchingUp = true;
-    if (!sendAu(s, cfg, cfg_len, VF_CONFIG, cfg_ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+    if (!sendAu(s, cfg, cfg_len, VF_CONFIG, cfg_ts)) { s.txGen = UINT32_MAX; unfollow(s, 'c'); return; }
     s.followGen = gen;
   }
   for (gop_au au; s.next < n && copyAu(s, gen, s.next, &au); s.next++)
-    if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+    if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s, 'g'); return; }
   if (s.next < n) return;
   s.catchingUp = false;
   for (gop_au au; copyTail(s, gen, s.tailNext, &au); s.tailNext++)
-    if (!sendAu(s, s.scratch, au.len, resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+    if (!sendAu(s, s.scratch, au.len, resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s, 't'); return; }
 }
 
 static void videoTask(void *arg) {
@@ -352,6 +358,7 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   xSemaphoreGive(lock);
   if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
                            (unsigned long)kb);
+  if (tailBroke) tailBreaks++;
   if (tailBroke) Serial.println("video: a stream fell behind the tail; frozen until the next IDR");
   if (sink.task) xTaskNotifyGive(sink.task);
 }
@@ -375,4 +382,16 @@ VideoStats video_stats(char who) {
   xSemaphoreGive(lock);
   uint32_t age = lastAu ? millis() - lastAu : 0;
   return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0, overflows, frozen};
+}
+
+String video_debug() {
+  char b[96];
+  xSemaphoreTake(lock, portMAX_DELAY);
+  // short: a BLE reply is one notification (a 200-char line never arrived, 2026-11-03)
+  snprintf(b, sizeof b, "fz%d tl%d tt%d tn%d ot%d fg%d nx%d/%d tx%d cu%d uf%c %lus tb%lu", gop.frozen, tailLive,
+           tailTrimmed, tail.n, sink.onTail, sink.followGen == gop.gen, sink.next, gop.n, sink.tailNext,
+           sink.catchingUp, lastWhy, (unsigned long)(lastWhyAt ? (millis() - lastWhyAt) / 1000 : 0),
+           (unsigned long)tailBreaks);
+  xSemaphoreGive(lock);
+  return b;
 }

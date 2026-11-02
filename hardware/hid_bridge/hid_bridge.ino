@@ -181,6 +181,7 @@ String board(const String &line, const String &id, char who) {
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
+  if (cmd == "vdbg") return "ok " + video_debug();  // why a frozen screen stays frozen (video_link.cpp)
   if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;
   if (cmd == "snap") { video_snap(id, who); return ""; }  // replies when the GOP is sent
   if (cmd == "bench") {
