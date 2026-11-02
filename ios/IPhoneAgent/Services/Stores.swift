@@ -154,6 +154,11 @@ struct Run: Identifiable, Equatable {
     func outcome(isActive: Bool) -> Outcome {
         Outcome(last: steps.last?.name, running: isActive)
     }
+    /// What the run found for the user (the done step's answer); nil when it gave none. Text only for now.
+    var result: String? {
+        guard steps.last?.name == "done", let text = steps.last?.action["answer"]?.str, !text.isEmpty else { return nil }
+        return text
+    }
     var cover: URL? { steps.last(where: { $0.frame != nil })?.frame }
     var firstFrame: URL? { steps.first(where: { $0.frame != nil })?.frame }
     var duration: Double? {

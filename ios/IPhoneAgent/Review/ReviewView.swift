@@ -74,6 +74,9 @@ struct ReviewView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
             }
+            if outcome == .done, let result = draft.runID.flatMap({ runs.run($0) })?.result {
+                ResultCard(text: result)
+            }
             if steps.isEmpty {
                 if outcome == .running { Spacer() }
                 else { IntentWordsView(draft: draft) }

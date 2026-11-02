@@ -76,6 +76,9 @@ struct RunRow: View {
                 } else {
                     OutcomeLabel(outcome: running ? .running : run.outcome)
                 }
+                if let result = run.result {
+                    Text(verbatim: result).font(.subheadline).lineLimit(2)
+                }
                 Text(details).font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
             Spacer(minLength: 0)
