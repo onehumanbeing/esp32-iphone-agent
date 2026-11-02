@@ -31,6 +31,9 @@ type Item struct {
 	Name   string     `json:"name"`
 	Prompt string     `json:"prompt"`
 	Steps  []FileStep `json:"steps,omitempty"`
+	// A script's "repeat until" condition and round limit (the app's ScriptRunner).
+	Until    *string `json:"until,omitempty"`
+	MaxLoops *int    `json:"maxLoops,omitempty"`
 }
 
 type FileStep struct {
@@ -41,7 +44,7 @@ type FileStep struct {
 
 // Item is what goes into a file: never the run history or ids; screens only with screenshots.
 func (s Store) Item(it Intent, screenshots bool) Item {
-	out := Item{Name: it.Name, Prompt: it.Prompt, Icon: it.Icon, Hints: it.Hints}
+	out := Item{Name: it.Name, Prompt: it.Prompt, Icon: it.Icon, Hints: it.Hints, Until: it.Until, MaxLoops: it.MaxLoops}
 	if it.Steps != nil {
 		out.Steps = []FileStep{}
 	}
@@ -140,7 +143,8 @@ func (s Store) Import(items []Item) ([]Intent, int, error) {
 			continue
 		}
 		seen[key(name, item.Prompt)] = true
-		it := Intent{ID: NewID(), Name: name, Prompt: item.Prompt, Icon: item.Icon, Hints: item.Hints}
+		it := Intent{ID: NewID(), Name: name, Prompt: item.Prompt, Icon: item.Icon, Hints: item.Hints,
+			Until: item.Until, MaxLoops: item.MaxLoops}
 		if item.Steps != nil {
 			it.Steps = []Step{}
 		}

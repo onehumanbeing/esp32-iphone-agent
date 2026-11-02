@@ -24,6 +24,8 @@ enum IntentArchive {
         var icon: String?
         var hints: [String]?
         var steps: [Step]?
+        var until: String?  // a script's "repeat until" condition (ScriptRunner)
+        var maxLoops: Int?
     }
 
     struct Step: Codable, Equatable {
@@ -42,7 +44,7 @@ enum IntentArchive {
              steps: intent.steps.map { steps in steps.map {
                  Step(action: $0.action, sure: $0.sure,
                       frame: screenshots ? frame(intent.id, $0.frame)?.base64EncodedString() : nil)
-             } })
+             } }, until: intent.until, maxLoops: intent.maxLoops)
     }
 
     static func encode(_ items: [Item], note: String? = nil) throws -> Data {
@@ -93,6 +95,8 @@ enum IntentArchive {
             let name = item.name.isEmpty ? String(item.prompt.prefix(30)) : item.name
             guard seen.insert(key(name, item.prompt)).inserted else { continue }
             var intent = SavedTask(name: name, prompt: item.prompt, icon: item.icon, hints: item.hints)
+            intent.until = item.until
+            intent.maxLoops = item.maxLoops
             intent.steps = try item.steps.map { try save($0, for: intent.id) }
             added.append(intent)
         }

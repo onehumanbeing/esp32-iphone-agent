@@ -34,6 +34,7 @@ struct IntentDetailView: View {
                     }
                 }
                 Section("Instruction") { Text(verbatim: item.prompt) }
+                ScriptSection(intents: intents, item: item)
                 if !item.checklist.isEmpty {
                     Section("Checklist") {
                         ForEach(item.checklist, id: \.self) { h in

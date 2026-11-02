@@ -35,14 +35,14 @@ extension Pointer: Gestures {}
     let maxSteps: Int, maxFailures: Int
     var metrics: Metrics?
 
-    @Published private(set) var task = ""
-    @Published private(set) var plan = ""
+    @Published var task = ""
+    @Published var plan = ""
     @Published var steps: [JObject] = []
     @Published private(set) var shots: [Int: Data] = [:]  // step index -> screenshot the model decided on
     @Published private(set) var running = false
-    private var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
+    var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
     /// When the last gesture ended: the model never decides on a frame from before it.
-    private(set) var lastActed = 0.0
+    var lastActed = 0.0
     /// Awaited before every look and every gesture (the app holds the run while its own UI is in front).
     var gate: (() async throws -> Void)?
     static let maxTokens = ["planner": 1500, "actor": 1000, "reader": 2000]
@@ -272,9 +272,12 @@ extension Pointer: Gestures {}
             if replay.current == nil { try await replan() }
             for _ in 0..<maxSteps {
                 do {
-                    if plan.isEmpty {  // replaying: the model plans once the recording no longer fits
-                        if try await replayStep() { continue }
-                        try await replan()
+                    if plan.isEmpty {  // a saved intent's steps first (ScriptRunner); the model plans once they're over
+                        switch try await scriptStep() {
+                        case .next: continue
+                        case .ended: return finish()
+                        case .handOver: try await replan()
+                        }
                     }
                     if try await step() {
                         guard steps.last?["action"]?.str == "fail", try await askForHelp() else { return finish() }
@@ -365,39 +368,7 @@ extension Pointer: Gestures {}
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
     }
 
-    /// Does the next recorded step if the screen matches its reference. False = the model takes over for good.
-    private func replayStep() async throws -> Bool {
-        guard let step = replay.current else { return false }
-        let n = replay.next + 1
-        let seen = screen?.frame
-        if case .handOver(let why) = Replay.decide(step, screen: seen) { return handOver(n, why) }
-        try await gate?()
-        var act = step.action
-        onDoing?(.acting(act))
-        let started = now()
-        try await perform(act)
-        lastActed = now()
-        act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
-        let spots = [pointerAt] + pointerPath(act)
-        pointerAt = spots.last!
-        _ = await settle()
-        let changed = act["action"]?.str == "wait" || Vision.changed(seen, screen?.frame, ignore: spots)
-        act["replay"] = .bool(true)
-        act["changed"] = .bool(changed)
-        record(seen, act)
-        guard changed else { return handOver(n, "no change") }
-        DebugLog.write("replay step \(n): hit")
-        replay.advance()
-        return true
-    }
-
-    private func handOver(_ n: Int, _ why: String) -> Bool {
-        DebugLog.write("replay step \(n): \(why) → AI")
-        replay.stop()
-        return false
-    }
-
-    private func finish() {
+    func finish() {
         keepLessons()
         if let metrics { trace?.writeMetrics(metrics.snapshot()) }
     }
@@ -463,7 +434,7 @@ extension Pointer: Gestures {}
         return false
     }
 
-    private func settle() async -> Double {
+    func settle() async -> Double {
         let started = now()
         onDoing?(.looking)
         await screen?.afterAction(since: lastActed)
@@ -471,7 +442,7 @@ extension Pointer: Gestures {}
     }
 
     /// The previous round changed nothing on screen, so a tap may have landed off target.
-    private var missed: Bool { steps.last?["changed"] == .bool(false) }
+    var missed: Bool { steps.last?["changed"] == .bool(false) }
 
     /// True when the actor picks the same action as its last limit-1 moves and the last one did nothing.
     /// Repeating a move that still changes the screen (e.g. scrolling down a long list) is progress, not a loop.
@@ -526,7 +497,7 @@ extension Pointer: Gestures {}
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")
     }
 
-    private func perform(_ a: JObject) async throws {
+    func perform(_ a: JObject) async throws {
         guard let phone else { throw DeviceError(message: "no phone") }
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {

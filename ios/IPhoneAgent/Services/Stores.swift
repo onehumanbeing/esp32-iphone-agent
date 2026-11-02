@@ -12,6 +12,8 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var steps: [RecordedStep]? // replayed before asking the model (Replay)
     var history: [RunStat]?  // its runs, newest last
     var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
+    var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
+    var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
 
     var symbol: String { icon ?? "bolt.fill" }
     var checklist: [String] { hints ?? [] }

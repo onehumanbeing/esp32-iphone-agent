@@ -37,6 +37,9 @@ type Intent struct {
 	RefRun  string    `json:"refRun,omitempty"`
 	Steps   []Step    `json:"steps,omitempty"`
 	History []RunStat `json:"history,omitempty"`
+	// Script fields (the app's SavedTask.until / maxLoops); kept so the CLI doesn't drop them.
+	Until    *string `json:"until,omitempty"`
+	MaxLoops *int    `json:"maxLoops,omitempty"`
 }
 
 // Store is intents.json (newest first, as the app lists them) and the frames next to it.

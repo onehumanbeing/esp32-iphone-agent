@@ -33,6 +33,8 @@ enum StepText {
         case "write": return String(localized: "Copy the notebook")
         case "remember": return String(localized: "Remember")
         case "learn": return String(localized: "Learned")
+        case "ai done": return String(localized: "Part done")
+        case "check": return String(localized: "Checked")
         default: return s["action"]?.str ?? ""
         }
     }
@@ -55,6 +57,7 @@ enum StepText {
         case "back": return "chevron.backward"
         case "wait": return "hourglass"
         case "done": return "checkmark.circle.fill"
+        case "ai done", "check": return "checkmark.circle"
         case "stopped": return "stop.circle"
         case "help", "takeover", "confirm": return "hand.raised"
         case "confirmed": return "checkmark.shield"
@@ -70,7 +73,7 @@ enum StepText {
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
                                         "takeover", "skipped", "note", "reconnected", "confirm", "confirmed",
-                                        "read", "progress", "remember", "learn"]
+                                        "read", "progress", "remember", "learn", "ai done", "check"]
 }
 
 /// How a run ended.
