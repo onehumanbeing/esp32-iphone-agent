@@ -34,7 +34,7 @@ if corrupt:
 print(f"firmware {manifest['version']} {len(image)} bytes{' (corrupted)' if corrupt else ''}")
 PY
 for f in hid_bridge.ino.bin firmware.json; do  # never --remove-existing-content: it wipes the whole app container
-  xcrun devicectl device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/$DIR/$f" >/dev/null
+  dc device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/$DIR/$f" >/dev/null
 done
 rm -rf "$STAGE"
 FROM=$(launch -harness-ota "$DIR")

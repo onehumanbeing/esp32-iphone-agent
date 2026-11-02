@@ -11,5 +11,5 @@ OUT=$(follow "$FROM" '^[^ ]+ harness hid:' '^[^ ]+ harness hid: (done|board not 
 echo "$OUT"
 mkdir -p /tmp/harness-shots
 for shot in $(grep -oE 'saved harness-shots/[0-9]+\.jpg' <<<"$OUT" | cut -d' ' -f2); do
-  xcrun devicectl device copy from "${ON[@]}" --source "Documents/$shot" --destination "/tmp/$shot" >/dev/null && echo "/tmp/$shot"
+  dc device copy from "${ON[@]}" --source "Documents/$shot" --destination "/tmp/$shot" >/dev/null && echo "/tmp/$shot"
 done

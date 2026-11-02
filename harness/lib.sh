@@ -3,10 +3,21 @@ DEVICE=${HARNESS_IPHONE:?set HARNESS_IPHONE to the test iPhone (xcrun devicectl 
 BUNDLE=${HARNESS_BUNDLE:-sh.henryht.iphoneagent}
 ON=(--device "$DEVICE" --domain-type appDataContainer --domain-identifier "$BUNDLE")
 
+# devicectl with a time cap (DC_TIMEOUT s): a copy cut off midway can wedge CoreDeviceService so that every later
+# copy hangs (2026-11-03). On a timeout it restarts the service (launchd brings it back) and tries once more.
+dc() {
+  local rc=0
+  perl -e 'alarm shift; exec @ARGV' "${DC_TIMEOUT:-45}" xcrun devicectl "$@" || rc=$?
+  (( rc == 142 )) || return $rc
+  echo "devicectl hung; restarting CoreDeviceService" >&2
+  pkill -f CoreDeviceService || true; sleep 3
+  perl -e 'alarm shift; exec @ARGV' "${DC_TIMEOUT:-45}" xcrun devicectl "$@"
+}
+
 # log_lines: how many lines debug.log has now (0 if there is none yet).
 log_lines() {
   local f; f=$(mktemp -u /tmp/harness-log.XXXXXX)
-  xcrun devicectl device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || { echo 0; return; }
+  dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || { echo 0; return; }
   wc -l <"$f" | tr -d ' '; rm -f "$f"
 }
 
@@ -17,7 +28,7 @@ follow() {
   while (( SECONDS < deadline )); do
     sleep 4
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
-    xcrun devicectl device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
+    dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
     n=$(wc -l <"$f" | tr -d ' ')
     (( n < from )) && from=0 seen=0  # the log rolled over (2 MB)
     tail -n +$((seen + 1)) "$f" | grep -E "$show" || true
@@ -38,8 +49,8 @@ launch() {
   f=/tmp/harness-$name
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" >"$f"
   from=$(log_lines)
-  xcrun devicectl device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
+  dc device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
   rm -f "$f"
-  [[ -n ${NO_LAUNCH:-} ]] || xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
+  [[ -n ${NO_LAUNCH:-} ]] || dc device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
   echo "$from"
 }
