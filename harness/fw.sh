@@ -36,7 +36,6 @@ for f in hid_bridge.ino.bin firmware.json; do  # never --remove-existing-content
   xcrun devicectl device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/$DIR/$f" >/dev/null
 done
 rm -rf "$STAGE"
-FROM=$(log_lines)
-xcrun devicectl device process launch --device "$DEVICE" --terminate-existing -- "$BUNDLE" -harness-ota "$DIR" >/dev/null
+FROM=$(launch '^[^ ]+ harness ota:' -harness-ota "$DIR")
 echo "copied to Documents/$DIR; the app is installing it"
 follow "$FROM" '^[^ ]+ (harness ota|firmware):' '^[^ ]+ harness ota: (done|failed)' 180 'harness ota: failed'
