@@ -8,6 +8,14 @@
 - Prompts moved to `prompts/`.
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
+- Notebook and memory: `read` copies items off the screen into a run's notebook (scrolled overlaps merged),
+  `write` puts it on the clipboard for `key cmd+v`; long-term memory in `Documents/memory/MEMORY.md`
+  (pi-memory layout), only the user's own words and lessons from finished runs, never secrets.
+- Chat between runs: earlier turns reach the next task; "continue" picks up where a run stopped.
+- Intents as scripts: `ai`, `read`, `write`, `manual` steps, a missed step is repaired by the AI alone,
+  `until` + `maxLoops` repeat the steps. Recordings propose `ai` / `read` steps instead of dropping unsure ones.
+- Pause / Continue on the Dynamic Island; Ask me first: payments only (default), also sending/deleting, or never;
+  steps, time, AI calls and tokens per run.
 
 ## v0.1.0
 
