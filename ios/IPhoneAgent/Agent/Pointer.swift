@@ -298,7 +298,24 @@ import UIKit
         let ascii = Self.typeable(text)
         if ascii != text { DebugLog.write("type: \(text.count) chars as ASCII \"\(ascii)\"") }
         guard !ascii.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII only)") }
+        try await matchKeyboard(pinyin: ascii != text && text.unicodeScalars.contains { (0x3400...0x9fff).contains($0.value) })
         _ = try await device.send("type \(ascii)")
+    }
+
+    /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
+    /// letters; models rarely notice (2026-11-03 runs). Read the keyboard off the screen and switch (ctrl+space).
+    private func matchKeyboard(pinyin: Bool) async throws {
+        guard let screen, screen.live else { return }
+        for _ in 0..<2 {
+            guard let frame = screen.frame else { return }
+            let layout = await KeyboardLayout.read(frame)
+            if layout == .none || (layout == .pinyin) == pinyin { return }
+            log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
+            let sent = now()
+            try await key("ctrl+space")
+            _ = await screen.fresh(since: sent, timeout: 1.5)
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
+        }
     }
 
     /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.

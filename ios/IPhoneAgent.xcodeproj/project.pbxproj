@@ -156,6 +156,7 @@
 		EF83C4DFA24497FDB0BF123E /* mock-frame.jpg in Resources */ = {isa = PBXBuildFile; fileRef = F0918D2C621FD17EDD51AF5E /* mock-frame.jpg */; };
 		F0989DBA8FA72168CA371221 /* IslandStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB37456C763ADFEF9E577A2 /* IslandStatus.swift */; };
 		F0A801D7B4454233734A9494 /* CrashReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB6A431F87BEDCFBF1201C4 /* CrashReports.swift */; };
+		F250923A306EFB522382E32C /* Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A331F9D92E58D8705C0444 /* Keyboard.swift */; };
 		F2D091FC47717266EFF75FBA /* ReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BF05E92BF9DC3156F81ED6 /* ReviewView.swift */; };
 		F2FFDB2986493F65EB6A9738 /* LogUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D9FABC284798F9949C1A8EF /* LogUploader.swift */; };
 		F3ACA8FFF8F76B6B827CEC58 /* TrialViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C16E1BFBD27AE5FB00DD233 /* TrialViews.swift */; };
@@ -228,6 +229,7 @@
 		193C76A9C0C9A1912160F987 /* AIConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsent.swift; sourceTree = "<group>"; };
 		1C25AC81D9FBF6073FDD1851 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1E1E059B86529CBFE2705A0D /* IntentSourceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSourceRow.swift; sourceTree = "<group>"; };
+		20A331F9D92E58D8705C0444 /* Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keyboard.swift; sourceTree = "<group>"; };
 		2169FBFC7A60B9FC1FF1E724 /* StepText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepText.swift; sourceTree = "<group>"; };
 		21DB18A6A75B6E0EE6BDF44B /* IntentFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentFlowTests.swift; sourceTree = "<group>"; };
 		22464AAA35416D0351B8063C /* OnboardingPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPages.swift; sourceTree = "<group>"; };
@@ -384,6 +386,7 @@
 				D317C60AA727B6A20A589DAC /* AssistiveTouchSpots.swift */,
 				4E2922DB7E8B844E6C11E8D1 /* ChatContext.swift */,
 				FCC7FAA4989F36E7F9B4C021 /* JSON.swift */,
+				20A331F9D92E58D8705C0444 /* Keyboard.swift */,
 				1822FD290B50A818CE12228E /* ModelCall.swift */,
 				39CDABB93A11C0AD55A52E4F /* Notebook.swift */,
 				A5CC3BCF7F90AF60B075DD96 /* Pointer.swift */,
@@ -926,6 +929,7 @@
 				813B34392DE59B38ECF07764 /* IntentSourceRow.swift in Sources */,
 				F0989DBA8FA72168CA371221 /* IslandStatus.swift in Sources */,
 				A42DB537742861FF668DB34A /* JSON.swift in Sources */,
+				F250923A306EFB522382E32C /* Keyboard.swift in Sources */,
 				BB3C60862112DB87D3555158 /* LLMClient.swift in Sources */,
 				AD702230192ADBF827044490 /* LiveActivity.swift in Sources */,
 				9A60A20D4176CF1876E42910 /* LocalNetworkPermission.swift in Sources */,
