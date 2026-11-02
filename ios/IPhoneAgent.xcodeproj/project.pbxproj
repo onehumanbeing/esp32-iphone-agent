@@ -60,6 +60,7 @@
 		5529FEF43DA98563B4BCFEC1 /* AgentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7314ABD64EC1106422C685E /* AgentFace.swift */; };
 		57716E1B9BBB6026600DAD4C /* AgentSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC8ECB7FF0B63991E8AEFFB /* AgentSnapshot.swift */; };
 		58405C052C5CE287759E2AA4 /* ProbeFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435B39A7D499300AADA2D16C /* ProbeFit.swift */; };
+		58C479C02501E3E4F2F34A17 /* ResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1467515C688880A8A57AD8A /* ResultCard.swift */; };
 		5A33023268931BCF26AD1C3A /* AgentMinimalStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068467110687822B205043D4 /* AgentMinimalStatus.swift */; };
 		5BEC984820264DE4C650FC5C /* ScriptSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEC662BD901F01994E23515 /* ScriptSection.swift */; };
 		5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5962900FEB08728899160DD1 /* DemoRecorder.swift */; };
@@ -326,6 +327,7 @@
 		A7314ABD64EC1106422C685E /* AgentFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFace.swift; sourceTree = "<group>"; };
 		AA04712864CA08DA02B08369 /* ShareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareTests.swift; sourceTree = "<group>"; };
 		AF7D99C79D12EBD49F30723F /* ReviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewModel.swift; sourceTree = "<group>"; };
+		B1467515C688880A8A57AD8A /* ResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultCard.swift; sourceTree = "<group>"; };
 		B155ADD97189D634A809EDE9 /* AgentActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivity.swift; sourceTree = "<group>"; };
 		B1B84B4F1C81E697ACB30630 /* RunShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShare.swift; sourceTree = "<group>"; };
 		B260480A536241A2B9043EE1 /* AgentShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentShortcuts.swift; sourceTree = "<group>"; };
@@ -502,6 +504,7 @@
 				D35C20CD7175654BA4291DEE /* RecordingControls.swift */,
 				35A3B41EAB2FA09398809742 /* RecordingPanel.swift */,
 				C9AA4AD10964BF7D3CF159DC /* RecordSheet.swift */,
+				B1467515C688880A8A57AD8A /* ResultCard.swift */,
 				915FC0D291F09BE0A0439D9C /* RunsView.swift */,
 				CDEC662BD901F01994E23515 /* ScriptSection.swift */,
 				987C1E28FD7756E03C976FD4 /* SendIntentView.swift */,
@@ -965,6 +968,7 @@
 				079927568C3047DA5C2F105E /* Recovery.swift in Sources */,
 				8F45E1F46FB046780AC0838F /* Redactor.swift in Sources */,
 				EC10462279F825A169028170 /* Replay.swift in Sources */,
+				58C479C02501E3E4F2F34A17 /* ResultCard.swift in Sources */,
 				2A48924EF6EF7A39D5A05E21 /* ReviewMedia.swift in Sources */,
 				87BA6110B7AD061157A0995C /* ReviewModel.swift in Sources */,
 				7A0635EEEE8295BBA54B9DD9 /* ReviewSheets.swift in Sources */,
