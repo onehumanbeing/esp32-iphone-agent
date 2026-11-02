@@ -32,6 +32,38 @@ final class FirmwareTests: XCTestCase {
         XCTAssertFalse(Firmware.matches(image.prefix(1000), r))
     }
 
+    /// harness/fw.sh's manifest: no `sig`, the version the board runs.
+    private func harnessManifest(_ image: Data, version: String = "0.2.1", md5: String? = nil) -> Data {
+        let md5 = md5 ?? Firmware.hex(Insecure.MD5.hash(data: image))
+        return Data(#"{"version":"\#(version)","size":\#(image.count),"sha256":"\#(Firmware.hex(SHA256.hash(data: image)))","md5":"\#(md5)","url":"hid_bridge.ino.bin"}"#.utf8)
+    }
+
+    func testHarnessTakesUnsignedSameVersion() throws {
+        let board = FirmwareVersion([0, 2, 1])
+        let r = try Firmware.harnessRelease(harnessManifest(image), image: image, over: board)
+        XCTAssertNil(r.sig)
+        XCTAssertEqual(r.ver, board)
+        XCTAssertNoThrow(try Firmware.harnessRelease(harnessManifest(image, version: "9.9.9"), image: image, over: board), "a crash-test build")
+        XCTAssertThrowsError(try Firmware.harnessRelease(harnessManifest(image, version: "0.2.0"), image: image, over: board), "older")
+    }
+
+    func testHarnessRejectsMismatchedImage() {
+        let board = FirmwareVersion([0, 2, 1])
+        XCTAssertThrowsError(try Firmware.harnessRelease(harnessManifest(image, md5: String(repeating: "0", count: 32)), image: image, over: board))
+        var bad = image
+        bad[500] ^= 0xFF  // harness/fw.sh --corrupt
+        XCTAssertThrowsError(try Firmware.harnessRelease(harnessManifest(image), image: bad, over: board))
+        XCTAssertThrowsError(try Firmware.harnessRelease(Data("{}".utf8), image: image, over: board))
+    }
+
+    func testStagedReleasesMustBeSigned() throws {
+        XCTAssertNil(Firmware.signedRelease(harnessManifest(image)), "unsigned")
+        var r = try release(image, key: Curve25519.Signing.PrivateKey())
+        XCTAssertNil(Firmware.signedRelease(try JSONEncoder().encode(r)), "signed, not with the project's key")
+        r.sig = "AAAA"
+        XCTAssertNil(Firmware.signedRelease(try JSONEncoder().encode(r)))
+    }
+
     /// Firmware.latest logs from a background task; the app's log relay asserted the main actor (build 24 crash).
     func testLoggingOffTheMainThread() async {
         DebugLog.relay = DebugLog.relay ?? { _ in }

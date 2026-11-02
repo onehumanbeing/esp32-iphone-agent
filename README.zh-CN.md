@@ -107,10 +107,18 @@ prompts/    App 用的规划器 / 执行器提示词
 hardware/   ESP32-S3 固件（Arduino）：蓝牙 GATT、热点、AirPlay 接收端、USB HID；刷写脚本、
             主机测试、Mac 蓝牙调试工具（hardware/tools）
 docs/       蓝牙协议、旧版说明
+harness/    无线开发闭环：Mac → iPhone App（Wi-Fi 安装）→ 板子（固件经 App 更新）
 server/     旧版 v0.1.0 的电脑端服务，新版不使用（见 server/README.md）
 ```
 
 不用手机 App 调试：`hardware/tools/board_test.py` 在 Mac 上通过蓝牙扮演 App（[hardware/tools/README.md](hardware/tools/README.md)）。板子与 App 的协议：[docs/ble-protocol.md](docs/ble-protocol.md)。
+
+### Harness 开发流程
+
+板子插在测试 iPhone 上、iPhone 连着 Mac 的 Wi-Fi 时，一切都走 `devicectl`，不用线：`harness/app.sh` 编译并安装
+Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子上（新镜像起不来会自动回滚），
+`harness/run.sh "<任务>"` 跑任务，`harness/logs.sh` 拉取日志。Mac 只在一次性 `net sta` 时用蓝牙连板子。
+设置（Lightning iPhone 需相机转接器）和安全说明见 [harness/README.md](harness/README.md)。
 
 ## 路线图
 

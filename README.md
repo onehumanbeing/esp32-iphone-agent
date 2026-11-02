@@ -126,11 +126,20 @@ prompts/    planner / actor prompts used by the app
 hardware/   ESP32-S3 firmware (Arduino): BLE GATT, hotspot, AirPlay receiver, USB HID; flash script,
             host tests, Mac BLE test harness (hardware/tools)
 docs/       BLE protocol, legacy version notes
+harness/    wireless development loop: Mac → iPhone app (Wi-Fi install) → board (firmware through the app)
 server/     legacy v0.1.0 computer-side server; not used by this version (see server/README.md)
 ```
 
 Debugging without the phone app: `hardware/tools/board_test.py` plays the app over BLE from a Mac
 ([hardware/tools/README.md](hardware/tools/README.md)). Board ↔ app protocol: [docs/ble-protocol.md](docs/ble-protocol.md).
+
+### Harness development
+
+With the board plugged into a test iPhone and the iPhone on the Mac's Wi-Fi, everything goes through `devicectl`,
+no cable: `harness/app.sh` builds and installs the Debug app, `harness/fw.sh` builds the firmware and copies it
+into the app, which installs it on the board (rolls back by itself if the new image fails), `harness/run.sh "<task>"`
+runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for the one-time `net sta`. Setup
+(Lightning iPhones: camera adapter), security: [harness/README.md](harness/README.md).
 
 ## Roadmap
 

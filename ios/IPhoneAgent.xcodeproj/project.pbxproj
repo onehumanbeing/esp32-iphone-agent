@@ -140,6 +140,7 @@
 		E8FA336F818FBAB651C32BEE /* AgentActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B155ADD97189D634A809EDE9 /* AgentActivity.swift */; };
 		EC10462279F825A169028170 /* Replay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD51C7689A41C1B64B24BD5 /* Replay.swift */; };
 		EE75BA2B0E6CAB6F7508B2FA /* CrashTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B71D1DAEA3C980B796281A2 /* CrashTrace.swift */; };
+		EF40598A5376153FF906E570 /* HarnessOTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */; };
 		EF83C4DFA24497FDB0BF123E /* mock-frame.jpg in Resources */ = {isa = PBXBuildFile; fileRef = F0918D2C621FD17EDD51AF5E /* mock-frame.jpg */; };
 		F0989DBA8FA72168CA371221 /* IslandStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB37456C763ADFEF9E577A2 /* IslandStatus.swift */; };
 		F0A801D7B4454233734A9494 /* CrashReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FB6A431F87BEDCFBF1201C4 /* CrashReports.swift */; };
@@ -269,6 +270,7 @@
 		6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		724EBABF2F5228B5112C3643 /* IntentArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchive.swift; sourceTree = "<group>"; };
 		769290C5E01DE7CA97412DDA /* prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = prompts; path = ../prompts; sourceTree = SOURCE_ROOT; };
+		7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessOTA.swift; sourceTree = "<group>"; };
 		7838BB026F2915CEF91C8041 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
 		794E46A6A28E406A3D606661 /* ReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTests.swift; sourceTree = "<group>"; };
 		8010C509732EAC9AD491C7B7 /* FirmwareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareTests.swift; sourceTree = "<group>"; };
@@ -524,6 +526,7 @@
 				41B8435B1585E5ECE113AC49 /* DebugEntry.swift */,
 				5962900FEB08728899160DD1 /* DemoRecorder.swift */,
 				C7B2BB17E154CD835C045D9E /* FirmwareUpdater.swift */,
+				7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */,
 				C12C6B350F7AFD555CE0B8EA /* HotspotJoin.swift */,
 				5538B879586D04FB7F15C7E5 /* IntentBridge.swift */,
 				953BF9D5FB798BA1F3CEC832 /* IPhoneAgentApp.swift */,
@@ -861,6 +864,7 @@
 				1A7D2489492CA4E34CC124AE /* FirmwareUpdater.swift in Sources */,
 				3B6ACDC5C9313208B71B3DBF /* FirmwareViews.swift in Sources */,
 				4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */,
+				EF40598A5376153FF906E570 /* HarnessOTA.swift in Sources */,
 				041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */,
 				948C0D1F80207A8E5874D943 /* HomeView.swift in Sources */,
 				B9B15030A9EEC21B4512533B /* HotspotJoin.swift in Sources */,
