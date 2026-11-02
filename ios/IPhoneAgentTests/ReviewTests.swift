@@ -30,11 +30,32 @@ import XCTest
             }
         }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        agent.askMode = .risky
         var asked: [String] = []
         agent.onConfirm = { reason in asked.append(reason); return .resume }
         await agent.run()
         XCTAssertEqual(asked, ["send the message to Anna"])
         XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+    }
+
+    func testPaymentsOnlyLetsASendGoOnWithoutAsking() async {
+        let model = SystemRecorder { n in n == 1 ? "1. send it" : n == 2 ? "THINK: send\nDO: confirm send the message to Anna" : "THINK: sent\nDO: done sent" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        agent.askMode = .payments
+        var asked: [String] = []
+        agent.onConfirm = { reason in asked.append(reason); return .resume }
+        await agent.run()
+        XCTAssertEqual(asked, [])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+    }
+
+    func testAskModesPickWhichConfirmsWait() {
+        XCTAssertTrue(AskMode.payments.asks("pay 9.99 for the order"))
+        XCTAssertTrue(AskMode.payments.asks("确认支付 12 元"))
+        XCTAssertFalse(AskMode.payments.asks("send the message to Anna"))
+        XCTAssertFalse(AskMode.payments.asks("delete the laptop photo"))  // "tip" inside a word does not count
+        XCTAssertTrue(AskMode.risky.asks("delete the photo"))
+        XCTAssertFalse(AskMode.never.asks("pay 9.99"))
     }
 
     func testStopFromAConfirmEndsTheRun() async {

@@ -7,7 +7,7 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var board: BoardLink
     @AppStorage(MockMode.key) private var demoData = false
-    @AppStorage(AgentLoop.askBeforeRiskyKey) private var askBeforeRisky = true
+    @AppStorage(AskMode.key) private var askMode = AskMode.current
 
     var body: some View {
         NavigationStack {
@@ -44,13 +44,15 @@ struct SettingsView: View {
                     NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
                         row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
                     }
-                    Toggle(isOn: $askBeforeRisky) {
-                        SettingsLabel(title: "Ask before risky steps", symbol: "checkmark.shield.fill", color: .orange)
+                    Picker(selection: $askMode) {
+                        ForEach(AskMode.allCases) { Text($0.title).tag($0) }
+                    } label: {
+                        SettingsLabel(title: "Ask me first", symbol: "checkmark.shield.fill", color: .orange)
                     }
                 } header: {
                     Text("Runs")
                 } footer: {
-                    Text("With Ask before risky steps on, the agent stops and asks you in a notification before paying, sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
+                    Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
                 }
                 Section {
                     NavigationLink { DiagnosticsView(app: app, metrics: app.metrics, board: board, feed: app.feed) } label: {

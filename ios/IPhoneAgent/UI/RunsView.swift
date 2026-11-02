@@ -88,10 +88,7 @@ struct RunRow: View {
     }
 
     private var details: String {
-        var parts = [String(localized: "\(run.moves.count) steps")]
-        if let d = run.duration { parts.append(d.durationText) }
-        parts.append(run.date.formatted(.relative(presentation: .named)))
-        return parts.joined(separator: " · ")
+        run.stats + " · " + run.date.formatted(.relative(presentation: .named))
     }
 }
 

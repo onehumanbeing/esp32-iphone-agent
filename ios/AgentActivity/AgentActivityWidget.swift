@@ -114,6 +114,13 @@ private struct Buttons: View {
                 }
                 .tint(.red)
             case .running:
+                Button(intent: PauseAgentIntent()) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
+                    .tint(.gray)
+                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                    .tint(.red)
+            case .paused:
+                Button(intent: UnpauseAgentIntent()) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                    .tint(.green)
                 Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             }

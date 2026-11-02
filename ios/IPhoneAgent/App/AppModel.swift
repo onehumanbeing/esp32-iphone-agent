@@ -52,6 +52,7 @@ import UIKit
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
     var recoverySince = Date()
     @Published var takingOver = false
+    @Published var paused = false  // Pause on the Dynamic Island: the run holds before its next look
     @Published var startingAgent = false
     @Published var notice: String?  // a one-off message, e.g. how many intents a file added
     @Published var askDiagnostics = false  // "Send diagnostics?" from a trouble notification
@@ -189,7 +190,10 @@ import UIKit
         agent.onModelCall = { [weak self] call in self?.modelCalled(call) }
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
-        agent.gate = { [weak self] in try await self?.holdWhileInFront() }
+        agent.gate = { [weak self] in
+            try await self?.holdWhileInFront()
+            try await self?.holdWhilePaused()
+        }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
         AgentControl.handle = { [weak self] command in await self?.control(command) }

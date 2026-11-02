@@ -87,7 +87,7 @@ extension Pointer: Gestures {}
     /// off = it goes on by itself. Continue = do it, Skip = don't, Stop = end the run.
     var onConfirm: ((String) async -> HelpChoice)?
     static let askBeforeRiskyKey = "askBeforeRisky"
-    static var askBeforeRisky: Bool { UserDefaults.standard.object(forKey: askBeforeRiskyKey) as? Bool ?? true }
+    var askMode: AskMode?  // nil = the stored setting
 
     init(phone: Gestures?, screen: ScreenSource?, actor: ChatModel?, planner: ChatModel?, trace: TraceStore?,
          maxSteps: Int = 40, maxFailures: Int = 3) {
@@ -341,8 +341,8 @@ extension Pointer: Gestures {}
 
     /// The actor asked before a risky step. True = the run is over (stopped).
     private func confirm(_ reason: String) async throws -> Bool {
-        guard let onConfirm, Self.askBeforeRisky else {
-            record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (asking first is off): \(reason)")])
+        guard let onConfirm, (askMode ?? .current).asks(reason) else {
+            record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (no need to ask for this): \(reason)")])
             return false
         }
         let choice = await onConfirm(reason)

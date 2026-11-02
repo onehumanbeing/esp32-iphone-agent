@@ -48,6 +48,9 @@ struct ChatSection: View {
                     Text("\(turn.items.count) items collected").font(.footnote)
                 }
             }
+            if let stats = turn.stats {
+                Text(verbatim: stats).font(.caption2).monospacedDigit().foregroundStyle(.secondary)
+            }
             if !turn.summary.isEmpty {
                 Text("Say “continue” to go on from here.").font(.caption).foregroundStyle(.secondary)
             }

@@ -11,7 +11,7 @@ import Foundation
 extension AgentLoop {
     enum ScriptResult { case next, handOver, ended }
 
-    static let subGoalSteps = 12
+    nonisolated static let subGoalSteps = 12
 
     func scriptStep() async throws -> ScriptResult {
         guard let step = replay.current else { return try await scriptFinished() }

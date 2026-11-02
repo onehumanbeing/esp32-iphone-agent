@@ -5,7 +5,7 @@ import Foundation
 /// The Live Activity / Dynamic Island of a run or a demonstration recording: while the agent works the app
 /// is in the background, so this is the only thing the user sees.
 struct AgentActivityAttributes: ActivityAttributes {
-    enum Phase: String, Codable, Hashable { case running, help, countdown, recording }
+    enum Phase: String, Codable, Hashable { case running, help, countdown, recording, paused }
 
     struct ContentState: Codable, Hashable {
         var mood: Mood
@@ -56,7 +56,7 @@ struct AgentActivityAttributes: ActivityAttributes {
 
 /// What the Live Activity buttons and notification actions ask the app to do.
 enum AgentCommand: String {
-    case stop, resume, skip, takeOver, stopRecording
+    case stop, resume, skip, takeOver, stopRecording, pause, unpause
 }
 
 /// Set by the app; nil inside the widget extension (the intents run in the app's process).
@@ -70,6 +70,24 @@ struct StopAgentIntent: LiveActivityIntent {
     static let description = IntentDescription("Stops the running task and lets go of the screen.")
     func perform() async throws -> some IntentResult {
         await AgentControl.handle?(.stop)
+        return .result()
+    }
+}
+
+/// Pause button: the run holds before its next look, keeping everything it has done so far.
+struct PauseAgentIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Pause the agent"
+    func perform() async throws -> some IntentResult {
+        await AgentControl.handle?(.pause)
+        return .result()
+    }
+}
+
+/// Continue after Pause: the run goes on from the screen that is in front now.
+struct UnpauseAgentIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Resume the agent"
+    func perform() async throws -> some IntentResult {
+        await AgentControl.handle?(.unpause)
         return .result()
     }
 }

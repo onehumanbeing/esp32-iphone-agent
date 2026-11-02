@@ -10,6 +10,7 @@ struct ChatTurn: Codable, Identifiable, Equatable {
     var answer: String
     var items: [String] = []  // the notebook's items
     var summary = ""  // what was done and what is left (ChatContext.stopSummary)
+    var stats: String?  // steps · time · AI calls · tokens
 }
 
 struct ChatThread: Codable, Identifiable, Equatable {

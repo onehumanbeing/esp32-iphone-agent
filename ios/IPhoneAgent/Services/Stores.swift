@@ -122,6 +122,22 @@ struct Run: Identifiable, Equatable {
     let task: String
     let date: Date
     let steps: [Step]
+    var modelCalls = 0  // from the llm records of the trace
+    var tokens = 0
+
+    /// One line for a list row or a chat reply: "12 steps · 1m 3s · 14 AI calls · 52k tokens".
+    static func statsText(steps: Int, seconds: Double?, calls: Int, tokens: Int) -> String {
+        var parts = [String(localized: "\(steps) steps")]
+        if let seconds { parts.append(seconds.durationText) }
+        if calls > 0 { parts.append(String(localized: "\(calls) AI calls")) }
+        if tokens > 0 {
+            let t = tokens >= 1000 ? "\(Int((Double(tokens) / 1000).rounded()))k" : "\(tokens)"
+            parts.append(String(localized: "\(t) tokens"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    var stats: String { Self.statsText(steps: moves.count, seconds: duration, calls: modelCalls, tokens: tokens) }
 
     /// The low-fps recording of the mirror stream (video/<ms>.jpg), if it was on.
     var video: [(url: URL, t: Double)] {
@@ -159,7 +175,7 @@ struct Run: Identifiable, Equatable {
 
     static func load(_ folder: URL) -> Run? {
         guard let text = try? String(contentsOf: folder.appendingPathComponent("steps.jsonl"), encoding: .utf8) else { return nil }
-        var task = "", frame: URL?, steps: [Run.Step] = []
+        var task = "", frame: URL?, steps: [Run.Step] = [], calls = 0, tokens = 0
         for line in text.split(separator: "\n") {
             guard let any = try? JSONSerialization.jsonObject(with: Data(line.utf8)),
                   case .obj(let rec) = PyJSON.from(any) else { continue }
@@ -168,6 +184,11 @@ struct Run: Identifiable, Equatable {
             case "task": task = rec["task"]?.str ?? ""
             case "step": steps.append(Run.Step(id: steps.count, action: rec.without(["n", "t", "kind", "frame"]), frame: frame,
                                                t: rec["t"]?.double))
+            case "llm":
+                calls += 1
+                if case .obj(let u) = rec["usage"] {
+                    tokens += u["total_tokens"]?.int ?? ((u["prompt_tokens"]?.int ?? 0) + (u["completion_tokens"]?.int ?? 0))
+                }
             default: break
             }
         }
@@ -176,7 +197,7 @@ struct Run: Identifiable, Equatable {
         f.locale = Locale(identifier: "en_US_POSIX")
         return Run(id: folder.lastPathComponent, folder: folder, task: task,
                    date: f.date(from: folder.lastPathComponent.replacingOccurrences(of: "imported-", with: "")) ?? Date(),
-                   steps: steps)
+                   steps: steps, modelCalls: calls, tokens: tokens)
     }
 
     func run(_ id: String) -> Run? {

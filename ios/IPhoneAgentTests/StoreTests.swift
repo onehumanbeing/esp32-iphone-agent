@@ -16,6 +16,7 @@ import XCTest
         traces.start(task: "Open Settings")
         traces.write(Data([0xFF, 0xD8]), kind: "llm", ["role": .str("actor")])
         traces.write(kind: "step", ["action": .str("tap"), "x": .int(500), "y": .int(300), "changed": .bool(true)])
+        traces.write(kind: "llm", ["role": .str("actor"), "usage": .obj(["prompt_tokens": .int(1200), "completion_tokens": .int(300)])])
         traces.write(kind: "step", ["action": .str("done"), "answer": .str("ok")])
 
         let store = RunStore(traces: traces)
@@ -27,6 +28,9 @@ import XCTest
         XCTAssertEqual(run.outcome, .done)
         XCTAssertNotNil(run.steps[0].frame)
         XCTAssertNotNil(run.duration)
+        XCTAssertEqual(run.modelCalls, 2)
+        XCTAssertEqual(run.tokens, 1500)
+        XCTAssertTrue(run.stats.hasSuffix("2 AI calls · 2k tokens"))
         XCTAssertEqual(StepText.title(run.steps[0].action), "Tap at 500, 300")
         try? FileManager.default.removeItem(at: root)
     }

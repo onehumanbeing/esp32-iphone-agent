@@ -199,6 +199,7 @@ extension AppModel {
     func began(_ task: String, early: Bool = false) {
         moodReset?.cancel()
         runMood = .thinking
+        paused = false
         runStarted = Date()
         runUsage = ModelUsage()
         if !early {
@@ -214,7 +215,7 @@ extension AppModel {
         guard agent.running, let last = agent.steps.last, help == nil else { return }
         let moved = !StepText.notMoves.contains(last["action"]?.str ?? "")
         runMood = moved ? .acting : .thinking
-        live.update(mood: runMood ?? .thinking, step: moveCount, line: StepText.line(last), phase: .running)
+        live.update(mood: runMood ?? .thinking, step: moveCount, line: StepText.line(last), phase: paused ? .paused : .running)
         if moved {
             moodReset?.cancel()
             moodReset = Task { [weak self] in
@@ -284,7 +285,9 @@ extension AppModel {
                                 answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",
                                 items: agent.notebook.items,
                                 summary: outcome == .done ? "" : ChatContext.stopSummary(steps: agent.steps, plan: agent.plan,
-                                                                                         notebook: agent.notebook)))
+                                                                                         notebook: agent.notebook),
+                                stats: Run.statsText(steps: moveCount, seconds: seconds, calls: runUsage.calls,
+                                                     tokens: runUsage.promptTokens + runUsage.completionTokens)))
         if outcome != .stopped || UIApplication.shared.applicationState == .active { openReview(run: runID) }
         moodReset?.cancel()
         moodReset = Task { [weak self] in
@@ -388,6 +391,8 @@ extension AppModel {
         case .skip: answerHelp(.skip)
         case .takeOver: takeOver()
         case .stopRecording: await recorder.stop()
+        case .pause: pause()
+        case .unpause: unpause()
         }
     }
 
