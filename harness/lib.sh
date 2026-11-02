@@ -35,7 +35,7 @@ launch() {
   local expect=$1 try from f; shift
   for try in 1 2 3; do
     from=$(log_lines)
-    xcrun devicectl device process launch --device "$DEVICE" --terminate-existing -- "$BUNDLE" "$@" >/dev/null
+    xcrun devicectl device process launch --device "$DEVICE" --terminate-existing ${LAUNCH_FLAGS:-} -- "$BUNDLE" "$@" >/dev/null
     sleep 6
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
     xcrun devicectl device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue

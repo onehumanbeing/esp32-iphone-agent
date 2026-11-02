@@ -58,7 +58,7 @@ struct ModelLaunchConfiguration {
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
-/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift)
+/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
 /// The URL commands exist in Debug builds only: in a release any web page could open them.
@@ -187,6 +187,7 @@ extension AppModel {
            let page = ["connect": SetupPage.connect, "brain": .brain][requested] { setupPage = page }
         if args.contains("-test-model") { Task { await pingLLM() } }
         if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
+        if let commands = value(after: "-hid") { harnessHID(commands) }  // harness/hid.sh
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
@@ -220,6 +221,23 @@ extension AppModel {
             }
         }
     }
+
+    #if DEBUG
+    /// Raw board commands ("key ctrl+space; type abc"), one after another, each reply logged: harness experiments.
+    private func harnessHID(_ commands: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
+                let reply: String
+                do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
+                say("harness hid: \(command) → \(reply)")
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+            say("harness hid: done")
+        }
+    }
+    #endif
 
     /// Board connected (and USB up), plus mirroring streaming when asked; waits up to `timeout` s.
     func waitReady(mirroring: Bool, timeout: Double = 30) async -> Bool {
