@@ -29,18 +29,17 @@ follow() {
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
 }
 
-# launch <expect regex> <app args…>: relaunch the app with these arguments until a new log line matches expect.
-# iOS sometimes brings the app back (Bluetooth restore) before devicectl's launch and the arguments are lost.
+# launch <app args…>: hand the app these arguments through Documents/harness-inbox/ (the Debug
+# app reads it every second) and bring it up; prints the log line count from before. Launch arguments alone get
+# lost: iOS often restores the app for Bluetooth first, and devicectl's launch then only brings it to the front.
 launch() {
-  local expect=$1 try from f; shift
-  for try in 1 2 3; do
-    from=$(log_lines)
-    xcrun devicectl device process launch --device "$DEVICE" --terminate-existing ${LAUNCH_FLAGS:-} -- "$BUNDLE" "$@" >/dev/null
-    sleep 6
-    f=$(mktemp -u /tmp/harness-log.XXXXXX)
-    xcrun devicectl device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
-    if tail -n +$((from + 1)) "$f" | grep -qE "$expect"; then rm -f "$f"; echo "$from"; return; fi
-    rm -f "$f"; echo "launch $try: the app didn't take the arguments; again" >&2
-  done
-  echo "the app didn't take the arguments" >&2; return 1
+  local name f from
+  name=$(date +%Y%m%d-%H%M%S)-$RANDOM.json
+  f=/tmp/harness-$name
+  python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" >"$f"
+  from=$(log_lines)
+  xcrun devicectl device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
+  rm -f "$f"
+  xcrun devicectl device process launch --device "$DEVICE" ${LAUNCH_FLAGS:-} "$BUNDLE" >/dev/null
+  echo "$from"
 }

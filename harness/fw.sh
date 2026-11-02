@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # Build the board firmware, copy it to the app on the test iPhone over Wi-Fi and have the app install it on the
 # board (Debug builds: -harness-ota). Prints the app's progress and result: "harness ota: done fw … up …" or "failed …".
-# Usage: harness/fw.sh [--no-build] [--crash-test] [--corrupt]
+# Usage: harness/fw.sh [--no-build] [--crash-test] [--corrupt] [--small-gop]
 #   --crash-test  an image that aborts at boot (reports 9.9.9): the board must roll back to the running one
 #   --corrupt     one byte flipped after hashing: the app must refuse it and the board keep running
+#   --small-gop   a 256 KB GOP buffer, so it fills (freezes) within minutes: tests resuming past a frozen GOP
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source harness/lib.sh
-BUILD=1 CRASH=0 CORRUPT=0
+BUILD=1 CRASH=0 CORRUPT=0 EXTRA=()
 for a in "$@"; do
-  case $a in --no-build) BUILD=0 ;; --crash-test) CRASH=1 ;; --corrupt) CORRUPT=1 ;; *) echo "unknown $a"; exit 1 ;; esac
+  case $a in --no-build) BUILD=0 ;; --crash-test) CRASH=1 ;; --corrupt) CORRUPT=1 ;; --small-gop) EXTRA+=(--small-gop) ;; *) echo "unknown $a"; exit 1 ;; esac
 done
 if (( BUILD )); then
-  if (( CRASH )); then hardware/flash.sh --build-only --crash-test | tail -2; else hardware/flash.sh --build-only | tail -2; fi
+  if (( CRASH )); then hardware/flash.sh --build-only --crash-test | tail -2; else hardware/flash.sh --build-only ${EXTRA[@]+"${EXTRA[@]}"} | tail -2; fi
 fi
 BIN=hardware/build/hid_bridge.ino.bin
 DIR=harness-fw-$(date +%Y%m%d-%H%M%S)  # a new folder each time: devicectl never replaces a file it copied before
@@ -36,6 +37,6 @@ for f in hid_bridge.ino.bin firmware.json; do  # never --remove-existing-content
   xcrun devicectl device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/$DIR/$f" >/dev/null
 done
 rm -rf "$STAGE"
-FROM=$(launch '^[^ ]+ harness ota:' -harness-ota "$DIR")
+FROM=$(launch -harness-ota "$DIR")
 echo "copied to Documents/$DIR; the app is installing it"
 follow "$FROM" '^[^ ]+ (harness ota|firmware):' '^[^ ]+ harness ota: (done|failed)' 180 'harness ota: failed'

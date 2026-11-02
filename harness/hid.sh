@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Send raw board commands through the app (Debug builds: -hid), e.g. harness/hid.sh "key ctrl+space; type abc".
-# The app is launched without coming to the front, so the commands land on whatever app is open on the iPhone.
+# Send raw board commands through the app (Debug builds: -hid), e.g. harness/hid.sh "key ctrl+space; type abc; shot".
+# "shot" saves the mirrored screen; it is copied to /tmp/harness-shots/. The app stays in the background, so the
+# commands land on whatever app is open on the iPhone.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source harness/lib.sh
 [[ -n ${1:-} ]] || { echo 'usage: harness/hid.sh "<command>; <command>…"'; exit 1; }
-FROM=$(LAUNCH_FLAGS=--no-activate launch '^[^ ]+ harness hid:' -hid "$1")
-follow "$FROM" '^[^ ]+ harness hid:' '^[^ ]+ harness hid: (done|board not ready)' 60 'board not ready'
+FROM=$(LAUNCH_FLAGS=--no-activate launch -hid "$1")
+OUT=$(follow "$FROM" '^[^ ]+ harness hid:' '^[^ ]+ harness hid: (done|board not ready)' 60 'board not ready') || { echo "$OUT"; exit 1; }
+echo "$OUT"
+mkdir -p /tmp/harness-shots
+for shot in $(grep -oE 'saved harness-shots/[0-9]+\.jpg' <<<"$OUT" | cut -d' ' -f2); do
+  xcrun devicectl device copy from "${ON[@]}" --source "Documents/$shot" --destination "/tmp/$shot" >/dev/null && echo "/tmp/$shot"
+done
