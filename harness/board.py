@@ -9,8 +9,9 @@ this goes through the app (harness/fw.sh, run.sh).
     uv run harness/board.py status
     uv run harness/board.py net sta            # join the Mac's Wi-Fi; SSID and password asked in a macOS dialog
     uv run harness/board.py net ap             # back to the board's own hotspot
+    uv run harness/board.py net sta --serial /dev/cu.usbmodem…   # the board plugged into this Mac: no BLE pairing
 
-Wi-Fi passwords are sent over the encrypted link only; they are never printed.
+Wi-Fi passwords are sent over the encrypted link (or the USB cable) only; they are never printed.
 """
 import argparse
 import asyncio
@@ -44,12 +45,52 @@ def mac_ssid() -> str:
     return ""
 
 
-async def raw_net(b: Board) -> dict:
-    return json.loads(await b.c.read_gatt_char(NET))
+class BleLink:
+    def __init__(self, b: Board):
+        self.b = b
+
+    async def net(self) -> dict:
+        return json.loads(await self.b.c.read_gatt_char(NET))
+
+    async def status(self) -> dict:
+        return json.loads(await self.b.c.read_gatt_char(STATUS))
+
+    async def write_net(self, request: dict):
+        await self.b.c.write_gatt_char(NET, json.dumps(request).encode(), response=True)
+
+    async def close(self):
+        if self.b.c.is_connected:
+            await self.b.c.disconnect()
 
 
-async def status(b: Board) -> dict:
-    return json.loads(await b.c.read_gatt_char(STATUS))
+class SerialLink:
+    """The board on this Mac's USB: `0 netinfo`, `0 status`, `0 net <json>` (hid_bridge.ino)."""
+
+    def __init__(self, port: str):
+        import serial
+        self.port = serial.Serial(port, 115200, timeout=0.3)
+
+    def _ask(self, line: str) -> dict:
+        self.port.reset_input_buffer()
+        self.port.write((line + "\n").encode())
+        end = time.monotonic() + 3
+        while time.monotonic() < end:
+            text = self.port.readline().decode(errors="replace").strip()
+            if text.startswith("0 {"):
+                return json.loads(text[2:])
+        raise TimeoutError(line)
+
+    async def net(self) -> dict:
+        return self._ask("0 netinfo")
+
+    async def status(self) -> dict:
+        return self._ask("0 status")
+
+    async def write_net(self, request: dict):
+        self.port.write(("0 net " + json.dumps(request) + "\n").encode())
+
+    async def close(self):
+        self.port.close()
 
 
 def summary(st: dict, net: dict) -> str:
@@ -57,38 +98,41 @@ def summary(st: dict, net: dict) -> str:
             f"net {net.get('mode')} {net.get('ssid') or ''} {net.get('ip') or ''}".strip())
 
 
-async def connect(scan: float):
+async def connect(scan: float) -> BleLink:
     client = BleakClient(await find_board(scan), timeout=20)
     await client.connect()
     await client.read_gatt_char(NET)  # encrypted: the first time, macOS asks to pair (board: 3 min after power-on)
     b = Board(client)
     await b.start()
-    return b
+    return BleLink(b)
 
 
-async def wait_net(b: Board, mode: str, seconds: float = 30) -> dict:
+def has_ip(net: dict) -> bool:
+    return (net.get("ip") or "0.0.0.0") != "0.0.0.0"
+
+
+async def wait_net(link, mode: str, seconds: float = 30) -> dict:
     end = time.monotonic() + seconds
     while time.monotonic() < end:
-        net = await raw_net(b)
-        if net.get("mode") == mode and (mode != "sta" or net.get("ip")):
+        net = await link.net()
+        if net.get("mode") == mode and (mode != "sta" or has_ip(net)):
             return net
         await asyncio.sleep(1)
-    return await raw_net(b)
+    return await link.net()
 
 
-async def cmd_net(b: Board, mode: str):
+async def cmd_net(link, mode: str):
     if mode == "sta":
         ssid = dialog("Wi-Fi the board should join (same as this Mac and the iPhone):", mac_ssid())
         password = dialog(f"Password for {ssid}:", hidden=True)
         request = {"mode": "sta", "ssid": ssid, "pass": password}
     else:
         request = {"mode": "ap"}
-    await b.c.write_gatt_char(NET, json.dumps(request).encode(), response=True)
-    net = await wait_net(b, mode)
-    print("board:", summary(await status(b), net))
-    if net.get("mode") != mode or (mode == "sta" and not net.get("ip")):
+    await link.write_net(request)
+    net = await wait_net(link, mode)
+    print("board:", summary(await link.status(), net))
+    if net.get("mode") != mode or (mode == "sta" and not has_ip(net)):
         sys.exit("the board did not get there (wrong password? out of range?)")
-
 
 
 async def main():
@@ -96,18 +140,18 @@ async def main():
     ap.add_argument("what", choices=["status", "net"])
     ap.add_argument("args", nargs="*")
     ap.add_argument("--scan", type=float, default=15)
+    ap.add_argument("--serial", help="the board's USB serial port on this Mac (instead of BLE)")
     a = ap.parse_args()
     if a.what == "net" and a.args[:1] not in (["sta"], ["ap"]):
         sys.exit("net sta | net ap")
-    b = await connect(a.scan)
+    link = SerialLink(a.serial) if a.serial else await connect(a.scan)
     try:
         if a.what == "status":
-            print(summary(await status(b), await raw_net(b)))
+            print(summary(await link.status(), await link.net()))
         elif a.what == "net":
-            await cmd_net(b, a.args[0])
+            await cmd_net(link, a.args[0])
     finally:
-        if b.c.is_connected:
-            await b.c.disconnect()
+        await link.close()
 
 
 if __name__ == "__main__":
