@@ -61,6 +61,7 @@ Actions:
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
+  open APP                  (open an app by its name, through Spotlight search)
   home | back | wait
   replan                    (the plan no longer fits the screen)
   done ANSWER               (the goal is reached; ANSWER is the result for the user)
@@ -75,8 +76,8 @@ META = ("t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "chan
 # action name -> argument names; numeric arguments are 0-1000 screen coordinates
 ACTIONS = {"tap": ("x", "y"), "swipe": ("x1", "y1", "x2", "y2"), "circle": ("x", "y", "r"), "path": ("points",),
            "type": ("text",), "key": ("combo",), "done": ("answer",), "fail": ("reason",),
-           "home": (), "back": (), "wait": (), "replan": ()}
-TEXT_ARGS = ("text", "combo", "answer", "reason")
+           "home": (), "back": (), "wait": (), "replan": (), "open": ("app",)}
+TEXT_ARGS = ("text", "combo", "answer", "reason", "app")
 
 
 def parse_command(line: str) -> dict:
@@ -295,6 +296,7 @@ class Agent:
             case "type": await self.phone.type(a["text"])
             case "key": await self.phone.key(a["combo"])
             case "home": await self.phone.go_home()
+            case "open": await self.phone.open_app(a["app"])
             case "back": await self.phone.go_back()
             case "wait": pass
             case other: raise ValueError(f"unknown action {other!r}")

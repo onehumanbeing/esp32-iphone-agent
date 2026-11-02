@@ -8942,6 +8942,16 @@
           }
         }
       }
+    },
+    "Open %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -128,6 +128,7 @@ import UIKit
     func type(_ text: String) async throws {}
     func key(_ combo: String) async throws {}
     func goHome() async throws {}
+    func openApp(_ name: String) async throws {}
     func goBack() async throws {}
     func reset() async throws {}
 }

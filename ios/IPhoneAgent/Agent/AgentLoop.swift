@@ -15,6 +15,7 @@ struct BlindError: LocalizedError {
     func type(_ text: String) async throws
     func key(_ combo: String) async throws
     func goHome() async throws
+    func openApp(_ name: String) async throws
     func goBack() async throws
     func reset() async throws
 }
@@ -508,6 +509,7 @@ extension Pointer: Gestures {}
         case "type": try await phone.type(a["text"]?.str ?? "")
         case "key": try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome()
+        case "open": try await phone.openApp(a["app"]?.str ?? "")
         case "back": try await phone.goBack()
         case "wait": break
         case let other: throw Actions.ParseError(message: "unknown action \(other ?? "nil")")

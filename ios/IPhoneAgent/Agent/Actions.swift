@@ -14,10 +14,10 @@ enum Actions {
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
-        "home": [], "back": [], "wait": [], "replan": [],
+        "home": [], "back": [], "wait": [], "replan": [], "open": ["app"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
-    static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what"]
+    static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
 
@@ -74,7 +74,7 @@ enum Actions {
             // `read` copies the screen the model looked at: only before any gesture
             if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
             out.append(a)
-            if ending.contains(name) || isKeyboardSwitch(a) { break }
+            if ending.contains(name) || name == "open" || isKeyboardSwitch(a) { break }
             typed = typed || name == "type"
         }
         return out

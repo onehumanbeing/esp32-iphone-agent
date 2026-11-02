@@ -172,6 +172,8 @@ import XCTest
         let early = try Actions.parseActions("THINK: Check it.\nDO: wait\nTHINK: Sent.\nDO: done")
         XCTAssertEqual(early.map { $0["action"]?.str }, ["wait"])
         XCTAssertEqual(try Actions.parseActions("THINK: Sent.\nDO: done").map { $0["action"]?.str }, ["done"])
+        let open = try Actions.parseActions("THINK: Bilibili.\nDO: open Bilibili\nDO: tap 1 1")
+        XCTAssertEqual(open.map { $0["app"]?.str ?? $0["action"]?.str }, ["Bilibili"])
         let ime = try Actions.parseActions("THINK: English.\nDO: key cmd+a\nDO: key ctrl+space\nDO: type Hello")
         XCTAssertEqual(ime.map { $0["combo"]?.str ?? $0["action"]?.str }, ["cmd+a", "ctrl+space"])
     }
@@ -329,6 +331,7 @@ import XCTest
     func type(_ text: String) async throws { calls.append("type") }
     func key(_ combo: String) async throws { calls.append("key") }
     func goHome() async throws { calls.append("home") }
+    func openApp(_ name: String) async throws { calls.append("open \(name)") }
     func goBack() async throws { calls.append("back") }
     func reset() async throws { calls.append("reset") }
 }

@@ -208,6 +208,15 @@ class Phone:
     async def key(self, combo: str) -> None:
         await self.device.send(f"key {combo}")
 
+    async def open_app(self, name: str) -> None:
+        """Spotlight (cmd+space), the app's name, return; see Pointer.openApp in the app."""
+        await self.go_home()
+        await self.key("cmd+space")
+        await asyncio.sleep(0.7)
+        await self.type(name)
+        await asyncio.sleep(0.9)
+        await self.key("enter")
+
     async def go_home(self) -> None:
         await self.swipe(0.5, 0.995, 0.5, 0.6, hold=False)  # resting here would open the app switcher
 
