@@ -9,10 +9,14 @@
 // GOP since the latest IDR. A still screen gets an IDR only every few minutes (iOS 26: maybe once per mirroring
 // session), so room for ~27 min of AUs at 5 fps (P-frames of a still screen are tiny). When it fills, it freezes
 // (gop.h): a stream that is in step goes on from the tail below, everyone else needs the next IDR (status fz).
-const size_t GOP_CAP = 4 * 1024 * 1024;
+#ifndef GOP_CAP_KB
+#define GOP_CAP_KB 4096  // flash.sh --small-gop: 256, to test a frozen GOP within minutes
+#endif
+const size_t GOP_CAP = GOP_CAP_KB * 1024;
 const int MAX_AUS = 8192;
 const size_t TAIL_CAP = 512 * 1024;     // AUs after a frozen GOP, until the streams have sent them
 const int TAIL_AUS = 1024;
+const int TAIL_KEEP = 64;               // sent tail AUs kept for a resume: a dropped TCP session loses what it buffered
 const size_t SCRATCH_CAP = 512 * 1024;   // largest access unit we forward
 const size_t MAX_CHUNK = 512;
 
@@ -41,10 +45,12 @@ struct Sink {
   bool catchingUp, lastWifi;
   volatile uint32_t followGen = UINT32_MAX;  // the generation it sends in order, AU after AU
   volatile bool onTail;                      // it goes on from the tail past a frozen GOP
+  bool resumed;                              // the next AU goes on from the app's last one: VF_RESUME
 };
 
 static gop_buf gop, tail;
-static volatile bool tailLive;  // the tail holds every AU since the GOP froze
+static volatile bool tailLive;  // the tail holds every AU since the GOP froze (sent ones may be dropped)
+static bool tailTrimmed;        // its oldest AUs were dropped: a resume must land in the tail itself
 static Sink sink = {FROM_APP};
 static SemaphoreHandle_t lock;
 static uint8_t chunk[VCHUNK_HDR + (WV_PAYLOAD > MAX_CHUNK ? WV_PAYLOAD : MAX_CHUNK)];
@@ -56,6 +62,11 @@ static volatile float statFps;
 static int sideOf(char who) { return who == FROM_CLI; }
 
 static void unfollow(Sink &s);
+static uint8_t resumeFlag(Sink &s) {
+  bool r = s.resumed;
+  s.resumed = false;
+  return r ? VF_RESUME : 0;
+}
 
 // Points the sink at who; a new side gets the config and the whole GOP first.
 static void sendTo(Sink &s, char who) {
@@ -119,15 +130,15 @@ static bool copyTail(Sink &s, uint32_t gen, int i, gop_au *au) {
   return ok;
 }
 
-// Once every stream on the tail has sent all of it, empty it: it only has to hold what the slowest is behind.
-static void tailSent(uint32_t gen) {
-  xSemaphoreTake(lock, portMAX_DELAY);
-  bool done = gop.gen == gen && !(sink.onTail && sink.tailNext < tail.n);
-  if (done) {
-    gop_clear(&tail);
-    sink.tailNext = 0;
-  }
-  xSemaphoreGive(lock);
+// The tail is full: drop what the stream on it sent long ago (TAIL_KEEP stay for a resume). False if it is that
+// far behind (or nobody is on it): the tail breaks, frozen until the next IDR. Under lock.
+static bool makeTailRoom() {
+  int drop = sink.onTail ? sink.tailNext - TAIL_KEEP : 0;
+  if (drop <= 0) return false;
+  gop_drop_front(&tail, drop);
+  sink.tailNext -= drop;
+  tailTrimmed = true;
+  return true;
 }
 
 static bool frozenNow() {
@@ -141,6 +152,7 @@ static bool frozenNow() {
 static void unfollow(Sink &s) {
   s.followGen = UINT32_MAX;
   s.onTail = false;
+  s.resumed = false;
 }
 
 // Snapshot of the GOP state: generation, AU count, SPS/PPS. A frozen GOP counts as none (it may end minutes
@@ -203,6 +215,27 @@ static String doBench(Sink &s, uint32_t kb) {
   return "ok " + String(millis() - start);
 }
 
+// The app reconnected with its decoder in step up to the AU stamped ts: go on right after it, in the GOP or in
+// the tail past a frozen GOP, instead of resending the GOP from its IDR (minutes of P-frames, and impossible once
+// the GOP froze: the screen stayed frozen until mirroring restarted, 2026-11-02). False if that AU is gone.
+static bool resumeAt(Sink &s, uint32_t ts) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  int i = gop.wait_idr ? -1 : gop_find(&gop, ts);
+  int j = gop.frozen && tailLive ? gop_find(&tail, ts) : -1;
+  if (j < 0 && i >= 0 && gop.frozen && (!tailLive || tailTrimmed)) i = -1;  // the AUs right after it are gone
+  bool ok = i >= 0 || j >= 0;
+  if (ok) {
+    s.txGen = s.followGen = gop.gen;
+    s.next = j >= 0 ? gop.n : i + 1;
+    s.tailNext = j >= 0 ? j + 1 : 0;
+    s.onTail = gop.frozen;
+    s.catchingUp = s.next < gop.n;
+    s.resumed = true;
+  }
+  xSemaphoreGive(lock);
+  return ok;
+}
+
 // Continuous mode: send every AU once, catching up from the GOP's IDR when streaming starts (P-frames
 // can't be skipped: each needs the one before, and the next IDR may be minutes away). After a failed
 // send, start over from the GOP's IDR. Past a frozen GOP, go on with the tail.
@@ -214,7 +247,9 @@ static void streamStep(Sink &s) {
   // last resend is still going: a GOP can be MBs (the next IDR may be minutes away), and restarting it at every
   // request (the app asks every 2 s) kept the air full, so mirroring and BLE starved (2026-10-20 03:00 log).
   bool resyncAsked = s.who == FROM_APP && wv_take_resync();
-  if (wifi != s.lastWifi || (resyncAsked && !s.catchingUp)) s.txGen = UINT32_MAX;
+  uint32_t resumeTs;
+  bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
+  if (!resume && (wifi != s.lastWifi || (resyncAsked && !s.catchingUp))) s.txGen = UINT32_MAX;
   s.lastWifi = wifi;
   if (s.txGen == UINT32_MAX) unfollow(s);
   // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
@@ -238,12 +273,11 @@ static void streamStep(Sink &s) {
     s.followGen = gen;
   }
   for (gop_au au; s.next < n && copyAu(s, gen, s.next, &au); s.next++)
-    if (!sendAu(s, s.scratch, au.len, au.idr ? VF_IDR : 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
+    if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
   if (s.next < n) return;
   s.catchingUp = false;
   for (gop_au au; copyTail(s, gen, s.tailNext, &au); s.tailNext++)
-    if (!sendAu(s, s.scratch, au.len, 0, au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
-  tailSent(gen);
+    if (!sendAu(s, s.scratch, au.len, resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s); return; }
 }
 
 static void videoTask(void *arg) {
@@ -302,20 +336,22 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   bool wasFrozen = gop.frozen, wasLive = tailLive;
   gop_push(&gop, au, len, idr, now);
   bool froze = gop.frozen && !wasFrozen;
-  if (froze) {
+  if (froze) {  // the tail runs for everyone: an app that reconnects goes on from it (resume)
     gop_clear(&tail);
-    tailLive = false;
     sink.onTail = sink.followGen == gop.gen;
     sink.tailNext = 0;
-    tailLive = sink.onTail;
+    tailLive = true;
+    tailTrimmed = false;
   }
-  if (gop.frozen && tailLive && gop_append(&tail, au, len, false, now) < 0) tailLive = false;  // a stream fell too far behind
+  if (gop.frozen && tailLive && gop_append(&tail, au, len, false, now) < 0 &&
+      !(makeTailRoom() && gop_append(&tail, au, len, false, now) >= 0))
+    tailLive = false;  // a stream fell too far behind
   bool tailBroke = gop.frozen && !froze && wasLive && !tailLive;
   int aus = gop.n;
   uint32_t kb = gop.used / 1024;
   xSemaphoreGive(lock);
-  if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); %s\n", aus, (unsigned long)kb,
-                           tailLive ? "the streams in step go on from the tail" : "frozen until the next IDR");
+  if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
+                           (unsigned long)kb);
   if (tailBroke) Serial.println("video: a stream fell behind the tail; frozen until the next IDR");
   if (sink.task) xTaskNotifyGive(sink.task);
 }

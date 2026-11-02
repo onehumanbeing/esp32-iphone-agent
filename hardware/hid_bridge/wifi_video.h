@@ -18,6 +18,7 @@ String wv_token();                // per-boot secret; only a bonded app reads it
 bool wv_active();                 // an app with the token was heard within the last 3 s
 bool wv_send(const uint8_t *chunk, size_t n);  // one chunk (seq in its header), kept for resends
 bool wv_take_resync();            // a new app session, or it gave up on a gap: restart from the GOP's IDR
+bool wv_take_resume(uint32_t *ts);  // the new session's app is in step up to the AU with this timestamp (TCP)
 uint32_t wv_kbps();               // bytes out, last second (resends included)
 uint32_t wv_nacks();              // resend requests since boot (UDP only)
 uint32_t wv_drops();              // UDP: datagrams the driver had no room for; TCP: sessions dropped on a stalled send

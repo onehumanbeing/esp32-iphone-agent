@@ -10,6 +10,7 @@ import Foundation
     var onChunk: ((Data) -> Void)?
     /// Video moved to Wi-Fi (true) or back to BLE (false).
     var onActive: ((Bool) -> Void)?
+    var resumeAt: () -> UInt32? = { nil }
     var log: (String) -> Void = { DebugLog.write($0) }
     private(set) var active = false
     private(set) var reorder = VideoReorder()

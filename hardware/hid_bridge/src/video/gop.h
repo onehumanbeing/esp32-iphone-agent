@@ -10,7 +10,8 @@ extern "C" {
 #endif
 
 // video notify flags (docs/ble-protocol.md)
-enum { VF_START = 1, VF_END = 2, VF_IDR = 4, VF_CONFIG = 8, VF_BENCH = 16, VF_SNAP = 32 };
+// VF_RESUME: the first AU after a reconnect that goes on from the app's last one (`hello <token> at <ts>`).
+enum { VF_START = 1, VF_END = 2, VF_IDR = 4, VF_CONFIG = 8, VF_BENCH = 16, VF_SNAP = 32, VF_RESUME = 64 };
 #define VCHUNK_HDR 3  // seq u16 LE + flags u8
 #define GOP_CFG_MAX 512
 
@@ -41,6 +42,8 @@ int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t t
 int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts);
 // Empties the list, same generation.
 void gop_clear(gop_buf *g);
+int gop_find(const gop_buf *g, uint32_t ts);  // the last AU with this timestamp, -1 if none
+void gop_drop_front(gop_buf *g, int k);       // forget the oldest k AUs (a plain AU list, e.g. the tail)
 // True if the Annex-B data contains an IDR slice (NAL type 5).
 bool annexb_has_idr(const uint8_t *p, size_t len);
 // Rewrites AVCC (4-byte big-endian length prefixes) in place into Annex-B start codes.

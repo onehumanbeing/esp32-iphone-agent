@@ -4,6 +4,7 @@ import Foundation
 @MainActor protocol WifiVideoLink: AnyObject {
     var onChunk: ((Data) -> Void)? { get set }
     var onActive: ((Bool) -> Void)? { get set }
+    var resumeAt: () -> UInt32? { get set }  // TCP: the decoder's last unit, for `hello … at` (UDP ignores it)
     var active: Bool { get }
     var kbps: Double { get }
     var nacks: Int { get }   // UDP resend requests (TCP: 0)
@@ -20,7 +21,8 @@ enum VideoTransport {
     static let current: WifiVideoLink.Type = VideoStream.self
 }
 
-/// TCP on port 7201: the app sends "hello <token>\n", then "ka\n" every second (and "resync\n" if the
+/// TCP on port 7201: the app sends "hello <token>\n" (or "hello <token> at <ms>\n": its decoder is in step up to
+/// the unit stamped <ms>, so the board goes on from there instead of the IDR), then "ka\n" every second (and "resync\n" if the
 /// assembler lost its place); the board sends [u16 LE length][chunk] records, a zero-length one answering
 /// hello/ka. A plain BSD socket so the kernel routes 192.168.4.x to the hotspot (see VideoSocket).
 @MainActor final class VideoStream: WifiVideoLink {
@@ -28,6 +30,7 @@ enum VideoTransport {
 
     var onChunk: ((Data) -> Void)?
     var onActive: ((Bool) -> Void)?
+    var resumeAt: () -> UInt32? = { nil }
     var log: (String) -> Void = { DebugLog.write($0) }
     private(set) var active = false
     private(set) var kbps = 0.0
@@ -167,7 +170,7 @@ enum VideoTransport {
         guard let token = target?.token, fd >= 0 else { return }
         if !connected {
             // Writable once the connect is done: say hello. Give up on a connect that hangs.
-            if send("hello \(token)\n") { connected = true; lastByte = t; return }
+            if send(hello(token)) { connected = true; lastByte = t; return }
             if t - openedAt > 5 { reopen() }
             return
         }
@@ -177,7 +180,11 @@ enum VideoTransport {
             reopen()
             return
         }
-        if t - lastSent >= 1 { _ = send(acked ? "ka\n" : "hello \(token)\n") }
+        if t - lastSent >= 1 { _ = send(acked ? "ka\n" : hello(token)) }
+    }
+
+    private func hello(_ token: String) -> String {
+        "hello \(token)" + (resumeAt().map { " at \($0)" } ?? "") + "\n"
     }
 
     @discardableResult

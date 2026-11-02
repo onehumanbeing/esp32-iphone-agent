@@ -57,7 +57,8 @@ IDR-only instead of building latency).
 ## video
 Each notify: `[seq u16 LE][flags u8][payload]`, payload up to MTU-3-3 bytes.
 flags: bit0 START of access unit, bit1 END of access unit, bit2 IDR, bit3 CONFIG (payload is SPS+PPS),
-bit4 BENCH (filler, ignore), bit5 SNAP (part of a snap reply).
+bit4 BENCH (filler, ignore), bit5 SNAP (part of a snap reply), bit6 RESUME (Wi-Fi TCP: the first unit after a
+reconnect that goes on from the app's last one; the app takes it after the gap without waiting for an IDR).
 Payload is Annex-B (`00 00 00 01` start codes). On a START chunk the first 4 payload bytes are a u32 LE
 board timestamp (ms) for latency stats, followed by the Annex-B data.
 `seq` increments per notify; the app counts gaps as drops and waits for the next IDR/CONFIG after a gap.
@@ -78,6 +79,19 @@ background, and carries the video again whenever no Wi-Fi session is up.
 - `vtok` is random per boot and only in the encrypted `net` read, so only a bonded app can watch the screen.
 - USB serial (Mac tests): `0 netinfo` prints the `net` JSON, `0 status` the full status;
   `hardware/tools/board_test.py udp --serial <port>` benches the channel.
+
+## Wi-Fi video (TCP, current firmware)
+Port 7201, one app at a time. App → board text lines: `hello <vtok>` or `hello <vtok> at <ms>`, then `ka` every
+1 s and `resync` if the assembler lost its place. Board → app: records `[u16 LE length][chunk]`, the chunk as
+above; a zero-length record answers hello and ka.
+- `at <ms>`: the app's decoder is in step up to the unit stamped `<ms>` (board timestamp from its START chunk).
+  The board goes on right after it, in the GOP or in the tail past a full GOP, and flags that unit RESUME.
+  Without it, or when that unit is gone (new IDR, the board rebooted, the tail was trimmed), the stream starts
+  again from the IDR. A reconnect therefore no longer resends minutes of P-frames, and a full (frozen) GOP no
+  longer leaves a reconnecting app without a picture. A new app process has no decoder state: it still needs
+  the IDR, so after the GOP filled it needs Screen Mirroring restarted.
+- When the GOP fills, the board keeps a tail of later units for everyone; units the stream sent are dropped
+  from it only once more than 64 are behind (kept for a resume: a dropped session loses what TCP buffered).
 
 ## net (JSON)
 Read: `{"mode":"ap","ssid":"ESP32Agent-1A2B","pass":"<random 12 chars>","ip":"192.168.4.1","vtok":"<32 hex>"}`

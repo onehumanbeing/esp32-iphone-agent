@@ -23,6 +23,7 @@ struct VideoAssembler {
         static let config = Flags(rawValue: 1 << 3)
         static let bench = Flags(rawValue: 1 << 4)
         static let snap = Flags(rawValue: 1 << 5)
+        static let resume = Flags(rawValue: 1 << 6)  // goes on from the AU the app named in its hello
     }
 
     private(set) var drops = 0         // chunks lost (seq gaps)
@@ -57,7 +58,7 @@ struct VideoAssembler {
             return nil
         }
         if flags.contains(.start) {
-            let key = flags.contains(.idr) || flags.contains(.config)
+            let key = flags.contains(.idr) || flags.contains(.config) || flags.contains(.resume)
             if waitingForKey && !key { current = nil; return nil }
             waitingForKey = false
             guard payload.count >= 4 else { current = nil; return nil }

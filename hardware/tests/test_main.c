@@ -111,6 +111,14 @@ static void test_gop(void) {
   CHECK(gop_append(&t, au, 1, false, 3) == -1);
   gop_clear(&t);
   CHECK(t.n == 0 && t.used == 0 && gop_append(&t, au, 20, false, 4) == 0);
+  CHECK(gop_find(&t, 4) == 0 && gop_find(&t, 9) == -1);
+  gop_clear(&t);
+  for (int i = 0; i < 2; i++) au[i] = (uint8_t)(10 + i);
+  CHECK(gop_append(&t, au, 5, false, 11) == 0 && gop_append(&t, au + 1, 5, false, 12) == 1);
+  gop_drop_front(&t, 1);  // keeps the newer AU, moved to the front
+  CHECK(t.n == 1 && t.used == 5 && t.aus[0].off == 0 && t.aus[0].ts == 12 && t.arena[0] == 11 && gop_find(&t, 12) == 0);
+  gop_drop_front(&t, 5);
+  CHECK(t.n == 0 && t.used == 0);
 
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));

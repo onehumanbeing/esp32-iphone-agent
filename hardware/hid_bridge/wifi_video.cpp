@@ -139,6 +139,8 @@ bool wv_send(const uint8_t *chunk, size_t n) {
   return true;  // kept for resends even if the driver dropped it
 }
 
+bool wv_take_resume(uint32_t *) { return false; }  // UDP: no resume, a resync starts from the IDR
+
 bool wv_take_resync() {
   if (!resync) return false;
   resync = false;

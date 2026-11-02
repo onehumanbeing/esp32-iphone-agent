@@ -100,6 +100,7 @@ extension ScreenSource {
                 self?.note = note
                 self?.metrics?.decodeError(background: bg)
                 self?.broken = true
+                self?.resumeMs = nil  // the decoder needs the IDR again
             }
         }
     }
@@ -119,8 +120,14 @@ extension ScreenSource {
         unit.generation = generation
         if !unit.snap { boardClock(ms: Int(unit.boardMs)) }  // snap units are resent late: their ages say nothing
         if unit.idr { metrics?.idrSeen() }
+        if !unit.config { resumeMs = unit.boardMs }
         decoder.queue.async { [decoder] in decoder.decode(unit) }
     }
+
+    /// Board timestamp of the last unit handed to the decoder: a reconnecting Wi-Fi stream asks the board to go on
+    /// right after it (`hello <token> at <ms>`) instead of resending the GOP. nil once the decoder lost its place.
+    private(set) var resumeMs: UInt32?
+    func forgetResume() { resumeMs = nil }
 
     /// The link (re)connected: chunk numbering starts over.
     func resetStream() { assembler.reset(); clockOffset = nil }  // the board may have rebooted: its clock too

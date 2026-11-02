@@ -141,6 +141,30 @@ final class VideoTests: XCTestCase {
         }
     }
 
+    func testAResumedUnitIsTakenAfterAGapWithoutWaitingForAKeyframe() {
+        func chunk(_ seq: UInt16, _ flags: VideoAssembler.Flags, ms: UInt32) -> Data {
+            Data([UInt8(seq & 0xff), UInt8(seq >> 8), flags.rawValue, UInt8(ms & 0xff), UInt8(ms >> 8 & 0xff), 0, 0, 7])
+        }
+        var a = VideoAssembler()
+        XCTAssertNotNil(a.add(chunk(1, [.start, .end, .idr], ms: 10)))
+        XCTAssertNil(a.add(chunk(5, [.start, .end], ms: 30)))  // after a gap a plain unit waits for a keyframe
+        let resumed = a.add(chunk(9, [.start, .end, .resume], ms: 20))
+        XCTAssertEqual(resumed?.boardMs, 20)
+        XCTAssertNotNil(a.add(chunk(10, [.start, .end], ms: 40)))
+    }
+
+    func testResumePointFollowsDecodedUnitsAndIsForgottenOnDecoderErrors() async throws {
+        let decoder = H264Decoder(), feed = VideoFeed(decoder: decoder)
+        XCTAssertNil(feed.resumeMs)
+        feed.receive(Data([1, 0, 0x05 | 0x08, 5, 0, 0, 0, 0, 0, 0, 1, 0x67]))  // config: not a resume point
+        XCTAssertNil(feed.resumeMs)
+        feed.receive(Data([2, 0, 0x07, 9, 0, 0, 0, 0, 0, 0, 1, 0x65]))  // IDR stamped 9
+        XCTAssertEqual(feed.resumeMs, 9)
+        decoder.onError?("decode failed")
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(feed.resumeMs)
+    }
+
     func testAResentGOPIsThinnedAndItsLastFrameStillShows() {
         let decoder = H264Decoder()
         var frames: [Int] = []

@@ -1,5 +1,5 @@
-// TCP video link, see wifi_video.h. One app at a time on port 7201. The app sends text lines: "hello <token>",
-// then "ka" every second and "resync" if its assembler lost its place. The board sends records
+// TCP video link, see wifi_video.h. One app at a time on port 7201. The app sends text lines: "hello <token>"
+// (or "hello <token> at <ts>": its decoder is still in step up to the AU with that timestamp), then "ka" every second and "resync" if its assembler lost its place. The board sends records
 // [u16 LE length][chunk]; a zero-length record answers hello and ka. TCP keeps chunks whole and in order,
 // so there are no nacks: a send that stalls for SEND_TIMEOUT_MS drops the session and the app reconnects.
 #include "wifi_video.h"
@@ -16,7 +16,8 @@ const int RECV_TIMEOUT_MS = 5000;
 static int listener = -1, client = -1;
 static SemaphoreHandle_t lock;              // client + writes (a record goes out whole)
 static volatile uint32_t lastSeen;
-static volatile bool authed, resync;
+static volatile bool authed, resync, resumeAsked;
+static volatile uint32_t resumeTs;
 static char token[33];
 static uint32_t winStart, winBytes;
 static volatile uint32_t kbps, drops;
@@ -82,10 +83,14 @@ static void serve(int fd) {
     for (char *nl; (nl = (char *)memchr(line, '\n', used));) {
       *nl = 0;
       if (!strncmp(line, "hello ", 6)) {
-        if (strcmp(line + 6, token)) goto done;  // wrong token: not our app
+        const char *rest = line + 6;
+        size_t tl = strlen(token);
+        if (strncmp(rest, token, tl) || (rest[tl] && strncmp(rest + tl, " at ", 4))) goto done;  // not our app
         xSemaphoreTake(lock, portMAX_DELAY);
         authed = true;
-        resync = true;  // a new session starts from the IDR
+        resync = true;  // a new session starts from the IDR, or from just after the app's last AU
+        resumeAsked = rest[tl] != 0;
+        resumeTs = resumeAsked ? strtoul(rest + tl + 4, NULL, 10) : 0;
         writeRecord(NULL, 0);
         xSemaphoreGive(lock);
       } else if (authed && !strcmp(line, "ka")) {
@@ -143,6 +148,15 @@ bool wv_send(const uint8_t *chunk, size_t n) {
   bool ok = writeRecord(chunk, n);
   xSemaphoreGive(lock);
   return ok;
+}
+
+bool wv_take_resume(uint32_t *ts) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  bool asked = resumeAsked;
+  *ts = resumeTs;
+  resumeAsked = false;
+  xSemaphoreGive(lock);
+  return asked;
 }
 
 bool wv_take_resync() {

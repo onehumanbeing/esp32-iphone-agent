@@ -16,6 +16,7 @@ import UIKit
     let settings = Settings()
     let board = BoardLink(mock: MockMode.on)
     let feed = VideoFeed()
+    private var lastVideoToken: String?
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
     let metrics = Metrics()
     let traces = MockMode.on
@@ -145,6 +146,7 @@ import UIKit
         board.onVideo = { [weak self] in self?.feed.receive($0) }
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0) }
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
+        wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
         wifiVideo.onActive = { [weak self] on in
             self?.feed.resetStream()  // the board resends from the IDR on the new path
             if on { LocalNetworkPermission.granted = true }
@@ -171,7 +173,7 @@ import UIKit
             Analytics.captureOnce("board_connected")
             feed.resetStream()
             metrics.mtu = board.mtu
-            wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)
+            updateWifiVideo()
             if agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
                 Task { [weak self] in
                     do { try await self?.feed.stream(true); DebugLog.write("recover: BLE back, stream on again") } catch {
@@ -232,6 +234,14 @@ import UIKit
         publishWidget()
     }
 
+    /// A new per-boot video token: the board rebooted, its GOP and timestamps are new, so no resume.
+    private func updateWifiVideo() {
+        let token = board.net?.vtok
+        if token != nil && token != lastVideoToken { feed.forgetResume() }
+        lastVideoToken = token ?? lastVideoToken
+        wifiVideo.update(ip: board.net?.ip, token: token)
+    }
+
     /// Every second: metrics; a suspension note; the stream's numbers every 10 s while a run goes.
     private func tick() {
         refreshLinkRecoveryDisplay()
@@ -239,7 +249,10 @@ import UIKit
         metrics.tick()
         lastTick = now()
         publishWidget()
-        if board.connected && !MockMode.on { wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok) }
+        #if DEBUG
+        readHarnessInbox()
+        #endif
+        if board.connected && !MockMode.on { updateWifiVideo() }
         // Wi-Fi video not up on the idle home screen: maybe the Local Network permission was never given
         if !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
             LocalNetworkPermission.askIfNeeded()

@@ -37,6 +37,23 @@ void gop_clear(gop_buf *g) {
   g->n = 0;
 }
 
+int gop_find(const gop_buf *g, uint32_t ts) {
+  for (int i = g->n - 1; i >= 0; i--)
+    if (g->aus[i].ts == ts) return i;
+  return -1;
+}
+
+void gop_drop_front(gop_buf *g, int k) {
+  if (k <= 0) return;
+  if (k >= g->n) return gop_clear(g);
+  uint32_t off = g->aus[k].off;
+  memmove(g->arena, g->arena + off, g->used - off);
+  memmove(g->aus, g->aus + k, (size_t)(g->n - k) * sizeof *g->aus);
+  g->n -= k;
+  g->used -= off;
+  for (int i = 0; i < g->n; i++) g->aus[i].off -= off;
+}
+
 int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
   if (idr) {
     restart(g);
