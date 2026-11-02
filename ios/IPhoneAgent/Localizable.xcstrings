@@ -1,6 +1,466 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Pause the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停 agent"
+          }
+        }
+      }
+    },
+    "Resume the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续 agent"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从不"
+          }
+        }
+      }
+    },
+    "Payments only" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在付款时"
+          }
+        }
+      }
+    },
+    "Payments, sending, deleting" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "付款、发送、删除"
+          }
+        }
+      }
+    },
+    "%lld items collected" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收集 %lld 条"
+          }
+        }
+      }
+    },
+    "Chat" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话"
+          }
+        }
+      }
+    },
+    "New chat" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新对话"
+          }
+        }
+      }
+    },
+    "Say “continue” to go on from here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说“继续”就从这里接着做。"
+          }
+        }
+      }
+    },
+    "Reply, or give a new task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复，或给个新任务"
+          }
+        }
+      }
+    },
+    "Paused. Tap Continue and I'll go on from here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暂停。点继续，我就从这里接着做。"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加"
+          }
+        }
+      }
+    },
+    "Add memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加记忆"
+          }
+        }
+      }
+    },
+    "App" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "Edit memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑记忆"
+          }
+        }
+      }
+    },
+    "Fact" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "事实"
+          }
+        }
+      }
+    },
+    "Nothing yet. Tell the agent \"remember …\" in a task, or add a line here. Lessons from finished runs show up here too." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有。在任务里对 agent 说“记住……”，或在这里添加一条。完成的任务学到的经验也会显示在这里。"
+          }
+        }
+      }
+    },
+    "Passwords, codes and card numbers are never kept." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码、验证码和卡号永远不会保存。"
+          }
+        }
+      }
+    },
+    "Preference" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偏好"
+          }
+        }
+      }
+    },
+    "e.g. I prefer short answers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：我喜欢简短的回答"
+          }
+        }
+      }
+    },
+    "AI step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 步骤"
+          }
+        }
+      }
+    },
+    "AI: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI：%@"
+          }
+        }
+      }
+    },
+    "Add step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加步骤"
+          }
+        }
+      }
+    },
+    "Ask me to do a step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让我手动做一步"
+          }
+        }
+      }
+    },
+    "At most %lld rounds" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多 %lld 轮"
+          }
+        }
+      }
+    },
+    "Copy the notebook" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制笔记本"
+          }
+        }
+      }
+    },
+    "Let AI do it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交给 AI"
+          }
+        }
+      }
+    },
+    "Moves run without the AI while the screen matches; swipe a step to let the AI do it instead. With Repeat until, the steps run again until the condition is true on screen." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕一致时，动作直接执行、不走 AI；左滑某一步可以改成交给 AI。设置“重复直到”后，这些步骤会反复执行，直到屏幕上满足条件。"
+          }
+        }
+      }
+    },
+    "Read from the screen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从屏幕读取"
+          }
+        }
+      }
+    },
+    "Repeat until" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重复直到"
+          }
+        }
+      }
+    },
+    "You: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你：%@"
+          }
+        }
+      }
+    },
+    "e.g. Log in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：登录"
+          }
+        }
+      }
+    },
+    "e.g. Open the next favorites folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：打开下一个收藏夹"
+          }
+        }
+      }
+    },
+    "e.g. the list shows its end" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：列表到底了"
+          }
+        }
+      }
+    },
+    "e.g. video titles" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：视频标题"
+          }
+        }
+      }
+    },
+    "Ask me first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先问我"
+          }
+        }
+      }
+    },
+    "Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先问我：agent 会在付款前停下来，用通知问你（只在付款时）；也可以设为在发送消息、删除或修改账户设置前也问你。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
+          }
+        }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆"
+          }
+        }
+      }
+    },
+    "Checked" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已检查"
+          }
+        }
+      }
+    },
+    "Learned" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已学到"
+          }
+        }
+      }
+    },
+    "Part done" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "子目标完成"
+          }
+        }
+      }
+    },
+    "Progress" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度"
+          }
+        }
+      }
+    },
+    "Read “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取“%@”"
+          }
+        }
+      }
+    },
+    "Remember" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住"
+          }
+        }
+      }
+    },
+    "%@ tokens" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        }
+      }
+    },
+    "%lld AI calls" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次 AI 调用"
+          }
+        }
+      }
+    },
     "New board?" : {
       "localizations" : {
         "zh-Hans" : {
