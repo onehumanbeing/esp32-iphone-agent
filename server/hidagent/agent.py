@@ -42,9 +42,7 @@ Only type when a text field is visibly focused (a blinking cursor; the on-screen
 since the board is a hardware keyboard).
 Chinese is typed as pinyin. With the iPhone's Chinese (pinyin) keyboard active, a candidate bar then shows
 the characters: commit the first one with key space, or tap the right one; check the field.
-The keyboard is either English or Chinese pinyin (pinyin: the space bar shows 拼, typed letters stay underlined
-over a candidate bar). key ctrl+space switches between them; do it alone and type only on the next screen.
-English text in pinyin mode comes out wrong: switch first. To clear a wrong text: key cmd+a, then key backspace.
+key ctrl+space switches the keyboard between English and Chinese pinyin (pinyin: the space bar shows 拼).
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
