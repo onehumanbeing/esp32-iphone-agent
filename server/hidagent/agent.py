@@ -20,8 +20,7 @@ PLANNER_PROMPT = """You plan tasks on an iPhone. Given the goal and the current 
 write a short numbered plan (at most 6 steps) of what to do on screen. Plain text only, in English.
 Plan only what the goal needs, from what you can see; never invent accounts, emails, logins or
 screens you have not seen. Later steps can stay general (e.g. "Draw the face on the canvas").
-To open an app, prefer search over paging through home screens: tap the "Search" pill above
-the dock (or swipe down from the middle of the home screen), type the app name, tap the result."""
+To open an app, write "Open <app name>": it is searched by name in Spotlight, from any screen."""
 
 ACTOR_PROMPT = """You operate an iPhone through a mouse pointer. You see the current screen.
 Reply in this format, nothing else:
@@ -61,7 +60,7 @@ Actions:
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
-  open APP                  (open an app by its name, through Spotlight search)
+  open APP                  (search Spotlight for the app by name; then tap the app in the results)
   home | back | wait
   replan                    (the plan no longer fits the screen)
   done ANSWER               (the goal is reached; ANSWER is the result for the user)

@@ -36,7 +36,7 @@ Actions:
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
-  open APP                  (open an app by its name, through Spotlight search)
+  open APP                  (search Spotlight for the app by name; then tap the app in the results)
   home | back | wait
   replan                    (the plan no longer fits the screen)
   done ANSWER               (the goal is reached; ANSWER is the result for the user)

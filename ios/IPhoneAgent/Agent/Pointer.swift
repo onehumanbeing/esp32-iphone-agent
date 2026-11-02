@@ -355,16 +355,15 @@ import UIKit
         try await homeSwipe()
     }
 
-    /// Spotlight (cmd+space), the app's name, return: tapping Home's Search pill with the pointer mostly did
-    /// nothing (2026-11-03: 20+ taps in one run), and an app off the first page is only found by searching.
+    /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
+    /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
+    /// hit, which was a text message mentioning the app.
     func openApp(_ name: String) async throws {
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
         try await goHome()
         try await key("cmd+space")
         try await Task.sleep(nanoseconds: 700_000_000)
         try await type(name)
-        try await Task.sleep(nanoseconds: 900_000_000)
-        try await key("enter")
     }
 
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
