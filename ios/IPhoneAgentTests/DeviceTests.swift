@@ -267,6 +267,18 @@ import XCTest
         XCTAssertEqual(device.sent.last, "key cmd+backspace")
     }
 
+    func testHomeKeyThatLeavesTheScreenUnchangedIsFollowedByTheFlick() async throws {
+        let device = FakeDevice(), screen = FakeScreen()
+        screen.frame = ReplayTests.screen(CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.3))
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file, screen: screen)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        try await pointer.goHome()
+        XCTAssertEqual(device.sent.first, "homescreen")
+        XCTAssertEqual(device.sent.last, "release")  // the sheet stayed: flicked up from the home bar
+    }
+
     func testPhysicalHomeSwipeDoesNotUseAcknowledgedHomeKey() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")

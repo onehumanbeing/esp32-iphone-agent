@@ -322,11 +322,19 @@ import UIKit
     }
     /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
     /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
-    /// a rest: resting opens the app switcher).
+    /// a rest: resting opens the app switcher). An acknowledged key that left the screen as it was gets the flick
+    /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
     func goHome() async throws {
-        if (try? await device.send("homescreen")) != nil { return }
-        try await key("cmd+h")
-        try await Task.sleep(nanoseconds: 350_000_000)
+        let before = screen?.live == true ? screen?.frame : nil
+        if (try? await device.send("homescreen")) != nil {
+            guard let screen, let before else { return }
+            await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
+            if Vision.changed(before, screen.frame) { return }
+            log("home: the Home key left the screen unchanged; flicking up from the home bar")
+        } else {
+            try await key("cmd+h")
+            try await Task.sleep(nanoseconds: 350_000_000)
+        }
         try await homeSwipe()
     }
 
