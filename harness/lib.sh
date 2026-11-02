@@ -28,3 +28,19 @@ follow() {
   done
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
 }
+
+# launch <expect regex> <app args…>: relaunch the app with these arguments until a new log line matches expect.
+# iOS sometimes brings the app back (Bluetooth restore) before devicectl's launch and the arguments are lost.
+launch() {
+  local expect=$1 try from f; shift
+  for try in 1 2 3; do
+    from=$(log_lines)
+    xcrun devicectl device process launch --device "$DEVICE" --terminate-existing -- "$BUNDLE" "$@" >/dev/null
+    sleep 6
+    f=$(mktemp -u /tmp/harness-log.XXXXXX)
+    xcrun devicectl device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
+    if tail -n +$((from + 1)) "$f" | grep -qE "$expect"; then rm -f "$f"; echo "$from"; return; fi
+    rm -f "$f"; echo "launch $try: the app didn't take the arguments; again" >&2
+  done
+  echo "the app didn't take the arguments" >&2; return 1
+}
