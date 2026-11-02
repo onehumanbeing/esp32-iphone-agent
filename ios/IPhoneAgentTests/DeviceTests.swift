@@ -259,6 +259,14 @@ import XCTest
         XCTAssertEqual(attempts, 0)
     }
 
+    func testDeleteKeyIsSentAsBackspace() async throws {
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try await Pointer(device: device, calibrationFile: file).key("cmd+delete")
+        XCTAssertEqual(device.sent.last, "key cmd+backspace")
+    }
+
     func testPhysicalHomeSwipeDoesNotUseAcknowledgedHomeKey() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
@@ -270,7 +278,9 @@ import XCTest
         XCTAssertEqual(device.sent.last, "release")
         XCTAssertFalse(device.sent.contains("homescreen"))
         XCTAssertFalse(device.sent.contains("key cmd+h"))
-        XCTAssertTrue(device.sent.contains("move 0 -676"))  // bottom edge to 15% height, with no end hold
+        let press = try XCTUnwrap(device.sent.firstIndex(of: "press"))
+        XCTAssertEqual(device.sent[press - 1], "move 0 80")  // pushed past the bottom edge first
+        XCTAssertEqual(device.sent[press + 1], "move 0 -680")  // then up 85% of the height, with no end hold
     }
 
 

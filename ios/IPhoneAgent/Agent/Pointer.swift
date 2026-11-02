@@ -315,7 +315,11 @@ import UIKit
         }
         return out.trimmingCharacters(in: .whitespaces)
     }
-    func key(_ combo: String) async throws { try await device.send("key \(combo)") }
+    /// Models write "delete" for the Mac's backspace key; the board knows it as "backspace" (2026-11-02 log).
+    func key(_ combo: String) async throws {
+        let keys = combo.split(separator: "+").map { $0 == "delete" ? "backspace" : String($0) }
+        try await device.send("key \(keys.joined(separator: "+"))")
+    }
     /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
     /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
     /// a rest: resting opens the app switcher).
@@ -333,7 +337,19 @@ import UIKit
     func homeSwipe() async throws {
         defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
         try Task.checkCancellation()
-        try await swipe(0.5, 0.995, 0.5, 0.15, hold: false)  // to the middle only (0.45) left the app card half-way (2026-10-19)
+        try await point(0.5, 0.995)
+        // Push past the bottom edge, where the pointer stops: the calibration fit is weakest at the edges and
+        // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
+        guard let span else { return }
+        try await device.send("move 0 \(span.h / 10)")
+        try await device.send("press")
+        do {
+            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))")  // to the middle only (0.45) left the app card half-way (2026-10-19)
+        } catch {
+            _ = try? await device.send("release")
+            throw error
+        }
+        try await device.send("release")
     }
 
     func goBack() async throws {

@@ -16,6 +16,10 @@
   `until` + `maxLoops` repeat the steps. Recordings propose `ai` / `read` steps instead of dropping unsure ones.
 - Pause / Continue on the Dynamic Island; Ask me first: payments only (default), also sending/deleting, or never;
   steps, time, AI calls and tokens per run.
+- Fixed (intermittent): the home-bar flick could start above the home bar when the pointer calibration was off
+  near the bottom edge, so iOS ignored it and the run stopped with "The board isn't controlling this iPhone"
+  (iPhone 17 Pro Max, iOS 26.3). The flick now pushes the pointer past the bottom edge first.
+- A model's `key delete` is sent as `backspace`.
 
 ## v0.1.0
 
