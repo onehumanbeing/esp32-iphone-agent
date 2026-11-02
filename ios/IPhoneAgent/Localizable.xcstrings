@@ -8193,12 +8193,12 @@
         }
       }
     },
-    "Can't reach the board over Wi-Fi. Join the board's Wi-Fi and try again." : {
+    "Can't reach the board over Wi-Fi. Put the iPhone on the board's Wi-Fi (or the network the board joined) and try again." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法通过 Wi-Fi 连接板子。请加入板子的 Wi-Fi 后重试。"
+            "value" : "无法通过 Wi-Fi 连接板子。请让 iPhone 连上板子的 Wi-Fi（或板子加入的那个网络）后重试。"
           }
         }
       }

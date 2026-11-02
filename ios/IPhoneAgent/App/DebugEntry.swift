@@ -58,7 +58,7 @@ struct ModelLaunchConfiguration {
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
-/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap
+/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift)
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
 /// The URL commands exist in Debug builds only: in a release any web page could open them.
@@ -186,6 +186,7 @@ extension AppModel {
         if let requested = value(after: "-setup"),
            let page = ["connect": SetupPage.connect, "brain": .brain][requested] { setupPage = page }
         if args.contains("-test-model") { Task { await pingLLM() } }
+        if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }

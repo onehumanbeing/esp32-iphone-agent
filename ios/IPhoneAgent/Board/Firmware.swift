@@ -39,7 +39,7 @@ struct FirmwareRelease: Codable, Equatable {
     var sha256: String
     var md5: String     // what the board checks after writing (ota.h)
     var url: String     // the image, relative to the manifest
-    var sig: String     // base64 Ed25519 over `signed`
+    var sig: String?    // base64 Ed25519 over `signed` (only a Debug harness build may come without, HarnessOTA.swift)
     var notes: String?
 
     var ver: FirmwareVersion { FirmwareVersion(version) ?? FirmwareVersion([0]) }
@@ -64,7 +64,7 @@ enum Firmware {
     }
 
     static func verify(_ r: FirmwareRelease, key: Data = publicKey) -> Bool {
-        guard let sig = Data(base64Encoded: r.sig), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: key) else { return false }
+        guard let sig = Data(base64Encoded: r.sig ?? ""), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: key) else { return false }
         return key.isValidSignature(sig, for: r.signed)
     }
 
@@ -84,13 +84,17 @@ enum Firmware {
     /// Debug `ota <dir>`: devicectl can't replace a file it copied before, so each test build gets a new folder.
     nonisolated(unsafe) static var localDir = "firmware"
 
+    /// A manifest from Documents/firmware, if it decodes and is signed.
+    static func signedRelease(_ manifest: Data) -> FirmwareRelease? {
+        guard let r = try? JSONDecoder().decode(FirmwareRelease.self, from: manifest), verify(r) else { return nil }
+        return r
+    }
+
     /// The newest signed release among the sources, and where its manifest came from.
     static func latest(session: URLSession = .shared) async throws -> (FirmwareRelease, URL) {
         var found: [(FirmwareRelease, URL)] = []
         var lastError: Error?
-        if let data = try? Data(contentsOf: local), let r = try? JSONDecoder().decode(FirmwareRelease.self, from: data), verify(r) {
-            found.append((r, local))
-        }
+        if let data = try? Data(contentsOf: local), let r = signedRelease(data) { found.append((r, local)) }
         for url in sources {
             do {
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
@@ -156,7 +160,7 @@ enum Firmware {
         let connected = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
         }
-        guard connected == 0 else { throw Failure(String(localized: "Can't reach the board over Wi-Fi. Join the board's Wi-Fi and try again.")) }
+        guard connected == 0 else { throw Failure(String(localized: "Can't reach the board over Wi-Fi. Put the iPhone on the board's Wi-Fi (or the network the board joined) and try again.")) }
         try sendAll(fd, Data("ota \(token) \(image.count) \(md5)\n".utf8))
         let head = try readLine(fd)
         guard head == "ok" else { throw Failure(answer(head)) }

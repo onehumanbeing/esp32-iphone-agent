@@ -126,7 +126,13 @@ import UIKit
                 Task { @MainActor in self?.board.commands.relayLog(line) }
             }
         }
-        board.commands.onAppCommand = { [weak self] line in self?.handleAppCommand(line) }
+        board.commands.onAppCommand = { [weak self] line in
+            #if DEBUG
+            self?.handleAppCommand(line)  // the Mac harness (harness/), developer builds only
+            #else
+            DebugLog.write("app command ignored in this build: \(line.prefix(20))")
+            #endif
+        }
         DebugLog.write("app launched \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "")"
                        + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))")
         settingsSink = settings.$configurationRevision.dropFirst().sink { [weak self] _ in
@@ -295,7 +301,8 @@ import UIKit
         DebugLog.write(line)
         if let up = s.up, up < 30_000 {  // a link drop that is really the board rebooting (crash, brownout, ...)
             DebugLog.write("board: booted \(up / 1000) s ago (reset: \(s.rst ?? "?"), heap \((s.heap ?? 0) / 1024) KB)")
-            if wasOnBoardWiFi || hotspotSSID != nil { rejoinAfterReboot() }
+            // On another Wi-Fi with the board (station mode, harness/board.py net sta) there is no hotspot to rejoin.
+            if (wasOnBoardWiFi || hotspotSSID != nil) && board.net?.mode != "sta" { rejoinAfterReboot() }
         }
     }
 

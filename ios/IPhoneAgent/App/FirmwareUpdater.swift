@@ -63,6 +63,15 @@ import UIKit
         Task { await run(release, manifest: manifest) }
     }
 
+    #if DEBUG
+    /// harness/fw.sh (HarnessOTA.swift): a build the Mac staged, already checked there; it may be unsigned or the
+    /// version the board runs. Returns when the update finished or failed (see `phase`).
+    func installStaged(_ release: FirmwareRelease, manifest: URL) async {
+        guard !busy, blocker == nil else { return }
+        await run(release, manifest: manifest)
+    }
+    #endif
+
     /// Back to idle after the result was shown.
     func dismiss() {
         guard !busy else { return }
@@ -83,6 +92,7 @@ import UIKit
         attempt = 0
         address = nil
         _ = await boardAddress(within: 0.1)  // now, while BLE is up: the download may outlast the link
+        let before = current
         DebugLog.write("firmware: updating \(current) -> \(release.ver)")
         Analytics.capture("firmware_update_started", ["from": current.description, "to": release.version])
         do {
@@ -90,7 +100,7 @@ import UIKit
             let image = try await Firmware.image(release, manifest: manifest)
             try? await app.feed.stream(false)  // the radio is the board's to write with
             let upBefore = app.board.status?.up ?? 0
-            try await send(image, release)
+            try await send(image, release, from: before)
             phase = .restarting
             try await waitForBoard(release, upBefore: upBefore)
             phase = .done
@@ -105,7 +115,7 @@ import UIKit
     }
 
     /// Up to three tries; each one waits for the board (it may be reconnecting) and starts the image over.
-    private func send(_ image: Data, _ release: FirmwareRelease) async throws {
+    private func send(_ image: Data, _ release: FirmwareRelease, from before: FirmwareVersion) async throws {
         var lastError: Error = Firmware.Failure(String(localized: "The board isn't connected."))
         for n in 1...Self.attempts {
             attempt = n
@@ -123,8 +133,9 @@ import UIKit
             } catch {
                 lastError = error
                 DebugLog.write("firmware: try \(n) failed: \(error.localizedDescription)")
-                // The answer may have been lost while the board restarts with the new image.
-                if current >= release.ver { return }
+                // The answer may have been lost while the board restarts with the new image (a harness
+                // reinstall of the same version can't tell by the version: it fails here and is retried).
+                if current >= release.ver && current > before { return }
                 try await Task.sleep(nanoseconds: 3_000_000_000)
             }
         }
