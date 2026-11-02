@@ -48,7 +48,6 @@ struct HomeView: View {
                 if let stage = app.recovering { RecoveryPanel(app: app, stage: stage) }
                 if !recorder.busy && !recorder.canRetry {
                     if agent.running || app.runMood != nil, let card = runCard { liveSection(card) }
-                    ChatSection(threads: app.threads) { app.openReview(run: $0) }
                     taskSection
                     intentSection
                 }

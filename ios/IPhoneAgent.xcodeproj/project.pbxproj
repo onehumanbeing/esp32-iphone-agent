@@ -123,7 +123,6 @@
 		B0A831827CB29B773DFDE839 /* AgentMinimalStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068467110687822B205043D4 /* AgentMinimalStatus.swift */; };
 		B356EECAFE045249704E63FD /* MockMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13664BFD54E7827E0E53B7F6 /* MockMode.swift */; };
 		B3834EC3A9611A71B07F2403 /* ClipboardHop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F60E6DD8A8836467B83A409 /* ClipboardHop.swift */; };
-		B6D0BB452B143C6662082BA9 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF9F5159E751612F6C9A028 /* ChatView.swift */; };
 		B86BD0431A675EC2681E03A7 /* AgentActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86452ED01E883A6E57BB13E4 /* AgentActivityWidget.swift */; };
 		B9B15030A9EEC21B4512533B /* HotspotJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12C6B350F7AFD555CE0B8EA /* HotspotJoin.swift */; };
 		BB3C60862112DB87D3555158 /* LLMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDA925D0FFD42810895573C /* LLMClient.swift */; };
@@ -353,7 +352,6 @@
 		DAEFE87504F77098EF0AEFFC /* ModelConnectionCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelConnectionCheck.swift; sourceTree = "<group>"; };
 		DCDA925D0FFD42810895573C /* LLMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMClient.swift; sourceTree = "<group>"; };
 		DCDFF66F3082E46B88130ABC /* AgentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTests.swift; sourceTree = "<group>"; };
-		DDF9F5159E751612F6C9A028 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		DF715B9777EFE3104266D673 /* IntentExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentExportSheet.swift; sourceTree = "<group>"; };
 		E1828194EBD7CDB8FEFF8643 /* CalibrationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationViews.swift; sourceTree = "<group>"; };
 		E1FF376927D9503ABF677854 /* Vision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vision.swift; sourceTree = "<group>"; };
@@ -479,7 +477,6 @@
 				A5AF33659891C2EFF70D356A /* BoardProximityIllustration.swift */,
 				E2E3712143A195602610004B /* CalibrationToast.swift */,
 				E1828194EBD7CDB8FEFF8643 /* CalibrationViews.swift */,
-				DDF9F5159E751612F6C9A028 /* ChatView.swift */,
 				2F3122E7A1DB53F3BFCCFD06 /* DiagnosticsView.swift */,
 				503EC3A78FFFF188D620D156 /* FirmwareViews.swift */,
 				406D13832E556B804F6F3887 /* HomeParts.swift */,
@@ -903,7 +900,6 @@
 				173BD54931BD69B83D7F6FD3 /* CalibrationToast.swift in Sources */,
 				8A11B8068D97194AA3C9723B /* CalibrationViews.swift in Sources */,
 				4D2CC3505EE787FD08A06FB2 /* ChatContext.swift in Sources */,
-				B6D0BB452B143C6662082BA9 /* ChatView.swift in Sources */,
 				B3834EC3A9611A71B07F2403 /* ClipboardHop.swift in Sources */,
 				05D31A7EE842FF208FC1EDFC /* CrashFrames.swift in Sources */,
 				F0A801D7B4454233734A9494 /* CrashReports.swift in Sources */,
