@@ -244,6 +244,12 @@ extension AppModel {
     /// if the user opened it, wait until they leave. The model never sees or taps this app's own screens.
     func holdWhileInFront() async throws {
         guard !appIsBackgrounded, agent.running, !MockMode.on else { return }
+        if let text = pendingClipboard {  // the agent came here for `write`: only a foreground app may set it
+            UIPasteboard.general.string = text
+            clipboardWritten = UIPasteboard.general.hasStrings
+            pendingClipboard = nil
+            DebugLog.write("clipboard: wrote \(text.count) chars for the agent")
+        }
         let ours = now() - agent.lastActed < 3 || now() - resumeAsked < 5
         DebugLog.write("run: ESP32 Agent is in front (\(ours ? "after an agent action" : "opened by the user")); holding")
         let since = now()

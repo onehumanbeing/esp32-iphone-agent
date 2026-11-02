@@ -15,8 +15,11 @@ enum Actions {
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
         "home": [], "back": [], "wait": [], "replan": [],
+        "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
-    static let textArgs: Set<String> = ["text", "combo", "answer", "reason"]
+    static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what"]
+    /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
+    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
 
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
@@ -61,12 +64,13 @@ enum Actions {
     /// what the next tap aims at. (A chat run's blind "tap field, type, tap send" missed the field, the "send" tap
     /// opened another panel, and a trailing "done" ended the run unsent.)
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
-        let ending: Set<String?> = ["done", "fail", "confirm"]
+        let ending: Set<String?> = ["done", "fail", "confirm", "write"]
         var out: [JObject] = []
         var typed = false
         for a in acts {
             let name = a["action"]?.str
-            if !out.isEmpty && (ending.contains(name) || typed && name != "key") { break }
+            // `read` copies the screen the model looked at: only before any gesture
+            if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
             out.append(a)
             if ending.contains(name) { break }
             typed = typed || name == "type"

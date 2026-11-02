@@ -45,7 +45,7 @@ extension Pointer: Gestures {}
     private(set) var lastActed = 0.0
     /// Awaited before every look and every gesture (the app holds the run while its own UI is in front).
     var gate: (() async throws -> Void)?
-    static let maxTokens = ["planner": 1500, "actor": 1000]
+    static let maxTokens = ["planner": 1500, "actor": 1000, "reader": 2000]
     private var job: Task<Void, Never>?
     var onFinish: (() -> Void)?
     /// Paused for the board to come back (a line for the UI), or nil when going on.
@@ -65,6 +65,17 @@ extension Pointer: Gestures {}
     var hints: [String] = []
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
+    /// What this run collected (read / note / progress), shown to the actor every step (AgentLoop+Memory).
+    @Published var notebook = Notebook()
+    /// Long-term memory (nil in tests that don't use it); the entries recalled for this task go in the prompts.
+    var memory: MemoryStore?
+    private(set) var recalled: [MemoryEntry] = []
+    /// Earlier turns of the chat this run belongs to (ChatContext), for planner and actor.
+    var chatContext = ""
+    /// Lessons the actor offered (learn); kept only when the run ends with done.
+    var learned: [String] = []
+    /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
+    var onWrite: ((String) async throws -> Bool)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
     private var helpAsked = 0
@@ -89,6 +100,8 @@ extension Pointer: Gestures {}
         if running { throw DeviceError(message: "agent already running") }
         guard screen?.live == true else { throw DeviceError(message: "no phone screen: start Screen Mirroring first") }
         self.task = task; plan = ""; steps = []; shots = [:]
+        notebook = Notebook(); learned = []
+        recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
         lastActed = 0
         helpAsked = 0
@@ -113,7 +126,7 @@ extension Pointer: Gestures {}
         acceptedLookLinks = nil
     }
 
-    private func record(_ shot: Data? = nil, _ step: JObject) {
+    func record(_ shot: Data? = nil, _ step: JObject) {
         if let shot { shots[steps.count] = shot }
         steps.append(JObject([("t", .num(now())), ("shot", .bool(shot != nil))]).merging(step))
         trace?.write(kind: "step", step)
@@ -173,7 +186,7 @@ extension Pointer: Gestures {}
         return !device.connected || revision.map { device.links != $0 } == true
     }
 
-    private func ask(_ role: String, _ llm: ChatModel, _ system: String, _ prompt: String,
+    func ask(_ role: String, _ llm: ChatModel, _ system: String, _ prompt: String,
                      temperature: Double = 0, retryTimeout: Bool = true,
                      reconnectUntil: Double? = nil) async throws -> (String, Double, Data?) {
         var prompt = prompt
@@ -347,7 +360,7 @@ extension Pointer: Gestures {}
 
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
-        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule
+        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background
         let all = hints + replay.hints
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
     }
@@ -385,6 +398,7 @@ extension Pointer: Gestures {}
     }
 
     private func finish() {
+        keepLessons()
         if let metrics { trace?.writeMetrics(metrics.snapshot()) }
     }
 
@@ -409,6 +423,13 @@ extension Pointer: Gestures {}
                 record(planned.shot, act)
                 return try await confirm(act["reason"]?.str ?? "")
             }
+            if Actions.notebookActions.contains(name) {
+                try await notebookAction(&act)
+                record(planned.shot, act)
+                if name == "write" { return false }
+                continue
+            }
+            if name == "done" { attachNotebook(&act) }
             if name != "done" && name != "fail" {
                 try await gate?()
                 guard !connectionChanged(since: acceptedLookLinks) else {
@@ -436,7 +457,8 @@ extension Pointer: Gestures {}
             }
         }
         timing.frameMs += await settle()
-        // feedback for the next round
+        // feedback for the next round (a notebook action alone moves nothing: no verdict)
+        guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
         steps[steps.count - 1]["changed"] = .bool(Vision.changed(seen, screen?.frame, ignore: spots))
         return false
     }
@@ -467,7 +489,8 @@ extension Pointer: Gestures {}
             prompt += "\n\nThe previous plan got stuck (last event: \(pyStr(last["action"])) \(last["reason"]?.str ?? "")):"
                 + "\n\(plan)\nLook at the current screen and plan from here, another way if needed."
         }
-        let (reply, seconds, frame) = try await ask("planner", planner, Prompts.plannerApp + "\n" + AssistiveTouchSpots.rule, prompt)
+        let system = Prompts.plannerApp + "\n" + AssistiveTouchSpots.rule + background
+        let (reply, seconds, frame) = try await ask("planner", planner, system, prompt)
         let (en, zh) = Actions.parsePlan(reply)
         plan = en
         record(frame, ["action": .str(stuck ? "replan (stuck)" : "plan"), "plan": .str(en), "plan_zh": .str(zh),
@@ -483,7 +506,9 @@ extension Pointer: Gestures {}
                 : s["changed"] == .bool(false) ? " -> screen did NOT change" : ""
             return String(PyJSON.dumps(s.without(hidden)).prefix(300)) + effect
         }.joined(separator: "\n")
-        var prompt = "Goal: \(task)\n\nPlan:\n\(plan)\n\nRecent actions:\n\(history.isEmpty ? "(none)" : history)\n\nNext action?"
+        let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
+        var prompt = "Goal: \(task)\n\nPlan:\n\(plan)\n\nRecent actions:\n\(history.isEmpty ? "(none)" : history)"
+            + collected + "\n\nNext action?"
         var reply = ""
         for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically
             let (text, seconds, frame) = try await ask("actor", actor, actorPrompt, prompt, temperature: 0.4 * Double(attempt))

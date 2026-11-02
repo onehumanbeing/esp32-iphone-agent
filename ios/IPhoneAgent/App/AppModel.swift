@@ -67,6 +67,9 @@ import UIKit
     /// A banner on Home: the app could not leave by itself (swipe up), or the run waits while the app is in front.
     @Published var homeHint: String?
     var resumeAsked = 0.0  // when Continue was tapped in the app
+    /// Text the agent's `write` wants on the clipboard; written the next time the app is in front (ClipboardHop).
+    var pendingClipboard: String?
+    var clipboardWritten = false
     let live = LiveActivityController()
     let notifier = Notifier()
     private(set) lazy var recorder = DemoRecorder(app: self)
@@ -186,6 +189,8 @@ import UIKit
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
         agent.gate = { [weak self] in try await self?.holdWhileInFront() }
+        agent.memory = MemoryStore.shared
+        agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         Trial.shared.attach(self)  // free line
         AgentRequests.handle = { [weak self] request in await self?.handle(request) ?? AgentRequests.unavailable }

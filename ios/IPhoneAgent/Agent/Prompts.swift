@@ -6,6 +6,8 @@ enum Prompts {
     static let planner = load("planner")
     static let actorServer = load("actor")
     static let appRules = load("app-rules")
+    /// Copies items off one screen for the notebook (the `read` action).
+    static let reader = load("reader")
 
     static let actor = actorServer + "\n" + appRules + language
     static let plannerApp = planner + "\n" + appRules + language

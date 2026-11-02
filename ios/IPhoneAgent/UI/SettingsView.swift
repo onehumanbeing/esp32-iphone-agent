@@ -41,6 +41,9 @@ struct SettingsView: View {
                         }
                     }
                     .tint(.primary)
+                    NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
+                        row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
+                    }
                     Toggle(isOn: $askBeforeRisky) {
                         SettingsLabel(title: "Ask before risky steps", symbol: "checkmark.shield.fill", color: .orange)
                     }
