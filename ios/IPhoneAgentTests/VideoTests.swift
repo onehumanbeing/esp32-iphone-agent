@@ -1,3 +1,4 @@
+import CoreVideo
 import XCTest
 @testable import IPhoneAgent
 
@@ -138,6 +139,26 @@ final class VideoTests: XCTestCase {
         } catch {
             XCTAssertTrue(feed.broken)
         }
+    }
+
+    func testAResentGOPIsThinnedAndItsLastFrameStillShows() {
+        let decoder = H264Decoder()
+        var frames: [Int] = []
+        decoder.onFrame = { frames.append(Int($0.unit.boardMs)) }
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 16, 16, kCVPixelFormatType_32BGRA, nil, &buffer)
+        let done = expectation(description: "the held last frame comes out")
+        decoder.queue.async {
+            for i in 1...50 {  // a burst, as when the board resends the GOP
+                decoder.emitThinned(buffer!, ms: 1, unit: AccessUnit(data: Data([1]), idr: false, config: false, snap: false,
+                                                                     boardMs: UInt32(i)))
+            }
+            decoder.queue.asyncAfter(deadline: .now() + H264Decoder.emitGap * 2) { done.fulfill() }
+        }
+        wait(for: [done], timeout: 2)
+        XCTAssertEqual(frames.first, 1)
+        XCTAssertEqual(frames.last, 50)
+        XCTAssertLessThanOrEqual(frames.count, 3)
     }
 
     func testStoppingSnapDoesNotWaitForABlockedDecoderQueue() async {

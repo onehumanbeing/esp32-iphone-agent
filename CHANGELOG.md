@@ -20,6 +20,8 @@
   near the bottom edge, so iOS ignored it and the run stopped with "The board isn't controlling this iPhone"
   (iPhone 17 Pro Max, iOS 26.3). The flick now pushes the pointer past the bottom edge first.
 - A model's `key delete` is sent as `backspace`.
+- Fixed: after a still screen, the GOP the board resends on reconnect (over a thousand frames) was turned into
+  one JPEG per frame; iOS killed the app for CPU. Decoded frames are thinned to one per 0.15 s, newest last.
 
 ## v0.1.0
 

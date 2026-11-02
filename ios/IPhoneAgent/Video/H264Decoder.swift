@@ -27,6 +27,12 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     private var gop: [AccessUnit] = []
     private var gopBytes = 0
     private static let gopMax = 64 << 20
+    /// At most one JPEG per `emitGap`, the newest always last: a GOP resent on reconnect (1276 frames after a
+    /// still screen, 2026-11-02) made a JPEG and a SwiftUI redraw per frame, 48 s of CPU, and iOS killed the app.
+    /// The live stream is ≤5 fps, so it is not thinned.
+    static let emitGap = 0.15
+    private var lastEmit = 0.0
+    private var held: (CVImageBuffer, Double, AccessUnit)?
 
     /// Decode one access unit (call on `queue`).
     func decode(_ unit: AccessUnit) {
@@ -83,10 +89,27 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
                 return
             }
             guard emit else { return }
-            let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
-            if let frame = self.jpeg(image, ms: ms, unit: unit) { self.onFrame?(frame) }
+            self.emitThinned(image, ms: (CFAbsoluteTimeGetCurrent() - started) * 1000, unit: unit)
         }
         return status
+    }
+
+    func emitThinned(_ image: CVImageBuffer, ms: Double, unit: AccessUnit) {
+        let wait = lastEmit + Self.emitGap - CFAbsoluteTimeGetCurrent()
+        guard wait > 0 else { return emitNow(image, ms: ms, unit: unit) }
+        let flushPending = held != nil
+        held = (image, ms, unit)
+        guard !flushPending else { return }
+        queue.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, let (image, ms, unit) = self.held else { return }
+            self.emitNow(image, ms: ms, unit: unit)
+        }
+    }
+
+    private func emitNow(_ image: CVImageBuffer, ms: Double, unit: AccessUnit) {
+        held = nil
+        lastEmit = CFAbsoluteTimeGetCurrent()
+        if let frame = jpeg(image, ms: ms, unit: unit) { onFrame?(frame) }
     }
 
     private func resetSession() {
