@@ -1,0 +1,21 @@
+{
+  "name": "pi-jsc-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --minify --format=iife --global-name=PiSpike --platform=browser --target=safari17 --outfile=dist/pi-bundle.min.js && esbuild polyfills.js --bundle --minify --format=iife --platform=browser --target=safari17 --outfile=dist/polyfills.min.js",
+    "host": "swiftc -O host/main.swift -o dist/pi-jsc-host",
+    "mock": "node mock-server.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0"
+  },
+  "devDependencies": {
+    "@sinonjs/text-encoding": "^0.7.3",
+    "abort-controller": "^3.0.0",
+    "core-js": "^3.51.0",
+    "esbuild": "^0.25.0",
+    "web-streams-polyfill": "^4.3.0"
+  }
+}
