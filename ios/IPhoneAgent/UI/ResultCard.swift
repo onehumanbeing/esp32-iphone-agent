@@ -4,7 +4,7 @@ import SwiftUI
 /// Shown only when there is one.
 struct ResultCard: View {
     let text: String
-    @State private var expanded = true
+    @State private var expanded = false
     @State private var copied = false
 
     var body: some View {
@@ -27,6 +27,7 @@ struct ResultCard: View {
                     UIPasteboard.general.string = text
                     Haptics.success()
                     copied = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }  // back to Copy: copy again any time
                 } label: {
                     Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                         .font(.subheadline)
