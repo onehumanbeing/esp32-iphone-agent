@@ -28,6 +28,11 @@ enum StepText {
         case "confirm": return String(localized: "Asked you first")
         case "confirmed": return String(localized: "You said yes")
         case "note": return String(localized: "Note")
+        case "read": return String(localized: "Read “\(s["what"]?.str ?? "")”")
+        case "progress": return String(localized: "Progress")
+        case "write": return String(localized: "Copy the notebook")
+        case "remember": return String(localized: "Remember")
+        case "learn": return String(localized: "Learned")
         default: return s["action"]?.str ?? ""
         }
     }
@@ -54,14 +59,18 @@ enum StepText {
         case "help", "takeover", "confirm": return "hand.raised"
         case "confirmed": return "checkmark.shield"
         case "skipped": return "forward"
-        case "note": return "text.bubble"
+        case "note", "progress": return "text.bubble"
+        case "read": return "doc.text.viewfinder"
+        case "write": return "doc.on.clipboard"
+        case "remember", "learn": return "brain.head.profile"
         case "reconnected": return "arrow.triangle.2.circlepath"
         default: return "exclamationmark.triangle"
         }
     }
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
-                                        "takeover", "skipped", "note", "reconnected", "confirm", "confirmed"]
+                                        "takeover", "skipped", "note", "reconnected", "confirm", "confirmed",
+                                        "read", "progress", "remember", "learn"]
 }
 
 /// How a run ended.

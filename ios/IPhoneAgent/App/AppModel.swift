@@ -23,6 +23,7 @@ import UIKit
         : TraceStore()
     let intents = IntentStore()
     private(set) lazy var runs = RunStore(traces: traces)
+    private(set) lazy var threads = ThreadStore()
     let pointer: Pointer
     let agent: AgentLoop
     @Published private(set) var log: [LogLine] = []

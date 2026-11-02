@@ -48,6 +48,7 @@ struct HomeView: View {
                 if let stage = app.recovering { RecoveryPanel(app: app, stage: stage) }
                 if !recorder.busy && !recorder.canRetry {
                     if agent.running || app.runMood != nil, let card = runCard { liveSection(card) }
+                    ChatSection(threads: app.threads) { app.openReview(run: $0) }
                     taskSection
                     intentSection
                 }
@@ -284,7 +285,8 @@ struct HomeView: View {
 
     private var taskSection: some View {
         Section {
-            TextField("What should I do on this iPhone?", text: $task, axis: .vertical)
+            TextField(app.threads.current.turns.isEmpty ? "What should I do on this iPhone?" : "Reply, or give a new task",
+                      text: $task, axis: .vertical)
                 .lineLimit(3...6)
                 .focused($editing)
                 .submitLabel(.done)

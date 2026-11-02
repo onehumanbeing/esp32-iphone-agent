@@ -15,7 +15,12 @@ extension AppModel {
         guard !startingAgent, !agent.running, !recorder.busy else { return }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
         currentIntent = intent
+        var task = task
+        if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped
+            task = last.ask
+        }
         lastTask = task
+        agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
         if !agent.replay.steps.isEmpty { DebugLog.write("replay: \(agent.replay.steps.count) recorded steps") }
@@ -275,6 +280,11 @@ extension AppModel {
         if let intent = currentIntent {
             intents.record(intent.id, RunStat(run: runID, ok: outcome == .done, seconds: seconds))
         }
+        threads.append(ChatTurn(ask: agent.task, run: runID, outcome: last?["action"]?.str ?? "stopped",
+                                answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",
+                                items: agent.notebook.items,
+                                summary: outcome == .done ? "" : ChatContext.stopSummary(steps: agent.steps, plan: agent.plan,
+                                                                                         notebook: agent.notebook)))
         if outcome != .stopped || UIApplication.shared.applicationState == .active { openReview(run: runID) }
         moodReset?.cancel()
         moodReset = Task { [weak self] in
