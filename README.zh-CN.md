@@ -95,6 +95,15 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 
 输入目标（比如 *"打开设置，进入无线局域网"*），点 **Start**。可以从灵动岛停止，或回到 App 停止。Siri、快捷指令、小组件和控制中心可以运行保存的任务。
 
+## 在编程 Agent 里使用
+
+`esp32agent` 命令行（npm，`npx -y esp32agent mcp`）是一个 MCP 服务器，电脑上的编程 Agent 可以通过板子看到并操作 iPhone（板子固件需 v0.2.2 或更高）。本仓库也是一个插件，包含这个 MCP 服务器和一个 Agent 技能（[skills/handsy/SKILL.md](skills/handsy/SKILL.md)）。在 Claude Code 里：
+
+```bash
+/plugin marketplace add onehumanbeing/esp32-iphone-agent
+/plugin install esp32agent@handsy
+```
+
 ## 模型和提示词
 
 - 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型并自动选择，也可以手动指定，规划器和执行器可以用不同模型。
@@ -160,4 +169,4 @@ server/     旧版 v0.1.0 的电脑端服务，新版不使用（见 server/READ
 
 ## 许可证
 
-[MIT](LICENSE)；`hardware/hid_bridge/src/airplay/`（移植自 UxPlay）除外，为 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md)，因此链接了它的固件二进制按 GPL-3.0 分发。
+[MIT](LICENSE)；`hardware/hid_bridge/src/airplay/`（移植自 UxPlay）除外，为 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md)，因此链接了它的固件二进制按 GPL-3.0 分发。[`skills/`](skills/) 目录下的文件采用 [MIT-0](skills/LICENSE)（MIT No Attribution），仓库其余部分仍按上面的许可证。

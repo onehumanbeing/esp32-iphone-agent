@@ -1,0 +1,18 @@
+{
+  "name": "handsy",
+  "description": "Handsy (ESP32 Agent): let your coding agent see and drive a real iPhone through an ESP32 board.",
+  "owner": {
+    "name": "onehumanbeing",
+    "email": "support@handsy.tech",
+    "url": "https://handsy.tech"
+  },
+  "plugins": [
+    {
+      "name": "esp32agent",
+      "source": "./",
+      "description": "See and drive a real iPhone through an ESP32 Agent board: the esp32agent MCP server plus a skill with the see-act loop, typing rules and troubleshooting.",
+      "category": "productivity",
+      "tags": ["iphone", "ios", "esp32", "mcp", "phone-automation"]
+    }
+  ]
+}

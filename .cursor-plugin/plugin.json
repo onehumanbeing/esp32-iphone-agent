@@ -1,0 +1,35 @@
+{
+  "name": "esp32agent",
+  "version": "1.0.0",
+  "description": "See and drive a real iPhone from your agent through an ESP32 Agent board (USB mouse and keyboard plus AirPlay screen mirroring, reached over Bluetooth). Adds the esp32agent MCP server and a skill with the see-act loop.",
+  "author": {
+    "name": "onehumanbeing",
+    "email": "support@handsy.tech"
+  },
+  "homepage": "https://handsy.tech",
+  "repository": "https://github.com/onehumanbeing/esp32-iphone-agent",
+  "license": "MIT",
+  "keywords": [
+    "iphone",
+    "ios",
+    "esp32",
+    "mcp",
+    "phone-automation",
+    "computer-use",
+    "airplay",
+    "hid",
+    "handsy"
+  ],
+  "skills": "./skills/",
+  "mcpServers": {
+    "esp32agent": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "esp32agent",
+        "mcp"
+      ]
+    }
+  },
+  "logo": "ios/IPhoneAgent/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+}
