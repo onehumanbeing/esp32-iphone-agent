@@ -19,7 +19,8 @@ struct IntentSourceRow: View {
             }
         }
         .padding(.vertical, Space.xs)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)  // the button reads as its title; the detail is the hint
+        .accessibilityLabel(Text(title))
         .accessibilityHint(Text(detail))
     }
 }
