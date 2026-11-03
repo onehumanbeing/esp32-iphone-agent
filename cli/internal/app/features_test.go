@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -89,7 +90,12 @@ func TestReportShowsTheRedactedFileAndOnlyOpensTheMail(t *testing.T) {
 	if !strings.Contains(u.Query().Get("body"), "Instruction for the model") {
 		t.Fatalf("body %q", u.Query().Get("body"))
 	}
-	path := opened[1][len(opened[1])-1]
+	// the file it wrote; reveal opens it (macOS, Windows) or its folder (Linux), so take the path from the output
+	m := regexp.MustCompile(`Attach (\S+) and send it yourself`).FindStringSubmatch(text)
+	if m == nil || !strings.HasPrefix(m[1], filepath.Dir(opened[1][len(opened[1])-1])) {
+		t.Fatalf("no file path in the output or the reveal call: %s %v", text, opened)
+	}
+	path := m[1]
 	defer os.RemoveAll(filepath.Dir(path))
 	data, err := os.ReadFile(path)
 	if err != nil || bytes.Contains(data, []byte("secret")) || bytes.Contains(data, []byte("192.168")) || !bytes.Contains(data, []byte("•••")) {
