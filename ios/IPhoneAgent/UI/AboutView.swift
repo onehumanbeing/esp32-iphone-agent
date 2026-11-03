@@ -195,7 +195,7 @@ struct LogsView: View {
                     }
                     .disabled(sending)
                 } footer: {
-                    Text("One tap sends the debug log, the board's state and crash reports, so a problem can be looked into. No runs, screenshots or API keys.")
+                    Text("One tap sends the debug log, the board's state and log, and crash reports, so a problem can be looked into. No runs, screenshots or API keys.")
                 }
             }
             Section {
@@ -211,7 +211,7 @@ struct LogsView: View {
                     ShareLink(item: DebugLog.url) { Label("Share debug log", systemImage: "doc.text.magnifyingglass") }
                 }
             } footer: {
-                Text("A zip of debug.log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it.")
+                Text("A zip of debug.log, the board's log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it.")
             }
             if app.log.isEmpty {
                 Text("Nothing logged yet.").foregroundStyle(.secondary)
@@ -254,6 +254,10 @@ struct LogsView: View {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         DebugLog.write("export: all logs")
         Task {
+            if let log = await BoardLogDump.read(app.board.commands) {  // the board's RAM log goes in the zip too
+                let crash = await BoardLogDump.crash(app.board.commands) ?? ""
+                try? ("crash: \(crash)\n\n" + log).write(to: docs.appendingPathComponent("board.log"), atomically: true, encoding: .utf8)
+            }
             let result = await Task.detached { Result { try TraceStore.zip(docs, name: "esp32-agent-logs.zip") } }.value
             exporting = false
             switch result {

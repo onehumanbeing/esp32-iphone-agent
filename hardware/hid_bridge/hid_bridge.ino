@@ -25,6 +25,7 @@
 #include "version.h"
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
+#include "logbuf.h"
 
 const int STEP = 10;      // max pointer delta per report while moving
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
@@ -181,6 +182,7 @@ String board(const String &line, const String &id, char who) {
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
+  if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
   if (cmd == "vdbg") return "ok " + video_debug();  // why a frozen screen stays frozen (video_link.cpp)
   if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;
   if (cmd == "snap") { video_snap(id, who); return ""; }  // replies when the GOP is sent
@@ -263,7 +265,7 @@ void statusTask(void *) {
 }
 
 // AirPlay log lines: to USB serial, and to the app ("blog ...", into its debug.log) so a stall on a board
-// plugged into the phone leaves evidence. At most 4 a second; the rest are counted and reported later.
+// plugged into the phone leaves evidence, and into the RAM log. At most 16 a second; the rest are counted and reported later.
 void logLine(const char *msg) {
 #if DEBUG_SERIAL
   Serial.printf("[%lu] %s\n", millis(), msg);
@@ -277,7 +279,9 @@ void logLine(const char *msg) {
   if (now - windowStart >= 1000) { windowStart = now; sent = 0; }
   if (sent < 16) { sent++; send = true; dropped = skipped; skipped = 0; } else skipped++;
   portEXIT_CRITICAL(&mux);
-  if (!send || !ble_connected()) return;
+  if (!send) return;
+  board_log_keep(msg);
+  if (!ble_connected()) return;
   String line = String("blog ") + now + " " + msg;
   if (dropped) line += String(" (+") + dropped + " skipped)";
   ble_reply(line);
@@ -294,7 +298,7 @@ void startAirplay() {
   cfg.on_config = video_on_config;
   cfg.on_au = video_on_au;
   cfg.log = logLine;
-  if (!airplay_start(&cfg)) Serial.println("airplay: start failed");
+  if (!airplay_start(&cfg)) board_log("airplay: start failed");
 }
 
 void setup() {
@@ -317,15 +321,15 @@ void setup() {
   readCrash();
 
   net_begin();
-  if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
-  if (!wv_begin()) Serial.println("video: Wi-Fi video channel failed to start");
-  if (!ota_begin()) Serial.println("ota: failed to start");
+  if (!video_begin()) board_log("video: no PSRAM for the GOP buffer");
+  if (!wv_begin()) board_log("video: Wi-Fi video channel failed to start");
+  if (!ota_begin()) board_log("ota: failed to start");
   arb_init(&arb);
   cli_begin();
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
-  Serial.printf("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
+  board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), resetReason());

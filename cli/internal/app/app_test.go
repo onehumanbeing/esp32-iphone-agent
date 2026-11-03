@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"image/png"
 	"io"
 	"os"
@@ -143,6 +144,19 @@ func TestSimPairScreenshotTapText(t *testing.T) {
 	if o := run(t, a, "screenshot", "--format", "jpeg", "--max-size", "520", "--output", filepath.Join(dir, "s.jpg")); o.Status != "ok" ||
 		o.Data["height"] != 520.0 || o.Data["width"] != 240.0 {
 		t.Fatalf("jpeg screenshot: %+v", o)
+	}
+
+	// the board's RAM log, read in pages through the daemon, and a file for support with everything
+	if o := run(t, a, "logs", "--board"); o.Status != "ok" || !strings.Contains(fmt.Sprint(o.Data["log"]), "boot sim fw 0.2.3\n") ||
+		!strings.Contains(fmt.Sprint(o.Data["log"]), "cli: session up") || o.Data["crash"] != "rst power-on, last dump: none" {
+		t.Fatalf("logs --board: %+v", o)
+	}
+	saved := filepath.Join(dir, "support.txt")
+	if o := run(t, a, "logs", "--save", "--output", saved); o.Status != "ok" {
+		t.Fatalf("logs --save: %+v", o)
+	}
+	if text, _ := os.ReadFile(saved); !strings.Contains(string(text), "== board log ==") || !strings.Contains(string(text), "wifi: hotspot up") {
+		t.Fatalf("saved logs:\n%s", text)
 	}
 
 	// the MCP screenshot tool returns the image itself

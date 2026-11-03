@@ -5,6 +5,7 @@
 #include "cli_link.h"
 #include "wifi_video.h"
 #include "src/video/gop.h"
+#include "logbuf.h"
 
 // GOP since the latest IDR. A still screen gets an IDR only every few minutes (iOS 26: maybe once per mirroring
 // session), so room for ~27 min of AUs at 5 fps (P-frames of a still screen are tiny). When it fills, it freezes
@@ -293,7 +294,7 @@ static void videoTask(void *arg) {
     if (xQueueReceive(s.reqs, &r, 0) == pdTRUE) {
       sendTo(s, r.who);  // the CLI's only get here while the app is away (arbiter); the stream follows owner() next
       String reply = String(r.id) + " " + (r.bench ? doBench(s, r.kb) : doSnap(s));
-      Serial.println("video: " + reply);  // the reply only goes over BLE; mirror it for serial-driven tests
+      board_log("video: %s", reply.c_str());  // the reply only goes over BLE; mirror it for serial-driven tests
       ble_reply(reply, r.who);
     }
     streamStep(s);
@@ -356,10 +357,10 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   int aus = gop.n;
   uint32_t kb = gop.used / 1024;
   xSemaphoreGive(lock);
-  if (froze) Serial.printf("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
+  if (froze) board_log("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
                            (unsigned long)kb);
   if (tailBroke) tailBreaks++;
-  if (tailBroke) Serial.println("video: a stream fell behind the tail; frozen until the next IDR");
+  if (tailBroke) board_log("video: a stream fell behind the tail; frozen until the next IDR");
   if (sink.task) xTaskNotifyGive(sink.task);
 }
 

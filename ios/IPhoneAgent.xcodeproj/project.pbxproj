@@ -33,6 +33,7 @@
 		24645B70C28410D8E96A9D92 /* RunRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBF99F934AC45DB1B8B9324 /* RunRecovery.swift */; };
 		2671E23FE56D69B0CEAB4EF6 /* Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458E8069AA8BE0B721C9AD7A /* Actions.swift */; };
 		28166EA554E9D943A62AF961 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D21F22B2928E33B4036328 /* Stores.swift */; };
+		286D2234D8867675881307B7 /* BoardLogDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB11B5F5922F634BEEA3CA38 /* BoardLogDump.swift */; };
 		28CC6521C0BE74701079D0E1 /* AgentActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B155ADD97189D634A809EDE9 /* AgentActivity.swift */; };
 		2A48924EF6EF7A39D5A05E21 /* ReviewMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CF0FDDD155E930C9AC80D8 /* ReviewMedia.swift */; };
 		2A538D04D89126472479471E /* RunCardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54211E1AF9F25DF548064BA9 /* RunCardSnapshot.swift */; };
@@ -48,6 +49,7 @@
 		415214E03E0E5CDFFE550934 /* AppDeparture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C142F7A438B5EC2A82FA99 /* AppDeparture.swift */; };
 		419FA08397BAF31F91A62633 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B88A1538529C9674B323370 /* DebugLog.swift */; };
 		42A1AE0EA1AC18461ED8F33B /* RecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2E6CFBDF20832FF9626D99 /* RecoveryTests.swift */; };
+		462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74060C297931361BA5916910 /* BoardLogDumpTests.swift */; };
 		48100361D2ECFE7E36F83F9D /* LLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F071F3E4D7B82DE70AE75A81 /* LLMTests.swift */; };
 		493D5E857A8D5B323A25BA53 /* ThreadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A0229ED6EF9D83865BC9D6 /* ThreadStore.swift */; };
 		4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607F9EBBC39E74507B73F751 /* H264Decoder.swift */; };
@@ -295,6 +297,7 @@
 		6DCAEE3FDF94357F8875E473 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		724EBABF2F5228B5112C3643 /* IntentArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchive.swift; sourceTree = "<group>"; };
+		74060C297931361BA5916910 /* BoardLogDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDumpTests.swift; sourceTree = "<group>"; };
 		769290C5E01DE7CA97412DDA /* prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = prompts; path = ../prompts; sourceTree = SOURCE_ROOT; };
 		7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessOTA.swift; sourceTree = "<group>"; };
 		7838BB026F2915CEF91C8041 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
@@ -374,6 +377,7 @@
 		F910448AC4947D37B31C3D01 /* ScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptTests.swift; sourceTree = "<group>"; };
 		F960AA3F536A5DF20F8E908A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FAE9690A776BF887AFFFAE39 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		FB11B5F5922F634BEEA3CA38 /* BoardLogDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDump.swift; sourceTree = "<group>"; };
 		FCC7FAA4989F36E7F9B4C021 /* JSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSON.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -452,6 +456,7 @@
 			isa = PBXGroup;
 			children = (
 				DCDFF66F3082E46B88130ABC /* AgentTests.swift */,
+				74060C297931361BA5916910 /* BoardLogDumpTests.swift */,
 				8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */,
 				058E1A3713DF7C52A472CAAD /* ChatTests.swift */,
 				23A9A9D917B2B2FC534E7DBA /* DeviceTests.swift */,
@@ -593,6 +598,7 @@
 			children = (
 				193C76A9C0C9A1912160F987 /* AIConsent.swift */,
 				60955809E15AC0A89AD72418 /* Analytics.swift */,
+				FB11B5F5922F634BEEA3CA38 /* BoardLogDump.swift */,
 				08B208A7866AE0708D0AB584 /* CrashFrames.swift */,
 				0FB6A431F87BEDCFBF1201C4 /* CrashReports.swift */,
 				5B71D1DAEA3C980B796281A2 /* CrashTrace.swift */,
@@ -855,6 +861,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7D859BE4F1E945FE96CD8C61 /* AgentTests.swift in Sources */,
+				462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */,
 				2AC3B28D33CD484DAE8CF66F /* BoardLogTests.swift in Sources */,
 				862E35000B05A1D8C18E2D38 /* ChatTests.swift in Sources */,
 				607B1520E654F13F1F304F4D /* DeviceTests.swift in Sources */,
@@ -901,6 +908,7 @@
 				1BBB78AF1CD2B329778F6E01 /* AutoCalibrator.swift in Sources */,
 				66CADEEED2A075ECD5070131 /* BoardCommands.swift in Sources */,
 				D48CF75915F3D1FFE18ADC3A /* BoardLink.swift in Sources */,
+				286D2234D8867675881307B7 /* BoardLogDump.swift in Sources */,
 				BD09EA4793C0B09297190CD9 /* BoardProtocol.swift in Sources */,
 				3298C81AB2EC4CBBC912ACFC /* BoardProximityIllustration.swift in Sources */,
 				173BD54931BD69B83D7F6FD3 /* CalibrationToast.swift in Sources */,
