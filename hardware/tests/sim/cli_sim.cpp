@@ -15,6 +15,8 @@
 #include "ble_link.h"
 #include "cli_link.h"
 #include "src/video/gop.h"
+#include "src/log/logring.h"
+#include <stdarg.h>
 
 SerialStub Serial;
 static uint64_t t0;
@@ -142,6 +144,18 @@ static bool sendAu(const std::vector<uint8_t> &d, uint8_t flags) {
 }
 
 static void reply(const std::string &line) { cli_send_ctrl('r', line.data(), line.size(), 1000); }
+static char ringBuf[2048];
+static logring ring = {ringBuf, sizeof ringBuf, 0, 0};
+// logbuf.cpp's board_log: cli_link.cpp's lines go to stderr and the simulated RAM log.
+void board_log(const char *fmt, ...) {
+  char line[256];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(line, sizeof line, fmt, ap);
+  va_end(ap);
+  fprintf(stderr, "%s\n", line);
+  logring_add(&ring, line);
+}
 
 int main(int argc, char **argv) {
   t0 = nowMs();
@@ -149,6 +163,8 @@ int main(int argc, char **argv) {
   nvsLoad();
   if (argc > 1) loadScreen(argv[1]);
   cli_begin();
+  logring_add(&ring, "[0.001] boot sim fw 0.2.3");
+  logring_add(&ring, "[0.120] wifi: hotspot up");
   bool streaming = false, frozen = getenv("CLI_SIM_FROZEN") && !strcmp(getenv("CLI_SIM_FROZEN"), "1");
   size_t shown = 0;  // AUs of the file mirrored so far (the board's GOP)
   size_t sent = 0;   // of those, sent on the CLI's stream
@@ -179,6 +195,14 @@ int main(int argc, char **argv) {
         bool ok = !frozen && shown && sendAu(config, VF_CONFIG | VF_SNAP);
         for (size_t i = 0; ok && i < shown; i++) ok = sendAu(aus[i].data, VF_SNAP | (aus[i].idr ? VF_IDR : 0));
         reply(id + (ok ? " ok" : frozen ? " err video frozen (restart screen mirroring)" : " err no video (start screen mirroring)"));
+      } else if (rest.rfind("logs", 0) == 0) {  // the board's RAM log (logbuf.cpp), from the real ring
+        unsigned long from = 0, max = 120;
+        sscanf(rest.c_str(), "logs %lu %lu", &from, &max);
+        char page[401];
+        uint32_t next = logring_read(&ring, from, page, (max > 400 ? 400 : max) + 1);
+        reply(id + " ok " + std::to_string(next) + " " + std::to_string(ring.end) + " " + page);
+      } else if (rest == "crash") {
+        reply(id + " ok rst power-on, last dump: none");
       } else {
         reply(id + " ok");
       }

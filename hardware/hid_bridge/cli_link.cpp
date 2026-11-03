@@ -6,6 +6,7 @@
 #include <esp_random.h>
 #include "ble_link.h"
 #include "src/cli/cli_proto.h"
+#include "logbuf.h"
 
 const int MAX_CLIENTS = 4;
 const int SLOTS = 2;                       // ble_link's MAX_PEERS
@@ -100,7 +101,7 @@ static void pair(int slot, const uint8_t *p, size_t n) {
   memcpy(out, pub, 32);
   memcpy(out + 32, boardId, 6);
   cli_mac(key, "paired", id, CLI_ID_LEN, NULL, 0, out + 38);
-  Serial.println("cli: paired a new client");
+  board_log("cli: paired a new client");
   plain(slot, CLI_PAIRED, out, sizeof out);
 }
 
@@ -134,7 +135,7 @@ static void data(int slot, const uint8_t *p, size_t n) {
   if (!s.authed) {
     if (cli_slot() >= 0) { ble_cli_drop(slot); return; }  // one computer at a time
     s.authed = true;
-    Serial.println("cli: session up");
+    board_log("cli: session up");
   }
   if (len > 1 && text[0] == 'c') ble_cli_push_cmd((const char *)text + 1, len - 1);
 }

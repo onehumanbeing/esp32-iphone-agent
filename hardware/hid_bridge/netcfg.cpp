@@ -12,6 +12,7 @@
 #if STA_FROM_SECRETS
 #if __has_include("secrets.h")
 #include "secrets.h"  // WIFI_SSID, WIFI_PASS (git-ignored)
+#include "logbuf.h"
 #define BOOT_STA 1
 #else
 #warning "STA_FROM_SECRETS set but secrets.h is missing: booting as SoftAP"
@@ -106,8 +107,8 @@ static void startWifi() {
 
 #if DEBUG_SERIAL
 static void logWifi(arduino_event_id_t e, arduino_event_info_t info) {
-  if (e == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) Serial.printf("wifi: disconnected, reason %d\n", info.wifi_sta_disconnected.reason);
-  if (e == ARDUINO_EVENT_WIFI_STA_GOT_IP) Serial.printf("wifi: got ip %s\n", WiFi.localIP().toString().c_str());
+  if (e == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) board_log("wifi: disconnected, reason %d", info.wifi_sta_disconnected.reason);
+  if (e == ARDUINO_EVENT_WIFI_STA_GOT_IP) board_log("wifi: got ip %s", WiFi.localIP().toString().c_str());
 }
 #endif
 

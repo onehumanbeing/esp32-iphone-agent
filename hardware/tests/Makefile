@@ -4,7 +4,7 @@ CFLAGS = -std=c11 -Wall -Wextra -g -fsanitize=address,undefined
 
 MBEDTLS = $(shell brew --prefix mbedtls 2>/dev/null || echo /opt/homebrew)
 
-test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c $(SRC)/airplay/keystream.c $(SRC)/cli/cli_proto.c $(SRC)/hid/arbiter.c
+test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c $(SRC)/airplay/keystream.c $(SRC)/cli/cli_proto.c $(SRC)/hid/arbiter.c $(SRC)/log/logring.c
 	$(CC) $(CFLAGS) -I$(MBEDTLS)/include -o $@ $^ -L$(MBEDTLS)/lib -lmbedcrypto
 	./test
 

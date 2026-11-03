@@ -46,6 +46,7 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   upgrade [--check] [--force]      install the latest release
   mcp                              MCP server on stdio
   skill install                    agent skill for Claude Code / Codex
+  logs [--board] [--save]          the CLI's log; --board the board's; --save one file for support
   daemon [stop]                    the background process (started automatically)
   version
 
@@ -134,6 +135,8 @@ func (a *App) Run(args []string) int {
 		return a.intent(rest)
 	case "report":
 		return a.report(rest)
+	case "logs":
+		return a.logs(rest)
 	case "upgrade":
 		return a.upgrade(rest)
 	case "skill":

@@ -6517,12 +6517,12 @@
         }
       }
     },
-    "A zip of debug.log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it." : {
+    "A zip of debug.log, the board's log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "包含 debug.log、iOS 崩溃报告和每次运行（步骤、模型回复、截图、视频）的压缩包。不会包含你的 API 密钥。"
+            "value" : "包含 debug.log、板子日志、iOS 崩溃报告和每次运行（步骤、模型回复、截图、视频）的压缩包。不会包含你的 API 密钥。"
           }
         }
       }
@@ -8803,12 +8803,12 @@
         }
       }
     },
-    "The board's state (firmware, connection, Screen Mirroring)" : {
+    "The board's state and its recent log (firmware, connection, Screen Mirroring)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "板子状态（固件、连接、屏幕镜像）"
+            "value" : "板子状态和最近的日志（固件、连接、屏幕镜像）"
           }
         }
       }
@@ -8843,12 +8843,12 @@
         }
       }
     },
-    "One tap sends the debug log, the board's state and crash reports, so a problem can be looked into. No runs, screenshots or API keys." : {
+    "One tap sends the debug log, the board's state and log, and crash reports, so a problem can be looked into. No runs, screenshots or API keys." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一键发送调试日志、板子状态和崩溃报告，方便排查问题。不含运行记录、截图或 API 密钥。"
+            "value" : "一键发送调试日志、板子状态和日志、崩溃报告，方便排查问题。不含运行记录、截图或 API 密钥。"
           }
         }
       }
