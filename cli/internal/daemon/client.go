@@ -52,6 +52,7 @@ func (c *Client) spawn() error {
 	if err != nil {
 		return err
 	}
+	rotateLog(LogPath(c.Dir), 1<<20, 3)
 	logf, err := os.OpenFile(LogPath(c.Dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func (c *Client) spawn() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("daemon did not start; see %s", LogPath(c.Dir))
+	return fmt.Errorf("daemon did not start; see %s (esp32agent logs --save makes a file to send to support@handsy.tech)", LogPath(c.Dir))
 }
 
 func (c *Client) roundTrip(req Request) ([]byte, error) {

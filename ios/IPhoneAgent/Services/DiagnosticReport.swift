@@ -7,13 +7,15 @@ import UIKit
 enum DiagnosticReport {
     static let contents = [
         String(localized: "App version, iOS version and iPhone model"),
-        String(localized: "The board's state (firmware, connection, Screen Mirroring)"),
+        String(localized: "The board's state and its recent log (firmware, connection, Screen Mirroring)"),
         String(localized: "The debug log: app events, board lines, model request timing (never your API key)"),
         String(localized: "Crash reports iOS gave the app"),
     ]
 
-    @MainActor static func build(_ app: AppModel) -> Data? {
+    @MainActor static func build(_ app: AppModel) async -> Data? {
         let info = Bundle.main.infoDictionary ?? [:]
+        let boardLog = await BoardLogDump.read(app.board.commands)
+        let crash = await BoardLogDump.crash(app.board.commands)
         let crashes = CrashReports.files.prefix(5).compactMap { try? String(contentsOf: $0, encoding: .utf8) }
         let log = (try? String(contentsOf: DebugLog.url, encoding: .utf8)) ?? ""
         let doc: [String: Any] = [
@@ -22,6 +24,8 @@ enum DiagnosticReport {
             "app": ["version": info["CFBundleShortVersionString"] ?? "", "build": info["CFBundleVersion"] ?? "",
                     "ios": UIDevice.current.systemVersion, "device": deviceModel()],
             "board": app.statusSummary,
+            "board_crash": crash ?? "",
+            "board_log": boardLog ?? "",
             "log": String(log.suffix(3_000_000)),
             "crashes": crashes,
         ]
@@ -31,7 +35,7 @@ enum DiagnosticReport {
 
     /// Build and send; the line to show the user (the report id to quote, or why it didn't go).
     @MainActor static func send(_ app: AppModel) async -> String {
-        guard let report = build(app) else { return String(localized: "Couldn't put the report together.") }
+        guard let report = await build(app) else { return String(localized: "Couldn't put the report together.") }
         do {
             let id = try await Trial.shared.sendReport(report)
             DebugLog.write("diagnostics sent: \(id)")

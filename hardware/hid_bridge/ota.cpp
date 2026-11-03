@@ -3,6 +3,7 @@
 #include <esp_ota_ops.h>
 #include "lwip/sockets.h"
 #include "wifi_video.h"
+#include "logbuf.h"
 
 const uint16_t PORT = 7300;
 const int IDLE_MS = 5000;  // no bytes for this long: the app is gone
@@ -21,7 +22,7 @@ static void fail(int c, const char *why) {
   char s[96];
   snprintf(s, sizeof s, "err %s\n", why);
   reply(c, s);
-  Serial.printf("ota: %s\n", why);
+  board_log("ota: %s", why);
 }
 
 static bool readLine(int c, char *buf, size_t cap) {
@@ -49,7 +50,7 @@ static void session(int c) {
   Update.setMD5(md5);
   busy = true;
   reply(c, "ok\n");
-  Serial.printf("ota: receiving %lu bytes\n", size);
+  board_log("ota: receiving %lu bytes", size);
   static uint8_t buf[4096];
   for (size_t got = 0; got < size;) {
     int n = recv(c, buf, size - got < sizeof buf ? size - got : sizeof buf, 0);
@@ -59,7 +60,7 @@ static void session(int c) {
   }
   if (!Update.end()) { busy = false; return fail(c, Update.errorString()); }  // includes the MD5 check
   reply(c, "done\n");
-  Serial.println("ota: done, rebooting");
+  board_log("ota: done, rebooting");
   delay(500);
   ESP.restart();
 }
@@ -73,7 +74,7 @@ static void otaTask(void *) {
   int one = 1;
   setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
   if (srv < 0 || bind(srv, (sockaddr *)&addr, sizeof addr) < 0 || listen(srv, 1) < 0) {
-    Serial.println("ota: listen failed");
+    board_log("ota: listen failed");
     vTaskDelete(NULL);
   }
   for (;;) {
@@ -101,7 +102,7 @@ bool ota_begin() {
   esp_ota_img_states_t a = ESP_OTA_IMG_UNDEFINED, b = ESP_OTA_IMG_UNDEFINED;
   esp_ota_get_state_partition(run, &a);
   if (other) esp_ota_get_state_partition(other, &b);
-  Serial.printf("ota: running %s (%s), other %s (%s)\n", run->label, stateName(a), other ? other->label : "-", stateName(b));
+  board_log("ota: running %s (%s), other %s (%s)", run->label, stateName(a), other ? other->label : "-", stateName(b));
   return xTaskCreatePinnedToCore(otaTask, "ota", 6144, NULL, 2, NULL, 1) == pdPASS; }
 
 bool ota_busy() { return busy; }
@@ -111,5 +112,5 @@ void ota_confirm() {
   if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) != ESP_OK) return;
   if (state != ESP_OTA_IMG_PENDING_VERIFY) return;
   esp_ota_mark_app_valid_cancel_rollback();
-  Serial.println("ota: new firmware confirmed");
+  board_log("ota: new firmware confirmed");
 }

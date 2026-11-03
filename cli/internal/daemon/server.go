@@ -146,7 +146,11 @@ func (s *Server) handle(nc net.Conn) {
 		s.screencapture(ctx, req, nc)
 		return
 	}
+	started := time.Now()
 	resp := s.Do(ctx, req)
+	if Debug { // command names and outcomes only: no typed text, screenshots or keys
+		log.Printf("debug: %s device=%q -> %s %s (%s)", req.Cmd, req.Device, resp.Status, resp.Error, time.Since(started).Round(time.Millisecond))
+	}
 	json.NewEncoder(nc).Encode(resp)
 	if req.Cmd == "stop" {
 		s.Stop()
@@ -192,6 +196,8 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 			return fail(err)
 		}
 		return ok(map[string]string{"reply": reply})
+	case "boardlog":
+		return s.boardLog(ctx, c)
 	}
 	return fail(fmt.Errorf("unknown command %q", req.Cmd))
 }

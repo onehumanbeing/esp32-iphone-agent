@@ -1,5 +1,5 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter.
+// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +8,7 @@
 #include "../hid_bridge/src/airplay/keystream.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
+#include "../hid_bridge/src/log/logring.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -301,7 +302,32 @@ static void test_arbiter(void) {
   CHECK(!arb_gone(&s, ARB_APP));
 }
 
+static void test_logring(void) {
+  char buf[32], out[64];
+  logring r;
+  logring_init(&r, buf, sizeof buf);
+  CHECK(logring_read(&r, 0, out, sizeof out) == 0 && out[0] == 0);
+  logring_add(&r, "boot a\\b");
+  uint32_t next = logring_read(&r, 0, out, sizeof out);
+  CHECK(next == 9 && strcmp(out, "boot a\\\\b\\n") == 0);
+  logring_add(&r, "wifi: got ip");
+  logring_add(&r, "ota: done");  // 9 + 13 + 10 = 32 bytes: still fits
+  CHECK(r.start == 0 && r.end == 32);
+  logring_add(&r, "cli up");  // wraps: the oldest line goes, whole
+  logring_read(&r, 0, out, sizeof out);
+  CHECK(strncmp(out, "wifi: got ip\\n", 14) == 0 && r.end - r.start <= sizeof buf);
+  uint32_t from = r.start, pages = 0;  // paging: small pages join up to the same text
+  char all[128] = "", page[6];
+  while (from < r.end && pages++ < 40) { from = logring_read(&r, from, page, sizeof page); strcat(all, page); }
+  CHECK(strcmp(all, out) == 0);
+  CHECK(logring_read(&r, r.end, out, sizeof out) == r.end && out[0] == 0);  // caught up
+  logring_add(&r, "0123456789012345678901234567890123456789");  // longer than the ring: its tail is kept
+  logring_read(&r, 0, out, sizeof out);
+  CHECK(strlen(out) > 0 && strstr(out, "789\\n") != NULL);
+}
+
 int main(void) {
+  test_logring();
   test_bplist_roundtrip();
   test_bplist_utf16();
   test_gop();

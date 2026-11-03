@@ -16,6 +16,7 @@
 #include "netcfg.h"
 #include "cli_link.h"
 #include "src/cli/cli_proto.h"
+#include "logbuf.h"
 
 static_assert(MYNEWT_VAL(MSYS_1_BLOCK_COUNT) == 64 && MYNEWT_VAL(MSYS_1_BLOCK_SIZE) == 320,
               "nimble_cfg.h not applied: build with hardware/flash.sh");
@@ -379,7 +380,7 @@ static void setUpAdvertising(const std::string &name) {
   uint8_t a[6];
   esp_fill_random(a, sizeof a);
   a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
-  if (!NimBLEDevice::setOwnAddr(a)) Serial.println("ble: no random address for the CLI");
+  if (!NimBLEDevice::setOwnAddr(a)) board_log("ble: no random address for the CLI");
 }
 
 // Queue storage in PSRAM (the two below hold ~7 KB); only the control block stays in internal RAM.
@@ -435,7 +436,7 @@ void ble_begin(const String &name) {
   advertise();
   xTaskCreatePinnedToCore(txTask, "ble_tx", 3072, NULL, 3, NULL, 1);
   ctrlMax = ble_hs_hci_avail_pkts;
-  Serial.printf("ble: %s, msys %d x %d (%d free), acl rx %d, controller acl tx %u, mtu %d, coc %d x %d\n",
+  board_log("ble: %s, msys %d x %d (%d free), acl rx %d, controller acl tx %u, mtu %d, coc %d x %d\n",
                 NimBLEDevice::getVersion(), os_msys_count(), MYNEWT_VAL(MSYS_1_BLOCK_SIZE), os_msys_num_free(),
                 MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT), ctrlMax, ble_att_preferred_mtu(),
                 MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM), MYNEWT_VAL(BLE_L2CAP_COC_MPS));
