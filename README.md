@@ -111,6 +111,17 @@ Plug the board into the iPhone and open **ESP32 Agent**. Setup walks through fou
 Type a goal (for example *"Open Settings and go to Wi-Fi"*) and press **Start**. Stop it from the Dynamic Island,
 or come back to the app. Siri, Shortcuts, widgets and Control Center can run saved tasks.
 
+## Use from a coding agent
+
+The `esp32agent` CLI (npm, `npx -y esp32agent mcp`) is an MCP server, so a coding agent on your computer can see
+and drive the iPhone through the board (board firmware v0.2.2 or later). This repository is also a plugin with that
+MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md)). In Claude Code:
+
+```bash
+/plugin marketplace add onehumanbeing/esp32-iphone-agent
+/plugin install esp32agent@handsy
+```
+
 ## Model and prompts
 
 - Any OpenAI-compatible vision endpoint works (vLLM, SGLang, llama.cpp, Ollama, cloud APIs). The app lists the
@@ -188,4 +199,5 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 
 [MIT](LICENSE), except `hardware/hid_bridge/src/airplay/` (ported from UxPlay), which is
 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md); the firmware binary that links it is therefore
-distributed under GPL-3.0.
+distributed under GPL-3.0. Files under [`skills/`](skills/) are [MIT-0](skills/LICENSE) (MIT No Attribution);
+the rest of the repository keeps the license above.
