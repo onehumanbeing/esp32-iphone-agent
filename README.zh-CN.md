@@ -93,6 +93,31 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 
 输入目标（比如 *"打开设置，进入无线局域网"*），点 **Start**。可以从灵动岛停止，或回到 App 停止。Siri、快捷指令、小组件和控制中心可以运行保存的任务。
 
+## 作为 MCP 服务器使用
+
+`esp32agent` 命令行同时是一个 MCP 服务器（stdio），电脑上的编程助手可以通过板子看到并操作 iPhone。
+
+Claude Code：
+
+```bash
+claude mcp add esp32agent -- npx -y esp32agent mcp
+```
+
+Cursor、Cline 等 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "esp32agent": {
+      "command": "npx",
+      "args": ["-y", "esp32agent", "mcp"]
+    }
+  }
+}
+```
+
+工具列表和其他命令见 [cli/README.md](cli/README.md)。
+
 ## 模型和提示词
 
 - 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型，由你明确选一个；也可以自己填模型 ID，规划器和执行器可以用不同模型。

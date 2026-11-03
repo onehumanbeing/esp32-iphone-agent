@@ -1,6 +1,7 @@
 {
   "name": "esp32agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.onehumanbeing/esp32agent",
   "description": "See and drive an iPhone through an ESP32 Agent board over Bluetooth (CLI + MCP server for coding agents)",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/onehumanbeing/esp32-iphone-agent.git", "directory": "cli" },
