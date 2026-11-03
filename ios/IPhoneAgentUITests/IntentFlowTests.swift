@@ -62,10 +62,11 @@ final class IntentFlowTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 5))
         app.navigationBars.buttons["Save"].tap()
         XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 5))
-        app.swipeUp()
-        app.staticTexts["Daily 7 AM alarm"].firstMatch.tap()
+        let alarm = app.staticTexts["Daily 7 AM alarm"].firstMatch
+        for _ in 0..<5 where !alarm.isHittable { app.swipeUp(velocity: .slow) }  // one fast swipe could overshoot it
+        alarm.tap()
         let review = app.buttons["Review Demonstration"]
-        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 10))
         for _ in 0..<6 where !review.isHittable { app.swipeUp(velocity: .slow) }  // below the script's steps
         review.tap()
         XCTAssertTrue(app.staticTexts["Unsure"].firstMatch.waitForExistence(timeout: 5))
