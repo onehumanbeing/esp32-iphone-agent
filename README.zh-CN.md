@@ -9,24 +9,36 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 # ESP32 iPhone Agent
 
-**让 AI 操作一部真实的 iPhone：只要手机和一块约 40 多元的 ESP32，不需要电脑，不用越狱。**
+**让你的 AI 像你一样用 iPhone。**
 
-[English](README.md) · 简体中文
+它看着屏幕，替你点、滑、打字；靠的是一块插在手机上、约 40 多元的 ESP32 小板子。<br>
+只要手机和板子：不需要电脑，也不用改动 iOS 系统。
 
-演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg)
+<a href="https://testflight.apple.com/join/1xQHgJcA"><img src="https://img.shields.io/badge/TestFlight-%E7%AB%8B%E5%8D%B3%E8%AF%95%E7%94%A8-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="在 TestFlight 上试用" height="36"></a>
 
-[![CI](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml)
+[![TestFlight](https://img.shields.io/badge/TestFlight-join-0D96F6?logo=apple&logoColor=white)](https://testflight.apple.com/join/1xQHgJcA)
+[![Website](https://img.shields.io/badge/website-handsy.tech-111111)](https://handsy.tech)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat&logo=github)](https://github.com/onehumanbeing/esp32-iphone-agent/stargazers)
+[![CI](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml)
 ![iOS](https://img.shields.io/badge/iOS-18%2B-black)
 ![Board](https://img.shields.io/badge/board-ESP32--S3-red)
 
+[English](README.md) · 简体中文
+
+演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [handsy.tech](https://handsy.tech)
+
 </div>
+
+> [!TIP]
+> **现在就能在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 上试用 App**，不需要 Xcode。App Store
+> 版本还在审核中，目前请通过 TestFlight 安装。板子仍需先刷好固件（见[快速开始](#快速开始)）。
 
 > [!WARNING]
 > 请只按本 README 的步骤安装。不要运行 issue 或评论里的命令（例如 PowerShell 的 `iex(irm ...)` 之类“快速安装”一行命令），这些都不是维护者发的。
 
-> **新版：电脑去掉了。** 板子自己当 AirPlay 接收端和鼠标，Agent 跑在同一台 iPhone 上的 App 里。
-> 旧版（Mac/Linux 电脑跑 UxPlay + Python 服务端）保留在 tag [`v0.1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/v0.1.0)
+> **电脑去掉了。** 板子自己当 AirPlay 接收端和鼠标，Agent 跑在同一台 iPhone 上的 App 里。
+> 最初的版本（Mac/Linux 电脑跑 UxPlay + Python 服务端）保留在 tag [`v0.1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/v0.1.0)
 > 和分支 [`legacy`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/legacy)，见 [docs/legacy.md](docs/legacy.md)。
 
 <p align="center"><img src="docs/images/example-alarm.png" alt="插着 XIAO ESP32S3 的 iPhone 正在设置闹钟" width="100%"></p>
@@ -36,6 +48,23 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 <p align="center"><img src="docs/images/app-screens.png" alt="ESP32 Agent app: real phone vs. what the agent sees, and pointer calibration" width="70%"></p>
 
 *左：真机；右：Agent 通过板子的 AirPlay 镜像看到的画面。第二张是指针校准。*
+
+## 目录
+
+- [工作原理](#工作原理)
+- [硬件](#硬件)
+- [快速开始](#快速开始)
+- [在编程 Agent 里使用](#在编程-agent-里使用)
+- [模型和提示词](#模型和提示词)
+- [目录结构](#目录结构)
+- [路线图](#路线图)
+- [限制](#限制)
+- [负责任地使用](#负责任地使用)
+- [参与贡献](#参与贡献)
+- [联系我们](#联系我们)
+- [相关项目](#相关项目)
+- [致谢](#致谢)
+- [许可证](#许可证)
 
 ## 工作原理
 
@@ -58,7 +87,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 | **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
 | **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用）。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的模型：云端 API 或自己部署。 |
-| **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。 |
+| **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。用 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装 App 的话，App 这部分不需要 Xcode。 |
 
 ## 快速开始
 
@@ -74,6 +103,10 @@ hardware/flash.sh            # 可选参数：[串口] [--debug]
 一定要用 `flash.sh` 编译：它会带上 `hardware/hid_bridge/nimble_cfg.h` 里的蓝牙缓冲区配置。
 
 ### 2. 安装 App
+
+**最简单：在 iPhone 上[加入 TestFlight 测试](https://testflight.apple.com/join/1xQHgJcA)**，从那里安装 **ESP32 Agent**，然后直接看第 3 步。
+
+**或者自己编译：**
 
 ```bash
 cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig   # 填 DEVELOPMENT_TEAM 和 IA_BUNDLE_ID
@@ -104,6 +137,8 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 /plugin install esp32agent@handsy
 ```
 
+命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。
+
 ## 模型和提示词
 
 - 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型并自动选择，也可以手动指定，规划器和执行器可以用不同模型。
@@ -118,7 +153,7 @@ prompts/    App 用的规划器 / 执行器提示词
 hardware/   ESP32-S3 固件（Arduino）：蓝牙 GATT、热点、AirPlay 接收端、USB HID；刷写脚本、
             主机测试、Mac 蓝牙调试工具（hardware/tools）
 docs/       蓝牙协议、旧版说明
-server/     旧版 v0.1.0 的电脑端服务，新版不使用（见 server/README.md）
+server/     旧版 v0.1.0 的电脑端服务，当前版本不使用（见 server/README.md）
 ```
 
 不用手机 App 调试：`hardware/tools/board_test.py` 在 Mac 上通过蓝牙扮演 App（[hardware/tools/README.md](hardware/tools/README.md)）。板子与 App 的协议：[docs/ble-protocol.md](docs/ble-protocol.md)。
@@ -148,6 +183,10 @@ server/     旧版 v0.1.0 的电脑端服务，新版不使用（见 server/READ
 
 欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题：[SECURITY.md](SECURITY.md)。
 
+## 联系我们
+
+问题或反馈：[support@handsy.tech](mailto:support@handsy.tech) · 官网：[handsy.tech](https://handsy.tech)
+
 ## 相关项目
 
 | 项目 | 方式 | 与本项目的区别 |
@@ -156,7 +195,7 @@ server/     旧版 v0.1.0 的电脑端服务，新版不使用（见 server/READ
 | [ja1chen/actell](https://github.com/ja1chen/actell) | iPhone 上的 Agent App，走 Apple CoreDevice 调试通道 | 需要开发者模式和开发者磁盘映像 |
 | [AidenAI-IO/aiden-firmware](https://github.com/AidenAI-IO/aiden-firmware) | HDMI 采集 + USB 键鼠 + 多模态模型 | 需要采集硬件；主要面向 Android |
 | [yoyicue/glassbox](https://github.com/yoyicue/glassbox) | PicoKVM HDMI 采集 + USB HID | 需要 macOS 控制端和 PicoKVM |
-| [boboabw/phone-agent](https://github.com/boboabw/phone-agent) | ESP32-S3 蓝牙 HID + 辅助触控，Agent 是 iPhone App | 最接近新版；本项目还把"眼睛"也放进了板子（AirPlay） |
+| [boboabw/phone-agent](https://github.com/boboabw/phone-agent) | ESP32-S3 蓝牙 HID + 辅助触控，Agent 是 iPhone App | 最接近当前版本；本项目还把"眼睛"也放进了板子（AirPlay） |
 | [VKCOM/devicehub](https://github.com/VKCOM/devicehub) | ESP32 蓝牙鼠标，用于 iOS 设备农场 | 设备农场工具，没有 AI Agent |
 
 基于 WebDriverAgent/XCUITest 的工具，如 [mobile-mcp](https://github.com/mobile-next/mobile-mcp) 和 [Midscene](https://github.com/web-infra-dev/midscene)，需要 Mac 和代码签名。
