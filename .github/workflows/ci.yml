@@ -60,7 +60,7 @@ jobs:
       ONLY_TESTING: ${{ github.event_name == 'pull_request' && '-only-testing:IPhoneAgentTests' || '' }}
     steps:
       - uses: actions/checkout@v5
-      - name: Pick simulator and boot it in the background
+      - name: Pick simulator
         run: |
           sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
           udid=$(xcrun simctl list devices available -j | SDK="$sdk" python3 -c '
@@ -75,17 +75,14 @@ jobs:
                   print(phones[0]["udid"]); print(phones[0]["name"], rt, file=sys.stderr); break
           ')
           echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
-          # First boot of a fresh simulator takes minutes; overlap it with the build.
-          nohup xcrun simctl bootstatus "$udid" -b > "$RUNNER_TEMP/sim-boot.log" 2>&1 &
       - name: Build for testing (unsigned)
         run: |
           xcodebuild build-for-testing -scheme IPhoneAgent -destination "id=$SIM_UDID" \
             -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO
-      - name: Wait for simulator
+      # Booting while building was tried: it starves the build (1.5 -> 4.5-7 min) for no net gain.
+      - name: Boot simulator
         timeout-minutes: 10
-        run: |
-          xcrun simctl bootstatus "$SIM_UDID" -b
-          tail -n 5 "$RUNNER_TEMP/sim-boot.log" || true
+        run: xcrun simctl bootstatus "$SIM_UDID" -b
       - name: Test (simulator)
         run: |
           xcodebuild test-without-building -scheme IPhoneAgent -destination "id=$SIM_UDID" \
