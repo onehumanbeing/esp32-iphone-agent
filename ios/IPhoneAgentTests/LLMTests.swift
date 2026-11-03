@@ -1,6 +1,13 @@
 import XCTest
 @testable import IPhoneAgent
 
+/// API keys live in the Keychain, which an unsigned simulator build (CI: CODE_SIGNING_ALLOWED=NO) can't use.
+let keychainWorks: Bool = {
+    Keychain.set("probe", for: "keychain-probe")
+    defer { Keychain.set("", for: "keychain-probe") }
+    return Keychain.get("keychain-probe") == "probe"
+}()
+
 /// An in-memory endpoint: records request bodies and answers with `respond`.
 final class StubProtocol: URLProtocol {
     nonisolated(unsafe) static var respond: ([String: Any]) -> (Int, String, String) = { _ in (200, "application/json", "{}") }
@@ -125,7 +132,8 @@ final class StubProtocol: URLProtocol {
         XCTAssertFalse(settings.isConfigured)
     }
 
-    func testEachProviderKeepsItsConfigurationAndKey() {
+    func testEachProviderKeepsItsConfigurationAndKey() throws {
+        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
         let name = "profile-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         let custom = "http://10.0.0.\(Int.random(in: 2...250)):8080/v1"
@@ -294,6 +302,7 @@ final class StubProtocol: URLProtocol {
     }
 
     func testLaunchModelImportUsesOnlyExplicitEnvironmentCredential() throws {
+        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
         let name = "launch-model-key-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }

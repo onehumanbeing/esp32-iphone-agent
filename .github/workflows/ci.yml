@@ -32,7 +32,9 @@ jobs:
       - name: Build
         run: hardware/flash.sh --build-only
       - name: Host tests (bplist, GOP buffer)
-        run: make -C hardware/tests
+        run: |
+          sudo apt-get install -y libmbedtls-dev
+          make -C hardware/tests
 
   server:  # legacy v0.1.0 architecture, kept working
     runs-on: ubuntu-latest
