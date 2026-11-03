@@ -110,6 +110,32 @@ Plug the board into the iPhone and open **ESP32 Agent**. Setup walks through fou
 Type a goal (for example *"Open Settings and go to Wi-Fi"*) and press **Start**. Stop it from the Dynamic Island,
 or come back to the app. Siri, Shortcuts, widgets and Control Center can run saved tasks.
 
+## Use as an MCP server
+
+The `esp32agent` CLI is also an MCP server (stdio), so a coding agent on your computer can see and drive the
+iPhone through the board.
+
+Claude Code:
+
+```bash
+claude mcp add esp32agent -- npx -y esp32agent mcp
+```
+
+Cursor, Cline and other MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "esp32agent": {
+      "command": "npx",
+      "args": ["-y", "esp32agent", "mcp"]
+    }
+  }
+}
+```
+
+See [cli/README.md](cli/README.md) for the tools and other commands.
+
 ## Model and prompts
 
 - Any OpenAI-compatible vision endpoint works (vLLM, SGLang, llama.cpp, Ollama, cloud APIs). The app lists the
