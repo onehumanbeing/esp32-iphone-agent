@@ -2,26 +2,97 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, release-1.0]
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: read  # paths-filter lists PR files via the API
+
+# A newer push to the same PR cancels the superseded run; branch pushes always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # PRs only run the jobs whose inputs changed. Skipping is done with `if:` (not on.paths) so the
+  # required checks `ios` / `firmware` still report "skipped" = success instead of staying pending.
+  # Branch pushes run everything.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ github.event_name != 'pull_request' || steps.filter.outputs.ios == 'true' }}
+      firmware: ${{ github.event_name != 'pull_request' || steps.filter.outputs.firmware == 'true' }}
+      server: ${{ github.event_name != 'pull_request' || steps.filter.outputs.server == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            ios:
+              - .github/workflows/ci.yml
+              - ios/**
+              - prompts/**                  # bundled into the app
+              - server/hidagent/agent.py    # AgentTests checks prompts are verbatim from it
+            firmware:
+              - .github/workflows/ci.yml
+              - hardware/**
+            server:
+              - .github/workflows/ci.yml
+              - server/**
+      - run: |
+          echo "event=${{ github.event_name }}"
+          echo "ios=${{ steps.filter.outputs.ios }} firmware=${{ steps.filter.outputs.firmware }} server=${{ steps.filter.outputs.server }}"
+
   ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ios
+    env:
+      # PRs: unit tests only. The UI tests (IntentFlowTests) take ~5.5 min and are the flaky part;
+      # they still run on every push to main / release-1.0.
+      ONLY_TESTING: ${{ github.event_name == 'pull_request' && '-only-testing:IPhoneAgentTests' || '' }}
     steps:
       - uses: actions/checkout@v5
-      - name: Unit tests (simulator, unsigned)
+      - name: Pick simulator
         run: |
-          sim=$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9]+[A-Za-z ]*\(' | head -1 | sed 's/ ($//')
-          echo "simulator: $sim"
-          xcodebuild test -scheme IPhoneAgent -destination "platform=iOS Simulator,name=$sim" \
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          udid=$(xcrun simctl list devices available -j | SDK="$sdk" python3 -c '
+          import json, os, sys
+          devs = json.load(sys.stdin)["devices"]
+          sdk = os.environ["SDK"].replace(".", "-")
+          rts = sorted((k for k in devs if ".iOS-" in k), key=lambda k: (not k.endswith("iOS-" + sdk), k))
+          for rt in rts:
+              phones = [d for d in devs[rt] if d["name"].startswith("iPhone")]
+              phones.sort(key=lambda d: "Pro" not in d["name"])
+              if phones:
+                  print(phones[0]["udid"]); print(phones[0]["name"], rt, file=sys.stderr); break
+          ')
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+      - name: Build for testing (unsigned)
+        run: |
+          xcodebuild build-for-testing -scheme IPhoneAgent -destination "id=$SIM_UDID" \
             -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO
+      # Booting while building was tried: it starves the build (1.5 -> 4.5-7 min) for no net gain.
+      - name: Boot simulator
+        timeout-minutes: 10
+        run: xcrun simctl bootstatus "$SIM_UDID" -b
+      - name: Test (simulator)
+        run: |
+          xcodebuild test-without-building -scheme IPhoneAgent -destination "id=$SIM_UDID" \
+            -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO $ONLY_TESTING
 
   firmware:
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: arduino/setup-arduino-cli@v2
@@ -35,7 +106,10 @@ jobs:
         run: make -C hardware/tests
 
   server:  # legacy v0.1.0 architecture, kept working
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         python: ["3.10", "3.12"]
