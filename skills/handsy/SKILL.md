@@ -2,6 +2,12 @@
 name: handsy
 description: See and drive a real iPhone through an ESP32 Agent (Handsy) board with the esp32agent CLI or MCP server. Use when asked to look at, tap, swipe, type on, or operate an iPhone, or to test an iOS app on a real device.
 license: MIT-0
+metadata:
+  openclaw:
+    requires:
+      bins: [npx, ffmpeg]
+    envOptional: [ESP32AGENT_DEVICE]
+    homepage: https://handsy.tech
 ---
 
 # Handsy: drive a real iPhone with esp32agent
