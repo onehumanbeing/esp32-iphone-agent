@@ -1,4 +1,4 @@
-// postinstall: downloads the esp32agent binary of this package's version from GitHub Releases and checks its
+// postinstall: downloads the esp32agent binary (binaryVersion, else this package's version) from GitHub Releases and checks its
 // SHA-256 against checksums.txt. ESP32AGENT_ARCHIVE=/path installs a local build (checksums.txt next to it).
 const { createHash } = require("crypto");
 const { execFileSync } = require("child_process");
@@ -6,7 +6,8 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const version = require("./package.json").version;
+const pkg = require("./package.json");
+const version = pkg.binaryVersion || pkg.version; // a metadata-only npm release reuses the last binaries
 const goos = { darwin: "darwin", linux: "linux", win32: "windows" }[process.platform];
 const goarch = { x64: "amd64", arm64: "arm64" }[process.arch];
 if (!goos || !goarch) throw new Error(`esp32agent: unsupported platform ${process.platform}/${process.arch}`);
