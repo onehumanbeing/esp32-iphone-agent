@@ -37,14 +37,15 @@ opens Clock, types the time into the wheel, ticks the days and saves. (Photo fro
 ## How it works
 
 ```
-iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──BLE──▶ ESP32 Agent app (same iPhone)
-   ▲                                    own hotspot, H.264 passthrough        decode → vision model → action
-   └──────── USB HID mouse + keyboard ◀──────────── BLE commands ◀────────────────────┘
+iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──Wi-Fi TCP :7201──▶ ESP32 Agent app (same iPhone)
+   ▲                                    own hotspot, H.264 passthrough              decode → vision model → action
+   └──────── USB HID mouse + keyboard ◀──────────── BLE commands ◀──────────────────────┘
 ```
 
 - **Eyes — AirPlay to the board.** The board opens its own Wi-Fi hotspot and appears in the phone's Screen Mirroring
-  list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over BLE.
-  The phone keeps using cellular data for the model while it is on the board's hotspot.
+  list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over Wi-Fi
+  (TCP, port 7201). BLE carries commands and status. The phone keeps using cellular data for the model while it is
+  on the board's hotspot.
 - **Hands — USB HID.** The board is a standard USB mouse and keyboard. With AssistiveTouch on, the mouse moves an
   on-screen pointer, so a click is a tap and a drag is a swipe.
 - **Brain — the app.** The app decodes the stream, sends screenshots to any OpenAI-compatible vision model, and runs
@@ -145,20 +146,21 @@ runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for th
 
 - [x] Drop the computer: the board mirrors and clicks, the app on the phone thinks
 - [ ] Landscape apps (coordinates and calibration assume portrait)
-- [x] Non-ASCII text input (Chinese, emoji: pasted through the iPhone's clipboard)
+- [x] Chinese text input (typed as pinyin through the board's keyboard; ctrl+space switches English and pinyin)
 - [ ] Faster steps: several actions per model call, pointer checks only when needed
 - [ ] A curated list of models that work best with this setup, shown inside the iOS app ([suggested by @asharthinks](https://x.com/asharthinks/status/2110740775030125019))
 
 ## Limitations
 
-- BLE carries about 300-500 kbps, so the screen is mirrored small (480×1040, ≤5 fps); each step takes a few seconds,
-  most of it the model.
+- **AirPlay source must be an iPhone.** Screen Mirroring from macOS is not supported: the handshake can look healthy
+  while the board never receives video.
+- The screen is mirrored at 480×1040, up to 5 fps; each step takes a few seconds, most of it the model.
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them. Mirroring stops
   when the phone locks.
 - While the agent runs, the phone's Wi-Fi is the board's hotspot (no internet over it); the model is reached over
   cellular data.
-- Text other than plain ASCII (Chinese, emoji, line breaks) is pasted: it replaces what was on the clipboard.
-  Landscape apps are not supported yet.
+- Chinese is typed as pinyin through the board's keyboard (ctrl+space switches English and pinyin). The clipboard is
+  not used for this; emoji are dropped. Landscape apps are not supported yet.
 
 ## Responsible use
 

@@ -35,12 +35,12 @@
 ## 工作原理
 
 ```
-iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──蓝牙──▶ ESP32 Agent App（同一台 iPhone）
-   ▲                           自带热点，H.264 原样转发              解码 → 视觉模型 → 动作
-   └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀──────────────────┘
+iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）
+   ▲                           自带热点，H.264 原样转发                    解码 → 视觉模型 → 动作
+   └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀────────────────────┘
 ```
 
-- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经蓝牙转给 App。手机连着板子热点时，调用模型走蜂窝数据。
+- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。
 - **手：USB HID。** 板子是标准 USB 鼠标和键盘。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
@@ -87,7 +87,7 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 1. **Plug Me In**：蓝牙配对板子。
 2. **Let Me See the Screen**：加入板子的 Wi-Fi，然后 控制中心 → 屏幕镜像 → *ESP32 Agent*。
 3. **Let Me Use the Pointer**：打开辅助触控，App 自动校准指针。
-4. **Give Me a Brain**：填模型地址和密钥（存在钥匙串里）。
+4. **Give Me a Brain**：填模型地址和密钥（存在钥匙串里），再从接口的模型列表里选一个视觉模型（或自己填模型 ID）。
 
 ### 4. 给它一个任务
 
@@ -95,7 +95,7 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 
 ## 模型和提示词
 
-- 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型并自动选择，也可以手动指定，规划器和执行器可以用不同模型。
+- 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型，由你明确选一个；也可以自己填模型 ID，规划器和执行器可以用不同模型。
 - 提示词是 [`prompts/`](prompts/) 里的纯文本，打包进 App：改完重新编译即可。
 - 开发时用的是 [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)，部署在两台 DGX Spark 上（[TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)）。
 
@@ -124,16 +124,17 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 - [x] 去掉电脑：板子负责镜像和点击，手机上的 App 负责思考
 - [ ] 横屏 App（坐标和校准目前按竖屏）
-- [x] 非 ASCII 输入（中文、emoji：经 iPhone 剪贴板粘贴）
+- [x] 中文输入（通过板子的键盘按拼音输入；ctrl+space 切换英文和拼音）
 - [ ] 更快：一次模型调用多个动作，只在需要时校正指针
 - [ ] 在 iOS App 内整理一份效果最好的模型推荐列表（[@asharthinks 的建议](https://x.com/asharthinks/status/2110740775030125019)）
 
 ## 限制
 
-- 蓝牙约 300-500 kbps，所以镜像画面很小（480×1040，≤5 fps）；每一步要几秒，主要花在模型上。
+- **AirPlay 源必须是 iPhone。** 不支持从 macOS 屏幕镜像：握手看起来正常，但板子收不到视频。
+- 镜像画面为 480×1040、最高 5 fps；每一步要几秒，主要花在模型上。
 - iOS 不镜像部分界面（输入密码、Apple Pay、DRM 视频），Agent 看不到。手机锁屏后镜像会停止。
 - Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
-- 非纯 ASCII 的文字（中文、emoji、换行）通过粘贴输入，会覆盖剪贴板原有内容。暂不支持横屏 App。
+- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
 
 ## 负责任地使用
 

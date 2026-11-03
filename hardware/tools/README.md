@@ -1,8 +1,9 @@
 # Testing the board from a Mac
 
-`board_test.py` plays the iOS app over BLE (docs/ble-protocol.md); the Mac's own Screen
-Mirroring feeds the board's AirPlay receiver, so AirPlay -> PSRAM GOP -> BLE -> H.264 can be
-checked without the iPhone. Needs `uv`, `arduino-cli` with esp32 core 3.3.x, `ffmpeg`, and the BLE host
+`board_test.py` plays the iOS app over BLE (docs/ble-protocol.md) and reads the BLE `video`
+characteristic. The iPhone app's video goes over Wi-Fi TCP (port 7201). **AirPlay source must be an
+iPhone.** Screen Mirroring from macOS is not supported: the handshake can look healthy while the board
+never receives video. Needs `uv`, `arduino-cli` with esp32 core 3.3.x, `ffmpeg`, and the BLE host
 library (once): `arduino-cli lib install "NimBLE-Arduino"` (2.5.x). Always build with `hardware/flash.sh`:
 it force-includes `hid_bridge/nimble_cfg.h` (NimBLE buffer sizes); a plain IDE build fails a static_assert.
 
@@ -36,9 +37,10 @@ iPhone for throughput: with `--debug`, send `N bench 512` on the USB serial; the
 
 ## 3. AirPlay -> BLE
 
-1. Control Center -> Screen Mirroring -> **ESP32 Agent** (the Mac must be on the same Wi-Fi).
-   The serial log should show `GET /info`, `pair-setup`, `pair-verify 1/2`, `fp-setup 1/2`,
-   `setup: mirror stream`, `mirror: data connection accepted`, `mirror: SPS ... PPS`.
+1. On the iPhone: Control Center -> Screen Mirroring -> **ESP32 Agent** (the phone must be on the same Wi-Fi as the board).
+   Screen Mirroring from macOS is not supported. The serial log should show `GET /info`, `pair-setup`,
+   `pair-verify 1/2`, `fp-setup 1/2`, `setup: mirror stream`, `mirror: data connection accepted`,
+   `mirror: SPS ... PPS`.
 2. Then:
 ```bash
 uv run hardware/tools/board_test.py snap        # -> hardware/tools/out/snap.h264 + snap.png (snap latency)
