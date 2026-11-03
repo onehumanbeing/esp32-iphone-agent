@@ -13,10 +13,20 @@ final class IntentFlowTests: XCTestCase {
         return app
     }
 
+    /// Opens the New Intent sheet; the button may still be settling right after launch (mock board connecting).
+    @MainActor private func openNewIntent(_ app: XCUIApplication) {
+        let record = app.buttons["Record me doing it"]
+        for _ in 0..<3 where !record.exists {
+            app.buttons["New intent"].tap()
+            _ = record.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(record.exists)
+    }
+
     @MainActor func testLastRunCreatesANewIntent() {
         let app = launch()
-        app.buttons["New intent"].tap()
-        let saveRun = app.buttons.containing(.staticText, identifier: "Save last run as intent").firstMatch
+        openNewIntent(app)
+        let saveRun = app.buttons["Save last run as intent"]
         XCTAssertTrue(saveRun.waitForExistence(timeout: 5))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "New Intent"
@@ -37,8 +47,8 @@ final class IntentFlowTests: XCTestCase {
 
     @MainActor func testRecordingCreatesDraftAndReopensDemonstration() {
         let app = launch()
-        app.buttons["New intent"].tap()
-        app.buttons.containing(.staticText, identifier: "Record me doing it").firstMatch.tap()
+        openNewIntent(app)
+        app.buttons["Record me doing it"].tap()
         XCTAssertTrue(app.buttons["Stop Recording"].waitForExistence(timeout: 10))
         let frames = app.staticTexts["6 screens"]
         XCTAssertTrue(frames.waitForExistence(timeout: 20))
@@ -54,9 +64,10 @@ final class IntentFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 5))
         app.swipeUp()
         app.staticTexts["Daily 7 AM alarm"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Review Demonstration"].waitForExistence(timeout: 5))
-        app.swipeUp()
-        app.buttons["Review Demonstration"].tap()
+        let review = app.buttons["Review Demonstration"]
+        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 5))
+        for _ in 0..<6 where !review.isHittable { app.swipeUp(velocity: .slow) }  // below the script's steps
+        review.tap()
         XCTAssertTrue(app.staticTexts["Unsure"].firstMatch.waitForExistence(timeout: 5))
         app.buttons["Fix"].tap()
         let note = app.descendants(matching: .any)["intent.step.note"].firstMatch
@@ -81,12 +92,12 @@ final class IntentFlowTests: XCTestCase {
 
     @MainActor func testCancelAllowsAnotherRecordingAndLargeTextSheet() {
         let app = launch(largeText: true)
-        app.buttons["New intent"].tap()
+        openNewIntent(app)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "New Intent accessibility text"
         attachment.lifetime = .keepAlways
         add(attachment)
-        let record = app.buttons.containing(.staticText, identifier: "Record me doing it").firstMatch
+        let record = app.buttons["Record me doing it"]
         XCTAssertTrue(record.waitForExistence(timeout: 5))
         record.tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 10))
@@ -100,8 +111,8 @@ final class IntentFlowTests: XCTestCase {
     }
     @MainActor func testInterruptedRecordingCanRecoverAfterRelaunch() {
         let app = launch()
-        app.buttons["New intent"].tap()
-        app.buttons.containing(.staticText, identifier: "Record me doing it").firstMatch.tap()
+        openNewIntent(app)
+        app.buttons["Record me doing it"].tap()
         XCTAssertTrue(app.staticTexts["3 screens"].waitForExistence(timeout: 15))
         app.terminate()
         app.launch()
@@ -118,8 +129,8 @@ final class IntentFlowTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 10))
         if app.buttons["Discard Recording"].exists { app.buttons["Discard Recording"].tap() }
-        app.buttons["New intent"].tap()
-        let record = app.buttons.containing(.staticText, identifier: "Record me doing it").firstMatch
+        openNewIntent(app)
+        let record = app.buttons["Record me doing it"]
         XCTAssertTrue(record.waitForExistence(timeout: 5))
         XCTAssertFalse(record.isEnabled)
         XCTAssertTrue(app.buttons["Connect the board"].exists)
