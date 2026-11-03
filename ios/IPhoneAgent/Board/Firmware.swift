@@ -48,7 +48,12 @@ struct FirmwareRelease: Codable, Equatable {
 
 enum Firmware {
     /// Releases come from handsy.tech only: we control it, so test releases can be staged there too.
+    /// TestFlight builds (`fastlane beta testflight:true` sets TESTFLIGHT) read their own list, signed with the same key.
+    #if TESTFLIGHT
+    static let sources = [URL(string: "https://handsy.tech/firmware/testflight/firmware.json")!]
+    #else
     static let sources = [URL(string: "https://handsy.tech/firmware/firmware.json")!]
+    #endif
     /// The oldest board firmware this app works with; an older board gets the update before anything else.
     static let required = FirmwareVersion([0, 2, 0])
     /// The first firmware that takes updates over Wi-Fi; older boards need hardware/flash.sh over USB.

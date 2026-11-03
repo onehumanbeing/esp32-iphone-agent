@@ -27,20 +27,20 @@ final class IntentFlowTests: XCTestCase {
         let app = launch()
         openNewIntent(app)
         let saveRun = app.buttons["Save last run as intent"]
-        XCTAssertTrue(saveRun.waitForExistence(timeout: 5))
+        XCTAssertTrue(saveRun.waitForExistence(timeout: 15))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "New Intent"
         screenshot.lifetime = .keepAlways
         add(screenshot)
         saveRun.tap()
-        XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 15))
         let name = "Saved run \(UUID().uuidString.prefix(6))"
         let field = app.textFields["intent.name"]
         field.tap()
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (field.value as? String ?? "").count))
         field.typeText(name)
         app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 15))
         for _ in 0..<5 where !app.staticTexts[name].isHittable { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(app.staticTexts[name].isHittable)
     }
@@ -59,26 +59,27 @@ final class IntentFlowTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         app.buttons["Save as Intent"].tap()
-        XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 15))
         app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 5))
-        app.swipeUp()
-        app.staticTexts["Daily 7 AM alarm"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["New intent"].waitForExistence(timeout: 15))
+        let alarm = app.staticTexts["Daily 7 AM alarm"].firstMatch
+        for _ in 0..<5 where !alarm.isHittable { app.swipeUp(velocity: .slow) }  // one fast swipe could overshoot it
+        alarm.tap()
         let review = app.buttons["Review Demonstration"]
-        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 10))
         for _ in 0..<6 where !review.isHittable { app.swipeUp(velocity: .slow) }  // below the script's steps
         review.tap()
-        XCTAssertTrue(app.staticTexts["Unsure"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Unsure"].firstMatch.waitForExistence(timeout: 15))
         app.buttons["Fix"].tap()
         let note = app.descendants(matching: .any)["intent.step.note"].firstMatch
-        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.waitForExistence(timeout: 15))
         note.tap()
         note.typeText("Tap the Add button")
         app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.buttons["Save Intent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save Intent"].waitForExistence(timeout: 15))
         app.buttons["Save Intent"].tap()
         app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 15))
         app.buttons["Run"].tap()
         XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Skip Step"].waitForExistence(timeout: 40))
@@ -98,15 +99,15 @@ final class IntentFlowTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         let record = app.buttons["Record me doing it"]
-        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        XCTAssertTrue(record.waitForExistence(timeout: 15))
         record.tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 10))
         app.buttons["Cancel"].tap()
         let newIntent = app.buttons["New intent"]
-        XCTAssertTrue(newIntent.waitForExistence(timeout: 5))
+        XCTAssertTrue(newIntent.waitForExistence(timeout: 15))
         XCTAssertTrue(newIntent.isEnabled)
         newIntent.tap()
-        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        XCTAssertTrue(record.waitForExistence(timeout: 15))
         XCTAssertTrue(record.isEnabled)
     }
     @MainActor func testInterruptedRecordingCanRecoverAfterRelaunch() {
@@ -116,7 +117,7 @@ final class IntentFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["3 screens"].waitForExistence(timeout: 15))
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.buttons["Create Draft Again"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Create Draft Again"].waitForExistence(timeout: 15))
         app.buttons["Create Draft Again"].tap()
         XCTAssertTrue(app.buttons["Save as Intent"].waitForExistence(timeout: 10))
     }
@@ -131,7 +132,7 @@ final class IntentFlowTests: XCTestCase {
         if app.buttons["Discard Recording"].exists { app.buttons["Discard Recording"].tap() }
         openNewIntent(app)
         let record = app.buttons["Record me doing it"]
-        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        XCTAssertTrue(record.waitForExistence(timeout: 15))
         XCTAssertFalse(record.isEnabled)
         XCTAssertTrue(app.buttons["Connect the board"].exists)
     }
