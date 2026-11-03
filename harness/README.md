@@ -20,8 +20,8 @@ the iPhone stays on the Mac's network and reaches the board there too.
 ## One-time setup
 
 1. **iPhone**: Developer Mode on, paired with this Mac (Xcode › Devices, "Connect via network"), on the Mac's Wi-Fi.
-   `export HARNESS_IPHONE=<name or id from xcrun devicectl list devices>` (`HARNESS_BUNDLE` if not the default
-   `sh.henryht.iphoneagent`).
+   `export HARNESS_IPHONE=<name or id from xcrun devicectl list devices>` The app's bundle id is read
+   from the last `harness/app.sh` build; set `HARNESS_BUNDLE` to use another.
 2. **Lightning iPhones**: the board needs a USB host port. Use Apple's Lightning to USB 3 Camera Adapter with a
    USB-A → USB-C **data** cable to the board, and a charger in the adapter's Lightning port (it powers the iPhone
    and the board). USB-C iPhones plug the board in directly.

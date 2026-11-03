@@ -1,6 +1,9 @@
 # Shared by the harness scripts: the test iPhone and the app's Documents/debug.log, all over devicectl (Wi-Fi).
 DEVICE=${HARNESS_IPHONE:?set HARNESS_IPHONE to the test iPhone (xcrun devicectl list devices)}
-BUNDLE=${HARNESS_BUNDLE:-sh.henryht.iphoneagent}
+# the Debug build's bundle id (yours, from ios/Config/Local.xcconfig): $HARNESS_BUNDLE, else the last harness/app.sh build
+BUNDLE=${HARNESS_BUNDLE:-$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' \
+  "${HARNESS_DERIVED:-/tmp/harness-ios}/Build/Products/Debug-iphoneos/IPhoneAgent.app/Info.plist" 2>/dev/null || true)}
+[[ -n $BUNDLE || $(basename "$0") == app.sh ]] || { echo "set HARNESS_BUNDLE to the app's bundle id, or run harness/app.sh first"; exit 1; }
 ON=(--device "$DEVICE" --domain-type appDataContainer --domain-identifier "$BUNDLE")
 
 # devicectl with a time cap (DC_TIMEOUT s): a copy cut off midway can wedge CoreDeviceService so that every later
