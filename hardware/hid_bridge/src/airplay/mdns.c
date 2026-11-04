@@ -42,7 +42,7 @@ void ap_deviceid(char out[18]) {
 }
 
 static void init_strings(void) {
-  for (int i = 0; i < 32; i++) sprintf(pk_hex + 2 * i, "%02x", ap_pk[i]);
+  for (int i = 0; i < 32; i++) snprintf(pk_hex + 2 * i, 3, "%02x", ap_pk[i]);
   snprintf(features, sizeof features, "0x%X,0x%X", (unsigned)(AP_FEATURES & 0xFFFFFFFF), (unsigned)(AP_FEATURES >> 32));
   ap_deviceid(deviceid);
 }
