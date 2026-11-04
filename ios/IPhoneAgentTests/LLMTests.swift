@@ -108,18 +108,35 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(usage.props["usage_partial"] as? Bool, false)
 
         // Missing usage must not become 0, and must mark the run partial.
-        var bare = ChatResult(text: "ok", firstToken: nil, total: 1.0)
+        let bare = ChatResult(text: "ok", firstToken: nil, total: 1.0)
         var partial = ModelUsage()
         partial.add(ModelCall(role: "planner", model: "m", reply: reply, error: nil, imageKB: 0))
         partial.add(ModelCall(role: "actor", model: "m", reply: bare, error: nil, imageKB: 42))
         XCTAssertEqual(partial.props["planner_calls"] as? Int, 1)
         XCTAssertEqual(partial.props["actor_calls"] as? Int, 1)
-        XCTAssertEqual(partial.props["screenshot_count"] as? Int, 1)
+        XCTAssertEqual(partial.props["image_requests"] as? Int, 1)
         XCTAssertEqual(partial.props["prompt_tokens"] as? Int, 1200)
         XCTAssertEqual(partial.props["completion_tokens"] as? Int, 80)
         XCTAssertEqual(partial.props["usage_partial"] as? Bool, true)
         XCTAssertTrue(partial.summaryLine.contains("partial"))
-        XCTAssertTrue(partial.summaryLine.contains("shots 1"))
+        XCTAssertTrue(partial.summaryLine.contains("images 1"))
+
+        // No call reported usage: no token fields at all, not zeros.
+        var none = ModelUsage()
+        none.add(ModelCall(role: "actor", model: "m", reply: bare, error: nil, imageKB: 42))
+        XCTAssertNil(none.props["prompt_tokens"])
+        XCTAssertNil(none.props["usage_partial"])
+        XCTAssertFalse(none.summaryLine.contains("tokens"))
+        XCTAssertEqual(none.tokens, 0)
+
+        // A provider that sends only total_tokens still counts, as Run.load reads it.
+        var total = bare
+        total.usage = ["total_tokens": 900]
+        var totals = ModelUsage()
+        totals.add(ModelCall(role: "actor", model: "m", reply: total, error: nil, imageKB: 42))
+        XCTAssertEqual(totals.tokens, 900)
+        XCTAssertEqual(totals.props["total_tokens"] as? Int, 900)
+        XCTAssertEqual(totals.props["usage_partial"] as? Bool, false)
     }
 
     func testProviderSwitchResetsModelOverridesAndOthersKeepsEditableConfig() async throws {

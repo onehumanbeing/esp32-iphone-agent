@@ -33,11 +33,16 @@ struct ModelCall {
 struct ModelUsage {
     private(set) var calls = 0, failures = 0
     private(set) var plannerCalls = 0, actorCalls = 0
-    private(set) var screenshotCount = 0
+    private(set) var imageRequests = 0  // requests that carried a screenshot, failed and retried ones included
     private(set) var promptTokens = 0, completionTokens = 0
-    /// True when any successful call omitted usage (or only reported one side). Sums then understate the run.
+    private var totalOnly = 0  // from calls that sent only total_tokens
+    /// Some call reported usage. Without any, the token fields stay out: missing is never sent as 0.
+    private(set) var reported = false
+    /// True when a successful call omitted usage (or a side of it). Sums then understate the run.
     private(set) var usagePartial = false
     private var seconds = 0.0
+
+    var tokens: Int { promptTokens + completionTokens + totalOnly }
 
     mutating func add(_ call: ModelCall) {
         calls += 1
@@ -46,40 +51,39 @@ struct ModelUsage {
         case "actor": actorCalls += 1
         default: break
         }
-        if call.imageKB > 0 { screenshotCount += 1 }
+        if call.imageKB > 0 { imageRequests += 1 }
         guard let r = call.reply else { failures += 1; return }
         seconds += r.total
-        let prompt = r.usage["prompt_tokens"]
-        let completion = r.usage["completion_tokens"]
+        let prompt = r.usage["prompt_tokens"], completion = r.usage["completion_tokens"]
         if prompt == nil && completion == nil {
-            // Provider stripped usage entirely — do not add zeros.
-            usagePartial = true
+            // as Run.load reads a trace: a total alone still counts
+            if let t = r.usage["total_tokens"] { totalOnly += t; reported = true } else { usagePartial = true }
             return
         }
+        reported = true
         if let p = prompt { promptTokens += p } else { usagePartial = true }
         if let c = completion { completionTokens += c } else { usagePartial = true }
     }
 
     var props: [String: Any] {
-        var p: [String: Any] = [
-            "model_calls": calls,
-            "model_failures": failures,
-            "planner_calls": plannerCalls,
-            "actor_calls": actorCalls,
-            "screenshot_count": screenshotCount,
-            "prompt_tokens": promptTokens,
-            "completion_tokens": completionTokens,
-            "usage_partial": usagePartial,
-        ]
+        var p: [String: Any] = ["model_calls": calls, "model_failures": failures, "planner_calls": plannerCalls,
+                                "actor_calls": actorCalls, "image_requests": imageRequests]
+        if reported {
+            p["prompt_tokens"] = promptTokens
+            p["completion_tokens"] = completionTokens
+            p["total_tokens"] = tokens
+            p["usage_partial"] = usagePartial
+        }
         if calls > failures { p["avg_total_s"] = (seconds / Double(calls - failures) * 100).rounded() / 100 }
         return p
     }
 
-    /// One DebugLog / chat line: planner/actor/shots + tokens, marked partial when any call lacked usage.
+    /// One DebugLog line: planner/actor/image requests, plus tokens when any call reported them.
     var summaryLine: String {
-        var parts = ["planner \(plannerCalls)", "actor \(actorCalls)", "shots \(screenshotCount)"]
-        if promptTokens > 0 || completionTokens > 0 || usagePartial {
-            parts.append("tokens \(Self.compact(promptTokens)) in / \(Self.compact(completionTokens)) out")
+        var parts = ["planner \(plannerCalls)", "actor \(actorCalls)", "images \(imageRequests)"]
+        if reported {
+            parts.append(totalOnly > 0 ? "tokens \(Self.compact(tokens))"
+                                       : "tokens \(Self.compact(promptTokens)) in / \(Self.compact(completionTokens)) out")
             if usagePartial { parts.append("partial") }
         }
         return parts.joined(separator: " · ")
