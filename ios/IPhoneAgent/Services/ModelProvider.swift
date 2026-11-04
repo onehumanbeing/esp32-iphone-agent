@@ -2,7 +2,7 @@ import Foundation
 
 /// Presets only configure public endpoints. Users always supply their own credentials.
 enum ModelProvider: String, CaseIterable, Identifiable {
-    case openAI, gemini, qwen, qwenInternational, deepSeek, openRouter, others
+    case openAI, gemini, qwen, qwenInternational, deepSeek, openRouter, requesty, others
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -12,12 +12,14 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .qwenInternational: return "Qwen · International"
         case .deepSeek: return "DeepSeek"
         case .openRouter: return "OpenRouter"
+        case .requesty: return "Requesty"
         case .others: return "Others"
         }
     }
     var baseURL: String {
         switch self {
         case .openRouter: return "https://openrouter.ai/api/v1"
+        case .requesty: return "https://router.requesty.ai/v1"
         case .openAI: return "https://api.openai.com/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai"
         case .qwen: return "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -30,6 +32,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         let address: String
         switch self {
         case .openRouter: address = "https://openrouter.ai/settings/keys"
+        case .requesty: address = "https://app.requesty.ai/api-keys"
         case .openAI: address = "https://platform.openai.com/api-keys"
         case .gemini: address = "https://aistudio.google.com/apikey"
         case .qwen: address = "https://bailian.console.aliyun.com/"
