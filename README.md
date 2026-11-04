@@ -71,6 +71,8 @@ opens Clock, types the time into the wheel, ticks the days and saves. (Photo fro
 
 ## How it works
 
+More detail: [how Handsy works](https://handsy.tech/how-it-works).
+
 ```
 iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──BLE──▶ ESP32 Agent app (same iPhone)
    ▲                                    own hotspot, H.264 passthrough        decode → vision model → action
@@ -95,6 +97,8 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
 
 ## Hardware
 
+Supported boards and setup details: [hardware guide](https://handsy.tech/docs/hardware).
+
 | Part | Notes |
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7. Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
@@ -114,6 +118,8 @@ hardware/flash.sh            # optional: [serial port] [--debug]
 ```
 
 Always build with `flash.sh`: it applies the BLE buffer sizes in `hardware/hid_bridge/nimble_cfg.h`.
+
+No Mac or toolchain? [Install the firmware from Chrome or Edge](https://handsy.tech/install) over USB instead.
 
 ### 2. Install the app
 
@@ -158,6 +164,7 @@ MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md))
 ```
 
 The CLI talks to the board from your computer over Bluetooth, so it works without the iPhone app or TestFlight.
+Commands and options are in the [CLI reference](https://handsy.tech/docs/cli).
 
 ## Model and prompts
 
@@ -202,6 +209,8 @@ Debugging without the phone app: `hardware/tools/board_test.py` plays the app ov
   cellular data.
 - The app leaves itself with a private iOS API (`suspend`); fine for a self-built app, to be replaced before the App Store.
 - Keyboard input is ASCII only. Landscape apps are not supported yet.
+
+If something doesn't work (no *ESP32 Agent* in Screen Mirroring, the board not connecting), see [troubleshooting](https://handsy.tech/troubleshooting).
 
 ## Responsible use
 

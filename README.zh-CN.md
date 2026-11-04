@@ -68,6 +68,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 ## 工作原理
 
+更多细节见 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
+
 ```
 iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──蓝牙──▶ ESP32 Agent App（同一台 iPhone）
    ▲                           自带热点，H.264 原样转发              解码 → 视觉模型 → 动作
@@ -81,6 +83,8 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 - **复盘。** 每次运行都存在手机上，可以逐步回放，点按和滑动画在截图上。
 
 ## 硬件
+
+支持的板子和硬件细节见[硬件指南](https://handsy.tech/zh/docs/hardware)。
 
 | 部件 | 说明 |
 |---|---|
@@ -101,6 +105,8 @@ hardware/flash.sh            # 可选参数：[串口] [--debug]
 ```
 
 一定要用 `flash.sh` 编译：它会带上 `hardware/hid_bridge/nimble_cfg.h` 里的蓝牙缓冲区配置。
+
+没有 Mac 或不想装工具链？也可以用 Chrome 或 Edge 通过 USB [在网页上刷固件](https://handsy.tech/zh/install)。
 
 ### 2. 安装 App
 
@@ -137,7 +143,7 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 /plugin install esp32agent@handsy
 ```
 
-命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。
+命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)。
 
 ## 模型和提示词
 
@@ -174,6 +180,8 @@ server/     旧版 v0.1.0 的电脑端服务，当前版本不使用（见 serve
 - Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
 - App 用 iOS 私有 API（`suspend`）退出自己；自己编译的版本没问题，上架前会替换。
 - 键盘输入只支持 ASCII。暂不支持横屏 App。
+
+遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://handsy.tech/zh/troubleshooting)。
 
 ## 负责任地使用
 
