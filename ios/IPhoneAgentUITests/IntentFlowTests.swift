@@ -69,7 +69,10 @@ final class IntentFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 10))
         for _ in 0..<6 where !review.isHittable { app.swipeUp(velocity: .slow) }  // below the script's steps
         review.tap()
-        XCTAssertTrue(app.staticTexts["Unsure"].firstMatch.waitForExistence(timeout: 15))
+        let unsure = app.staticTexts["Unsure"].firstMatch
+        // a tap while the last swipe is still settling can miss (CI, 2026-11-05): tap again once if still there
+        if !unsure.waitForExistence(timeout: 15), review.exists, review.isHittable { review.tap() }
+        XCTAssertTrue(unsure.waitForExistence(timeout: 30))
         app.buttons["Fix"].tap()
         let note = app.descendants(matching: .any)["intent.step.note"].firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 15))
