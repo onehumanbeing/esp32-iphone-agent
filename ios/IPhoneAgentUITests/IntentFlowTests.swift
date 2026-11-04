@@ -3,7 +3,7 @@ import XCTest
 final class IntentFlowTests: XCTestCase {
     @MainActor private func launch(largeText: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-mock", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+        app.launchArguments = ["-mock", "-freshRecordings", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         continueAfterFailure = false
@@ -116,8 +116,9 @@ final class IntentFlowTests: XCTestCase {
         app.buttons["Record me doing it"].tap()
         XCTAssertTrue(app.staticTexts["3 screens"].waitForExistence(timeout: 15))
         app.terminate()
+        app.launchArguments.removeAll { $0 == "-freshRecordings" }  // this time the unfinished recording must stay
         app.launch()
-        XCTAssertTrue(app.buttons["Create Draft Again"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Create Draft Again"].waitForExistence(timeout: 30))  // a cold relaunch on CI is slow
         app.buttons["Create Draft Again"].tap()
         XCTAssertTrue(app.buttons["Save as Intent"].waitForExistence(timeout: 10))
     }

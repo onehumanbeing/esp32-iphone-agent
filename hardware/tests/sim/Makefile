@@ -1,6 +1,8 @@
 # Simulated board for the esp32agent CLI: make -C hardware/tests/sim (see cli_sim.cpp).
 HB = ../../hid_bridge
-MBEDTLS = $(shell brew --prefix mbedtls 2>/dev/null || echo /opt/homebrew)
+# mbedtls 3.x (4.x dropped the ECP API): Homebrew's mbedtls@3, an older Homebrew mbedtls, or the system one (apt libmbedtls-dev)
+BREW := $(shell brew --prefix 2>/dev/null)
+MBEDTLS := $(firstword $(wildcard $(BREW)/opt/mbedtls@3 $(BREW)/opt/mbedtls) /usr)
 FLAGS = -Wall -g -I. -I$(HB) -I$(MBEDTLS)/include
 C_SRC = $(HB)/src/cli/cli_proto.c $(HB)/src/video/gop.c $(HB)/src/log/logring.c
 

@@ -27,6 +27,10 @@ import UIKit
 
     init(app: AppModel) {
         self.app = app
+        // UI tests start from no unfinished demo recording (an earlier test may have left one)
+        if MockMode.on && ProcessInfo.processInfo.arguments.contains("-freshRecordings") {
+            try? FileManager.default.removeItem(at: Self.pendingURL)
+        }
         if let name = try? String(contentsOf: Self.pendingURL, encoding: .utf8),
            !name.isEmpty, !name.contains("/"), !name.contains("..") {
             folder = Self.root.appendingPathComponent(name)

@@ -26,12 +26,14 @@ jobs:
         with:
           go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
-      - name: ffmpeg (decoder tests)
-        run: if [ "$RUNNER_OS" = macOS ]; then brew install ffmpeg mbedtls; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+      - name: ffmpeg (decoder tests), mbedtls 3 (simulated board)
+        # mbedtls 4 dropped the ECP API cli_proto.c uses: Homebrew's plain `mbedtls` no longer builds the sim
+        run: if [ "$RUNNER_OS" = macOS ]; then brew install ffmpeg mbedtls@3; else sudo apt-get update && sudo apt-get install -y ffmpeg libmbedtls-dev; fi
       - name: Simulated board (integration test; real cli_link.cpp)
-        if: runner.os == 'macOS'
-        continue-on-error: true
         run: make -C ../hardware/tests/sim cli_sim screen.h264
+      - uses: astral-sh/setup-uv@v6
+      - name: Simulated board protocol tests (independent Python client)
+        run: uv run ../hardware/tests/sim/test_cli_sim.py
       - run: go vet ./...
       - run: go test -race ./...
       - name: Cross-compile (CGO off)
