@@ -38,6 +38,7 @@ final class StubProtocol: URLProtocol {
 @MainActor final class LLMTests: XCTestCase {
     func testProviderInferenceAndCustomEndpoints() {
         XCTAssertEqual(ModelProvider.infer(baseURL: "https://openrouter.ai/api/v1/", model: "openrouter/free"), .openRouter)
+        XCTAssertEqual(ModelProvider.infer(baseURL: "https://router.requesty.ai/v1/", model: "openai/gpt-4o-mini"), .requesty)
         XCTAssertEqual(ModelProvider.infer(baseURL: "https://api.openai.com/v1", model: "custom"), .openAI)
         XCTAssertEqual(ModelProvider.infer(baseURL: "http://192.168.1.4:8080/v1", model: "local"), .others)
         XCTAssertNotEqual(ModelProvider.qwen.baseURL, ModelProvider.qwenInternational.baseURL)
