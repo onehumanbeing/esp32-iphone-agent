@@ -288,8 +288,7 @@ extension AppModel {
                                 summary: outcome == .done ? "" : ChatContext.stopSummary(steps: agent.steps, plan: agent.plan,
                                                                                          notebook: agent.notebook),
                                 stats: Run.statsText(steps: moveCount, seconds: seconds, calls: runUsage.calls,
-                                                     tokens: runUsage.promptTokens + runUsage.completionTokens,
-                                                     detail: runUsage.summaryLine)))
+                                                     tokens: runUsage.tokens)))
         if outcome != .stopped || UIApplication.shared.applicationState == .active { openReview(run: runID) }
         moodReset?.cancel()
         moodReset = Task { [weak self] in
