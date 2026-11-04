@@ -13,8 +13,12 @@ development-signed builds and internal TestFlight; it is not in App Store builds
 | App skill for multi-step guidance | `ios/IPhoneAgent/Skills.skillsbundle/Skills/handsy-run-tasks/SKILL.md` | written, not compiled |
 | View annotations on the Runs list and the Home run card | `ios/IPhoneAgent/UI/RunViewAnnotations.swift` | written, not compiled |
 
-None of this was compiled or run: it was written on a Linux machine with no Xcode. See
-"Checking it" below.
+**Build status.** The code written here was authored on a Linux machine with no Xcode, so the preview
+code itself — everything inside `#if HANDSY_SIRI_AI` — has not been compiled or run, and no Siri
+behaviour has been observed. What CI does cover is the flag-off build: with `HANDSY_SIRI_AI` unset the
+app still builds and its tests pass on Xcode 26.6, which includes `SiriToolConsent`, the `.openRun`
+request and its handler, and the annotation call sites. Expect compile errors in the preview code the
+moment the flag is turned on. See "Checking it" below.
 
 ## Turning it on
 
