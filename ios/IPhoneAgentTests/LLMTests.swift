@@ -102,6 +102,24 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(usage.props["model_calls"] as? Int, 2)
         XCTAssertEqual(usage.props["model_failures"] as? Int, 1)
         XCTAssertEqual(usage.props["avg_total_s"] as? Double, 4.57)
+        XCTAssertEqual(usage.props["actor_calls"] as? Int, 2)
+        XCTAssertEqual(usage.props["prompt_tokens"] as? Int, 1200)
+        XCTAssertEqual(usage.props["completion_tokens"] as? Int, 80)
+        XCTAssertEqual(usage.props["usage_partial"] as? Bool, false)
+
+        // Missing usage must not become 0, and must mark the run partial.
+        var bare = ChatResult(text: "ok", firstToken: nil, total: 1.0)
+        var partial = ModelUsage()
+        partial.add(ModelCall(role: "planner", model: "m", reply: reply, error: nil, imageKB: 0))
+        partial.add(ModelCall(role: "actor", model: "m", reply: bare, error: nil, imageKB: 42))
+        XCTAssertEqual(partial.props["planner_calls"] as? Int, 1)
+        XCTAssertEqual(partial.props["actor_calls"] as? Int, 1)
+        XCTAssertEqual(partial.props["screenshot_count"] as? Int, 1)
+        XCTAssertEqual(partial.props["prompt_tokens"] as? Int, 1200)
+        XCTAssertEqual(partial.props["completion_tokens"] as? Int, 80)
+        XCTAssertEqual(partial.props["usage_partial"] as? Bool, true)
+        XCTAssertTrue(partial.summaryLine.contains("partial"))
+        XCTAssertTrue(partial.summaryLine.contains("shots 1"))
     }
 
     func testProviderSwitchResetsModelOverridesAndOthersKeepsEditableConfig() async throws {
