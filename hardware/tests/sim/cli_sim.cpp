@@ -1,7 +1,8 @@
 // A simulated board for the esp32agent CLI: the real cli_link.cpp (pairing, sessions, sealed frames) behind a pipe
 // instead of BLE, with an H.264 file as the mirrored screen. Usage (the CLI's sim transport runs it):
 //   cli_sim [screen.h264]      stdin/stdout: records [u16 LE length][frame]; length 0 = the link dropped
-// Env: CLI_SIM_NVS=path (pairings survive restarts), CLI_SIM_WINDOW=0 (pairing window closed), CLI_SIM_FROZEN=1.
+// Env: CLI_SIM_NVS=path (pairings survive restarts), CLI_SIM_WINDOW=0 (pairing window closed), CLI_SIM_FROZEN=1,
+//      CLI_SIM_WAIT_IDR=1 (empty GOP waiting for IDR), CLI_SIM_AP=idle|connected|streaming (AirPlay state for snap).
 // Commands are logged to stderr as "cmd: <line>" so tests can check what the CLI sent.
 #include <poll.h>
 #include <stdlib.h>
@@ -166,6 +167,9 @@ int main(int argc, char **argv) {
   logring_add(&ring, "[0.001] boot sim fw 0.2.3");
   logring_add(&ring, "[0.120] wifi: hotspot up");
   bool streaming = false, frozen = getenv("CLI_SIM_FROZEN") && !strcmp(getenv("CLI_SIM_FROZEN"), "1");
+  bool wait_idr = getenv("CLI_SIM_WAIT_IDR") && !strcmp(getenv("CLI_SIM_WAIT_IDR"), "1");
+  const char *ap_env = getenv("CLI_SIM_AP");
+  const char *ap_state = ap_env && *ap_env ? ap_env : nullptr;
   size_t shown = 0;  // AUs of the file mirrored so far (the board's GOP)
   size_t sent = 0;   // of those, sent on the CLI's stream
   uint32_t lastStatus = 0, lastAu = 0;
@@ -192,9 +196,19 @@ int main(int argc, char **argv) {
       if (rest == "stream on") { streaming = true; sent = 0; seq++; }  // resend the GOP from the IDR
       if (rest == "stream off") streaming = false;
       if (rest == "snap") {
-        bool ok = !frozen && shown && sendAu(config, VF_CONFIG | VF_SNAP);
-        for (size_t i = 0; ok && i < shown; i++) ok = sendAu(aus[i].data, VF_SNAP | (aus[i].idr ? VF_IDR : 0));
-        reply(id + (ok ? " ok" : frozen ? " err video frozen (restart screen mirroring)" : " err no video (start screen mirroring)"));
+        // Mirror firmware doSnap: frozen → freeze err; wait_idr only while AP streaming → keyframe;
+        // otherwise empty GOP (boot / no mirror) → no video.
+        bool ap_streaming = ap_state ? !strcmp(ap_state, "streaming") : false;
+        if (frozen) {
+          reply(id + " err video frozen (restart screen mirroring)");
+        } else if (wait_idr || !shown) {
+          if (wait_idr && ap_streaming) reply(id + " err waiting for keyframe");
+          else reply(id + " err no video (start screen mirroring)");
+        } else {
+          bool ok = sendAu(config, VF_CONFIG | VF_SNAP);
+          for (size_t i = 0; ok && i < shown; i++) ok = sendAu(aus[i].data, VF_SNAP | (aus[i].idr ? VF_IDR : 0));
+          reply(id + (ok ? " ok" : " err no video (start screen mirroring)"));
+        }
       } else if (rest.rfind("logs", 0) == 0) {  // the board's RAM log (logbuf.cpp), from the real ring
         unsigned long from = 0, max = 120;
         sscanf(rest.c_str(), "logs %lu %lu", &from, &max);
@@ -210,7 +224,7 @@ int main(int argc, char **argv) {
     cmds.clear();
     if (cli_slot() < 0) continue;
     uint32_t now = millis();
-    if (now - lastAu >= 200 && shown < aus.size() && !frozen) { shown++; lastAu = now; }
+    if (now - lastAu >= 200 && shown < aus.size() && !frozen && !wait_idr) { shown++; lastAu = now; }
     if (streaming && !frozen) {
       if (sent == 0 && shown && !sendAu(config, VF_CONFIG)) continue;
       for (; sent < shown; sent++)
@@ -219,8 +233,9 @@ int main(int argc, char **argv) {
     if (now - lastStatus >= 1000) {
       lastStatus = now;
       char s[200];
+      const char *ap = ap_state ? ap_state : (aus.empty() ? "idle" : "streaming");
       int n = snprintf(s, sizeof s, "{\"fw\":\"0.2.1\",\"up\":%u,\"usb\":\"ok\",\"net\":\"ap\",\"ap\":\"%s\",\"w\":480,\"h\":1040,\"fz\":%d}",
-                       now, aus.empty() ? "idle" : "streaming", frozen);
+                       now, ap, frozen);
       cli_send_ctrl('s', s, n, 1000);
     }
   }

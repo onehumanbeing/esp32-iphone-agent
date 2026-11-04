@@ -5,6 +5,7 @@
 #include "cli_link.h"
 #include "wifi_video.h"
 #include "src/video/gop.h"
+#include "src/airplay/airplay.h"
 #include "logbuf.h"
 
 // GOP since the latest IDR. A still screen gets an IDR only every few minutes (iOS 26: maybe once per mirroring
@@ -151,6 +152,7 @@ static bool frozenNow() {
 
 // True while the GOP is empty waiting for the next IDR (boot, or after an overflow that dropped
 // mid-GOP). Distinct from frozen: mirroring may still be up, just no decodable snap yet (#25).
+// Only meaningful while AirPlay is streaming — wait_idr starts true at boot before any mirror.
 static bool waitingIdrNow() {
   xSemaphoreTake(lock, portMAX_DELAY);
   bool w = gop.wait_idr && !gop.frozen;
@@ -199,7 +201,8 @@ static String doSnap(Sink &s) {
     int n;
     if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts, NULL)) {
       if (frozenNow()) return "err video frozen (restart screen mirroring)";
-      if (waitingIdrNow()) return "err waiting for keyframe";
+      // wait_idr is true from boot; only surface the keyframe wait once mirroring is actually up.
+      if (waitingIdrNow() && airplay_state() == AIRPLAY_STREAMING) return "err waiting for keyframe";
       return "err no video (start screen mirroring)";
     }
     if (!sendAu(s, cfg, cfg_len, VF_CONFIG | VF_SNAP, cfg_ts)) return "err video send failed";
