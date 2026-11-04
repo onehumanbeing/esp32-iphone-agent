@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F6000000000002 /* SiriToolIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000001 /* SiriToolIntents.swift */; };
+		A1B2C3D4E5F6000000000004 /* RunViewAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000003 /* RunViewAnnotations.swift */; };
+		A1B2C3D4E5F6000000000006 /* Skills.skillsbundle in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000005 /* Skills.skillsbundle */; };
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
 		00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */; };
 		01BAE28C7BD64CE7AE0D2303 /* ProviderSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7439B820D6DA2D4C35103F /* ProviderSelectionView.swift */; };
@@ -212,6 +215,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F6000000000001 /* SiriToolIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriToolIntents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000003 /* RunViewAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunViewAnnotations.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000005 /* Skills.skillsbundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Skills.skillsbundle; sourceTree = "<group>"; };
 		0278B11885CA8C4A96C96531 /* AgentIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntents.swift; sourceTree = "<group>"; };
 		02C2C2C9EBE006E896050646 /* BoardCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCommands.swift; sourceTree = "<group>"; };
 		058E1A3713DF7C52A472CAAD /* ChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTests.swift; sourceTree = "<group>"; };
@@ -513,6 +519,7 @@
 				915FC0D291F09BE0A0439D9C /* RunsView.swift */,
 				CDEC662BD901F01994E23515 /* ScriptSection.swift */,
 				987C1E28FD7756E03C976FD4 /* SendIntentView.swift */,
+				A1B2C3D4E5F6000000000003 /* RunViewAnnotations.swift */,
 				3E74E2758C4170812147466F /* SettingsView.swift */,
 				96BDA430E0C54DC956DE9366 /* StatusChips.swift */,
 				2418164D156C7D2934CA5312 /* Theme.swift */,
@@ -531,6 +538,7 @@
 		69ABF23BB7D5C10E752A0434 /* IPhoneAgent */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F6000000000005 /* Skills.skillsbundle */,
 				6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */,
 				F960AA3F536A5DF20F8E908A /* Assets.xcassets */,
 				5754C9233BF0BA12F8EB78D7 /* Info.plist */,
@@ -579,6 +587,7 @@
 				7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */,
 				C12C6B350F7AFD555CE0B8EA /* HotspotJoin.swift */,
 				5538B879586D04FB7F15C7E5 /* IntentBridge.swift */,
+				A1B2C3D4E5F6000000000001 /* SiriToolIntents.swift */,
 				953BF9D5FB798BA1F3CEC832 /* IPhoneAgentApp.swift */,
 				CFB37456C763ADFEF9E577A2 /* IslandStatus.swift */,
 				27A03E1A122C50B8ED88AC91 /* LiveActivity.swift */,
@@ -819,6 +828,7 @@
 				534DEFD19932A64B5E0363D4 /* PrivacyInfo.xcprivacy in Resources */,
 				EF83C4DFA24497FDB0BF123E /* mock-frame.jpg in Resources */,
 				D04078EE246F6B5EB38D64B5 /* prompts in Resources */,
+				A1B2C3D4E5F6000000000006 /* Skills.skillsbundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -986,6 +996,8 @@
 				D8B54E7DFEBA5E0CDB888F1F /* RunPause.swift in Sources */,
 				24645B70C28410D8E96A9D92 /* RunRecovery.swift in Sources */,
 				A5A1640A615256B576F9A055 /* RunSession.swift in Sources */,
+				A1B2C3D4E5F6000000000004 /* RunViewAnnotations.swift in Sources */,
+				A1B2C3D4E5F6000000000002 /* SiriToolIntents.swift in Sources */,
 				F6301B26DAF28C96D09F6D8E /* RunShare.swift in Sources */,
 				1DE8E596908DD14C90E40761 /* RunsView.swift in Sources */,
 				882100A52FBC222F06535B94 /* ScriptRunner.swift in Sources */,

@@ -2,6 +2,9 @@
 
 ## Unreleased (main)
 
+- Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
+  task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
+  `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
 - No computer: the ESP32 is the AirPlay receiver (ported from UxPlay) with its own hotspot, and talks to a new
   iPhone app over BLE. The app is the agent: planner/actor loop, pointer calibration, run replay, Live Activity,
   widgets, Siri and Shortcuts, self-healing when the board, hotspot or mirroring drops.

@@ -263,6 +263,7 @@ struct HomeView: View {
                 }
             }
             .padding(.vertical, Space.xs)
+            .handsyRunAnnotation(liveRunID)  // Siri: "replay this one"
         } header: {
             HStack {
                 Text(agent.running ? "Now" : "Last run")
@@ -280,6 +281,12 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    /// The run this card is about: the one in progress, else the newest recorded one.
+    private var liveRunID: String {
+        if agent.running, !app.runID.isEmpty { return app.runID }
+        return app.runs.runs.first { !$0.id.hasPrefix("rec-") }?.id ?? ""
     }
 
     private var taskSection: some View {
