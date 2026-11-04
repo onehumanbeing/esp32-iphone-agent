@@ -126,13 +126,18 @@ struct Run: Identifiable, Equatable {
     var tokens = 0
 
     /// One line for a list row or a chat reply: "12 steps · 1m 3s · 14 AI calls · 52k tokens".
-    static func statsText(steps: Int, seconds: Double?, calls: Int, tokens: Int) -> String {
+    /// `detail` (e.g. ModelUsage.summaryLine) replaces the plain calls/tokens tail when present.
+    static func statsText(steps: Int, seconds: Double?, calls: Int, tokens: Int, detail: String? = nil) -> String {
         var parts = [String(localized: "\(steps) steps")]
         if let seconds { parts.append(seconds.durationText) }
-        if calls > 0 { parts.append(String(localized: "\(calls) AI calls")) }
-        if tokens > 0 {
-            let t = tokens >= 1000 ? "\(Int((Double(tokens) / 1000).rounded()))k" : "\(tokens)"
-            parts.append(String(localized: "\(t) tokens"))
+        if let detail, !detail.isEmpty {
+            parts.append(detail)
+        } else {
+            if calls > 0 { parts.append(String(localized: "\(calls) AI calls")) }
+            if tokens > 0 {
+                let t = tokens >= 1000 ? "\(Int((Double(tokens) / 1000).rounded()))k" : "\(tokens)"
+                parts.append(String(localized: "\(t) tokens"))
+            }
         }
         return parts.joined(separator: " · ")
     }
