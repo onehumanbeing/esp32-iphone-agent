@@ -16,7 +16,7 @@ development-signed builds and internal TestFlight; it is not in App Store builds
 **Build status.** The code written here was authored on a Linux machine with no Xcode, so the preview
 code itself — everything inside `#if HANDSY_SIRI_AI` — has not been compiled or run, and no Siri
 behaviour has been observed. What CI does cover is the flag-off build: with `HANDSY_SIRI_AI` unset the
-app still builds and its tests pass on Xcode 26.6, which includes `SiriToolConsent`, the `.openRun`
+app still builds and its tests pass on Xcode 26.6, which includes the `.openRun`
 request and its handler, and the annotation call sites. Expect compile errors in the preview code the
 moment the flag is turned on. See "Checking it" below.
 
@@ -52,7 +52,8 @@ run: same Live Activity, same recording, same review at the end.
 
 The app's consent gate is untouched. In a store build the network layer already refuses every
 request to a model host the person has not agreed to, and that check still applies to anything a tool
-starts. On top of that, the run tool checks the same recorded agreement up front so Siri can say "open
+starts. On top of that, the run tool calls the app's own `AIConsent.granted(_:)` up front (the same
+check `RunSession` makes before a run starts) so Siri can say "open
 the app and allow this" instead of letting a run start and fail part-way. Builds from source have no
 gate, exactly as in the app.
 

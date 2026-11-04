@@ -135,7 +135,7 @@ struct RunHandsyTaskIntent: AppIntent {
         // Ask early, before a run is under way: in a store build the network layer refuses every
         // request for a model host the person has not agreed to, so without this check the run
         // would start and then fail mid-way. Siri says where to fix it instead.
-        guard SiriToolConsent.allowsRun(AppModel.shared.settings.baseURL) else {
+        guard AIConsent.granted(AppModel.shared.settings.baseURL) else {
             return .result(dialog: "Open ESP32 Agent and allow sending screenshots and your task to this model, then ask again.")
         }
         let line = await AgentRequests.handle?(.runTask(request.sentence)) ?? AgentRequests.unavailable
@@ -207,28 +207,3 @@ struct ReplayHandsyRunIntent: AppIntent {
     }
 }
 #endif
-
-// MARK: - Consent
-
-/// Reads the agreement a store build records: whether the person allowed sending screenshots and
-/// their task to the model host they configured. Builds from source have no gate, as in the app.
-///
-/// This only lets Siri explain the problem in time. It is not the enforcement point: the app's
-/// network layer checks the same key before every request, and that check is untouched here.
-enum SiriToolConsent {
-    /// The key the app's own consent screen writes.
-    static let key = "aiConsentHost"
-    static let store = (Bundle.main.object(forInfoDictionaryKey: "IAStoreBuild") as? String) == "YES"
-
-    /// Whether the person has agreed to send screenshots and their task to this endpoint.
-    static func allowsRun(_ baseURL: String) -> Bool {
-        allowsRun(baseURL, store: store, agreedHost: UserDefaults.standard.string(forKey: key))
-    }
-
-    /// The rule on its own, with no bundle or defaults, so it can be tested either way.
-    static func allowsRun(_ baseURL: String, store: Bool, agreedHost: String?) -> Bool {
-        guard store else { return true }  // builds from source: no gate, as in the app
-        guard let host = URL(string: baseURL)?.host else { return false }
-        return agreedHost == host
-    }
-}

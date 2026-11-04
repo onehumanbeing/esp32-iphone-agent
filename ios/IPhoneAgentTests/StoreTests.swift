@@ -115,24 +115,3 @@ import XCTest
         XCTAssertNil(card.storedRun)
     }
 }
-
-/// A Siri tool must not be a way around the consent a store build asks for. This checks the rule
-/// the tool reads; the network layer enforces it, and that code is untouched.
-final class SiriToolConsentTests: XCTestCase {
-    func testSourceBuildHasNoConsentGate() {
-        // Builds from source have no gate: the developer picked the endpoint.
-        XCTAssertTrue(SiriToolConsent.allowsRun("https://example.com/v1", store: false, agreedHost: nil))
-    }
-
-    func testStoreBuildNeedsTheAgreementForThisHost() {
-        let url = "https://api.example.com/v1"
-        XCTAssertFalse(SiriToolConsent.allowsRun(url, store: true, agreedHost: nil), "nothing agreed yet")
-        XCTAssertFalse(SiriToolConsent.allowsRun(url, store: true, agreedHost: "other.example.com"), "another host")
-        XCTAssertTrue(SiriToolConsent.allowsRun(url, store: true, agreedHost: "api.example.com"), "agreed this host")
-    }
-
-    func testStoreBuildRefusesAnEndpointWithoutAHost() {
-        XCTAssertFalse(SiriToolConsent.allowsRun("", store: true, agreedHost: "api.example.com"))
-        XCTAssertFalse(SiriToolConsent.allowsRun("not a url", store: true, agreedHost: "api.example.com"))
-    }
-}
