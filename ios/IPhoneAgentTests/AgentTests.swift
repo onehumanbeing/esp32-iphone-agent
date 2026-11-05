@@ -367,6 +367,7 @@ import XCTest
     var updated = 0.0
     var capturedAt = 0.0
     var aspect = 0.46
+    var stale = false
 }
 
 @MainActor final class FakeDevice: HIDDevice {

@@ -107,6 +107,19 @@ import XCTest
         XCTAssertFalse(model.prompts[1].contains("connection was lost"))
     }
 
+    func testAStaleFrameIsFetchedAgainBeforeTheModelSeesIt() async {
+        let screen = FakeScreen()
+        screen.stale = true  // the stream broke after the last action; the shown frame is minutes old
+        let model = FakeModel { _ in "THINK: there\nDO: done ok" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        var restoredBeforeAsking: Bool?
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        agent.restore = { restoredBeforeAsking = model.prompts.isEmpty; screen.stale = false }
+        await agent.run()
+        XCTAssertEqual(restoredBeforeAsking, true)
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["reconnected", "done"])
+    }
+
     func testRunEndsWithAClearReasonWhenTheScreenNeverComesBack() async {
         let screen = FakeScreen()
         screen.live = false

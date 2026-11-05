@@ -209,7 +209,8 @@ extension Gestures {
         var reconnectDeadline = reconnectUntil
         while true {
             try await gate?()
-            let forceRestore = connectionChanged(since: acceptedLookLinks)
+            // a stale frame (the stream broke after the last action) is fetched again, never sent
+            let forceRestore = connectionChanged(since: acceptedLookLinks) || screen?.stale == true
             if (forceRestore || screen?.live == false) && reconnectDeadline == nil {
                 reconnectDeadline = now() + recoveryLimit
             }

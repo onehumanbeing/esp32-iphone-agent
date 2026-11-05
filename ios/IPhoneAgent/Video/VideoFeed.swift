@@ -10,6 +10,8 @@ import UIKit
     var changed: Double { get }
     var capturedAt: Double { get }
     var aspect: Double { get }
+    /// The shown frame is older than the last action and nothing newer came: fetch one before the model looks.
+    var stale: Bool { get }
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
     /// `ignoring`: where the pointer was and went (fractions); changes there alone are not a result.
     func afterAction(since: Double, ignoring: [CGPoint]) async
@@ -30,6 +32,7 @@ enum FrameMode: String {
 
 extension ScreenSource {
     var changed: Double { updated }
+    var stale: Bool { false }
     func afterAction(since: Double, ignoring spots: [CGPoint]) async { await settled(ignoring: spots) }
 
     /// Wait until the screen stops changing. AirPlay keeps sending frames of a still screen (5 fps of tiny
@@ -117,7 +120,12 @@ extension ScreenSource {
         }
     }
 
-    var live: Bool { mirroring && !frozen && frame != nil && (device?.connected ?? false) }
+    /// After an action whose frame never came (the stream broke and the snap failed or was older too): the shown
+    /// frame is stale, so the screen is not live until one captured after the action decodes. 2026-11-06: frames
+    /// 5–14 minutes old went to the model, which then answered a listening exercise with the old matching pairs.
+    private var staleBefore = 0.0
+    var stale: Bool { capturedAt < staleBefore }
+    var live: Bool { mirroring && !frozen && frame != nil && !stale && (device?.connected ?? false) }
 
     /// Frame width / height (portrait iPhone as a fallback).
     var aspect: Double { size.width > 0 && size.height > 0 ? size.width / size.height : 9 / 19.5 }
@@ -273,7 +281,10 @@ extension ScreenSource {
         } catch {
             DebugLog.write("frame after action failed: \(error.localizedDescription)")
         }
-        if capturedAt < since { DebugLog.write(String(format: "frame: still %.1f s older than the action", since - capturedAt)) }
+        guard capturedAt < since else { return }
+        DebugLog.write(String(format: "frame: still %.1f s older than the action", since - capturedAt))
+        // a healthy stream sends nothing for a still screen: only a broken one (or a snap) proves the frame stale
+        if FrameMode.current == .snap || broken || frozen { staleBefore = since }
     }
 
     /// Waits until the shown frame was captured after `t`; false on timeout.
