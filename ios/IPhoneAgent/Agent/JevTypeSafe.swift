@@ -44,7 +44,7 @@ import Foundation
             if code == 429 { return JevAnswer(reason: "rate_limited") }
             guard (200..<300).contains(code) else { throw LLMError(message: "Jev: TypeSafe HTTP \(code)", status: code) }
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-            return JevRules.reply(steps: steps, response: json, goal: input.goal) ?? JevAnswer(reason: "invalid_answer")
+            return JevRules.reply(steps: steps, response: json) ?? JevAnswer(reason: "invalid_answer")
         }
         throw LLMError(message: "Jev: TypeSafe busy")
     }
@@ -90,8 +90,6 @@ enum JevRules {
     private static let openStep = re(#"^\s*(?:open|launch|打开|启动)\s*(?:the\s+)?(.+?)(?:\s+app)?[.。]?\s*$"#)
     private static let quoted = re(#"["“「『]([^"”」』]{1,200})["”」』]"#)
     private static let typeStep = re(#"^\s*(?:type|enter|input|输入)"#)
-    /// Jev may end a run only when the goal wants no answer: it cannot read one off the screen for the user.
-    static let asksAnswer = re(#"\b(?:report|tell|how many|how much|what|which|when|where|who|list|summar\w*|check|find out|read|look up|count)\b|多少|几|告诉|汇报|报告|是什么|哪|查看|查询|看看|总结|列出|读"#)
     static let finalAction: NSRegularExpression = {
         let w = { (s: String) in #"(?<![\p{L}\p{N}_])"# + s + #"(?![\p{L}\p{N}_])"# }
         let words = ["publish", "post", "submit", "send", "confirm", #"place\s+order"#, "pay", "purchase", "delete", "save",
@@ -178,7 +176,7 @@ enum JevRules {
     }
 
     /// As the server: TAP = min(p(op), box confidence), else p(op); accept at 0.7 or more.
-    static func reply(steps: [Step], response: [String: Any], goal: String) -> JevAnswer? {
+    static func reply(steps: [Step], response: [String: Any]) -> JevAnswer? {
         let a = response["answers"] as? [String: Any] ?? [:]
         guard let step = validChoice(a["step"], steps.map { "step \($0.key)" } + ["done", "other"]),
               let op = validChoice(a["operation"], Array(operations.keys)) else { return nil }
@@ -189,12 +187,7 @@ enum JevRules {
         func sure(_ line: String) -> JevAnswer {
             JevAnswer(accept: prob >= accept, do: line, step_text: text, prob: prob, reason: prob >= accept ? nil : "low_confidence")
         }
-        if step.choice == "done" {
-            guard op.choice == "DONE" else { return no("done") }
-            if matches(asksAnswer, goal) { return no("done_needs_answer") }
-            let said = goal.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(200)
-            return sure("done Done: \(said)")
-        }
+        if step.choice == "done" { return no("done") }  // only the model ends a run
         guard key != nil else { return no("off_plan") }
         guard jevOps.contains(op.choice) else { return no("op_not_allowed") }
         var box: [String: Double]?

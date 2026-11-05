@@ -43,20 +43,21 @@ enum Vision {
     static func changed(_ before: Data?, _ after: Data?, ignore: [CGPoint] = [], threshold: Double = 1.0) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }
+        // Our own marks never count: the status bar (the run's Live Activity label in the Dynamic Island) and
+        // the pointer, in both passes (2026-11-06: a missed tap read as "changed" from those alone).
+        func counts(_ i: Int, _ w: Int, _ h: Int) -> Bool {
+            let x = Double(i % w), y = Double(i / w), r2 = pow(0.05 * Double(w), 2)
+            return y > topMask * Double(h)
+                && ignore.allSatisfy { pow(x - $0.x * Double(w), 2) + pow(y - $0.y * Double(h), 2) > r2 }
+        }
         let sa = gray(a, 32, 64), sb = gray(b, 32, 64)
-        let total = zip(sa.px, sb.px).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
-        if Double(total) / Double(sa.px.count) > threshold { return true }  // a big change: new screen, scrolled list
+        let kept = (0..<sa.px.count).filter { counts($0, 32, 64) }
+        let total = kept.reduce(0) { $0 + abs(Int(sa.px[$1]) - Int(sb.px[$1])) }
+        if Double(total) / Double(max(kept.count, 1)) > threshold { return true }  // a big change: new screen, scrolled list
         let w = a.width / 2, h = a.height / 2  // fine pass for small changes, at half resolution
         let fa = gray(a, w, h), fb = gray(b, w, h)
-        let masks = ignore.map { (Double($0.x) * Double(w), Double($0.y) * Double(h)) }
-        let r2 = pow(0.05 * Double(w), 2)
         var hits = 0
-        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 {
-            let x = Double(i % w), y = Double(i / w)
-            if y > topMask * Double(h) && masks.allSatisfy({ pow(x - $0.0, 2) + pow(y - $0.1, 2) > r2 }) {
-                hits += 1
-            }
-        }
+        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 && counts(i, w, h) { hits += 1 }
         return hits >= 6
     }
 

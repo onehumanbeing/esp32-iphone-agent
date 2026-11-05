@@ -11,7 +11,7 @@ final class VisionTests: XCTestCase {
     var H: Double { Double(Self.H) }
 
     /// A synthetic home screen: gradient background, optional button, pointer dot and checkmark.
-    func screen(pointer: (Double, Double)? = nil, button: Bool = false, checked: Bool = false) -> Data {
+    func screen(pointer: (Double, Double)? = nil, button: Bool = false, checked: Bool = false, island: Bool = false) -> Data {
         let ctx = CGContext(data: nil, width: Self.W, height: Self.H, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
         ctx.translateBy(x: 0, y: CGFloat(Self.H))  // draw with a top-left origin, like PIL
@@ -26,6 +26,10 @@ final class VisionTests: XCTestCase {
         if button {
             ctx.setFillColor(rgb(250, 250, 250))
             ctx.fill(CGRect(x: 150, y: 400, width: 201, height: 201))
+        }
+        if island {  // the run's Live Activity label in the Dynamic Island, above the topMask line
+            ctx.setFillColor(rgb(255, 255, 255))
+            ctx.fill(CGRect(x: 120, y: 12, width: 260, height: 40))
         }
         if let (x, y) = pointer {
             ctx.setFillColor(rgb(200, 200, 200))
@@ -53,6 +57,14 @@ final class VisionTests: XCTestCase {
 
     func testNewContentIsAScreenChange() {
         XCTAssertTrue(Vision.changed(screen(pointer: (260, 856)), screen(pointer: (260, 856), button: true)))
+    }
+
+    func testOurIslandLabelAndPointerAreNotAChange() {
+        // 2026-11-06 Duolingo: a tap under CHECK changed nothing, but "Look" -> "Tap" in the island read as a change
+        XCTAssertFalse(Vision.changed(screen(pointer: (250, 960)), screen(pointer: (250, 960), island: true),
+                                      ignore: [p(250, 960)]))
+        XCTAssertFalse(Vision.changed(screen(pointer: (100, 300), island: true), screen(pointer: (400, 900)),
+                                      ignore: [p(100, 300), p(400, 900)]))
     }
 
     func testMissingFrameCountsAsChanged() {

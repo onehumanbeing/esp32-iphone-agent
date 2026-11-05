@@ -18,11 +18,18 @@ struct BlindError: LocalizedError {
     func openApp(_ name: String) async throws
     func goBack() async throws
     func reset() async throws
+    /// Where the pointer really is after a tap that changed nothing (pixels only, learned for later taps).
+    func landing(_ x: Double, _ y: Double) async -> CGPoint?
 }
 
 extension Pointer: Gestures {}
 
-/// See-think-act loop: a planner model writes the plan, an actor model picks each step. Port of agent.py.
+extension Gestures {
+    func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
+}
+
+/// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own
+/// plan, what each recent action did and the screen; it keeps the plan up to date (PLAN:) and says when it is done.
 @MainActor final class AgentLoop: ObservableObject {
     struct Planned {
         var act: JObject
@@ -283,15 +290,15 @@ extension Pointer: Gestures {}
 
     func run() async {
         var failures = 0
+        var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         do {
-            if replay.current == nil { try await replan() }
             for _ in 0..<maxSteps {
                 do {
-                    if plan.isEmpty {  // a saved intent's steps first (ScriptRunner); the model plans once they're over
+                    if scripting {
                         switch try await scriptStep() {
                         case .next: continue
                         case .ended: return finish()
-                        case .handOver: try await replan()
+                        case .handOver: scripting = false
                         }
                     }
                     if try await step() {
@@ -300,9 +307,7 @@ extension Pointer: Gestures {}
                     }
                     failures = 0
                 } catch is InvalidatedLook {
-                    // No gesture was sent. Replanning re-enters the forced restore before its look.
-                    try await replan(stuck: true)
-                    failures = 0
+                    failures = 0  // no gesture was sent; the next look restores the screen first
                 } catch let e where e is BlindError || e is CancellationError || Task.isCancelled {
                     throw e
                 } catch let e as LLMError where e.kind == "rate_limit_day" {
@@ -318,7 +323,6 @@ extension Pointer: Gestures {}
                         continue
                     }
                     await screen?.settled()
-                    try await replan(stuck: true)
                 }
             }
             record(nil, ["action": .str("fail"), "reason": .str("step limit reached")])
@@ -326,13 +330,13 @@ extension Pointer: Gestures {}
             record(nil, ["action": .str("stopped")])
         } catch let e as BlindError {
             record(nil, ["action": .str("fail"), "reason": .str(e.reason)])
-        } catch {  // e.g. the planner itself is unreachable
+        } catch {  // e.g. the model itself is unreachable
             record(nil, ["action": .str("error"), "reason": .str(ModelRequestFailure.message(error))])
         }
         finish()
     }
 
-    /// Pauses for the user (at most twice a run). True = go on from the current screen with a new plan.
+    /// Pauses for the user (at most twice a run). True = go on from the current screen (the model sees what they did).
     private func askForHelp() async throws -> Bool {
         guard let onHelp, helpAsked < 2 else { return false }
         helpAsked += 1
@@ -350,7 +354,6 @@ extension Pointer: Gestures {}
             record(nil, ["action": .str("skipped"), "reason": .str("the user asked to skip this step: \(reason)")])
         }
         await screen?.settled()
-        try await replan(stuck: true)
         return true
     }
 
@@ -371,7 +374,6 @@ extension Pointer: Gestures {}
         case .skip:
             record(nil, ["action": .str("skipped"), "reason": .str("the user said no, do not do this: \(reason)")])
             await screen?.settled()
-            try await replan(stuck: true)
         }
         return false
     }
@@ -395,16 +397,10 @@ extension Pointer: Gestures {}
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
-        let stuck = repeating(acts[0].act)
         defer { metrics?.step(timing) }
         for (i, planned) in acts.enumerated() {
             var act = planned.act
             let name = act["action"]?.str ?? ""
-            if name == "replan" || stuck {
-                record(planned.shot, act)
-                try await replan(stuck: stuck)
-                return false
-            }
             if name == "confirm" {
                 record(planned.shot, act)
                 return try await confirm(act["reason"]?.str ?? "")
@@ -438,6 +434,7 @@ extension Pointer: Gestures {}
                 timing.frameMs += await settle()
                 if !Vision.changed(seen, screen?.frame, ignore: spots) {
                     steps[steps.count - 1]["changed"] = .bool(false)
+                    await noteLanding()
                     return false  // skip the rest; the actor looks again
                 }
             }
@@ -445,8 +442,19 @@ extension Pointer: Gestures {}
         timing.frameMs += await settle()
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        steps[steps.count - 1]["changed"] = .bool(Vision.changed(seen, screen?.frame, ignore: spots))
+        let changed = Vision.changed(seen, screen?.frame, ignore: spots)
+        steps[steps.count - 1]["changed"] = .bool(changed)
+        if !changed { await noteLanding() }
         return false
+    }
+
+    /// A tap that changed nothing: find where the pointer really is, for the model (and the pointer's own
+    /// correction, which learns from it), e.g. 37 units under a narrow button.
+    private func noteLanding() async {
+        let last = steps.count - 1
+        guard last >= 0, steps[last]["action"]?.str == "tap", let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double,
+              let p = await phone?.landing(x / 1000, y / 1000) else { return }
+        steps[last]["landed"] = .arr([.int(Int((p.x * 1000).rounded())), .int(Int((p.y * 1000).rounded()))])
     }
 
     func settle() async -> Double {
@@ -459,58 +467,47 @@ extension Pointer: Gestures {}
     /// The previous round changed nothing on screen, so a tap may have landed off target.
     var missed: Bool { steps.last?["changed"] == .bool(false) }
 
-    /// True when the actor picks the same action as its last limit-1 moves and the last one did nothing.
-    /// Repeating a move that still changes the screen (e.g. scrolling down a long list) is progress, not a loop.
-    func repeating(_ act: JObject, limit: Int = 3) -> Bool {
-        let moves = steps.filter { $0["plan"] == nil }.suffix(limit - 1)
-        return moves.count == limit - 1 && moves.allSatisfy { Actions.key($0) == Actions.key(act) }
-            && moves.last?["changed"] != .bool(true)
-    }
-
-    func replan(stuck: Bool = false) async throws {
-        guard let planner else { throw LLMError(message: "no planner model") }
-        var prompt = "Goal: \(task)"
-        if stuck {
-            let last = steps.last ?? JObject()
-            prompt += "\n\nThe previous plan got stuck (last event: \(pyStr(last["action"])) \(last["reason"]?.str ?? "")):"
-                + "\n\(plan)\nLook at the current screen and plan from here, another way if needed."
-        }
-        let system = Prompts.plannerApp + "\n" + AssistiveTouchSpots.rule + background
-        let (reply, seconds, frame) = try await ask("planner", planner, system, prompt)
-        let (en, zh) = Actions.parsePlan(reply)
-        plan = en
-        record(frame, ["action": .str(stuck ? "replan (stuck)" : "plan"), "plan": .str(en), "plan_zh": .str(zh),
-                       "think_s": .num(seconds)])
-    }
-
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
-        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed", "replay", "jev"]
+        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
+                                   "replay", "jev", "landed"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
-            let effect = s["changed"] == .bool(true) ? " -> screen changed"
-                : s["changed"] == .bool(false) ? " -> screen did NOT change" : ""
-            return String(PyJSON.dumps(s.without(hidden)).prefix(300)) + effect
+            String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
-        var prompt = "Goal: \(task)\n\nPlan:\n\(plan)\n\nRecent actions:\n\(history.isEmpty ? "(none)" : history)"
-            + collected + "\n\nNext action?"
+        let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
+            + (history.isEmpty ? "(none)" : history) + collected + "\n\nNext action?"
         var reply = ""
         for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically
             let (text, seconds, frame) = try await ask("actor", actor, actorPrompt, prompt, temperature: 0.4 * Double(attempt))
             reply = text
             var acts: [JObject]
             do { acts = try Actions.parseActions(text) } catch { continue }
-            if missed, let last = steps.last, Actions.key(acts[0]) == Actions.key(last) {  // same move that did nothing
-                prompt += "\n\nYou just proposed \(PyJSON.dumps(Actions.key(acts[0]))) again, but it changed nothing last "
-                    + "time. Choose a different action (another position, a shorter swipe, or another way)."
-                continue
+            if let new = Actions.planBlock(text), new != plan {  // the model keeps its own plan up to date
+                plan = new
+                record(frame, ["action": .str("plan"), "plan": .str(new), "plan_zh": .str(new)])
             }
             acts[0]["think_s"] = .num(seconds)
-            if lastServed == "handsy-jev" { acts[0]["jev"] = .bool(true) }  // the free line's Jev took this step
+            if lastServed == "handsy-jev" { acts[0]["jev"] = .bool(true) }  // Jev took this step
             return acts.map { Planned(act: $0, shot: frame) }
         }
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")
+    }
+
+    /// What an action did, the way a terminal shows a command's result.
+    static func effect(_ s: JObject) -> String {
+        guard let changed = s["changed"]?.bool else { return "" }
+        var out = changed ? " -> screen changed" : " -> screen did NOT change"
+        if case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
+           let x = s["x"]?.double, let y = s["y"]?.double {
+            let dx = Int(lx - x), dy = Int(ly - y)
+            var off: [String] = []
+            if dx != 0 { off.append("\(abs(dx)) \(dx > 0 ? "right of" : "left of")") }
+            if dy != 0 { off.append("\(abs(dy)) \(dy > 0 ? "below" : "above")") }
+            out += "; the pointer is at \(Int(lx)) \(Int(ly))" + (off.isEmpty ? "" : " (" + off.joined(separator: ", ") + " the target)")
+        }
+        return out
     }
 
     func perform(_ a: JObject) async throws {

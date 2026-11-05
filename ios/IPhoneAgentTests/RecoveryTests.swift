@@ -100,7 +100,7 @@ import XCTest
             }
         }
         await agent.run()
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "home", "reconnected", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["home", "reconnected", "done"])
         XCTAssertEqual(stages, [Recovery.Stage(part: .mirroring, ask: false), nil])
         XCTAssertEqual(restored, 1)
         XCTAssertTrue(model.prompts[2].contains("the connection was lost and restored; re-check the screen"))

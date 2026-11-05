@@ -32,7 +32,9 @@ struct JevAnswer: Decodable, Equatable {
     var prob: Double?
     var reason: String?
 
-    var taken: Bool { accept && !(self.do ?? "").isEmpty }
+    /// Jev moves; it never ends a run (a "done" goes to the model, which alone decides the goal is reached).
+    var taken: Bool { accept && !(self.do ?? "").isEmpty && !ends }
+    var ends: Bool { (self.do ?? "").lowercased().hasPrefix("done") }
 }
 
 @MainActor protocol JevStepping: AnyObject {

@@ -165,15 +165,28 @@ import UIKit
             return
         }
         let fx = Double(found.x), fy = Double(found.y)
-        if max(abs(fx - x), abs(fy - y)) <= Self.maxMiss {  // learn from normal drift only, never a stray reading
-            remember("x", (fix(x, "x"), fx))
-            remember("y", (fix(y, "y"), fy))
-            save()
-        }
+        learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
         try await device.send("move \(mx) \(my)")  // fix this miss right away
         if let p = pos { pos = (p.0 + mx, p.1 + my) }
+    }
+
+    /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
+    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) {
+        guard max(abs(Double(found.x) - x), abs(Double(found.y) - y)) <= Self.maxMiss else { return }
+        remember("x", (fix(x, "x"), Double(found.x)))
+        remember("y", (fix(y, "y"), Double(found.y)))
+        save()
+    }
+
+    /// After a tap at (x, y) that changed nothing: where the pointer really is (pixels only, no model), learned
+    /// like an aim so the next taps are corrected. nil = not found.
+    func landing(_ x: Double, _ y: Double) async -> CGPoint? {
+        guard let found = try? await measure(x, y, model: false) else { return nil }
+        learn(x, y, found)
+        log(String(format: "landing (%.3f, %.3f): pointer at (%.3f, %.3f)", x, y, found.x, found.y))
+        return found
     }
 
     /// Wiggle the pointer and find it on screen, near the target first, then anywhere. model: ask the vision

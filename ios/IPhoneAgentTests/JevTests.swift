@@ -122,6 +122,14 @@ import XCTest
         XCTAssertEqual(reply.text, "THINK: model\nDO: tap 1 1")
     }
 
+    func testJevNeverEndsARun() async throws {
+        let model = SlowModel(), jev = FakeJev()
+        jev.answers = [.success(JevAnswer(accept: true, do: "done Done: Duolingo", step_text: "", prob: 0.95))]
+        let reply = try await ask(decider(.jevFirst, model: model, jev: jev))
+        XCTAssertEqual(model.calls, 1)  // the model alone decides the goal is reached
+        XCTAssertNil(reply.servedModel)
+    }
+
     func testJevOnlyTurnsUnsureIntoFail() async throws {
         let model = SlowModel(), jev = FakeJev()
         jev.answers = [.success(unsure)]
@@ -217,15 +225,15 @@ import XCTest
         let steps = JevRules.planSteps("1. Open Notes\n2. Tap New note")
         XCTAssertEqual(steps.map(\.key), ["1", "2"])
         let ids = ["step 1", "step 2", "done", "other"], ops = Array(JevRules.operations.keys)
-        let open = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 1", ids), "operation": choice("OPEN", ops)]], goal: "new note")
+        let open = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 1", ids), "operation": choice("OPEN", ops)]])
         XCTAssertEqual(open?.do, "open Notes")
         XCTAssertEqual(open?.taken, true)
         let box: [String: Any] = ["confidence": 0.95, "box": ["top": 0.1, "bottom": 0.2, "left": 0.4, "right": 0.6]]
-        let tap = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("TAP", ops), "box_2": box]], goal: "new note")
+        let tap = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("TAP", ops), "box_2": box]])
         XCTAssertEqual(tap?.do, "tap 500 150")
-        let done = JevRules.reply(steps: steps, response: ["answers": ["step": choice("done", ids), "operation": choice("DONE", ops)]], goal: "how many notes")
-        XCTAssertEqual(done?.taken, false)  // a question needs the model to answer it
-        XCTAssertNil(JevRules.reply(steps: steps, response: ["answers": ["step": ["choice": "step 1"]]], goal: "x"))
+        let done = JevRules.reply(steps: steps, response: ["answers": ["step": choice("done", ids), "operation": choice("DONE", ops)]])
+        XCTAssertEqual(done?.taken, false)  // only the model ends a run
+        XCTAssertNil(JevRules.reply(steps: steps, response: ["answers": ["step": ["choice": "step 1"]]]))
     }
 
     func testShortProviderError() {

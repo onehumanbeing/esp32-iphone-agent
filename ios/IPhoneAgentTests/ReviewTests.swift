@@ -18,7 +18,7 @@ import XCTest
         await agent.run()
         XCTAssertEqual(asked, ["login required"])
         XCTAssertEqual(agent.steps.map { $0["action"]?.str },
-                       ["plan", "fail", "help", "takeover", "replan (stuck)", "done"])
+                       ["fail", "help", "takeover", "done"])
     }
 
     func testRiskyStepWaitsForTheUsersOK() async {
@@ -35,7 +35,7 @@ import XCTest
         agent.onConfirm = { reason in asked.append(reason); return .resume }
         await agent.run()
         XCTAssertEqual(asked, ["send the message to Anna"])
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["confirm", "confirmed", "done"])
     }
 
     func testPaymentsOnlyLetsASendGoOnWithoutAsking() async {
@@ -46,7 +46,7 @@ import XCTest
         agent.onConfirm = { reason in asked.append(reason); return .resume }
         await agent.run()
         XCTAssertEqual(asked, [])
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["confirm", "confirmed", "done"])
     }
 
     func testAskModesPickWhichConfirmsWait() {
@@ -75,13 +75,12 @@ import XCTest
     }
 
     func testIntentHintsAreAppendedToTheActorPromptOnly() async {
-        let model = SystemRecorder { n in n == 1 ? "1. go" : "THINK: there\nDO: done ok" }
+        let model = SystemRecorder { _ in "THINK: there\nDO: done ok" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
         agent.hints = ["Type the time instead of scrolling"]
         await agent.run()
         let rule = "\n" + AssistiveTouchSpots.rule
-        XCTAssertEqual(model.systems[0], Prompts.plannerApp + rule)
-        XCTAssertEqual(model.systems[1], Prompts.actor + rule + "\n\nHints for this task:\n- Type the time instead of scrolling")
+        XCTAssertEqual(model.systems, [Prompts.actor + rule + "\n\nHints for this task:\n- Type the time instead of scrolling"])
         agent.hints = []
         XCTAssertEqual(agent.actorPrompt, Prompts.actor + rule)
     }
