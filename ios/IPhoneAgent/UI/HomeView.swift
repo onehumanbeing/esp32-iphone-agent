@@ -76,8 +76,6 @@ struct HomeView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: app.tab) { _, _ in editing = false }
-            .onChange(of: app.setupPage) { _, _ in editing = false }
             .navigationTitle(Text(verbatim: settings.agentName))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in IntentDetailView(app: app, intents: intents, id: id) }
@@ -425,7 +423,6 @@ struct HomeView: View {
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
         if !app.onDeviceCapture && board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
-        if board.status?.usb != "ok" { return ("Connect the USB mouse", .act) }
         if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil

@@ -78,12 +78,44 @@ import XCTest
         XCTAssertThrowsError(try capture.checkAvailability())
     }
 
-    func testOlderSystemsIgnoreSavedOnDeviceChoice() throws {
-        if #available(iOS 27.0, *) { throw XCTSkip("Run on iOS 18–26") }
+    func testUnavailableDevicesIgnoreSavedOnDeviceChoice() throws {
+        guard !CaptureBackend.onDeviceAvailable else { throw XCTSkip("Requires a device without screen recording") }
         let saved = UserDefaults.standard.object(forKey: CaptureBackend.key)
         defer { UserDefaults.standard.set(saved, forKey: CaptureBackend.key) }
         UserDefaults.standard.set(CaptureBackend.onDevice.rawValue, forKey: CaptureBackend.key)
         XCTAssertEqual(CaptureBackend.current, .airPlay)
+    }
+
+    func testCaptureSizePreservesPortraitAndLandscapeAspect() throws {
+        guard #available(iOS 27.0, *) else { throw XCTSkip("Requires iOS 27") }
+        XCTAssertEqual(ScreenCaptureFeed.captureSize(for: CGSize(width: 390, height: 844)),
+                       CGSize(width: 960, height: 2078))
+        XCTAssertEqual(ScreenCaptureFeed.captureSize(for: CGSize(width: 844, height: 390)),
+                       CGSize(width: 960, height: 444))
+    }
+
+    func testWaitingForFrameReportsStoppedCapture() async throws {
+        guard #available(iOS 27.0, *) else { throw XCTSkip("Requires iOS 27") }
+        let capture = ScreenCaptureFeed()
+        do {
+            _ = try await capture.image(timeout: 0)
+            XCTFail("A stopped capture cannot supply a frame")
+        } catch {
+            XCTAssertTrue(error is ScreenCaptureError, "Capture failure must not be silently treated as task cancellation")
+        }
+    }
+
+    func testWaitingForFrameHonorsTaskCancellation() async throws {
+        guard #available(iOS 27.0, *) else { throw XCTSkip("Requires iOS 27") }
+        let capture = ScreenCaptureFeed()
+        let task = Task { try await capture.image(timeout: 0) }
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("A cancelled task must not keep waiting for a frame")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
     }
 
     private final class Source: ScreenSource {
