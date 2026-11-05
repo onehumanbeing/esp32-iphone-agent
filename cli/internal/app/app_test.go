@@ -85,6 +85,38 @@ func TestMCPHandshake(t *testing.T) {
 	}
 }
 
+func TestMCPRequiredIsArray(t *testing.T) {
+	a := &App{Err: io.Discard}
+	var buf bytes.Buffer
+	a.Out = &buf
+	a.mcp(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"))
+	var resp struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				InputSchema struct {
+					Required json.RawMessage `json:"required"`
+				} `json:"inputSchema"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Result.Tools) == 0 {
+		t.Fatal("no tools")
+	}
+	for _, tool := range resp.Result.Tools {
+		if tool.InputSchema.Required == nil || string(tool.InputSchema.Required) == "null" {
+			t.Fatalf("%s: required marshaled as null; want an array", tool.Name)
+		}
+		var req []string
+		if err := json.Unmarshal(tool.InputSchema.Required, &req); err != nil {
+			t.Fatalf("%s: required is not an array: %s", tool.Name, tool.InputSchema.Required)
+		}
+	}
+}
+
 // The simulated board (hardware/tests/sim: the firmware's real cli_link.cpp) through the whole CLI and daemon.
 func TestSimPairScreenshotTapText(t *testing.T) {
 	sim, _ := filepath.Abs("../../../hardware/tests/sim/cli_sim")
