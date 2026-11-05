@@ -8,7 +8,6 @@ struct ModelSettingsView: View {
     @State private var advanced = false
     @AppStorage(ModelImage.key) private var shrinkImage = true
     @AppStorage(AppModel.prewarmKey) private var prewarm = true
-    @AppStorage(Settings.jevRaceKey) private var jevRace = false
 
     var body: some View {
         Form {
@@ -39,6 +38,7 @@ struct ModelSettingsView: View {
                     Text(verbatim: error).font(.footnote).foregroundStyle(Palette.stop)
                 }
             }
+            DecidersSection(settings: settings)
             Section {
                 DisclosureGroup("Advanced", isExpanded: $advanced) {
                     let same = String(localized: "Same as Model")
@@ -51,16 +51,10 @@ struct ModelSettingsView: View {
                         .font(.body.monospaced())
                     Toggle("Smaller screenshots", isOn: $shrinkImage)
                     Toggle("Pre-warm screen stream", isOn: $prewarm)
-                    if settings.provider == .handsyTrial {
-                        Toggle("Ask Jev and the model together", isOn: $jevRace)
-                    }
                 }
             } footer: {
                 if advanced {
                     Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
-                    if settings.provider == .handsyTrial {
-                        Text("Jev takes the plain steps of the free line on its own and leaves the rest to the model. Asking both together saves a little time on the steps Jev leaves.")
-                    }
                 }
             }
         }

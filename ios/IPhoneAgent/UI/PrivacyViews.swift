@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded.
+/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded (steps sent
+/// to Jev, when it is on, are covered by Jev's own consent).
 struct PrivacyLists: View {
     var body: some View {
         Section {
@@ -13,7 +14,7 @@ struct PrivacyLists: View {
         } header: {
             Text("Never collected")
         } footer: {
-            Text("Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
+            Text("Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
         }
     }
 
@@ -76,6 +77,7 @@ struct PrivacySettingsView: View {
     var body: some View {
         List {
             AIConsentSection(settings: app.settings)
+            JevConsentSection()
             PrivacyLists()
             Section { Toggle("Keep run data for sharing", isOn: $keep) }
             if keep { export }

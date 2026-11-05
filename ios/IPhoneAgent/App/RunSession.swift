@@ -79,9 +79,12 @@ extension AppModel {
         guard !Task.isCancelled else { return }
         do {
             if settings.provider == .handsyTrial { try await Trial.shared.begin() }  // free line: take it before leaving
-            agent.actor = try await settings.client("actor")
+            let actor = try await settings.client("actor")
+            let jev = settings.jevActor(around: actor)  // own model with Jev on
+            if jev != nil { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
+            agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
-            agent.screenTree = settings.provider == .handsyTrial
+            agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
         } catch is CancellationError {
             return  // Cancel while waiting for the free line
         } catch {

@@ -51,8 +51,6 @@ import UIKit
         }
     }
     static let agentNameKey = "agentName"
-    /// Free line: ask Jev and the model together (faster when Jev declines, costs the model's work when it doesn't).
-    static let jevRaceKey = "jevRace"
     static var defaultAgentName: String { String(localized: "ESP32 Agent") }
     /// The name, for code without a Settings instance (Live Activity).
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
@@ -320,11 +318,23 @@ import UIKit
             let others = freeModels.filter { $0 != model && $0.hasSuffix(":free") }.sorted().prefix(2)
             if !others.isEmpty { extra["models"] = [model] + others }
         }
-        // free line; the actor's steps go to Jev first (race: Jev and the model at once, the first sure answer wins)
-        let jev = role == "actor" ? ["X-Handsy-Jev": defaults.bool(forKey: Self.jevRaceKey) ? "race" : "1"] : [:]
+        // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
+        // once, the first sure answer wins)
+        let jev = role == "actor" ? Deciders.load(freeLine: true, defaults: defaults)
+            .freeLineHeader(race: defaults.bool(forKey: Deciders.raceKey)) : [:]
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
             ? { try Trial.shared.headers().merging(jev) { a, _ in a } } : nil
         return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
+    }
+
+    /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.
+    /// Nil means the plain model. The free line does this on its server instead (see `client`).
+    func jevActor(around actor: ChatModel) -> JevDeciderModel? {
+        guard provider != .handsyTrial, Trial.available, JevConsent.granted else { return nil }
+        let deciders = Deciders.load(freeLine: false, defaults: defaults)
+        guard deciders.mode != .modelOnly else { return nil }
+        return JevDeciderModel(inner: actor, jev: JevStepClient(), mode: deciders.mode,
+                               race: defaults.bool(forKey: Deciders.raceKey))
     }
 }
 

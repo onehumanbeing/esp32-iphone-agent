@@ -6537,16 +6537,6 @@
         }
       }
     },
-    "Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行数据不会上传。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
-          }
-        }
-      }
-    },
     "Share anonymous usage stats" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6817,16 +6807,6 @@
         }
       }
     },
-    "Screenshots may show anything on your screen. %@ handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them. You can withdraw this anytime in Settings › Privacy." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图可能包含屏幕上的任何内容。%@ 按其自己的隐私政策和条款处理这些数据；ESP32 Agent 的开发者不会收到。你可以随时在 设置 › 隐私 中撤回。"
-          }
-        }
-      }
-    },
     "I agree to send this data to %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6913,16 +6893,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 服务"
-          }
-        }
-      }
-    },
-    "Screenshots and your task go only to the AI service you allowed, and only during runs, tests and intent saving." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图和任务只会发送给你允许的 AI 服务，并且只在运行、测试和保存意图时发送。"
           }
         }
       }
@@ -8993,12 +8963,242 @@
         }
       }
     },
-    "Jev takes the plain steps of the free line on its own and leaves the rest to the model. Asking both together saves a little time on the steps Jev leaves." : {
+    "Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在免费线路上，Jev 会自己完成简单的步骤，其余交给模型。同时请求可以在 Jev 不接手的步骤上省一点时间。"
+            "value" : "运行数据不会上传，打开 Jev 后发给 Jev 的步骤除外。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen. %@ handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them, unless you turn on Jev. You can withdraw this anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容。%@ 按其自己的隐私政策和条款处理这些数据；除非你打开 Jev，ESP32 Agent 的开发者不会收到。你可以随时在 设置 › 隐私 中撤回。"
+          }
+        }
+      }
+    },
+    "Screenshots and your task go only to the AI service you allowed (and to Jev, if you turn it on), and only during runs, tests and intent saving." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图和任务只会发送给你允许的 AI 服务（打开 Jev 后也会发给 Jev），并且只在运行、测试和保存意图时发送。"
+          }
+        }
+      }
+    },
+    "Who decides each step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步由谁决定"
+          }
+        }
+      }
+    },
+    "Jev (decision model)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev（决策模型）"
+          }
+        }
+      }
+    },
+    "Jev" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev"
+          }
+        }
+      }
+    },
+    "Takes the plain steps in a fraction of a second." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简单的步骤，不到一秒就能完成。"
+          }
+        }
+      }
+    },
+    "Thinks through each step it gets." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交给它的每一步都会仔细想。"
+          }
+        }
+      }
+    },
+    "Jev goes first and leaves the steps it isn't sure about to the model. Drag to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 先来，没把握的步骤交给模型。拖动可以调整顺序。"
+          }
+        }
+      }
+    },
+    "The model decides. Jev steps in only when the model doesn't answer. Drag to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由模型决定。只有模型没有回应时，Jev 才接手。拖动可以调整顺序。"
+          }
+        }
+      }
+    },
+    "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实验功能：只由 Jev 决定。遇到没把握的步骤，运行会停下来问你。"
+          }
+        }
+      }
+    },
+    "Only the model decides. On the free line the model stays on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由模型决定。免费线路上模型不能关闭。"
+          }
+        }
+      }
+    },
+    "Only your model decides. Jev sends each step to Handsy, so it asks before it turns on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由你的模型决定。Jev 会把每一步发给 Handsy，所以打开前会先征求你的同意。"
+          }
+        }
+      }
+    },
+    "Jev is Handsy's decision model. It takes the plain steps of a run quickly, so your model has less to do. Nothing goes to Jev until you agree." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 是 Handsy 的决策模型。它能快速完成运行中简单的步骤，让你的模型少干点活。在你同意之前，不会有任何数据发给 Jev。"
+          }
+        }
+      }
+    },
+    "Holomix, Inc. (Handsy) and its provider TypeSafe" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holomix, Inc.（Handsy）及其服务商 TypeSafe"
+          }
+        }
+      }
+    },
+    "A screenshot of your mirrored screen at every step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步镜像屏幕的截图"
+          }
+        }
+      }
+    },
+    "Your task, the plan and the recent actions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的任务、计划和最近的操作"
+          }
+        }
+      }
+    },
+    "What happens to it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据会怎样处理"
+          }
+        }
+      }
+    },
+    "Kept privately to run and improve Jev" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私下保存，用于运行和改进 Jev"
+          }
+        }
+      }
+    },
+    "Avoid private tasks while Jev is on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Jev 时，请不要执行涉及隐私的任务"
+          }
+        }
+      }
+    },
+    "Withdraw anytime in Settings › Privacy; Jev then turns off" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随时可以在 设置 › 隐私 中撤回，撤回后 Jev 会关闭"
+          }
+        }
+      }
+    },
+    "Turn On Jev?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Jev？"
+          }
+        }
+      }
+    },
+    "I Agree, Turn On Jev" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我同意，打开 Jev"
+          }
+        }
+      }
+    },
+    "With your own model, each step's screenshot, task, plan and recent actions go to Jev while it is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你自己的模型时，只要 Jev 开着，每一步的截图、任务、计划和最近的操作都会发给 Jev。"
           }
         }
       }

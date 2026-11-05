@@ -160,6 +160,19 @@ import UIKit
         return sent.report_id
     }
 
+    /// For own-model runs with Jev on: a ticket for Jev's server (no lease, never a free run). Cached until a
+    /// minute before it expires; the server gives out a limited number per device and day.
+    func jevTicket() async throws -> String {
+        if let ticket = jevTicketCache, ticket.until > Date() { return ticket.value }
+        guard Self.available else { throw TrialError.unavailable }
+        let token = try await enrolledToken()
+        struct Ticket: Decodable { let jev_ticket: String; let expires_in: Int }
+        let got: Ticket = try await call("POST", "/trial/jev-ticket", token: token)
+        jevTicketCache = (got.jev_ticket, Date().addingTimeInterval(Double(got.expires_in) - 60))
+        return got.jev_ticket
+    }
+    private var jevTicketCache: (value: String, until: Date)?
+
     // MARK: enrollment (once per install)
 
     /// The candidate token is saved before registering, so a lost reply is recovered by asking the status

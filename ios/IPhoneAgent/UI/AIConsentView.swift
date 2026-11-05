@@ -29,7 +29,7 @@ struct AIConsentSheet: View {
                     TrialConsentSections()
                 } else {
                     Section {
-                        Text("Screenshots may show anything on your screen. \(host) handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them. You can withdraw this anytime in Settings › Privacy.")
+                        Text("Screenshots may show anything on your screen. \(host) handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them, unless you turn on Jev. You can withdraw this anytime in Settings › Privacy.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
@@ -115,7 +115,7 @@ struct AIConsentSection: View {
             } header: {
                 Text("AI service")
             } footer: {
-                Text("Screenshots and your task go only to the AI service you allowed, and only during runs, tests and intent saving.")
+                Text("Screenshots and your task go only to the AI service you allowed (and to Jev, if you turn it on), and only during runs, tests and intent saving.")
             }
         }
     }
