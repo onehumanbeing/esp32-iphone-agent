@@ -7,7 +7,7 @@
         serverName: esp32agent
         transport: stdio
         command: npx
-        args: [-y, esp32agent@0.1.1, mcp]
+        args: [-y, esp32agent@0.1.2, mcp]
         # dsh scrubs the inherited env before spawning, so pass the board selector through explicitly.
         env: !!js "process.env.ESP32AGENT_DEVICE ? { ESP32AGENT_DEVICE: process.env.ESP32AGENT_DEVICE } : {}"
         # First run downloads the CLI binary; screenshots go through AirPlay decode.
