@@ -43,7 +43,8 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `device info` | board status: `ap` (mirroring), `fz` (video frozen), `busy` (the app holds the phone), `usb`, `ble` |
 | `calibrate` | measure the pointer (runs by itself on the first tap; needs the pointer visible) |
 | `net` | the CLI's link (`via`: `ble` or `wifi`) and the board's Wi-Fi. With this computer on the board's network (same Wi-Fi, or its hotspot) commands and video go over Wi-Fi; BLE stays as the way back |
-| `net join SSID [PASSWORD]` / `net hotspot` | the board joins your Wi-Fi, or opens its hotspot again (the iPhone mirrors over that network too) |
+| `net join` | asks for your Wi-Fi's name and password (not echoed), sends them to the board over the Bluetooth session, and waits until the link moves to Wi-Fi. `net join SSID [PASSWORD]` does it without asking. The iPhone mirrors over that Wi-Fi too |
+| `net hotspot` | the board opens its own hotspot again |
 | `net via auto\|ble` | `ble` keeps the session on BLE (also `ESP32AGENT_TRANSPORT=ble`) |
 | `history list`, `history show RUN\|latest`, `history new` | what was done on the phone: runs (newest first, 30), one run's steps; start a new run |
 | `intent list`, `intent show NAME\|ID` | saved intents |
