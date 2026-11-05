@@ -67,7 +67,7 @@ func TestPointerRehomesEveryTenGestures(t *testing.T) {
 			homes++
 		}
 	}
-	if homes != 2 || d.sent[0] != "release" || d.sent[2] != "move 200 400" {
+	if homes != 2 || d.sent[0] != "release" || d.sent[2] != "move 200 0" || d.sent[3] != "move 0 400" {
 		t.Fatalf("sent %v", d.sent)
 	}
 }
@@ -147,7 +147,7 @@ func TestLongPressHoldsThenReleases(t *testing.T) {
 	var held time.Duration
 	p.Sleep = func(_ context.Context, dd time.Duration) error { held = dd; return nil }
 	p.LongPress(context.Background(), 0.25, 0.5, 2*time.Second)
-	if held != 2*time.Second || fmt.Sprint(d.sent[len(d.sent)-3:]) != "[move 100 400 press release]" {
+	if held != 2*time.Second || fmt.Sprint(d.sent[len(d.sent)-4:]) != "[move 100 0 move 0 400 press release]" {
 		t.Fatalf("sent %v held %v", d.sent, held)
 	}
 }

@@ -6,7 +6,7 @@
 
 void net_begin();
 void net_poll();                         // call from loop(): applies a pending `net` write
-String net_json();                       // value of the `net` characteristic
+String net_json(bool vtok = true);       // value of the `net` characteristic (the CLI gets it without vtok)
 void net_request(const String &json);    // `net` write; applied by net_poll()
 const char *net_mode();                  // "ap" | "sta" | "none" (station not connected)
 String net_ip();

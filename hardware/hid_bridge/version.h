@@ -5,5 +5,5 @@
 #if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, versioned so the app offers it
 #define FW_VERSION "9.9.9"
 #else
-#define FW_VERSION "0.2.2"
+#define FW_VERSION "0.2.3"
 #endif

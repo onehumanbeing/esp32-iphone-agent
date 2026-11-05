@@ -28,6 +28,9 @@ const (
 	MaxMiss         = 0.06                   // bigger misses are still corrected, but not learned from
 	SettleLag       = 300 * time.Millisecond // after a key, frames captured sooner still show the old screen
 	ChangeWait      = 5 * time.Second        // how long GoHome watches for the screen to change
+	// FreshWait: how long a wiggle waits for a frame captured after it. Over BLE, video yields to commands, and a
+	// frame often took over a second: calibration with 1 s saw no pointer (2026-11-06).
+	FreshWait = 3 * time.Second
 )
 
 // CalibrationStops are the distances at which calibration finds the pointer.
@@ -57,7 +60,11 @@ type saved struct {
 	Seen    map[string][][]float64 `json:"seen,omitempty"`
 	Quality *float64               `json:"quality,omitempty"`
 	Aspect  *float64               `json:"aspect,omitempty"`
+	Moves   string                 `json:"moves,omitempty"` // "axis": measured with moveXY's moves; older ones are redone
 }
+
+// MovesAxis marks a calibration measured with axis-by-axis moves.
+const MovesAxis = "axis"
 
 type Pointer struct {
 	dev    Device
@@ -93,7 +100,7 @@ func New(dev Device, screen Screen, file string) *Pointer {
 		Log: func(string) {}, Sleep: sleep}
 	raw, err := os.ReadFile(file)
 	var s saved
-	if err != nil || json.Unmarshal(raw, &s) != nil || s.W <= 0 || s.H <= 0 {
+	if err != nil || json.Unmarshal(raw, &s) != nil || s.W <= 0 || s.H <= 0 || s.Moves != MovesAxis {
 		return p
 	}
 	p.Span = &Span{s.W, s.H}
@@ -158,13 +165,16 @@ func (p *Pointer) Calibrate(ctx context.Context) error {
 		if len(found) > 0 {
 			step = units - found[len(found)-1].units
 		}
-		if err := p.send(ctx, "move %d %d", step, step); err != nil {
+		if err := p.moveXY(ctx, step, step); err != nil {
 			return err
 		}
 		if p.screen == nil || !p.screen.Live() {
 			break
 		}
 		pt, ok, err := p.findPointer(ctx)
+		if err == nil && !ok { // once more: a frame lost or a late one
+			pt, ok, err = p.findPointer(ctx)
+		}
 		if err != nil {
 			return err
 		}
@@ -181,7 +191,9 @@ func (p *Pointer) Calibrate(ctx context.Context) error {
 		return ErrNotFound
 	}
 	s := Span{int(math.RoundToEven(float64(b.units-a.units) / (b.x - a.x))), int(math.RoundToEven(float64(b.units-a.units) / (b.y - a.y)))}
-	if s.W <= 0 || s.H <= 0 {
+	// Two sightings of one spot (a stale frame) give a huge span, and the check move after it then took the board
+	// 20 s: its watchdog reset it (2026-11-06). A real span is a few hundred to a few thousand units.
+	if s.W < 100 || s.H < 100 || s.W > 5000 || s.H > 5000 {
 		return ErrNotFound
 	}
 	p.Span = &s
@@ -198,20 +210,28 @@ func (p *Pointer) Calibrate(ctx context.Context) error {
 
 // findPointer wiggles the pointer and finds it anywhere on screen (the span may still be unknown).
 func (p *Pointer) findPointer(ctx context.Context) (Point, bool, error) {
-	p.screen.Settled(ctx, 200*time.Millisecond, 300*time.Millisecond, 1500*time.Millisecond)
+	// iOS glides the pointer to a new spot over ~1 s, and the first frames arrive ~0.2 s late: a shorter wait took
+	// a frame from before the stop's move as "before" (2026-11-06).
+	p.screen.Settled(ctx, 400*time.Millisecond, 800*time.Millisecond, 3*time.Second)
 	before, sent := p.screen.Frame(), time.Now()
 	if err := p.send(ctx, "move %d 0", Nudge); err != nil {
 		return Point{}, false, err
 	}
-	after := p.screen.Fresh(ctx, sent, time.Second)
+	after := p.screen.Fresh(ctx, sent, FreshWait)
 	if after != nil {
 		p.screen.Settled(ctx, 150*time.Millisecond, 100*time.Millisecond, 600*time.Millisecond)
 		after = p.screen.Frame()
 	}
+	sent = time.Now()
 	if err := p.send(ctx, "move -%d 0", Nudge); err != nil {
 		return Point{}, false, err
 	}
-	pt, ok := Locate(before, after, Point{0.5, 0.5}, 0.025, Point{0.5, 0.5})
+	var back image.Image
+	if after != nil && p.screen.Fresh(ctx, sent, FreshWait) != nil {
+		p.screen.Settled(ctx, 150*time.Millisecond, 100*time.Millisecond, 600*time.Millisecond)
+		back = p.screen.Frame()
+	}
+	pt, ok := LocateBack(before, after, back, Point{0.5, 0.5}, 0.025, Point{0.5, 0.5})
 	if !ok || pt.X <= 0.03 || pt.X >= 0.97 || pt.Y <= 0.03 || pt.Y >= 0.97 {
 		return Point{}, false, nil
 	}
@@ -232,7 +252,7 @@ func (p *Pointer) save() error {
 	if p.Span == nil || p.file == "" {
 		return nil
 	}
-	s := saved{W: p.Span.W, H: p.Span.H, Seen: map[string][][]float64{}, Quality: p.Quality, Aspect: p.Aspect}
+	s := saved{W: p.Span.W, H: p.Span.H, Seen: map[string][][]float64{}, Quality: p.Quality, Aspect: p.Aspect, Moves: MovesAxis}
 	for axis, pts := range p.seen {
 		s.Seen[axis] = [][]float64{}
 		for _, v := range pts {
@@ -280,7 +300,7 @@ func (p *Pointer) aim(ctx context.Context, x, y float64) error {
 	}
 	mx := int(math.RoundToEven((x - found.X) * float64(p.Span.W)))
 	my := int(math.RoundToEven((y - found.Y) * float64(p.Span.H)))
-	if err := p.send(ctx, "move %d %d", mx, my); err != nil { // fix this miss right away
+	if err := p.moveXY(ctx, mx, my); err != nil { // fix this miss right away
 		return err
 	}
 	if p.pos != nil {
@@ -390,10 +410,26 @@ func (p *Pointer) moveTo(ctx context.Context, tx, ty int, rehome bool) error {
 	}
 	x, y := p.pos[0], p.pos[1]
 	p.pos = nil // unknown until the move succeeds
-	if err := p.send(ctx, "move %d %d", tx-x, ty-y); err != nil {
+	if err := p.moveXY(ctx, tx-x, ty-y); err != nil {
 		return err
 	}
 	p.pos, p.moves = &[2]int{tx, ty}, p.moves+1
+	return nil
+}
+
+// moveXY moves the pointer along x, then along y. The board paces a move in reports of at most 10 units per axis,
+// and iOS accelerates by a report's length: a diagonal report (10, 10) went 40% further per unit than (10, 0), so
+// how far one axis went depended on the other, and taps after a diagonal calibration missed (2026-11-06).
+// One axis at a time keeps every report the same length: the units per screen stay the same in any direction.
+func (p *Pointer) moveXY(ctx context.Context, dx, dy int) error {
+	if dx != 0 {
+		if err := p.send(ctx, "move %d 0", dx); err != nil {
+			return err
+		}
+	}
+	if dy != 0 {
+		return p.send(ctx, "move 0 %d", dy)
+	}
 	return nil
 }
 

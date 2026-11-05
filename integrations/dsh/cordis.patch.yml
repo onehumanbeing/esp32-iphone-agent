@@ -1,0 +1,20 @@
+# Loaded when a dsh profile lists this bundle.
+- insert:
+    # The esp32agent CLI is a stdio MCP server; tools show up as mcp__esp32agent__<tool>.
+    - id: esp32agent-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: esp32agent
+        transport: stdio
+        command: npx
+        args: [-y, esp32agent@0.1.3, mcp]
+        # dsh scrubs the inherited env before spawning, so pass the board selector through explicitly.
+        env: !!js "process.env.ESP32AGENT_DEVICE ? { ESP32AGENT_DEVICE: process.env.ESP32AGENT_DEVICE } : {}"
+        # First run downloads the CLI binary; screenshots go through AirPlay decode.
+        startupTimeoutMs: 120000
+        toolCallTimeoutMs: 120000
+        # Keep dsh usable when the board is unplugged; the tools report the error instead.
+        failOnStartupError: false
+    # Registers the handsy skill (see-act loop, safety rules).
+    - id: esp32agent-skill
+      name: dsh-esp32agent

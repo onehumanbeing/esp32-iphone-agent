@@ -1,0 +1,39 @@
+{
+  "name": "dsh-esp32agent",
+  "version": "0.1.1",
+  "description": "DeepSeek Harness plugin: see and drive a real iPhone through an ESP32 Agent (Handsy) board. Adds the esp32agent MCP server and the handsy skill.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "skills"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-skill": "*"
+  },
+  "homepage": "https://handsy.tech",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onehumanbeing/esp32-iphone-agent.git",
+    "directory": "integrations/dsh"
+  },
+  "keywords": ["dsh-plugin", "deepseek-harness", "iphone", "ios", "esp32", "mcp", "phone-automation", "handsy"],
+  "license": "MIT",
+  "author": "Henry Yuan"
+}

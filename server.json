@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "cli"
   },
-  "version": "0.1.1",
+  "version": "0.1.3",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "esp32agent",
-      "version": "0.1.1",
+      "version": "0.1.3",
       "transport": {
         "type": "stdio"
       },
