@@ -2,6 +2,8 @@
 
 ## Unreleased (main)
 
+- Board firmware v0.2.3 (TestFlight channel): CLI link over Wi-Fi (TCP 7202) next to BLE, `net` command for
+  the CLI, BLE write-without-response characteristic `cli_in_nr`.
 - CLI v0.1.2 (npm `esp32agent` 0.1.3, dsh plugin 0.1.1) — CLI over Wi-Fi: with the computer on the board's network (same Wi-Fi, or its hotspot) the CLI's session moves
   to TCP port 7202 (same sealed frames), and falls back to BLE when it drops. `esp32agent net` shows the link,
   `net join` / `net hotspot` set the board's Wi-Fi, `net via ble` stays on BLE. Over BLE, short frames go as
