@@ -54,6 +54,31 @@ import XCTest
         XCTAssertEqual(planned.first?.act["y"], .int(y))
     }
 
+    /// The free line's Spark tree (handsy.tree) reads back as the same elements, listing and `tap #ID`.
+    func testSparkTreeJSONRoundTrips() throws {
+        let t = tree()
+        let back = try XCTUnwrap(UITree(json: Data(PyJSON.dumps(t.json).utf8)))
+        XCTAssertEqual(back.listing, t.listing)
+        XCTAssertEqual(back.resolve("DO: tap #2"), t.resolve("DO: tap #2"))
+        let sse = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(#"{"handsy":{"tree":{"w":540,"h":1170,"ocr":"ppocr","tree":[]}}}"#.utf8)) as? [String: Any])
+        XCTAssertNotNil(LLMClient.tree(sse))
+        XCTAssertNil(LLMClient.tree(["choices": []]))
+    }
+
+    func testServerTreeSkipsThePhonesTreeAndResolvesFromTheReply() async throws {
+        let screen = FakeScreen()
+        screen.frame = Self.screen()
+        let actor = FakeModel { _ in "THINK: sign in\nDO: tap #1" }
+        actor.tree = Data(PyJSON.dumps(tree().json).utf8)
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)
+        agent.screenTree = true
+        agent.serverTree = true
+        let planned = try await agent.nextActions()
+        XCTAssertFalse(try XCTUnwrap(actor.prompts.first).contains("Screen elements"))  // Spark appends it
+        XCTAssertEqual(planned.first?.act["x"], .int(370))
+        XCTAssertEqual(planned.first?.act["y"], .int(196))
+    }
+
     func testOtherLinesSendThePromptAsBefore() async throws {
         let screen = FakeScreen()
         screen.frame = Self.screen()

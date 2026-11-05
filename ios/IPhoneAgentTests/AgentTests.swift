@@ -322,13 +322,16 @@ import XCTest
     private(set) var prompts: [String] = []
     private(set) var images: [Data?] = []
     private let reply: (Int) -> String
+    var tree: Data?  // the free line's handsy.tree on every reply
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
-        return ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        var result = ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        result.tree = tree
+        return result
     }
 }
 

@@ -305,3 +305,23 @@ struct UITree {
         .obj(["w": .int(w), "h": .int(h), "ocr": .str("vision"), "tree": .arr(nodes.map(\.json))])
     }
 }
+
+extension UITree {
+    /// The tree Spark built for the sent frame (the free line's `handsy.tree`, X-Handsy-Tree: slim): the shape
+    /// `json` writes, so `elements`, `listing` and `resolve` number exactly what Spark listed for the model.
+    init?(json: Data) {
+        guard let o = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any],
+              let w = o["w"] as? Int, let h = o["h"] as? Int, w > 0, h > 0, let nodes = o["tree"] as? [[String: Any]]
+        else { return nil }
+        func node(_ d: [String: Any]) -> UINode? {
+            guard let role = d["role"] as? String, let box = d["box"] as? [Int], box.count == 4 else { return nil }
+            let children = (d["children"] as? [[String: Any]] ?? []).compactMap(node)
+            let n = UINode(role, box, label: d["label"] as? String, children: children)
+            n.id = d["id"] as? Int ?? 0
+            n.near = d["near"] as? String
+            n.where_ = d["where"] as? String ?? ""
+            return n
+        }
+        self.init(w: w, h: h, nodes: nodes.compactMap(node))
+    }
+}

@@ -98,6 +98,8 @@ extension Gestures {
     var askMode: AskMode?  // nil = the stored setting
     /// Free line: the actor sees the screen's element list (UITree, built here) and may answer `tap #ID`.
     var screenTree = false
+    /// The free line: Spark builds the tree of the sent frame and lists it; the reply brings it back for `tap #ID`.
+    var serverTree = false
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     private(set) var lastServed: String?
 
@@ -226,7 +228,7 @@ extension Gestures {
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
             // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
             var tree: UITree?
-            if role == "actor", screenTree, let sent { tree = await UITree.build(jpeg: sent) }
+            if role == "actor", screenTree, !serverTree, let sent { tree = await UITree.build(jpeg: sent) }
             let text = prompt + (tree?.listing ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
@@ -265,11 +267,16 @@ extension Gestures {
             let seconds = ((now() - started) * 100).rounded() / 100
             metrics?.llm(first: reply.firstToken, total: reply.total)
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
+            let built = tree != nil
+            if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
             let answer = tree?.resolve(reply.text) ?? reply.text
             lastServed = reply.servedModel
             var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(text),
                                 "reply": .str(reply.text), "seconds": .num(seconds)]
-            if let tree {
+            if let tree, !built {
+                rec["tree"] = .str("spark")
+                if answer != reply.text { rec["resolved"] = .str(answer) }
+            } else if let tree {
                 rec["tree_ms"] = .num(((tree.ocrSeconds + tree.cvSeconds) * 1000).rounded())
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }

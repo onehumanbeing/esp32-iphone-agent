@@ -86,6 +86,7 @@ extension AppModel {
             agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
+            agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
         } catch is CancellationError {
             return  // Cancel while waiting for the free line
         } catch {

@@ -308,6 +308,9 @@ import UIKit
         (try? JSONSerialization.jsonObject(with: Data(extraBody.utf8))) as? [String: Any] ?? [:]
     }
 
+    /// The free line builds the screen tree on Spark, unless Jev runs in the app (own TypeSafe key) and needs it here.
+    static func serverTree(_ provider: ModelProvider) -> Bool { provider == .handsyTrial && !JevConfig.ownActive }
+
     /// role "planner" or "actor": its own model if set, else the shared one.
     func client(_ role: String) async throws -> LLMClient {
         let own = role == "planner" ? plannerModel : actorModel
@@ -322,8 +325,10 @@ import UIKit
         // once, the first sure answer wins)
         let jev = role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
             .freeLineHeader(race: defaults.bool(forKey: Deciders.raceKey)) : [:]
+        // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
+        let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
-            ? { try Trial.shared.headers().merging(jev) { a, _ in a } } : nil
+            ? { try Trial.shared.headers().merging(jev) { a, _ in a }.merging(tree) { a, _ in a } } : nil
         return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
     }
 
