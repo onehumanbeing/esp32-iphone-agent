@@ -2,7 +2,7 @@
 
 Command line and MCP server that let a computer (and the coding agent on it: Claude Code, Codex) see and drive an
 iPhone through an ESP32 Agent board. The board is plugged into the iPhone as its USB mouse and keyboard and receives
-its AirPlay screen mirroring; the computer reaches it over Bluetooth, next to the iOS app. Commands and JSON output
+its AirPlay screen mirroring; the computer reaches it over Bluetooth, or over Wi-Fi when both are on the same network, next to the iOS app. Commands and JSON output
 follow [mobilecli](https://github.com/mobile-next/mobilecli).
 
 ## Install
@@ -103,7 +103,7 @@ it yourself; esp32agent never sends anything.
 
 - The iOS app has priority: while it drives the phone (and 20 s after), pointer and keyboard commands fail with
   `busy: the app is using the phone`. Wait and retry.
-- Video comes over Bluetooth: screenshots can lag up to about a second and animations are choppy.
+- Over Bluetooth, screenshots can lag up to about a second and animations are choppy; over Wi-Fi they are close to live.
 - Taps are relative mouse moves, dead-reckoned from the top-left corner and re-homed every 10 gestures; accuracy
   depends on calibration (`calibrate`, `io tap --aim`).
 - Typing is ASCII only (one key per character); no clipboard, no volume/power buttons, no app install or launch.

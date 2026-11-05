@@ -26,7 +26,7 @@ Just the phone and the board: no computer, no changes to iOS.
 
 English · [简体中文](README.zh-CN.md)
 
-Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTube demo](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [handsy.tech](https://handsy.tech)
+Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTube demo](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness demo](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech)
 
 </div>
 
@@ -191,13 +191,14 @@ Cursor, Cline and other MCP clients:
 ```
 
 DeepSeek Harness (dsh): install the plugin in [integrations/dsh](integrations/dsh/README.md), which adds the same
-MCP server and skill:
+MCP server and skill ([demo video](https://www.youtube.com/watch?v=DzYv0QVk_No)):
 
 ```bash
 dsh plugin --profile web add dsh-esp32agent
 ```
 
-The CLI talks to the board from your computer over Bluetooth, so it works without the iPhone app or TestFlight.
+The CLI talks to the board from your computer over Bluetooth, or over your Wi-Fi once both are on it (`esp32agent net join`),
+so it works without the iPhone app or TestFlight.
 Commands and options are in the [CLI reference](https://handsy.tech/docs/cli) and [cli/README.md](cli/README.md).
 
 ## Model and prompts
