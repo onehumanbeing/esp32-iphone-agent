@@ -8,7 +8,11 @@ import UIKit
 @MainActor final class Pointer: ObservableObject {
     static let calibrationMove = 200        // mouse units moved diagonally for a manual (one point) calibration
     static let calibrationStops = [150, 350]  // automatic calibration finds the pointer at these distances
-    static let rehomeEvery = 10             // gestures between re-homing
+    /// Gestures between re-homing: every one. Relative moves between taps drift (2026-11-06 Duolingo: a +256 x
+    /// move went 75% of the way, a narrow CONTINUE landed +3.5% then -2.3%), and the learned fit (`fix`) only
+    /// describes moves from the corner, like the calibration. A home costs ~0.16 s; a missed tap a whole round.
+    static let rehomeEvery = 1
+    static let samplesVersion = 2  // landings saved before every gesture re-homed mix in that drift: dropped
     static let hold = 0.25                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
@@ -16,7 +20,7 @@ import UIKit
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
 
     struct Span: Codable, Equatable { var w: Int, h: Int }
-    private struct Saved: Codable { var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double? }
+    private struct Saved: Codable { var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int? }
 
     let device: HIDDevice
     weak var screen: ScreenSource?
@@ -43,7 +47,7 @@ import UIKit
         if let data = try? Data(contentsOf: calibrationFile), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             span = Span(w: saved.w, h: saved.h)
             (quality, aspect) = (saved.quality, saved.aspect)
-            for axis in ["x", "y"] {
+            for axis in ["x", "y"] where saved.v == Self.samplesVersion {
                 seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
             }
         }
@@ -148,7 +152,7 @@ import UIKit
     private func save() {
         guard let span else { return }
         let saved = Saved(w: span.w, h: span.h, seen: seen.mapValues { $0.map { [$0.0, $0.1] } }, quality: quality,
-                          aspect: aspect)
+                          aspect: aspect, v: Self.samplesVersion)
         try? JSONEncoder().encode(saved).write(to: file)
     }
 

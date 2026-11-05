@@ -102,13 +102,23 @@ import XCTest
         XCTAssertEqual(s.fps, 4.8)
     }
 
-    func testPointerRehomesEveryTenGestures() async throws {
+    func testLandingsSavedBeforeEveryGestureRehomedAreDropped() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let old = #"{"w":400,"h":800,"seen":{"x":[[0.5,0.52],[0.3,0.33]],"y":[]}}"#
+        try Data(old.utf8).write(to: file)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 0)
+        XCTAssertTrue(Pointer(device: FakeDevice(), calibrationFile: file).calibrated)  // the calibration stays
+        try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":2}").utf8).write(to: file)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
+    }
+
+    func testPointerRehomesBeforeEveryGesture() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         let pointer = Pointer(device: device, calibrationFile: file)
         pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
-        for _ in 0..<11 { try await pointer.point(0.5, 0.5) }
-        XCTAssertEqual(device.sent.filter { $0 == "home" }.count, 2)
+        for _ in 0..<3 { try await pointer.point(0.5, 0.5) }
+        XCTAssertEqual(device.sent.filter { $0 == "home" }.count, 3)
         XCTAssertEqual(device.sent[0], "release")  // a new link: let go first
         XCTAssertEqual(device.sent[2], "move 200 400")
     }
