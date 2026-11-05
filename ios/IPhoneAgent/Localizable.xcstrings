@@ -8982,6 +8982,26 @@
           }
         }
       }
+    },
+    "Ask Jev and the model together" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时请求 Jev 和模型"
+          }
+        }
+      }
+    },
+    "Jev takes the plain steps of the free line on its own and leaves the rest to the model. Asking both together saves a little time on the steps Jev leaves." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在免费线路上，Jev 会自己完成简单的步骤，其余交给模型。同时请求可以在 Jev 不接手的步骤上省一点时间。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
