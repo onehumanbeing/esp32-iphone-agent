@@ -31,6 +31,22 @@ struct SettingsView: View {
                 } footer: {
                     Text("ESP32 Agent follows your iPhone's language. To change it just for this app, open Settings › ESP32 Agent › Language.")
                 }
+                if #available(iOS 27.0, *) {
+                    Section {
+                        Picker(selection: Binding(get: { app.captureBackend }, set: { app.setCaptureBackend($0) })) {
+                            Text("AirPlay").tag(CaptureBackend.airPlay)
+                            Text("On-device capture").tag(CaptureBackend.onDevice)
+                        } label: {
+                            SettingsLabel(title: "Screen capture", symbol: "rectangle.inset.filled", color: .blue)
+                        }
+                        .accessibilityIdentifier("capture-backend")
+                        .disabled(app.agent.running || app.startingAgent || app.recorder.busy || app.calibrator.busy)
+                    } footer: {
+                        Text(app.onDeviceCapture
+                             ? "Screen sharing is requested when a task or recording starts, or when calibration needs it. The board still controls the phone through USB."
+                             : "Use Screen Mirroring to send the screen to the board over Wi-Fi.")
+                    }
+                }
                 Section {
                     Button { UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!) } label: {
                         HStack {

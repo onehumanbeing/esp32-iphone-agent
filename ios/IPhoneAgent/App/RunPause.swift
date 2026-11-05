@@ -28,7 +28,7 @@ extension AppModel {
             try Task.checkCancellation()
             try await Task.sleep(nanoseconds: 300_000_000)
         }
-        _ = await feed.fresh(since: since, timeout: 3)
-        await feed.settled()
+        _ = await screen.fresh(since: since, timeout: 3)
+        await screen.settled()
     }
 }

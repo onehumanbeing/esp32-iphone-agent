@@ -15,6 +15,8 @@ import UIKit
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
     /// `ignoring`: where the pointer was and went (fractions); changes there alone are not a result.
     func afterAction(since: Double, ignoring: [CGPoint]) async
+    /// Throw when a source cannot recover without starting a new session.
+    func checkAvailability() throws
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -31,6 +33,7 @@ enum FrameMode: String {
 }
 
 extension ScreenSource {
+    func checkAvailability() throws {}
     var changed: Double { updated }
     var stale: Bool { false }
     func afterAction(since: Double, ignoring spots: [CGPoint]) async { await settled(ignoring: spots) }

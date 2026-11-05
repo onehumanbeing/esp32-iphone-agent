@@ -439,3 +439,13 @@ struct CustomEndpoint: Identifiable, Equatable {
         return url.port.map { "\(host):\($0)" } ?? host
     }
 }
+
+/// Persisted capture preference; older systems always use AirPlay.
+enum CaptureBackend: String {
+    case airPlay, onDevice
+    static let key = "captureBackend"
+    static var current: CaptureBackend {
+        guard #available(iOS 27.0, *) else { return .airPlay }
+        return CaptureBackend(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .airPlay
+    }
+}

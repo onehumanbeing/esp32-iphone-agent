@@ -15,7 +15,15 @@ import UIKit
 
     let settings = Settings()
     let board = BoardLink(mock: MockMode.on)
-    let feed = VideoFeed()
+    let feed: VideoFeed
+    let screen: TaskScreen
+    @Published private(set) var captureBackend: CaptureBackend
+    var onDeviceCapture: Bool { !MockMode.on && captureBackend == .onDevice }
+    // Store behind the existing protocol because AppModel also runs on iOS 18–26.
+    private let localCaptureStorage: ScreenSource?
+    @available(iOS 27.0, *)
+    var localCapture: ScreenCaptureFeed { localCaptureStorage as! ScreenCaptureFeed }
+    var screenCleanup: Task<Void, Never>?
     private var lastVideoToken: String?
     private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
@@ -105,11 +113,25 @@ import UIKit
     var lastWidgetReload = 0.0
 
     init() {
+        let feed = VideoFeed()
+        self.feed = feed
+        let backend = CaptureBackend.current
+        captureBackend = backend
+        let board = self.board
+        let screen = TaskScreen(source: feed, frames: feed.$frame, isConnected: { board.connected })
+        self.screen = screen
+        if #available(iOS 27.0, *) {
+            let capture = ScreenCaptureFeed()
+            localCaptureStorage = capture
+            if !MockMode.on && backend == .onDevice { screen.select(capture, frames: capture.$frame) }
+        } else {
+            localCaptureStorage = nil
+        }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         pointer = Pointer(device: board.commands, calibrationFile: support.appendingPathComponent("calibration.json"),
-                          screen: feed)
-        agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
+                          screen: screen)
+        agent = AgentLoop(phone: pointer, screen: screen, actor: nil, planner: nil, trace: traces)
         agent.metrics = metrics
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
@@ -188,7 +210,7 @@ import UIKit
             metrics.mtu = board.mtu
             updateWifiVideo()
             readBoardPace()
-            if agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
+            if !onDeviceCapture && agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
                 Task { [weak self] in
                     do { try await self?.feed.stream(true); DebugLog.write("recover: BLE back, stream on again") } catch {
                         DebugLog.write("recover: stream on after reconnect failed: \(error.localizedDescription)")
@@ -214,6 +236,7 @@ import UIKit
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
         agent.gate = { [weak self] in
+            try self?.screen.checkAvailability()
             try await self?.holdWhileInFront()
             try await self?.holdWhilePaused()
         }
@@ -225,7 +248,7 @@ import UIKit
         notifier.onAction = { [weak self] action, run, kind in self?.notificationAction(action, run: run, kind: kind) }
         wireRecovery()
 
-        timers.append(Task { [weak self] in await self?.board.commands.keepAwake(screenLive: { self?.feed.live ?? false }) })
+        timers.append(Task { [weak self] in await self?.board.commands.keepAwake(screenLive: { self?.screen.live ?? false }) })
         timers.append(Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -251,6 +274,7 @@ import UIKit
 
     /// A new per-boot video token: the board rebooted, its GOP and timestamps are new, so no resume.
     private func updateWifiVideo() {
+        guard !onDeviceCapture else { wifiVideo.stop(); return }
         // Read at connect while the board was still joining Wi-Fi after power-on, the address stays empty and the
         // video goes over BLE only (2026-11-06): read it again every 5 s until there is one.
         if [nil, "", "0.0.0.0"].contains(board.net?.ip), now() - lastNetRead > 5 {
@@ -276,7 +300,7 @@ import UIKit
         if board.connected && !MockMode.on { updateWifiVideo() }
         shareHearing()
         // Wi-Fi video not up on the idle home screen: maybe the Local Network permission was never given
-        if !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
+        if !onDeviceCapture && !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
             LocalNetworkPermission.askIfNeeded()
         }
         if metrics.suspensions > before { DebugLog.write(String(format: "app: resumed after %.0f s suspended", gap)) }
@@ -295,6 +319,7 @@ import UIKit
     /// snap-per-step for the rest of this run (the next run streams again).
     private func commandTimedOut(_ command: String) async {
         startupBoardUnavailable(disconnected: !board.connected)
+        guard !onDeviceCapture else { return }
         DebugLog.write("cmd timeout on '\(command.prefix(30))': stream off, snap-per-step for this run")
         FrameMode.fallback = .snap
         if feed.streamOn { _ = try? await feed.stream(false) }
@@ -304,7 +329,7 @@ import UIKit
     /// Starting mid-GOP meant a snap of the whole GOP at Start (up to ~570 KB at ~140 kbps over BLE, 20-60 s
     /// before the first frame; 2026-10-17 runs); now that wait overlaps typing the task. Off in Advanced.
     func prewarmStream() {
-        guard Self.prewarmOn, !MockMode.on, FrameMode.current == .stream, board.connected, !agent.running,
+        guard !onDeviceCapture, Self.prewarmOn, !MockMode.on, FrameMode.current == .stream, board.connected, !agent.running,
               prewarmJob == nil, UIApplication.shared.applicationState != .background else { return }
         prewarmJob = Task { [weak self] in
             defer { self?.prewarmJob = nil }
@@ -317,8 +342,37 @@ import UIKit
         }
     }
 
+    func setCaptureBackend(_ backend: CaptureBackend) {
+        guard !startingAgent, !agent.running, !recorder.busy, !calibrator.busy else { return }
+        let supported: CaptureBackend
+        if #available(iOS 27.0, *) { supported = backend } else { supported = .airPlay }
+        guard supported != captureBackend else { return }
+        captureBackend = supported
+        UserDefaults.standard.set(supported.rawValue, forKey: CaptureBackend.key)
+        if #available(iOS 27.0, *), onDeviceCapture {
+            screen.select(localCapture, frames: localCapture.$frame)
+        } else {
+            screen.select(feed, frames: feed.$frame)
+        }
+        prewarmJob?.cancel()
+        let previous = screenCleanup
+        screenCleanup = Task {
+            await previous?.value
+            await prewarmJob?.value
+            await stopLocalCapture()
+            if onDeviceCapture {
+                wifiVideo.stop()
+                if feed.streamOn { try? await feed.stream(false) }
+            } else {
+                updateWifiVideo()
+                prewarmStream()
+            }
+        }
+    }
+
     func setFrameMode(_ mode: FrameMode) {
         FrameMode.current = mode
+        guard !onDeviceCapture else { return }
         say("frame mode: \(mode.rawValue)")
         if mode == .stream && agent.running { Task { try? await feed.stream(true) } }
         if mode == .stream { prewarmStream() }

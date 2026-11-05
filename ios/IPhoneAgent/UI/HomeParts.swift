@@ -113,13 +113,13 @@ struct RecoveryPanel: View {
                 } else {
                     ProgressView()
                 }
-                Text(verbatim: stage.status.full).font(.body.weight(.semibold))
+                Text(verbatim: app.recoveryStatus(stage).full).font(.body.weight(.semibold))
                 Spacer()
                 Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
                     .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
-            if stage.line != stage.status.full {
-                Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+            if app.recoveryLine(stage) != app.recoveryStatus(stage).full {
+                Text(verbatim: app.recoveryLine(stage)).font(.subheadline).foregroundStyle(.secondary)
             }
             HStack {
                 Spacer()

@@ -183,6 +183,7 @@ extension Gestures {
         defer { if shown != nil { onRecover?(nil) } }
         while true {
             try Task.checkCancellation()
+            try screen.checkAvailability()
             guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board)) }
             var state = link?() ?? Recovery.Link(connected: phone?.device.connected ?? true, sta: nil,
                                         ap: screen.live ? "streaming" : nil, frameAt: screen.live ? now() : 0)
