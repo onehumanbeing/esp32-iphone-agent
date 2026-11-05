@@ -66,6 +66,8 @@ func (a *App) netJoin(dev string) int {
 		}
 		json.Unmarshal(line, &resp)
 		if d := resp.Data; d.Via == "wifi" {
+			fmt.Fprintf(a.Err, "Done: commands and video now go over Wi-Fi (%s).\n", d.Board.IP)
+			a.waitMirroring(dev)
 			a.Out.Write(line)
 			return 0
 		} else if d.Board.Mode == "sta" && d.Board.IP != "" && d.Board.IP != "0.0.0.0" {
@@ -76,4 +78,38 @@ func (a *App) netJoin(dev string) int {
 		a.Out.Write(last)
 	}
 	return a.fail(errors.New("the link did not move to Wi-Fi in 45 s: is this computer on the same Wi-Fi, and the password right? (esp32agent net shows the board's state; commands still work over BLE)"))
+}
+
+// waitMirroring walks the user through the step after the network: the iPhone mirroring to the board.
+func (a *App) waitMirroring(dev string) {
+	state := func() (ap, name string) {
+		line, err := a.Client.Call(daemon.Request{Cmd: "info", Device: dev})
+		if err != nil {
+			return "", ""
+		}
+		var r struct {
+			Data struct {
+				AP   string `json:"ap"`
+				Name string `json:"name"`
+			} `json:"data"`
+		}
+		json.Unmarshal(line, &r)
+		return r.Data.AP, r.Data.Name
+	}
+	ap, name := state()
+	if ap == "streaming" {
+		fmt.Fprintln(a.Err, "Screen Mirroring is on. Ready.")
+		return
+	}
+	if name == "" {
+		name = "ESP32 Agent"
+	}
+	fmt.Fprintf(a.Err, "Next, on the iPhone (on the same Wi-Fi): Control Center → Screen Mirroring → %q.\nWaiting for it (Ctrl+C to skip)...\n", name)
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(2 * time.Second) {
+		if ap, _ = state(); ap == "streaming" {
+			fmt.Fprintln(a.Err, "Screen Mirroring is on. Ready: try esp32agent screenshot.")
+			return
+		}
+	}
+	fmt.Fprintln(a.Err, "No mirroring yet. Is the iPhone on the same Wi-Fi as the board? Start it later the same way.")
 }
