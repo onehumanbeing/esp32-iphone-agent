@@ -432,7 +432,7 @@ extension Gestures {
             if name == "done" || name == "fail" { return true }
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
-                timing.frameMs += await settle()
+                timing.frameMs += await settle(ignoring: spots)
                 if !Vision.changed(seen, screen?.frame, ignore: spots) {
                     steps[steps.count - 1]["changed"] = .bool(false)
                     await noteLanding()
@@ -440,7 +440,7 @@ extension Gestures {
                 }
             }
         }
-        timing.frameMs += await settle()
+        timing.frameMs += await settle(ignoring: spots)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
         let changed = Vision.changed(seen, screen?.frame, ignore: spots)
@@ -458,10 +458,10 @@ extension Gestures {
         steps[last]["landed"] = .arr([.int(Int((p.x * 1000).rounded())), .int(Int((p.y * 1000).rounded()))])
     }
 
-    func settle() async -> Double {
+    func settle(ignoring spots: [CGPoint] = []) async -> Double {
         let started = now()
         onDoing?(.looking)
-        await screen?.afterAction(since: lastActed)
+        await screen?.afterAction(since: lastActed, ignoring: spots)
         return (now() - started) * 1000
     }
 

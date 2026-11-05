@@ -313,6 +313,35 @@ final class VideoReorderTests: XCTestCase {
         feeding.cancel()
         XCTAssertLessThan(now() - start, 1.5)
     }
+
+    /// Frames that differ only at the pointer (it fades for seconds after a tap) are still; new content is not.
+    func testSettledIgnoresThePointerButNotContent() async {
+        let v = VisionTests(), spot = v.p(260, 856)
+        func feeding(_ screen: FakeStillScreen, _ frames: [Data]) -> Task<Void, Never> {
+            Task {
+                var i = 0
+                while !Task.isCancelled {
+                    screen.frame = frames[i % frames.count]
+                    screen.changed = now()
+                    i += 1
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+        }
+        func took(_ frames: [Data], ignoring: [CGPoint]) async -> Double {
+            let screen = FakeStillScreen(), start = now(), feed = feeding(screen, frames)
+            await screen.settled(quiet: 0.5, least: 0.3, most: 2, ignoring: ignoring)
+            feed.cancel()
+            return now() - start
+        }
+        let fading = [v.screen(pointer: (260, 856)), v.screen()]
+        let x = await took(fading, ignoring: [spot])
+        XCTAssertLessThan(x, 1.2)
+        let y = await took(fading, ignoring: [])
+        XCTAssertGreaterThan(y, 1.9)  // without spots: as before, any new frame
+        let z = await took([v.screen(), v.screen(button: true)], ignoring: [spot])
+        XCTAssertGreaterThan(z, 1.9)
+    }
 }
 
 @MainActor private final class FakeStillScreen: ScreenSource {

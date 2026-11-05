@@ -11,7 +11,8 @@ import UIKit
     var capturedAt: Double { get }
     var aspect: Double { get }
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
-    func afterAction(since: Double) async
+    /// `ignoring`: where the pointer was and went (fractions); changes there alone are not a result.
+    func afterAction(since: Double, ignoring: [CGPoint]) async
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -29,17 +30,28 @@ enum FrameMode: String {
 
 extension ScreenSource {
     var changed: Double { updated }
-    func afterAction(since: Double) async { await settled() }
+    func afterAction(since: Double, ignoring spots: [CGPoint]) async { await settled(ignoring: spots) }
 
     /// Wait until the screen stops changing. AirPlay keeps sending frames of a still screen (5 fps of tiny
     /// P-frames), so this watches when the image last changed, not when a frame last arrived: waiting on
     /// arrivals hit the `most` cap on every step (frame 4.0 s per step, 2026-10-19). Mid-animation frames are
     /// big and can reach us late over BLE, so a gap is only "quiet" once it also covers the last frame's lag.
-    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4) async {
+    ///
+    /// With `ignoring` (where the pointer was and went), frames that differ only there or in the status bar are
+    /// still: after a tap the pointer fades for seconds, and a tap that changed nothing waited ~2.2 s (2026-11-06).
+    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = []) async {
         let started = now()
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
-        while !Task.isCancelled && now() - changed < quiet + lag && now() - started < most {
+        var still = frame, moved = changed, checked = changed  // moved: the last change that counts
+        while !Task.isCancelled && now() - (spots.isEmpty ? changed : moved) < quiet + lag && now() - started < most {
             try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !spots.isEmpty, changed > checked else { continue }
+            checked = changed
+            let (a, b) = (still, frame)
+            if await Task.detached(priority: .userInitiated, operation: { Vision.changed(a, b, ignore: spots) }).value {
+                still = b
+                moved = checked
+            }
         }
     }
 
@@ -241,7 +253,7 @@ extension ScreenSource {
     /// settle, then wait (bounded) for a frame captured after the action; none while the stream is healthy means
     /// the screen did not change, but a broken stream (waiting for an IDR) needs a snap. Snap: give the UI a moment,
     /// snap, and snap once more if the GOP still ends before the action.
-    func afterAction(since: Double) async {
+    func afterAction(since: Double, ignoring spots: [CGPoint]) async {
         do {
             if FrameMode.current == .snap {
                 try await Task.sleep(nanoseconds: 700_000_000)
@@ -251,7 +263,7 @@ extension ScreenSource {
                 try await Task.sleep(nanoseconds: 500_000_000)
                 try await currentFrame()
             } else {
-                await settled()
+                await settled(ignoring: spots)
                 if await newer(than: since, timeout: 1.5) { return }
                 if frozen { return DebugLog.write("frame: none after the action; the board's video is frozen (no keyframe)") }
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
