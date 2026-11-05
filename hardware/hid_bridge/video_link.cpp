@@ -47,6 +47,7 @@ struct Sink {
   volatile uint32_t followGen = UINT32_MAX;  // the generation it sends in order, AU after AU
   volatile bool onTail;                      // it goes on from the tail past a frozen GOP
   bool resumed;                              // the next AU goes on from the app's last one: VF_RESUME
+  uint32_t cliGen;                           // the CLI session it streams to (cli_gen()): a new one starts over
 };
 
 static gop_buf gop, tail;
@@ -82,7 +83,7 @@ static char owner() { return cli_slot() >= 0 && !ble_app_active() ? FROM_CLI : F
 // Chunk room and send, per sink. The app's video goes over Wi-Fi while it holds a session there, else BLE.
 static bool appWifi(const Sink &s) { return s.who == FROM_APP && wv_active(); }
 static size_t videoRoom(const Sink &s) {
-  if (s.who == FROM_CLI) return min(cli_video_room(), MAX_CHUNK);
+  if (s.who == FROM_CLI) return min(cli_video_room(), WV_PAYLOAD);  // BLE: under MAX_CHUNK; Wi-Fi: as the app's
   return appWifi(s) ? WV_PAYLOAD : min(ble_video_room(), MAX_CHUNK);
 }
 // The app's video over BLE comes first: the CLI's shares the same air, so it only goes in the app's pauses.
@@ -258,6 +259,10 @@ static void streamStep(Sink &s) {
   bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
   if (!resume && (wifi != s.lastWifi || (resyncAsked && !s.catchingUp))) s.txGen = UINT32_MAX;
   s.lastWifi = wifi;
+  if (s.who == FROM_CLI && s.cliGen != cli_gen()) {  // a new session (or the same one moved to Wi-Fi / BLE)
+    s.cliGen = cli_gen();
+    s.txGen = UINT32_MAX;
+  }
   if (s.txGen == UINT32_MAX) unfollow(s, 'r');
   // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
   // at a run start meant resending the whole GOP since mirroring began (a minute and more of P-frames), and the

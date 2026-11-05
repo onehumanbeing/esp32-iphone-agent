@@ -71,6 +71,30 @@ func (l *chanLink) deliver(f []byte) {
 	}
 }
 
+// deliverWait hands a frame to the reader and waits while the buffer is full (a TCP link: the stack then slows the
+// board down, nothing is lost). False once the link is gone or done closes.
+func (l *chanLink) deliverWait(f []byte, done <-chan struct{}) bool {
+	for {
+		l.mu.Lock()
+		if l.shut {
+			l.mu.Unlock()
+			return false
+		}
+		select {
+		case l.ch <- f:
+			l.mu.Unlock()
+			return true
+		default:
+		}
+		l.mu.Unlock()
+		select {
+		case <-done:
+			return false
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
 func (l *chanLink) Recv() <-chan []byte { return l.ch }
 
 func (l *chanLink) Write(f []byte) error {

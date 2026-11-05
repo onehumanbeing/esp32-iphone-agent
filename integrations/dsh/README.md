@@ -8,13 +8,16 @@ a real iPhone through an ESP32 Agent (Handsy) board. It adds:
   `mcp__esp32agent__<tool>`.
 - the `handsy` skill: the see-act loop, how to save what worked, and safety rules.
 
+Demo: [DeepSeek Harness drives an iPhone over Wi-Fi](https://www.youtube.com/watch?v=DzYv0QVk_No) (YouTube).
+
 Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agent) by Henry Yuan (MIT).
 
 ## Requirements
 
 - An ESP32 Agent board with firmware v0.2.2 or later, plugged into the iPhone, with AssistiveTouch and Screen
   Mirroring set up (see the [main README](../../README.md)).
-- Node.js 18+ and `ffmpeg` on the computer running dsh. The board is reached over Bluetooth.
+- Node.js 18+ and `ffmpeg` on the computer running dsh. The board is reached over Bluetooth,
+  or over Wi-Fi when the board and the computer share a network (`npx -y esp32agent net join`).
 - Pair once: `npx -y esp32agent pair` within 3 minutes of plugging the board in.
 
 ## Install

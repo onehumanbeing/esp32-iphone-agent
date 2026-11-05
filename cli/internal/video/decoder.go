@@ -49,7 +49,9 @@ func FFmpeg() (string, error) {
 
 // NewDecoder starts ffmpeg; onFrame gets every decoded picture until Close.
 func NewDecoder(ffmpeg string, onFrame func(Frame)) (*Decoder, error) {
-	d := &Decoder{queue: make(chan AU, 256), done: make(chan struct{})}
+	// Room for a whole GOP (the board's holds up to 8192 AUs): a new stream starts with it at once, and over Wi-Fi it
+	// arrives faster than ffmpeg decodes. 256 overflowed there and the stream waited minutes for the next IDR (2026-11-06).
+	d := &Decoder{queue: make(chan AU, 8192), done: make(chan struct{})}
 	d.cmd = exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-flags", "low_delay",
 		"-probesize", "32", "-analyzeduration", "0", "-threads", "1", "-f", "h264", "-i", "pipe:0", "-fps_mode", "passthrough", "-flush_packets", "1", "-f", "image2pipe", "-c:v", "bmp", "pipe:1")
 	d.cmd.Stderr = &d.stderr
