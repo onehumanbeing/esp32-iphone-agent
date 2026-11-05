@@ -8,7 +8,11 @@ a real iPhone through an ESP32 Agent (Handsy) board. It adds:
   `mcp__esp32agent__<tool>`.
 - the `handsy` skill: the see-act loop, how to save what worked, and safety rules.
 
-Demo: [DeepSeek Harness drives an iPhone over Wi-Fi](https://www.youtube.com/watch?v=DzYv0QVk_No) (YouTube).
+[![DeepSeek Harness drives a real iPhone over Wi-Fi (YouTube)](https://img.youtube.com/vi/DzYv0QVk_No/maxresdefault.jpg)](https://www.youtube.com/watch?v=DzYv0QVk_No)
+
+**[▶ Watch the demo](https://www.youtube.com/watch?v=DzYv0QVk_No)** ·
+**[⚡ Flash the firmware in your browser](https://handsy.tech/install?build=testflight)** ·
+**[📖 Setup guide](https://handsy.tech/docs/cli)**
 
 Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agent) by Henry Yuan (MIT).
 
