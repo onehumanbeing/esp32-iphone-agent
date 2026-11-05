@@ -8,28 +8,49 @@ a real iPhone through an ESP32 Agent (Handsy) board. It adds:
   `mcp__esp32agent__<tool>`.
 - the `handsy` skill: the see-act loop, how to save what worked, and safety rules.
 
-Demo: [DeepSeek Harness drives an iPhone over Wi-Fi](https://www.youtube.com/watch?v=DzYv0QVk_No) (YouTube).
+[![DeepSeek Harness drives a real iPhone over Wi-Fi (YouTube)](https://img.youtube.com/vi/DzYv0QVk_No/maxresdefault.jpg)](https://www.youtube.com/watch?v=DzYv0QVk_No)
+
+**[▶ Watch the demo](https://www.youtube.com/watch?v=DzYv0QVk_No)** ·
+**[⚡ Flash the firmware in your browser](https://handsy.tech/install?build=testflight)** ·
+**[📖 Setup guide](https://handsy.tech/docs/cli)**
 
 Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agent) by Henry Yuan (MIT).
 
-## Requirements
+## Quick start
 
-- An ESP32 Agent board with firmware v0.2.2 or later, plugged into the iPhone, with AssistiveTouch and Screen
-  Mirroring set up (see the [main README](../../README.md)).
-- Node.js 18+ and `ffmpeg` on the computer running dsh. The board is reached over Bluetooth,
-  or over Wi-Fi when the board and the computer share a network (`npx -y esp32agent net join`).
-- Pair once: `npx -y esp32agent pair` within 3 minutes of plugging the board in.
+1. **Get a board.** Seeed Studio XIAO ESP32S3 (standard 8 MB flash / 8 MB PSRAM) with its antenna, and a short
+   USB-C data cable (Lightning iPhones: a Lightning to USB Camera Adapter):
+   [hardware guide](https://handsy.tech/docs/hardware).
+2. **Flash the firmware** from your browser (Chrome or Edge, board on USB):
+   [handsy.tech/install?build=testflight](https://handsy.tech/install?build=testflight). Firmware v0.2.3 or
+   later (v0.2.2 works over Bluetooth only).
+3. **Pair the computer** within 3 minutes of plugging the board into the iPhone (needs Node.js 18+ and `ffmpeg`):
 
-## Install
+   ```sh
+   npx -y esp32agent pair
+   ```
 
-```sh
-# from npm
-dsh plugin --profile web add dsh-esp32agent
-# or straight from GitHub
-dsh plugin --profile web add "github:onehumanbeing/esp32-iphone-agent#main&path:/integrations/dsh"
-```
+4. **Set up the iPhone:** join the board's Wi-Fi hotspot (`npx -y esp32agent net` shows its name and password),
+   turn on **Control Center → Screen Mirroring → ESP32 Agent**, and enable
+   **Settings → Accessibility → Touch → AssistiveTouch**.
+   Optional: `npx -y esp32agent net join` puts the board on your home Wi-Fi instead, so dsh's commands and screenshots
+   go over Wi-Fi rather than Bluetooth.
+5. **Install the plugin** and restart `dsh web`:
 
-Restart `dsh web` (or use your own profile name), then check the layer is there:
+   ```sh
+   dsh plugin --profile web add dsh-esp32agent
+   # or straight from GitHub
+   dsh plugin --profile web add "github:onehumanbeing/esp32-iphone-agent#main&path:/integrations/dsh"
+   ```
+
+6. **Try a small task** in dsh:
+
+   > Use the esp32agent tools to control my iPhone. Take a screenshot first, then open Settings, go into WLAN, and
+   > tell me which Wi-Fi network the phone is connected to. Finally press Home.
+
+Full setup, troubleshooting and every command: [handsy.tech/docs/cli](https://handsy.tech/docs/cli).
+
+Check that the layer is loaded (use your own profile name):
 
 ```sh
 dsh --profile web --dump-config | grep esp32agent
