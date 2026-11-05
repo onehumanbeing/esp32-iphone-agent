@@ -222,7 +222,7 @@ extension Gestures {
                 acceptedLookLinks = restoredLinks
             }
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
-            let frame = screen.frame, started = now(), requestLinks = phone?.device.links
+            let frame = screen.frame, frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
             // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
             var tree: UITree?
@@ -274,7 +274,8 @@ extension Gestures {
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
-            if lastActed > 0 { rec["frame_after_action_s"] = .num(((screen.capturedAt - lastActed) * 100).rounded() / 100) }
+            // the sent frame's capture time, not the latest frame's (read after the reply, it hid stale frames)
+            if lastActed > 0 { rec["frame_after_action_s"] = .num(((frameAt - lastActed) * 100).rounded() / 100) }
             trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
             try Task.checkCancellation()
             if connectionChanged(since: requestLinks) {
