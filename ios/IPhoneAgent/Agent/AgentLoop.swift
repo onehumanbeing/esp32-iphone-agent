@@ -40,7 +40,9 @@ extension Gestures {
     let screen: ScreenSource?
     var actor: ChatModel?, planner: ChatModel?
     let trace: TraceStore?
-    let maxSteps: Int, maxFailures: Int
+    /// maxSteps is only a safety cap (a Duolingo lesson is ~80 rounds; 40 cut it in half, 2026-11-06). A run that
+    /// is stuck stops sooner: `maxStalls` rounds in a row that changed nothing on screen. Either way the user is asked.
+    let maxSteps: Int, maxFailures: Int, maxStalls: Int
     var metrics: Metrics?
 
     @Published var task = ""
@@ -104,9 +106,9 @@ extension Gestures {
     private(set) var lastServed: String?
 
     init(phone: Gestures?, screen: ScreenSource?, actor: ChatModel?, planner: ChatModel?, trace: TraceStore?,
-         maxSteps: Int = 40, maxFailures: Int = 3) {
+         maxSteps: Int = 300, maxFailures: Int = 3, maxStalls: Int = 12) {
         self.phone = phone; self.screen = screen; self.actor = actor; self.planner = planner
-        self.trace = trace; self.maxSteps = maxSteps; self.maxFailures = maxFailures
+        self.trace = trace; self.maxSteps = maxSteps; self.maxFailures = maxFailures; self.maxStalls = maxStalls
     }
 
     /// traceStarted: the caller already opened the run's trace folder (so a failed start is logged too).
@@ -297,10 +299,18 @@ extension Gestures {
     }
 
     func run() async {
-        var failures = 0
+        var failures = 0, stalls = 0, rounds = 0
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         do {
-            for _ in 0..<maxSteps {
+            while true {
+                rounds += 1
+                if rounds > maxSteps || stalls >= maxStalls {
+                    let reason = stalls >= maxStalls ? "the screen did not change in \(stalls) steps" : "step limit reached"
+                    record(nil, ["action": .str("fail"), "reason": .str(reason)])
+                    guard try await askForHelp() else { return finish() }
+                    rounds = 0; stalls = 0
+                    continue
+                }
                 do {
                     if scripting {
                         switch try await scriptStep() {
@@ -311,9 +321,11 @@ extension Gestures {
                     }
                     if try await step() {
                         guard steps.last?["action"]?.str == "fail", try await askForHelp() else { return finish() }
+                        stalls = 0
                         continue
                     }
                     failures = 0
+                    stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
                 } catch is InvalidatedLook {
                     failures = 0  // no gesture was sent; the next look restores the screen first
                 } catch let e where e is BlindError || e is CancellationError || Task.isCancelled {
@@ -333,7 +345,6 @@ extension Gestures {
                     await screen?.settled()
                 }
             }
-            record(nil, ["action": .str("fail"), "reason": .str("step limit reached")])
         } catch let e where e is CancellationError || Task.isCancelled {
             record(nil, ["action": .str("stopped")])
         } catch let e as BlindError {
@@ -441,7 +452,7 @@ extension Gestures {
             if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
                 if !(await tapChanged(seen, &spots)) {
-                    steps[steps.count - 1]["changed"] = .bool(false)
+                    verdict(false)
                     return false  // skip the rest; the actor looks again
                 }
             }
@@ -451,8 +462,14 @@ extension Gestures {
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
         let changed = steps.last?["action"]?.str == "tap" ? await tapChanged(seen, &spots)
             : Vision.changed(seen, screen?.frame, ignore: spots)
-        steps[steps.count - 1]["changed"] = .bool(changed)
+        verdict(changed)
         return false
+    }
+
+    /// The last action's result, for the next round and the trace (written after the step row, which is out by then).
+    private func verdict(_ changed: Bool) {
+        steps[steps.count - 1]["changed"] = .bool(changed)
+        trace?.write(kind: "verdict", ["changed": .bool(changed), "pointer": .str("\(Int(pointerAt.x * 1000)) \(Int(pointerAt.y * 1000))")])
     }
 
     /// Did the last tap change the screen? Only the pointer may have changed, landed off target: then find

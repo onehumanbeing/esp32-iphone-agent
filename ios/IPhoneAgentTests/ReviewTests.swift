@@ -74,6 +74,30 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("stopped"))
     }
 
+    func testRoundsThatChangeNothingAskTheUserInsteadOfRunningOn() async {
+        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }  // the fake screen never changes
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil,
+                              maxStalls: 3)
+        var asked: [String] = []
+        agent.onHelp = { reason in asked.append(reason); return .stop }
+        await agent.run()
+        XCTAssertEqual(asked, ["the screen did not change in 3 steps"])
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "tap" }.count, 3)
+    }
+
+    func testTheSafetyCapAsksTheUserAndCanGoOn() async {
+        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil,
+                              maxSteps: 2, maxStalls: 100)
+        var asked: [String] = []
+        agent.onHelp = { reason in asked.append(reason); return asked.count == 1 ? .resume : .stop }
+        await agent.run()
+        XCTAssertEqual(asked, ["step limit reached", "step limit reached"])
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "tap" }.count, 4)  // 2, the user said go on, 2 more
+    }
+
     func testIntentHintsAreAppendedToTheActorPromptOnly() async {
         let model = SystemRecorder { _ in "THINK: there\nDO: done ok" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
