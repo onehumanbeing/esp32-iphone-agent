@@ -32,6 +32,19 @@ struct ScreenCaptureError: LocalizedError {
     private var registered = false
     #endif
 
+    static var isAvailable: Bool {
+        #if canImport(ScreenCaptureKit)
+        SCContentSharingPicker.shared.isAvailable
+        #else
+        false
+        #endif
+    }
+
+    /// Preserve the selected content aspect ratio while limiting capture bandwidth.
+    static func captureSize(for content: CGSize) -> CGSize {
+        CGSize(width: 960, height: (960 * content.height / content.width).rounded())
+    }
+
     override init() {
         super.init()
         #if canImport(ScreenCaptureKit)
@@ -59,6 +72,9 @@ struct ScreenCaptureError: LocalizedError {
     /// The picker is always presented in front; a cancelled request cannot start a late stream.
     func start() async throws {
         #if canImport(ScreenCaptureKit)
+        guard Self.isAvailable else {
+            throw ScreenCaptureError(message: String(localized: "Screen recording is unavailable on this device. Use AirPlay instead."))
+        }
         if capturing { return }
         guard !choosing, stream == nil else { throw ScreenCaptureError(message: String(localized: "Screen sharing is already starting.")) }
         guard UIApplication.shared.applicationState == .active else {
@@ -113,7 +129,15 @@ struct ScreenCaptureError: LocalizedError {
                 self.invalidateFrame()
             }
         })
+        let content = filter.contentRect.size
+        guard content.width > 0, content.height > 0 else {
+            await failed(ScreenCaptureError(message: String(localized: "No screen image arrived. Stop sharing and try again.")))
+            return
+        }
+        let dimensions = Self.captureSize(for: content)
         let config = SCStreamConfiguration()
+        config.width = Int(dimensions.width)
+        config.height = Int(dimensions.height)
         config.capturesAudio = false
         let next = SCStream(filter: filter, configuration: config, delegate: callbacks)
         output = receiver; stream = next
@@ -131,7 +155,7 @@ struct ScreenCaptureError: LocalizedError {
     fileprivate func cancelledSelection() async {
         // Cancelling a picker update must not revoke a stream that was already authorized.
         guard choosing, stream == nil else { return }
-        await stop()
+        await failed(ScreenCaptureError(message: String(localized: "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings.")))
     }
 
     #endif
@@ -170,11 +194,11 @@ struct ScreenCaptureError: LocalizedError {
         frame = nil; size = .zero; updated = 0; capturedAt = 0
     }
 
-    private func image(timeout: Double) async throws -> Data {
+    func image(timeout: Double) async throws -> Data {
         let deadline = now() + timeout
         while true {
             try Task.checkCancellation()
-            guard capturing else { throw CancellationError() }
+            try checkAvailability()
             if let frame { return frame }
             guard now() < deadline else {
                 throw ScreenCaptureError(message: String(localized: "No screen image arrived. Stop sharing and try again."))
@@ -244,9 +268,7 @@ private final class CaptureOutput: NSObject, SCStreamOutput, @unchecked Sendable
 
     private func convert(_ pixels: CVImageBuffer, capturedAt: Double) {
         autoreleasepool {
-            let input = CIImage(cvPixelBuffer: pixels)
-            let scale = min(1, 960 / input.extent.width)
-            let image = input.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            let image = CIImage(cvPixelBuffer: pixels)
             guard let cg = context.createCGImage(image, from: image.extent) else { return }
             let bytes = NSMutableData()
             guard let dest = CGImageDestinationCreateWithData(bytes, UTType.jpeg.identifier as CFString, 1, nil) else { return }

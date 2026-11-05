@@ -1,6 +1,38 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Screen recording is unavailable on this device. Use AirPlay instead." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen recording is unavailable on this device. Use AirPlay instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持录屏，请使用 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消屏幕共享。请重新开始并允许共享，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
     "Screen sharing stopped. Start the task again to allow sharing." : {
       "localizations" : {
         "en" : {

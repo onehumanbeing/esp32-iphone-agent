@@ -322,8 +322,7 @@ import UIKit
 
     func setCaptureBackend(_ backend: CaptureBackend) {
         guard !startingAgent, !agent.running, !recorder.busy, !calibrator.busy else { return }
-        let supported: CaptureBackend
-        if #available(iOS 27.0, *) { supported = backend } else { supported = .airPlay }
+        let supported: CaptureBackend = CaptureBackend.onDeviceAvailable ? backend : .airPlay
         guard supported != captureBackend else { return }
         captureBackend = supported
         UserDefaults.standard.set(supported.rawValue, forKey: CaptureBackend.key)

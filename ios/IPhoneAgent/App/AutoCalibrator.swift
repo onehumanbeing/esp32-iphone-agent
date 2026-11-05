@@ -157,7 +157,9 @@ import UIKit
             }
             finished(error)
         } catch {
-            if !Task.isCancelled { failed(diagnosis ?? error.localizedDescription) }
+            if !Task.isCancelled {
+                failed(error is ScreenCaptureError ? error.localizedDescription : diagnosis ?? error.localizedDescription)
+            }
         }
     }
 
