@@ -1,1 +1,1 @@
-https://github.com/onehumanbeing/esp32-iphone-agent/blob/main/docs/privacy.md
+https://handsy.tech/privacy

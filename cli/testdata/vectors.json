@@ -1,0 +1,37 @@
+{
+ "c_priv": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+ "b_priv": "65666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081828384",
+ "c_pub": "07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c",
+ "b_pub": "5714769d116bf76436ae74bc793d2c30ad1903c59ac5273805c7e2698b410c36",
+ "shared": "c9ea6a3f79a000b60b076d4afc990b272f3f0b5aaa3f0b8713c209273e363863",
+ "client_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+ "board_id": "246f28aa6ad5",
+ "K": "efcbf0a5e51d114b9d6c9570183c9e44cb623c0581ee3ae762c00d6acc18fbf9",
+ "pair_mac": "53ce351ad116adba4688e0c848c1fc64",
+ "c_nonce": "101112131415161718191a1b1c1d1e1f",
+ "b_nonce": "202122232425262728292a2b2c2d2e2f",
+ "k_c2b": "776bc8c110fb6e0440169cfef36ba161",
+ "k_b2c": "93478dfeacc3cf696f2764d316a5dff7",
+ "hello_mac": "c204a4e56de057834bf60fba723d5ffa",
+ "frame_c": {
+  "stream": "C",
+  "type": 16,
+  "ctr": 1,
+  "plain": "63372070696e67",
+  "frame": "100100000068afc0f78c919458f5b70b4012515053649a24"
+ },
+ "frame_b": {
+  "stream": "B",
+  "type": 16,
+  "ctr": 2,
+  "plain": "7237206f6b",
+  "frame": "1002000000caf6fbb8977c45ee4dff70db24f7ebd04d"
+ },
+ "frame_v": {
+  "stream": "V",
+  "type": 17,
+  "ctr": 1,
+  "plain": "0100050000000001",
+  "frame": "110100000038443201752074c91e78396e0bca7521a4e30a63"
+ }
+}

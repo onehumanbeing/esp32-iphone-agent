@@ -20,8 +20,7 @@ PLANNER_PROMPT = """You plan tasks on an iPhone. Given the goal and the current 
 write a short numbered plan (at most 6 steps) of what to do on screen. Plain text only, in English.
 Plan only what the goal needs, from what you can see; never invent accounts, emails, logins or
 screens you have not seen. Later steps can stay general (e.g. "Draw the face on the canvas").
-To open an app, prefer search over paging through home screens: tap the "Search" pill above
-the dock (or swipe down from the middle of the home screen), type the app name, tap the result."""
+To open an app, write "Open <app name>": it is searched by name in Spotlight, from any screen."""
 
 ACTOR_PROMPT = """You operate an iPhone through a mouse pointer. You see the current screen.
 Reply in this format, nothing else:
@@ -38,7 +37,11 @@ Aim at the visual center of the element you want, not its edge or its label.
 Look before you act: describe what is really on the screen now, not what you expect.
 Each recent action says whether the screen changed after it. If it did NOT change, the action
 missed or had no effect: do not assume it worked; aim again more precisely or try another way.
-Only type when a text field is visibly focused (the keyboard is showing).
+Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
+since the board is a hardware keyboard).
+Chinese is typed as pinyin. With the iPhone's Chinese (pinyin) keyboard active, a candidate bar then shows
+the characters: commit the first one with key space, or tap the right one; check the field.
+key ctrl+space switches the keyboard between English and Chinese pinyin (pinyin: the space bar shows 拼).
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
@@ -55,8 +58,9 @@ Actions:
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
-  type TEXT                 (ASCII only; tap the input field first)
-  key COMBO                 (enter, backspace, esc, cmd+a, ...)
+  type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
+  key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
+  open APP                  (search Spotlight for the app by name; then tap the app in the results)
   home | back | wait
   replan                    (the plan no longer fits the screen)
   done ANSWER               (the goal is reached; ANSWER is the result for the user)
@@ -71,8 +75,8 @@ META = ("t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "chan
 # action name -> argument names; numeric arguments are 0-1000 screen coordinates
 ACTIONS = {"tap": ("x", "y"), "swipe": ("x1", "y1", "x2", "y2"), "circle": ("x", "y", "r"), "path": ("points",),
            "type": ("text",), "key": ("combo",), "done": ("answer",), "fail": ("reason",),
-           "home": (), "back": (), "wait": (), "replan": ()}
-TEXT_ARGS = ("text", "combo", "answer", "reason")
+           "home": (), "back": (), "wait": (), "replan": (), "open": ("app",)}
+TEXT_ARGS = ("text", "combo", "answer", "reason", "app")
 
 
 def parse_command(line: str) -> dict:
@@ -291,6 +295,7 @@ class Agent:
             case "type": await self.phone.type(a["text"])
             case "key": await self.phone.key(a["combo"])
             case "home": await self.phone.go_home()
+            case "open": await self.phone.open_app(a["app"])
             case "back": await self.phone.go_back()
             case "wait": pass
             case other: raise ValueError(f"unknown action {other!r}")

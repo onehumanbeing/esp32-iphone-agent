@@ -33,6 +33,22 @@
           }
         }
       }
+    },
+    "NSLocalNetworkUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ESP32 Agent 通过板子的 Wi-Fi 接收屏幕画面，并连接你在局域网中配置的模型服务器。"
+          }
+        }
+      }
     }
   }
 }

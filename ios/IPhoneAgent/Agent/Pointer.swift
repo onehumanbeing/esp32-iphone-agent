@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 
 /// Touch-like gestures on the phone, built from relative mouse moves. Port of phone.py.
 ///
@@ -290,18 +290,104 @@ import Foundation
         try await device.send("scroll \(lines) 0")
     }
 
-    func type(_ text: String) async throws { try await device.send("type \(text)") }
-    func key(_ combo: String) async throws { try await device.send("key \(combo)") }
+    /// The board types printable ASCII only (one key per character). Chinese goes in as toneless pinyin, which
+    /// most Chinese apps' search boxes accept; other non-ASCII (emoji, accents) is folded or dropped. The clipboard
+    /// is no route: iOS refuses a background app's write (a Mac's Universal Clipboard text got pasted instead,
+    /// 2026-10-20) and other apps ask "Allow Paste" every time.
+    func type(_ text: String) async throws {
+        let ascii = Self.typeable(text)
+        if ascii != text { DebugLog.write("type: \(text.count) chars as ASCII \"\(ascii)\"") }
+        guard !ascii.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII only)") }
+        try await matchKeyboard(pinyin: ascii != text && text.unicodeScalars.contains { (0x3400...0x9fff).contains($0.value) })
+        _ = try await device.send("type \(ascii)")
+    }
+
+    /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
+    /// letters; models rarely notice (2026-11-03 runs). Read the keyboard off the screen and switch (ctrl+space).
+    private func matchKeyboard(pinyin: Bool) async throws {
+        guard let screen, screen.live else { return }
+        for _ in 0..<2 {
+            guard let frame = screen.frame else { return }
+            let layout = await KeyboardLayout.read(frame)
+            if layout == .none || (layout == .pinyin) == pinyin { return }
+            log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
+            let sent = now()
+            try await key("ctrl+space")
+            _ = await screen.fresh(since: sent, timeout: 1.5)
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
+        }
+    }
+
+    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
+    static func typeable(_ text: String) -> String {
+        guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
+        var out = ""
+        for ch in text {
+            let s = String(ch)
+            let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
+            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
+                .applyingTransform(.stripDiacritics, reverse: false) ?? s
+            let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
+            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
+        }
+        return out.trimmingCharacters(in: .whitespaces)
+    }
+    /// Models write "delete" for the Mac's backspace key; the board knows it as "backspace" (2026-11-02 log).
+    func key(_ combo: String) async throws {
+        let keys = combo.split(separator: "+").map { $0 == "delete" ? "backspace" : String($0) }
+        try await device.send("key \(keys.joined(separator: "+"))")
+    }
     /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
     /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
-    /// a rest: resting opens the app switcher).
+    /// a rest: resting opens the app switcher). An acknowledged key that left the screen as it was gets the flick
+    /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
     func goHome() async throws {
-        if (try? await device.send("homescreen")) != nil { return }
-        try await key("cmd+h")
-        try await Task.sleep(nanoseconds: 350_000_000)
-        try await swipe(0.5, 0.995, 0.5, 0.45, hold: false)
-        pos = nil  // starting at the screen's edge may have clamped the pointer: re-home before the next move
+        let before = screen?.live == true ? screen?.frame : nil
+        if (try? await device.send("homescreen")) != nil {
+            guard let screen, let before else { return }
+            await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
+            if Vision.changed(before, screen.frame) { return }
+            log("home: the Home key left the screen unchanged; flicking up from the home bar")
+        } else {
+            try await key("cmd+h")
+            try await Task.sleep(nanoseconds: 350_000_000)
+        }
+        try await homeSwipe()
     }
+
+    /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
+    /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
+    /// hit, which was a text message mentioning the app.
+    func openApp(_ name: String) async throws {
+        guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
+        try await goHome()
+        try await key("cmd+space")
+        try await Task.sleep(nanoseconds: 700_000_000)
+        try await type(name)
+    }
+
+    /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
+    func aimHomeBar() async throws { try await point(0.5, 0.995) }
+
+    /// A real home-bar flick, independent of consumer-key and keyboard acknowledgements.
+    func homeSwipe() async throws {
+        defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
+        try Task.checkCancellation()
+        try await point(0.5, 0.995)
+        // Push past the bottom edge, where the pointer stops: the calibration fit is weakest at the edges and
+        // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
+        guard let span else { return }
+        try await device.send("move 0 \(span.h / 10)")
+        try await device.send("press")
+        do {
+            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))")  // to the middle only (0.45) left the app card half-way (2026-10-19)
+        } catch {
+            _ = try? await device.send("release")
+            throw error
+        }
+        try await device.send("release")
+    }
+
     func goBack() async throws {
         try await swipe(0.005, 0.45, 0.6, 0.45, hold: false)
         pos = nil

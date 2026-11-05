@@ -18,6 +18,16 @@
 				<string>public.zip-archive</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>ESP32 Agent intent</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.onehumanbeing.esp32agent.intent</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -51,18 +61,37 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>IAAppGroup</key>
 	<string>group.$(IA_BUNDLE_ID)</string>
+	<key>IAPostHogHost</key>
+	<string>$(IA_POSTHOG_HOST)</string>
+	<key>IAPostHogKey</key>
+	<string>$(IA_POSTHOG_KEY)</string>
 	<key>IAPresetBaseURL</key>
 	<string>$(IA_PRESET_BASE_URL)</string>
 	<key>IAPresetKey</key>
 	<string>$(IA_PRESET_KEY)</string>
 	<key>IAPresetModel</key>
 	<string>$(IA_PRESET_MODEL)</string>
+	<key>IAStoreBuild</key>
+	<string>$(IA_STORE_BUILD)</string>
+	<key>IATrialOrigin</key>
+	<string>$(IA_TRIAL_ORIGIN)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_esp32agent._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -83,6 +112,31 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>ESP32 Agent intent</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.onehumanbeing.esp32agent.intent</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>esp32intent</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.esp32agent.intent+json</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

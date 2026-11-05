@@ -1,6 +1,1006 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Collapses the result" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起结果"
+          }
+        }
+      }
+    },
+    "Shows the result" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开结果"
+          }
+        }
+      }
+    },
+    "Result" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结果"
+          }
+        }
+      }
+    },
+    "Pause the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停 agent"
+          }
+        }
+      }
+    },
+    "Resume the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续 agent"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从不"
+          }
+        }
+      }
+    },
+    "Payments only" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在付款时"
+          }
+        }
+      }
+    },
+    "Payments, sending, deleting" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "付款、发送、删除"
+          }
+        }
+      }
+    },
+    "%lld items collected" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收集 %lld 条"
+          }
+        }
+      }
+    },
+    "Chat" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话"
+          }
+        }
+      }
+    },
+    "New chat" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新对话"
+          }
+        }
+      }
+    },
+    "Say “continue” to go on from here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说“继续”就从这里接着做。"
+          }
+        }
+      }
+    },
+    "Reply, or give a new task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复，或给个新任务"
+          }
+        }
+      }
+    },
+    "Paused. Tap Continue and I'll go on from here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暂停。点继续，我就从这里接着做。"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加"
+          }
+        }
+      }
+    },
+    "Add memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加记忆"
+          }
+        }
+      }
+    },
+    "App" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "Edit memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑记忆"
+          }
+        }
+      }
+    },
+    "Fact" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "事实"
+          }
+        }
+      }
+    },
+    "Nothing yet. Tell the agent \"remember …\" in a task, or add a line here. Lessons from finished runs show up here too." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有。在任务里对 agent 说“记住……”，或在这里添加一条。完成的任务学到的经验也会显示在这里。"
+          }
+        }
+      }
+    },
+    "Passwords, codes and card numbers are never kept." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码、验证码和卡号永远不会保存。"
+          }
+        }
+      }
+    },
+    "Preference" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偏好"
+          }
+        }
+      }
+    },
+    "e.g. I prefer short answers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：我喜欢简短的回答"
+          }
+        }
+      }
+    },
+    "AI step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 步骤"
+          }
+        }
+      }
+    },
+    "AI: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI：%@"
+          }
+        }
+      }
+    },
+    "Add step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加步骤"
+          }
+        }
+      }
+    },
+    "Ask me to do a step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让我手动做一步"
+          }
+        }
+      }
+    },
+    "At most %lld rounds" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多 %lld 轮"
+          }
+        }
+      }
+    },
+    "Copy the notebook" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制笔记本"
+          }
+        }
+      }
+    },
+    "Let AI do it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交给 AI"
+          }
+        }
+      }
+    },
+    "Moves run without the AI while the screen matches; swipe a step to let the AI do it instead. With Repeat until, the steps run again until the condition is true on screen." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕一致时，动作直接执行、不走 AI；左滑某一步可以改成交给 AI。设置“重复直到”后，这些步骤会反复执行，直到屏幕上满足条件。"
+          }
+        }
+      }
+    },
+    "Read from the screen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从屏幕读取"
+          }
+        }
+      }
+    },
+    "Repeat until" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重复直到"
+          }
+        }
+      }
+    },
+    "You: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你：%@"
+          }
+        }
+      }
+    },
+    "e.g. Log in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：登录"
+          }
+        }
+      }
+    },
+    "e.g. Open the next favorites folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：打开下一个收藏夹"
+          }
+        }
+      }
+    },
+    "e.g. the list shows its end" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：列表到底了"
+          }
+        }
+      }
+    },
+    "e.g. video titles" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：视频标题"
+          }
+        }
+      }
+    },
+    "Ask me first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先问我"
+          }
+        }
+      }
+    },
+    "Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先问我：agent 会在付款前停下来，用通知问你（只在付款时）；也可以设为在发送消息、删除或修改账户设置前也问你。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
+          }
+        }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆"
+          }
+        }
+      }
+    },
+    "Checked" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已检查"
+          }
+        }
+      }
+    },
+    "Learned" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已学到"
+          }
+        }
+      }
+    },
+    "Part done" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "子目标完成"
+          }
+        }
+      }
+    },
+    "Progress" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度"
+          }
+        }
+      }
+    },
+    "Read “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取“%@”"
+          }
+        }
+      }
+    },
+    "Remember" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住"
+          }
+        }
+      }
+    },
+    "%@ tokens" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        }
+      }
+    },
+    "%lld AI calls" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次 AI 调用"
+          }
+        }
+      }
+    },
+    "New board?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新板子？"
+          }
+        }
+      }
+    },
+    "Demo data is on: no board, no model, nothing is tapped or sent. Turn it off in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演示数据已打开：不连板子、不调用模型，不会点击或发送任何东西。可在设置里关闭。"
+          }
+        }
+      }
+    },
+    "Example: " : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "示例："
+          }
+        }
+      }
+    },
+    "Send" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
+          }
+        }
+      }
+    },
+    "Tap to send diagnostics to the developer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点此把诊断信息发给开发者。"
+          }
+        }
+      }
+    },
+    "I Agree to Send This Data" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我同意发送这些数据"
+          }
+        }
+      }
+    },
+    "Not allowed to send to %@ yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未允许发送到 %@"
+          }
+        }
+      }
+    },
+    "Review and Allow" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看并允许"
+          }
+        }
+      }
+    },
+    "In Use" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用中"
+          }
+        }
+      }
+    },
+    "All" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部"
+          }
+        }
+      }
+    },
+    "Providers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务商"
+          }
+        }
+      }
+    },
+    "Custom Endpoints" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义接口"
+          }
+        }
+      }
+    },
+    "Custom Endpoint" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义接口"
+          }
+        }
+      }
+    },
+    "Add Custom Endpoint" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加自定义接口"
+          }
+        }
+      }
+    },
+    "No Configured Providers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有已配置的服务商"
+          }
+        }
+      }
+    },
+    "Add an API key to a provider to see it here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "给服务商填好 API key 后会显示在这里。"
+          }
+        }
+      }
+    },
+    "Show" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示"
+          }
+        }
+      }
+    },
+    "Recommended" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐"
+          }
+        }
+      }
+    },
+    "Tested" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已测试"
+          }
+        }
+      }
+    },
+    "Custom" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义"
+          }
+        }
+      }
+    },
+    "Choose Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择模型"
+          }
+        }
+      }
+    },
+    "Choose Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择服务商"
+          }
+        }
+      }
+    },
+    "Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务商"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible endpoint" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意 OpenAI 兼容地址"
+          }
+        }
+      }
+    },
+    "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已响应，但尚未收到新的屏幕画面。请保持屏幕镜像连接后重试。"
+          }
+        }
+      }
+    },
+    "no fresh screen image arrived in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分钟内没有收到新的屏幕画面"
+          }
+        }
+      }
+    },
+    "Waiting frame…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待画面…"
+          }
+        }
+      }
+    },
+    "Mirroring is connected. Waiting for a fresh screen image…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像已连接，正在等待新的屏幕画面…"
+          }
+        }
+      }
+    },
+    "No new frame" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有新画面"
+          }
+        }
+      }
+    },
+    "Mirroring is connected, but no new screen image has arrived." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像已连接，但仍未收到新的屏幕画面。"
+          }
+        }
+      }
+    },
+    "Frame" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
+          }
+        }
+      }
+    },
+    "Stop and restart Screen Mirroring → ESP32 Agent; I’ll continue when a fresh image arrives." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请停止并重新开启「屏幕镜像 → ESP32 Agent」，收到新画面后我会继续。"
+          }
+        }
+      }
+    },
+    "Waiting for a screen image" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待屏幕画面"
+          }
+        }
+      }
+    },
+    "Last run options" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次运行选项"
+          }
+        }
+      }
+    },
+    "Delete run" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除运行记录"
+          }
+        }
+      }
+    },
+    "Could not delete run" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法删除运行记录"
+          }
+        }
+      }
+    },
+    "Stop the run before deleting it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先停止运行，再删除记录。"
+          }
+        }
+      }
+    },
+    "Mirror" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像"
+          }
+        }
+      }
+    },
+    "Preparing the run…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在准备任务…"
+          }
+        }
+      }
+    },
+    "The board disconnected. Move it closer to your iPhone, reconnect, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已断开。请移近 iPhone，重新连接后再试。"
+          }
+        }
+      }
+    },
+    "The board isn't responding. Move it closer to your iPhone, or swipe up to continue." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子没有响应。请移近 iPhone，或上滑返回主屏幕以继续。"
+          }
+        }
+      }
+    },
+    "The board connection was lost while starting. Move it closer and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动时板子连接已断开。请移近后重试。"
+          }
+        }
+      }
+    },
+    "Run start cancelled." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消启动任务。"
+          }
+        }
+      }
+    },
+    "Going to the Home Screen…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在返回主屏幕…"
+          }
+        }
+      }
+    },
+    "Reconnecting…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重连…"
+          }
+        }
+      }
+    },
+    "Board slow" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子响应慢"
+          }
+        }
+      }
+    },
+    "Board disconnected. Move it closer; I’ll continue when it reconnects." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已断开。请移近，重新连接后我会继续。"
+          }
+        }
+      }
+    },
+    "Board not responding. Move it closer or reconnect." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子没有响应，请移近或重新连接。"
+          }
+        }
+      }
+    },
+    "Pre-warm screen stream" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预热屏幕视频流"
+          }
+        }
+      }
+    },
+    "Smaller screenshots" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缩小截图"
+          }
+        }
+      }
+    },
+    "Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缩小截图会给模型发送 540 像素宽的屏幕副本，上传更快。预热会在本 App 打开时提前传输屏幕画面，让任务更快看到屏幕。"
+          }
+        }
+      }
+    },
     "The run is still active. Return to the Home Screen to continue." : {
       "localizations" : {
         "zh-Hans" : {
@@ -945,6 +1945,16 @@
         }
       }
     },
+    "Configured" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配置"
+          }
+        }
+      }
+    },
     "Connected" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1426,16 +2436,6 @@
         }
       }
     },
-    "Draw a smiley" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画个笑脸"
-          }
-        }
-      }
-    },
     "Drawing…" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1502,16 +2502,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每次运行都会一步步记录在这里，方便你回放我做了什么。"
-          }
-        }
-      }
-    },
-    "Every run keeps a low-frame-rate video of the mirrored screen, next to the step screenshots, for the review." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每次运行都会保存一段低帧率的镜像屏幕视频，与步骤截图一起用于复盘。"
           }
         }
       }
@@ -1626,7 +2616,16 @@
         }
       }
     },
-    "Found %@" : {},
+    "Found %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找到 %@"
+          }
+        }
+      }
+    },
     "GOP buffered" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1898,16 +2897,6 @@
         }
       }
     },
-    "I'll tell you when a run is done or needs your help, since you won't see this app while I work." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我工作时你看不到这个 App，所以运行完成或需要你帮忙时我会通知你。"
-          }
-        }
-      }
-    },
     "I'm already on the board's Wi-Fi" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2038,6 +3027,16 @@
         }
       }
     },
+    "Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先关闭个人热点：iPhone 在共享网络时无法连接板子的 Wi-Fi。"
+          }
+        }
+      }
+    },
     "Internet uses cellular data while on the board's Wi-Fi." : {
       "localizations" : {
         "zh-Hans" : {
@@ -2074,16 +3073,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入小板的 Wi-Fi"
-          }
-        }
-      }
-    },
-    "Join the Discord" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入 Discord 社区"
           }
         }
       }
@@ -2708,16 +3697,6 @@
         }
       }
     },
-    "Nothing is uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不会上传任何内容。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
-          }
-        }
-      }
-    },
     "Nothing logged yet." : {
       "localizations" : {
         "zh-Hans" : {
@@ -2808,16 +3787,6 @@
         }
       }
     },
-    "Open Settings and go to Wi-Fi" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开设置，进入 Wi-Fi"
-          }
-        }
-      }
-    },
     "Open Settings › Wi-Fi" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2828,32 +3797,12 @@
         }
       }
     },
-    "Open Whiteboard and draw a smiley face" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开白板画一个笑脸"
-          }
-        }
-      }
-    },
     "Open ESP32 Agent once, then try again." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "请先打开一次 ESP32 Agent，然后再试。"
-          }
-        }
-      }
-    },
-    "Open source. No data leaves this iPhone except the requests to the model endpoint you set up." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开源软件。除了发往你设置的模型接口的请求，没有数据离开这台 iPhone。"
           }
         }
       }
@@ -4729,6 +5678,16 @@
         }
       }
     },
+    "Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接前请先关闭个人热点。加入后，上网会走蜂窝数据。用完后在 设置 › 无线局域网 里切回。"
+          }
+        }
+      }
+    },
     "While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done." : {
       "localizations" : {
         "zh-Hans" : {
@@ -4748,16 +5707,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wi-Fi 密码"
-          }
-        }
-      }
-    },
-    "Wi-Fi settings" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wi-Fi 设置"
           }
         }
       }
@@ -5094,26 +6043,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自动 · OpenRouter"
-          }
-        }
-      }
-    },
-    "Automatic routing" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动路由"
-          }
-        }
-      }
-    },
-    "OpenRouter chooses a model for each request. Free model availability and responses can vary." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OpenRouter 会为每次请求选择模型。免费模型的可用性和回复可能有所不同。"
           }
         }
       }
@@ -5588,12 +6517,12 @@
         }
       }
     },
-    "A zip of debug.log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it." : {
+    "A zip of debug.log, the board's log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "包含 debug.log、iOS 崩溃报告和每次运行（步骤、模型回复、截图、视频）的压缩包。不会包含你的 API 密钥。"
+            "value" : "包含 debug.log、板子日志、iOS 崩溃报告和每次运行（步骤、模型回复、截图、视频）的压缩包。不会包含你的 API 密钥。"
           }
         }
       }
@@ -5604,6 +6533,2452 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "让 ESP32 Agent 在这台手机上完成一个任务，比如“打开设置并进入无线局域网”。"
+          }
+        }
+      }
+    },
+    "Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行数据不会上传。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "Share anonymous usage stats" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享匿名使用统计"
+          }
+        }
+      }
+    },
+    "Open source. No data leaves this iPhone except the requests to the model endpoint you set up, and anonymous usage stats if you turn them on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开源软件。除了发往你设置的模型接口的请求，以及你开启后的匿名使用统计，没有数据离开这台 iPhone。"
+          }
+        }
+      }
+    },
+    "Wi-Fi looks off. Turn on Wi-Fi in Control Center, then tap Try Again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无线局域网好像关着。请在控制中心打开无线局域网，然后点「重试」。"
+          }
+        }
+      }
+    },
+    "The iPhone left the board's Wi-Fi. Tap Try Again to join it again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 已离开开发板的无线局域网。点「重试」重新加入。"
+          }
+        }
+      }
+    },
+    "Helps improve setup and runs: which setup steps finish, run results, step counts and timings, the model provider, model speed and token counts, app and iOS version, and crash reports. Never your tasks, screenshots, model replies, keys or addresses." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于改进设置和运行：完成了哪些设置步骤、运行结果、步数和耗时、模型服务商、模型速度和 token 用量、App 和 iOS 版本，以及崩溃报告。绝不包含你的任务、截图、模型回复、密钥或地址。"
+          }
+        }
+      }
+    },
+    "Free" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费"
+          }
+        }
+      }
+    },
+    "Billed to your OpenRouter credits. Vision models only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从你的 OpenRouter 余额扣费。仅列出能看图的模型。"
+          }
+        }
+      }
+    },
+    "Asked you first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先问了你"
+          }
+        }
+      }
+    },
+    "You said yes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你同意了"
+          }
+        }
+      }
+    },
+    "OK to go on?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以继续吗？"
+          }
+        }
+      }
+    },
+    "Waiting for your OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你确认"
+          }
+        }
+      }
+    },
+    "OK?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认？"
+          }
+        }
+      }
+    },
+    "OK to do this? %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以这样做吗？%@"
+          }
+        }
+      }
+    },
+    "%@ Press and hold for Continue, Skip or Stop." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 长按通知可选择继续、跳过或停止。"
+          }
+        }
+      }
+    },
+    "%@ Press and hold for Take Over, Skip or Stop." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 长按通知可选择接手、跳过或停止。"
+          }
+        }
+      }
+    },
+    "I'll tell you when a run is done or needs your help, since you won't see this app while I work. Before paying, sending a message or deleting anything I stop and ask you in a notification: press and hold it to answer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务完成或需要你帮忙时我会通知你，因为我工作时你看不到这个 App。付款、发消息或删除任何东西之前，我会停下来用通知问你：长按通知即可回答。"
+          }
+        }
+      }
+    },
+    "Ask before risky steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "危险操作前先问我"
+          }
+        }
+      }
+    },
+    "With Ask before risky steps on, the agent stops and asks you in a notification before paying, sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“危险操作前先问我”后，Agent 在付款、发消息、删除或修改账户设置之前会停下来，用通知问你。每次运行都会保存一段低帧率的镜像屏幕视频，供回看。"
+          }
+        }
+      }
+    },
+    "Allow sending screenshots and your task to %@ first (Settings › Model)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先允许把截图和任务发送到 %@（设置 › 模型）。"
+          }
+        }
+      }
+    },
+    "To work, ESP32 Agent sends data to the AI service you chose. Nothing is sent until you agree." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ESP32 Agent 需要把数据发送给你选择的 AI 服务才能工作。你同意之前不会发送任何内容。"
+          }
+        }
+      }
+    },
+    "Sent to" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送到"
+          }
+        }
+      }
+    },
+    "What is sent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送的内容"
+          }
+        }
+      }
+    },
+    "When" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何时发送"
+          }
+        }
+      }
+    },
+    "A screenshot of your mirrored screen at every step of a run, so the AI can see it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行时每一步的镜像屏幕截图，让 AI 能看到屏幕"
+          }
+        }
+      }
+    },
+    "The task you type and the steps so far" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你输入的任务和已经执行的步骤"
+          }
+        }
+      }
+    },
+    "Your API key, to sign in to that service" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 API 密钥，用于登录该服务"
+          }
+        }
+      }
+    },
+    "Only when you start a run, test the connection, check the calibration or save an intent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在你开始运行、测试连接、检查校准或保存意图时"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen. %@ handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them. You can withdraw this anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容。%@ 按其自己的隐私政策和条款处理这些数据；ESP32 Agent 的开发者不会收到。你可以随时在 设置 › 隐私 中撤回。"
+          }
+        }
+      }
+    },
+    "I agree to send this data to %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我同意把这些数据发送到 %@"
+          }
+        }
+      }
+    },
+    "Send to AI Service?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送给 AI 服务？"
+          }
+        }
+      }
+    },
+    "Agree" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同意"
+          }
+        }
+      }
+    },
+    "Allowed to send to %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已允许发送到 %@"
+          }
+        }
+      }
+    },
+    "Allow sending to %@…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许发送到 %@…"
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已允许"
+          }
+        }
+      }
+    },
+    "Withdraw" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤回"
+          }
+        }
+      }
+    },
+    "No AI service allowed. Runs ask first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未允许任何 AI 服务。运行前会先询问。"
+          }
+        }
+      }
+    },
+    "AI service" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务"
+          }
+        }
+      }
+    },
+    "Screenshots and your task go only to the AI service you allowed, and only during runs, tests and intent saving." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图和任务只会发送给你允许的 AI 服务，并且只在运行、测试和保存意图时发送。"
+          }
+        }
+      }
+    },
+    "Tap \"Allow sending to %@…\" above first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先点上方的“允许发送到 %@…”。"
+          }
+        }
+      }
+    },
+    "Today's OpenRouter free-model requests are used up (50 a day, 1,000 after you buy $10 of credits). Try again tomorrow or choose a paid model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的 OpenRouter 免费模型请求已用完（每天 50 次，充值 10 美元后每天 1000 次）。请明天再试，或选择付费模型。"
+          }
+        }
+      }
+    },
+    "The AI service's daily limit is used up. Try again tomorrow or choose another model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务今天的额度已用完。请明天再试，或换一个模型。"
+          }
+        }
+      }
+    },
+    "OpenRouter's free models allow about 20 requests a minute and the limit was hit. Wait a minute and try again, or choose a paid model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenRouter 免费模型每分钟约 20 次请求，已达到上限。请等一分钟再试，或选择付费模型。"
+          }
+        }
+      }
+    },
+    "The AI service is rate-limiting requests. Wait a minute and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务正在限制请求频率。请等一分钟再试。"
+          }
+        }
+      }
+    },
+    "Free models are rate-limited (about 20 requests a minute, 50 a day) and often busy. A run takes 20–40 requests, so runs can be slow or stop partway. A paid model works better." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费模型有频率限制（约每分钟 20 次、每天 50 次），而且经常繁忙。一次运行需要 20–40 次请求，所以可能很慢或中途停下。付费模型效果更好。"
+          }
+        }
+      }
+    },
+    "Free models are rate-limited (about 20 requests a minute, 50 a day) and often busy; a run takes 20–40 requests, so runs can be slow or stop partway. Automatic picks a free vision model for each request." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费模型有频率限制（约每分钟 20 次、每天 50 次），而且经常繁忙；一次运行需要 20–40 次请求，所以可能很慢或中途停下。“自动”会为每次请求挑选一个免费的视觉模型。"
+          }
+        }
+      }
+    },
+    "7 AM daily alarm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 7 点闹钟"
+          }
+        }
+      }
+    },
+    "Set an alarm for 7:00 AM that repeats every day, then save it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置一个早上 7:00 每天重复的闹钟，然后保存"
+          }
+        }
+      }
+    },
+    "Website" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "官网"
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "A zip of debug.log and every run (steps, model replies, screenshots, video). Your API key is never in it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "包含 debug.log 和每次运行（步骤、模型回复、截图、视频）的压缩包。不会包含你的 API 密钥。"
+          }
+        }
+      }
+    },
+    "An unfinished recording is ready to retry." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有一段未完成的录制，可以重试。"
+          }
+        }
+      }
+    },
+    "Asks ESP32 Agent to do a task on this iPhone, like \"Open Settings and go to Wi-Fi\"." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 ESP32 Agent 在这台 iPhone 上完成一个任务，比如“打开设置并进入无线局域网”。"
+          }
+        }
+      }
+    },
+    "Capture at least two screens before creating an intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少采集两个画面后才能生成意图。"
+          }
+        }
+      }
+    },
+    "Connect the board, start Screen Mirroring, and set up a model first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先连接开发板、开启屏幕镜像并配置模型。"
+          }
+        }
+      }
+    },
+    "Could not save changes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存修改"
+          }
+        }
+      }
+    },
+    "Could not save intent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存意图"
+          }
+        }
+      }
+    },
+    "Create Draft Again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成草稿"
+          }
+        }
+      }
+    },
+    "Discard Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃录制"
+          }
+        }
+      }
+    },
+    "Draw a smiley" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画个笑脸"
+          }
+        }
+      }
+    },
+    "Every run keeps a low-frame-rate video of the mirrored screen, next to the step screenshots, for the review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次运行都会保存一段低帧率的镜像屏幕视频，与步骤截图一起用于复盘。"
+          }
+        }
+      }
+    },
+    "Finish the current recording first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先完成当前录制。"
+          }
+        }
+      }
+    },
+    "Finishing recording…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在结束录制…"
+          }
+        }
+      }
+    },
+    "I'll tell you when a run is done or needs your help, since you won't see this app while I work." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我工作时你看不到这个 App，所以运行完成或需要你帮忙时我会通知你。"
+          }
+        }
+      }
+    },
+    "Join the Discord" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 Discord 社区"
+          }
+        }
+      }
+    },
+    "Nothing is uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不会上传任何内容。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "Open Settings and go to Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置，进入 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Open Whiteboard and draw a smiley face" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开白板画一个笑脸"
+          }
+        }
+      }
+    },
+    "Open source. No data leaves this iPhone except the requests to the model endpoint you set up." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开源软件。除了发往你设置的模型接口的请求，没有数据离开这台 iPhone。"
+          }
+        }
+      }
+    },
+    "Record a task from your mirrored screen." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从镜像画面录制任务。"
+          }
+        }
+      }
+    },
+    "Recording paused because background time ended. Return to the app to create your draft." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "后台运行时间已结束，录制已暂停。请返回应用生成草稿。"
+          }
+        }
+      }
+    },
+    "Retry or discard the unfinished recording on the Agent tab." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在 Agent 页面重试或放弃未完成的录制。"
+          }
+        }
+      }
+    },
+    "Review Demonstration" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看示范"
+          }
+        }
+      }
+    },
+    "Review Draft" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看草稿"
+          }
+        }
+      }
+    },
+    "Run a task first, then save it here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先运行一个任务，再到这里保存。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring disconnected. Captured screens are kept for retry." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像已断开。已采集的画面已保留，可重试。"
+          }
+        }
+      }
+    },
+    "Steps are inferred from screen changes, not touches. Review uncertain steps before saving." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步骤根据画面变化推断，不记录触控。保存前请检查不确定的步骤。"
+          }
+        }
+      }
+    },
+    "The model returned no usable steps. Retry with the captured screens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型未返回可用步骤。可以使用已采集的画面重试。"
+          }
+        }
+      }
+    },
+    "Turn your latest run into a reusable task." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将最近一次运行保存为可复用的任务。"
+          }
+        }
+      }
+    },
+    "Use New Intent to record a demonstration or save a run." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过“新建意图”录制示范或保存运行记录。"
+          }
+        }
+      }
+    },
+    "Wait for the current task to finish." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请等待当前任务完成。"
+          }
+        }
+      }
+    },
+    "Wi-Fi settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi 设置"
+          }
+        }
+      }
+    },
+    "Your recording draft is ready to review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制草稿已就绪，可以查看。"
+          }
+        }
+      }
+    },
+    "%lld recorded steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个录制步骤"
+          }
+        }
+      }
+    },
+    "Back online. Going on from here…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复连接，从这里继续…"
+          }
+        }
+      }
+    },
+    "Board Wi-Fi kbps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子 Wi-Fi kbps"
+          }
+        }
+      }
+    },
+    "Board firmware is missing required features. Update the firmware." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子固件缺少必要功能，请更新固件。"
+          }
+        }
+      }
+    },
+    "Board is back. Waiting for Screen Mirroring to resume…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已恢复，等待屏幕镜像恢复…"
+          }
+        }
+      }
+    },
+    "Board service missing. Check the board firmware." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到板子服务，请检查板子固件。"
+          }
+        }
+      }
+    },
+    "Cancel Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消录制"
+          }
+        }
+      }
+    },
+    "Choose your board:" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择你的板子："
+          }
+        }
+      }
+    },
+    "Connecting to the board…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在连接板子…"
+          }
+        }
+      }
+    },
+    "Connection lost, run paused" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接断开，任务已暂停"
+          }
+        }
+      }
+    },
+    "Connection timed out. Keep the board nearby and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接超时。请把板子放近一些再试。"
+          }
+        }
+      }
+    },
+    "Do the task on the Home Screen. Stop here or in the Dynamic Island." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主屏幕上完成任务。可在这里或灵动岛停止。"
+          }
+        }
+      }
+    },
+    "Do the task yourself after a 5-second countdown." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 秒倒计时后，自己完成一遍任务。"
+          }
+        }
+      }
+    },
+    "Export" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出"
+          }
+        }
+      }
+    },
+    "Export All…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部导出…"
+          }
+        }
+      }
+    },
+    "Export Intent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出意图"
+          }
+        }
+      }
+    },
+    "Export Intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出意图"
+          }
+        }
+      }
+    },
+    "Get an API key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 API 密钥"
+          }
+        }
+      }
+    },
+    "Get ready" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备"
+          }
+        }
+      }
+    },
+    "Get ready to do the task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备开始做任务"
+          }
+        }
+      }
+    },
+    "Go to the Home Screen to start recording." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到主屏幕后开始录制。"
+          }
+        }
+      }
+    },
+    "Go to the Home Screen. Recording starts when the countdown in the Dynamic Island ends." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请回到主屏幕。灵动岛倒计时结束后开始录制。"
+          }
+        }
+      }
+    },
+    "Help" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "求助"
+          }
+        }
+      }
+    },
+    "Import or export intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入或导出意图"
+          }
+        }
+      }
+    },
+    "Imported %lld intents." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 %lld 个意图。"
+          }
+        }
+      }
+    },
+    "Imported %lld intents. Skipped %lld already saved." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Imported %1$lld intents. Skipped %2$lld already saved."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 %lld 个意图，跳过 %lld 个已有的。"
+          }
+        }
+      }
+    },
+    "Import…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入…"
+          }
+        }
+      }
+    },
+    "Include screenshots" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附带截图"
+          }
+        }
+      }
+    },
+    "Instruction, checklist and %lld steps. Run history is never included." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "包含指令、清单和 %lld 个步骤，不含运行记录。"
+          }
+        }
+      }
+    },
+    "Intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意图"
+          }
+        }
+      }
+    },
+    "Join Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Join the board's Wi-Fi in Settings › Wi-Fi; the run goes on when it is back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“设置 › 无线局域网”加入板子的 Wi-Fi，连上后任务会继续。"
+          }
+        }
+      }
+    },
+    "Join the board's Wi-Fi to continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入板子的 Wi-Fi 以继续"
+          }
+        }
+      }
+    },
+    "Joining Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加入 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "Mirroring…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像中…"
+          }
+        }
+      }
+    },
+    "Model ID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型 ID"
+          }
+        }
+      }
+    },
+    "Model Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型服务商"
+          }
+        }
+      }
+    },
+    "No antenna? Keep it right beside your phone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有天线？把板子紧贴手机"
+          }
+        }
+      }
+    },
+    "No antenna? Try placing the board right against the side of your phone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有天线？试试把板子紧贴在手机侧面。"
+          }
+        }
+      }
+    },
+    "No board found. Check its power, keep it nearby, and scan again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没找到板子。请检查供电、放近一些后重新扫描。"
+          }
+        }
+      }
+    },
+    "No new intents. %lld already saved." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有新意图，%lld 个已存在。"
+          }
+        }
+      }
+    },
+    "No screenshots to include. Steps without screenshots are hints for the model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可附带的截图。没有截图的步骤只作为给模型的提示。"
+          }
+        }
+      }
+    },
+    "Open Control Center, tap Screen Mirroring → ESP32 Agent; the run goes on from here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开控制中心，点“屏幕镜像”→ ESP32 Agent，任务会从这里继续。"
+          }
+        }
+      }
+    },
+    "Optional" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选"
+          }
+        }
+      }
+    },
+    "Path" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通道"
+          }
+        }
+      }
+    },
+    "Reconnected" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重新连接"
+          }
+        }
+      }
+    },
+    "Recorded steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制步骤"
+          }
+        }
+      }
+    },
+    "Recording starts after the countdown." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "倒计时结束后开始录制。"
+          }
+        }
+      }
+    },
+    "Refresh Models" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新模型"
+          }
+        }
+      }
+    },
+    "Rejoining the board's Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新加入板子的 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "Required" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必填"
+          }
+        }
+      }
+    },
+    "Scan Again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新扫描"
+          }
+        }
+      }
+    },
+    "Screen Mirroring did not come back in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像 5 分钟内没有恢复"
+          }
+        }
+      }
+    },
+    "Searching for the board over Bluetooth…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在通过蓝牙搜索板子…"
+          }
+        }
+      }
+    },
+    "Share File" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享文件"
+          }
+        }
+      }
+    },
+    "Start Mirroring" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始镜像"
+          }
+        }
+      }
+    },
+    "Start Screen Mirroring to continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启屏幕镜像以继续"
+          }
+        }
+      }
+    },
+    "Starting in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即将开始"
+          }
+        }
+      }
+    },
+    "Steps are worked out from screen changes, not touches. Check the uncertain ones before saving." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步骤是根据画面变化推断的，不是触摸记录。保存前请检查不确定的步骤。"
+          }
+        }
+      }
+    },
+    "Tap Screen Mirroring → ESP32 Agent to continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点“屏幕镜像”→ ESP32 Agent 以继续"
+          }
+        }
+      }
+    },
+    "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子重启了，等待 iPhone 重新加入它的 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "The connection dropped. I'll go on when it's back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接断开了，恢复后我会继续。"
+          }
+        }
+      }
+    },
+    "This file is too large." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件太大。"
+          }
+        }
+      }
+    },
+    "This intent file needs a newer version of the app." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个意图文件需要更新版本的 App。"
+          }
+        }
+      }
+    },
+    "This isn't an ESP32 Agent intent file." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是 ESP32 Agent 的意图文件。"
+          }
+        }
+      }
+    },
+    "Use Default" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用默认"
+          }
+        }
+      }
+    },
+    "Weak signal? Try placing the board right against the side of your phone, or attach its antenna." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信号弱？试试把板子紧贴手机侧面，或接上天线。"
+          }
+        }
+      }
+    },
+    "Wi-Fi resends / drops (board)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi 重发 / 丢弃（板子）"
+          }
+        }
+      }
+    },
+    "With screenshots, steps can be tapped again without asking the model. Screenshots can show messages, names or other personal details." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "带截图时，步骤可以不问模型直接重放。截图可能包含消息、姓名等个人信息。"
+          }
+        }
+      }
+    },
+    "iPhone left the board's Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 离开了板子的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "the board did not come back in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子 5 分钟内没有恢复"
+          }
+        }
+      }
+    },
+    "the iPhone did not rejoin the board's Wi-Fi in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 5 分钟内没有重新加入板子的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Include blurred screenshots" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附带打码后的截图"
+          }
+        }
+      }
+    },
+    "Send it to %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请发送到 %@。"
+          }
+        }
+      }
+    },
+    "Send to Developer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发给开发者"
+          }
+        }
+      }
+    },
+    "Share a useful intent with us by mail. Screenshots are blurred first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过邮件把好用的意图分享给我们。截图会先打码。"
+          }
+        }
+      }
+    },
+    "Thanks! We read every intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "谢谢！每个意图我们都会看。"
+          }
+        }
+      }
+    },
+    "Write Mail" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写邮件"
+          }
+        }
+      }
+    },
+    "Screenshots are your choice and off by default. If you include them, text on them is pixelated and the status bar is blacked out on your iPhone, and the mail asks our model to blur anything left, like faces and photos, before anyone looks. Typed text, your model key and network names are removed. You see the mail before it is sent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图由你决定是否附带，默认不带。附带时，会先在你的 iPhone 上给截图里的文字打马赛克、涂黑状态栏；邮件里还会要求我们的模型在任何人查看前，把剩下的人脸、照片等也打码。输入的文字、模型密钥和网络名称都会去掉。发送前你能看到邮件内容。"
+          }
+        }
+      }
+    },
+    "We use what you send only to improve intents in ESP32 Agent, and never for anything else." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你发来的内容只用于改进 ESP32 Agent 的意图，不会用于任何其他用途。"
+          }
+        }
+      }
+    },
+    "Attached: an intent shared from ESP32 Agent. Screenshots were included only if I chose to, blurred on my iPhone. Use it only to improve intents in ESP32 Agent, not for anything else." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件是从 ESP32 Agent 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPhone 上打码。仅可用于改进 ESP32 Agent 的意图，不得用于其他用途。"
+          }
+        }
+      }
+    },
+    "The firmware release isn't signed by ESP32 Agent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个固件版本没有 ESP32 Agent 的签名。"
+          }
+        }
+      }
+    },
+    "No firmware release found." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到固件版本。"
+          }
+        }
+      }
+    },
+    "The firmware download failed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固件下载失败。"
+          }
+        }
+      }
+    },
+    "The downloaded firmware is damaged. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载的固件已损坏，请重试。"
+          }
+        }
+      }
+    },
+    "Can't reach the board over Wi-Fi. Put the iPhone on the board's Wi-Fi (or the network the board joined) and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法通过 Wi-Fi 连接板子。请让 iPhone 连上板子的 Wi-Fi（或板子加入的那个网络）后重试。"
+          }
+        }
+      }
+    },
+    "The board refused the update: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子拒绝了更新：%@"
+          }
+        }
+      }
+    },
+    "The board stopped answering." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子没有响应。"
+          }
+        }
+      }
+    },
+    "The Wi-Fi connection to the board dropped." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与板子的 Wi-Fi 连接断开了。"
+          }
+        }
+      }
+    },
+    "Connect the board first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先连接板子。"
+          }
+        }
+      }
+    },
+    "Wait until the task or recording ends." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请等任务或录制结束。"
+          }
+        }
+      }
+    },
+    "The board still runs its previous firmware." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子仍在运行原来的固件。"
+          }
+        }
+      }
+    },
+    "The board hasn't come back yet. Keep it plugged in; it will finish on its own and reconnect." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子还没有重新连接。请保持插着，它会自己完成并重新连接。"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "Check for Updates" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查更新"
+          }
+        }
+      }
+    },
+    "Checking for Updates…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查更新…"
+          }
+        }
+      }
+    },
+    "Firmware" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固件"
+          }
+        }
+      }
+    },
+    "The board is up to date." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已是最新版本。"
+          }
+        }
+      }
+    },
+    "Keep this app open and the board plugged in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请保持 App 开着、板子插着。"
+          }
+        }
+      }
+    },
+    "Downloading Update…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载更新…"
+          }
+        }
+      }
+    },
+    "Sending to the Board…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在发送到板子…"
+          }
+        }
+      }
+    },
+    "Board Restarting…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子正在重启…"
+          }
+        }
+      }
+    },
+    "Board Updated" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已更新"
+          }
+        }
+      }
+    },
+    "Update Didn't Finish" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新没有完成"
+          }
+        }
+      }
+    },
+    "Connection dropped. Trying again (%lld of %lld)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接断开，正在重试（第 %lld 次，共 %lld 次）。"
+          }
+        }
+      }
+    },
+    "Over the board's Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过板子的 Wi-Fi。"
+          }
+        }
+      }
+    },
+    "The board checks the new firmware and reconnects." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子正在校验新固件，随后会重新连接。"
+          }
+        }
+      }
+    },
+    "Checking the signature." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在校验签名。"
+          }
+        }
+      }
+    },
+    "This board needs one update over USB first (hardware/flash.sh)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这块板子需要先通过 USB 更新一次（hardware/flash.sh）。"
+          }
+        }
+      }
+    },
+    "Board Update Required" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要更新板子固件"
+          }
+        }
+      }
+    },
+    "Update the Board" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新板子固件"
+          }
+        }
+      }
+    },
+    "Takes about a minute. Your intents and settings stay as they are." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大约需要一分钟，你的 intent 和设置都不受影响。"
+          }
+        }
+      }
+    },
+    "Check Again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新检查"
+          }
+        }
+      }
+    },
+    "On the board's Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连上板子的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Update Now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即更新"
+          }
+        }
+      }
+    },
+    "The update goes over the board's Wi-Fi. Join it first; the internet keeps working over cellular." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新通过板子的 Wi-Fi 进行，请先加入。上网会继续走蜂窝网络。"
+          }
+        }
+      }
+    },
+    "Update to %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新到 %@"
+          }
+        }
+      }
+    },
+    "Update firmware %@ → %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新固件 %@ → %@"
+          }
+        }
+      }
+    },
+    "This version of ESP32 Agent needs board firmware %@ or later." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个版本的 ESP32 Agent 需要板子固件 %@ 或更高版本。"
+          }
+        }
+      }
+    },
+    "Firmware %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固件 %@。"
+          }
+        }
+      }
+    },
+    "The board went back to its previous firmware (%@). Nothing was lost; try again later." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已退回原来的固件（%@），没有任何损失，请稍后再试。"
+          }
+        }
+      }
+    },
+    "Board firmware %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子固件 %@"
+          }
+        }
+      }
+    },
+    "Busy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忙碌"
+          }
+        }
+      }
+    },
+    "Check again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新检查"
+          }
+        }
+      }
+    },
+    "Each run on the free line (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Handsy"
+          }
+        }
+      }
+    },
+    "Free Line Busy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路忙"
+          }
+        }
+      }
+    },
+    "Free line privacy notice" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路隐私说明"
+          }
+        }
+      }
+    },
+    "Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用，名额有限：每次最长 3 分钟，每台手机可用几次。忙碌时过一分钟再试，或添加你自己的模型。"
+          }
+        }
+      }
+    },
+    "Private model, no API key. Limited capacity." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私有部署的模型，无需 API 密钥。名额有限。"
+          }
+        }
+      }
+    },
+    "Recorded" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会被记录"
+          }
+        }
+      }
+    },
+    "Requests pass through Cloudflare and Hong Kong; the model and the records are on the developer's own servers in mainland China" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求经过 Cloudflare 和香港中转；模型和记录在开发者位于中国大陆的自有服务器上"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on the free line. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@handsy.tech。你可以随时在“设置 › 隐私”中撤回同意。"
+          }
+        }
+      }
+    },
+    "The free line is busy or your free runs are used up. Try again in a few minutes, or use your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙，或你的免费次数已用完。请几分钟后再试，或使用你自己的模型。"
+          }
+        }
+      }
+    },
+    "The free line isn't available on this phone right now. Use your own model instead." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台手机目前无法使用免费线路，请改用你自己的模型。"
+          }
+        }
+      }
+    },
+    "The free line needs the App Store version on a real iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路需要在真实 iPhone 上使用 App Store 版本。"
+          }
+        }
+      }
+    },
+    "The free line only runs tasks. Use your own model for tests and intent analysis." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路只用于运行任务。测试连接和意图分析请使用你自己的模型。"
+          }
+        }
+      }
+    },
+    "Unavailable" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可用"
+          }
+        }
+      }
+    },
+    "Waiting for the free line…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在排队等免费线路…"
+          }
+        }
+      }
+    },
+    "The free line is busy. Try again in a minute, or switch to your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙。请稍后再试，或切换到你自己的模型。"
+          }
+        }
+      }
+    },
+    "The free line is busy or ended this run. Tap Retry in a moment." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙，或已结束本次运行。请稍后点「重试」。"
+          }
+        }
+      }
+    },
+    "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对失败。请重新插拔板子，再到 设置 › 蓝牙 忽略 ESP32 Agent。"
+          }
+        }
+      }
+    },
+    "Pair %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对 %@"
+          }
+        }
+      }
+    },
+    "App version, iOS version and iPhone model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 版本、iOS 版本和 iPhone 型号"
+          }
+        }
+      }
+    },
+    "The board's state and its recent log (firmware, connection, Screen Mirroring)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子状态和最近的日志（固件、连接、屏幕镜像）"
+          }
+        }
+      }
+    },
+    "The debug log: app events, board lines, model request timing (never your API key)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调试日志：App 事件、板子日志、模型请求耗时（绝不包含你的 API 密钥）"
+          }
+        }
+      }
+    },
+    "Crash reports iOS gave the app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 提供给 App 的崩溃报告"
+          }
+        }
+      }
+    },
+    "Send diagnostics to the developer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把诊断信息发给开发者"
+          }
+        }
+      }
+    },
+    "One tap sends the debug log, the board's state and log, and crash reports, so a problem can be looked into. No runs, screenshots or API keys." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一键发送调试日志、板子状态和日志、崩溃报告，方便排查问题。不含运行记录、截图或 API 密钥。"
+          }
+        }
+      }
+    },
+    "Send diagnostics?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送诊断信息？"
+          }
+        }
+      }
+    },
+    "Couldn't put the report together." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法生成报告。"
+          }
+        }
+      }
+    },
+    "Sent. Report %@ — quote it when you get in touch." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送。报告编号 %@，联系我们时请提供。"
+          }
+        }
+      }
+    },
+    "Couldn't send the report right now. Try again later, or use Export all logs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时无法发送报告。请稍后再试，或使用「导出全部日志」。"
+          }
+        }
+      }
+    },
+    "You've used the free runs on this iPhone. Add your own model to keep going." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 的免费次数已用完。添加你自己的模型即可继续使用。"
+          }
+        }
+      }
+    },
+    "Queue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排队"
+          }
+        }
+      }
+    },
+    "Used Up" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用完"
+          }
+        }
+      }
+    },
+    "Free Runs Used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费次数已用完"
+          }
+        }
+      }
+    },
+    "Diagnostics can't be sent from this build." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个版本无法发送诊断信息。"
+          }
+        }
+      }
+    },
+    "Send diagnostics" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送诊断"
+          }
+        }
+      }
+    },
+    "Send the debug log, board state and crash reports to the developer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把调试日志、板子状态和崩溃报告发给开发者"
+          }
+        }
+      }
+    },
+    "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子没有在控制这台 iPhone。请把它插到这台 iPhone 的 USB-C 口上再试。"
+          }
+        }
+      }
+    },
+    "Open %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 %@"
           }
         }
       }

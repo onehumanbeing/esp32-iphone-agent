@@ -1,0 +1,17 @@
+{
+  "latest": "0.1.0",
+  "versions": [
+    {
+      "version": "0.1.0",
+      "date": "2026-10-21",
+      "assets": {
+        "darwin_amd64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_darwin_amd64.tar.gz", "sha256": "<sha256 of the archive>" },
+        "darwin_arm64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_darwin_arm64.tar.gz", "sha256": "<sha256 of the archive>" },
+        "linux_amd64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_linux_amd64.tar.gz", "sha256": "<sha256 of the archive>" },
+        "linux_arm64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_linux_arm64.tar.gz", "sha256": "<sha256 of the archive>" },
+        "windows_amd64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_windows_amd64.zip", "sha256": "<sha256 of the archive>" },
+        "windows_arm64": { "url": "https://github.com/onehumanbeing/esp32-iphone-agent/releases/download/cli-v0.1.0/esp32agent_windows_arm64.zip", "sha256": "<sha256 of the archive>" }
+      }
+    }
+  ]
+}

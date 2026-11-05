@@ -145,7 +145,7 @@ extension AppModel {
             }
             lines.append(PyJSON.dumps(line, ascii: false))
         }
-        add("task", ["task": .str(IntentStore.examples[0].prompt)])
+        add("task", ["task": .str(String(localized: "Example: ") + IntentStore.alarm.prompt)])  // labeled sample run
         for step in Self.mockSteps + [["thought": .str("Every day is checked and the alarm is saved."),
                                        "action": .str("done"), "answer": .str("The 7:00 AM alarm repeats every day.")]] {
             add("llm", ["role": .str("actor"), "seconds": .num(1.4)], shot: true)
@@ -156,7 +156,8 @@ extension AppModel {
     }
 
     private static func status(up: Int, n: Int, mirroring: Bool) -> BoardStatus {
-        BoardStatus(up: up, rst: "power-on", heap: 81_234 - n % 7 * 120, psram: 6_200_000, usb: "ok",
+        // a board on released firmware: without `fw` it reads as pre-OTA and the required Board Update covers the app
+        BoardStatus(fw: FirmwareVersion([0, 2, 1]), up: up, rst: "power-on", heap: 81_234 - n % 7 * 120, psram: 6_200_000, usb: "ok",
                     net: "ap", ip: "192.168.4.1", sta: 1, ap: mirroring ? "streaming" : "idle", w: 480, h: 1040,
                     kbps: Double.random(in: 150...230), fps: Double.random(in: 4.4...5), idr: 2000,
                     gop: 42_000 + n % 5 * 3000,

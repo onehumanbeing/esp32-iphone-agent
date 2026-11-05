@@ -9,6 +9,8 @@
 
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
+#include <esp_wifi.h>
+#include <esp_core_dump.h>
 #include "USB.h"
 #include "USBHIDMouse.h"
 #include "USBHIDKeyboard.h"
@@ -17,7 +19,13 @@
 #include "ble_link.h"
 #include "netcfg.h"
 #include "video_link.h"
+#include "cli_link.h"
+#include "wifi_video.h"
+#include "ota.h"
+#include "version.h"
 #include "src/airplay/airplay.h"
+#include "src/hid/arbiter.h"
+#include "logbuf.h"
 
 const int STEP = 10;      // max pointer delta per report while moving
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
@@ -107,6 +115,18 @@ String run(const String &line) {
   return "err unknown command";
 }
 
+static arb_state arb;  // the app or the CLI drives the phone, never both: src/hid/arbiter.h
+const char *const APP_BUSY = "err busy: the app is using the board";
+
+// An HID command from who; the side that leaves lets go of the button it held (loop()).
+String drive(const String &line, char who) {
+  int sp = line.indexOf(' ');
+  String cmd = sp < 0 ? line : line.substring(0, sp);
+  String reply = run(line);
+  arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");
+  return reply;
+}
+
 const char *resetReason() {
   switch (esp_reset_reason()) {
     case ESP_RST_POWERON: return "power-on";
@@ -124,26 +144,51 @@ const char *usbState() {
   return tud_suspended() ? "asleep" : "ok";
 }
 
-// Board-level commands from the app; everything else is an HID command for run().
-String board(const String &line, const String &id) {
+// The last crash saved in the core dump partition (kept until the next one): task, PC, backtrace. Read at boot,
+// so a crash on a board plugged into the phone can be looked up over BLE (`crash`) without a serial cable.
+static String lastCrash = "none";
+
+void readCrash() {
+  auto *c = (esp_core_dump_summary_t *)malloc(sizeof(esp_core_dump_summary_t));
+  if (c && esp_core_dump_image_check() == ESP_OK && esp_core_dump_get_summary(c) == ESP_OK) {
+    char b[200];
+    int n = snprintf(b, sizeof b, "%.16s pc %08lx bt", c->exc_task, (unsigned long)c->exc_pc);
+    for (int i = 0; i < (int)c->exc_bt_info.depth && i < 12 && n < (int)sizeof b - 10; i++)
+      n += snprintf(b + n, sizeof b - n, " %08lx", (unsigned long)c->exc_bt_info.bt[i]);
+    lastCrash = b;
+  }
+  free(c);
+}
+
+// Board-level commands from the app or the CLI (who); everything else is an HID command for run().
+String board(const String &line, const String &id, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String arg = sp < 0 ? "" : line.substring(sp + 1);
   long a = 0, b = 0;
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
+  if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_active()) && cmd != "crash") return APP_BUSY;
   if (cmd == "stream") {
     if (arg != "on" && arg != "off") return "err usage: stream on|off";
-    video_stream(arg == "on");
+    video_stream(arg == "on", who);
     return "ok";
   }
+  // The CLI must not change what the app relies on: the mirroring format, the radio, the pairing.
+  if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair" || cmd == "res" || cmd == "fps" ||
+                          cmd == "txpower" || cmd == "coex"))
+    return "err not available from the CLI";
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
+    if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
     return "ok";
   }
-  if (cmd == "snap") { video_snap(id); return ""; }  // replies when the GOP is sent
+  if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
+  if (cmd == "vdbg") return "ok " + video_debug();  // why a frozen screen stays frozen (video_link.cpp)
+  if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;
+  if (cmd == "snap") { video_snap(id, who); return ""; }  // replies when the GOP is sent
   if (cmd == "bench") {
     if (n < 1 || a <= 0 || a > 4096) return "err usage: bench KB (1-4096)";
-    video_bench(id, a);
+    video_bench(id, a, who);
     return "";
   }
   if (cmd == "res") {
@@ -158,6 +203,10 @@ String board(const String &line, const String &id) {
     airplay_set_display(cfg_width(), cfg_height(), a);
     return "ok";
   }
+  if (cmd == "txpower") {  // A/B knob in 0.25 dBm (8-84), not stored: every boot starts at 5 dBm
+    if (n < 1 || a < 8 || a > 84 || esp_wifi_set_max_tx_power(a) != ESP_OK) return "err usage: txpower 8-84";
+    return "ok";
+  }
   if (cmd == "coex") {  // A/B knob, not stored: every boot starts at balance
     if (arg.length() && !net_coex(arg)) return "err usage: coex bt|balance|wifi";
     return String("ok ") + net_coex_mode();
@@ -167,26 +216,40 @@ String board(const String &line, const String &id) {
     ble_unpair();
     return "";
   }
-  return run(line);
+  return drive(line, who);
 }
 
-String statusJson(bool full) {
+String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
-  VideoStats v = video_stats();
-  char s[384];
+  VideoStats v = video_stats(who);
+  char s[560];
   snprintf(s, sizeof s,
-           "{\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
-           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,"
-           "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d}}",
-           millis(), resetReason(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
+           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
+           "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d},"
+           "\"udp\":{\"n\":%d,\"kbps\":%lu,\"nack\":%lu,\"drop\":%lu}}",
+           FW_VERSION, millis(), resetReason(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), usbState(), net_mode(), net_ip().c_str(), net_peers(),
            apStates[airplay_state()], cfg_width(), cfg_height(), (unsigned long)v.kbps, v.fps, (unsigned long)v.idr_ms,
-           (unsigned long)v.gop_bytes, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
-           (unsigned long)ble_reply_drops(), ble_peers());
+           (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, (unsigned long)v.overflows, v.frozen, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
+           (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
+           (unsigned long)wv_nacks(), (unsigned long)wv_drops());
+  // owner: who drives the phone (app, cli, none); the CLI's busy is 1 while that is the app
+  bool app = ble_app_active();
+  const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
+  size_t len = strlen(s);
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
+  if (who == FROM_CLI) {
+    len = strlen(s);
+    snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
+  }
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"ble\":{\"mtu\":%u}}",
-           millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], ble_mtu());
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
+           FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
+  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
+  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d", app);
+  strlcat(s, "}", sizeof s);
   return s;
 }
 
@@ -194,16 +257,34 @@ void statusTask(void *) {
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
     if (!ble_connected()) continue;
-    String s = statusJson(true);
-    if (s.length() > ble_mtu() - 3u) s = statusJson(false);
+    String s = statusJson(true, FROM_APP);
+    if (s.length() > ble_mtu() - 3u) s = statusJson(false, FROM_APP);
     ble_status(s);
+    if (cli_slot() >= 0) ble_cli_status(statusJson(true, FROM_CLI), statusJson(false, FROM_CLI));
   }
 }
 
+// AirPlay log lines: to USB serial, and to the app ("blog ...", into its debug.log) so a stall on a board
+// plugged into the phone leaves evidence, and into the RAM log. At most 16 a second; the rest are counted and reported later.
 void logLine(const char *msg) {
 #if DEBUG_SERIAL
   Serial.printf("[%lu] %s\n", millis(), msg);
 #endif
+  static uint32_t windowStart, sent, skipped;
+  static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+  uint32_t now = millis();
+  bool send = false;
+  uint32_t dropped = 0;
+  portENTER_CRITICAL(&mux);
+  if (now - windowStart >= 1000) { windowStart = now; sent = 0; }
+  if (sent < 16) { sent++; send = true; dropped = skipped; skipped = 0; } else skipped++;
+  portEXIT_CRITICAL(&mux);
+  if (!send) return;
+  board_log_keep(msg);
+  if (!ble_connected()) return;
+  String line = String("blog ") + now + " " + msg;
+  if (dropped) line += String(" (+") + dropped + " skipped)";
+  ble_reply(line);
 }
 
 void startAirplay() {
@@ -217,11 +298,15 @@ void startAirplay() {
   cfg.on_config = video_on_config;
   cfg.on_au = video_on_au;
   cfg.log = logLine;
-  if (!airplay_start(&cfg)) Serial.println("airplay: start failed");
+  if (!airplay_start(&cfg)) board_log("airplay: start failed");
 }
 
 void setup() {
   Serial.begin(115200);
+#if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, to check the rollback after an update
+  delay(3000);
+  abort();
+#endif
 #if DEBUG_SERIAL
   for (int i = 0; i < 30 && !Serial; i++) delay(100);  // give a serial monitor 3 s to catch the boot lines
 #endif
@@ -233,40 +318,86 @@ void setup() {
   esp_task_wdt_config_t wdt = {.timeout_ms = WATCHDOG_MS, .idle_core_mask = 0, .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt);
   esp_task_wdt_add(NULL);
+  readCrash();
 
   net_begin();
-  if (!video_begin()) Serial.println("video: no PSRAM for the GOP buffer");
+  if (!video_begin()) board_log("video: no PSRAM for the GOP buffer");
+  if (!wv_begin()) board_log("video: Wi-Fi video channel failed to start");
+  if (!ota_begin()) board_log("ota: failed to start");
+  arb_init(&arb);
+  cli_begin();
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
-  Serial.printf("boot %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(),
+  board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), resetReason());
 }
 
 void loop() {
-  static bool linked = false;
+  static bool linked = false, cliLinked = false;
   esp_task_wdt_reset();
   net_poll();
-  if (linked && !ble_connected()) {
-    mouse.release(MOUSE_LEFT);  // a gesture cut off mid-way must not leave the button held (long press)
+  bool cli = cli_slot() >= 0;
+  // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.
+  bool app = ble_app_connected(), appActive = ble_app_active();
+  if (linked && !app) {
+    if (arb_gone(&arb, ARB_APP)) mouse.release(MOUSE_LEFT);
     keyboard.releaseAll();
-    video_stream(false);
+    video_stream(false, FROM_APP);
   }
-  linked = ble_connected();
+  if (cliLinked && !cli) {
+    if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
+    video_stream(false, FROM_CLI);
+  }
+  // The app wins: a CLI session up alongside it stops at once and is dropped shortly after, once its status
+  // (owner app, busy 1) and the `err busy` replies to anything it sent are out, so it doesn't load the radio.
+  static uint32_t cliDropAt = 0;
+  if (appActive && cli) {
+    if (!cliDropAt) {
+      if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);
+      video_stream(false, FROM_CLI);
+      ble_cli_status(statusJson(true, FROM_CLI), statusJson(false, FROM_CLI));
+      cliDropAt = millis() + 300;
+    } else if ((int32_t)(millis() - cliDropAt) >= 0) {
+      ble_cli_drop(cli_slot());
+      cliDropAt = millis() + 2000;  // once more later if it's still there
+    }
+  } else {
+    cliDropAt = 0;
+  }
+  linked = app;
+  cliLinked = cli;
+  // A freshly updated image is kept once it has run a while or the app got through; a crash or watchdog
+  // reset before that makes the bootloader go back to the previous one.
+  static bool confirmed = false;
+  if (!confirmed && (linked || millis() > 30000)) { ota_confirm(); confirmed = true; }
 
   String line;
-  if (Serial.available()) {  // USB serial takes the same `<id> <command>` lines, for debugging from a Mac
-    line = Serial.readStringUntil('\n');
+  // USB serial takes the same `<id> <command>` lines, for debugging from a Mac. Never wait for the rest of a line:
+  // bytes without a newline (esptool's sync, say) held the loop until the watchdog reset the board.
+  static String serialLine;
+  bool serialDone = false;
+  while (Serial.available() && !serialDone) {
+    char ch = Serial.read();
+    if (ch == '\n') serialDone = true;
+    else if (serialLine.length() < 512) serialLine += ch;
+  }
+  if (serialDone) {
+    line = serialLine;
+    serialLine = "";
     line.trim();
     if (line.startsWith("0 net ")) { net_request(line.substring(6)); Serial.println("0 ok"); return; }
+    if (line == "0 netinfo") { Serial.println("0 " + net_json()); return; }  // what the app reads over BLE (incl. vtok)
+    if (line == "0 status") { Serial.println("0 " + statusJson(true, FROM_APP)); return; }
     int sp = line.indexOf(' ');
     String id = sp < 0 ? line : line.substring(0, sp);
-    Serial.println(id + " " + board(sp < 0 ? "" : line.substring(sp + 1), id));
+    Serial.println(id + " " + board(sp < 0 ? "" : line.substring(sp + 1), id, FROM_APP));
     return;
   }
-  if (!ble_pop_cmd(line, 50)) return;
+  char who;
+  if (!ble_pop_cmd(line, who, 50)) return;
   int sp = line.indexOf(' ');
   String id = sp < 0 ? line : line.substring(0, sp);
   String rest = sp < 0 ? "" : line.substring(sp + 1);
@@ -274,8 +405,8 @@ void loop() {
 #if DEBUG_SERIAL
   unsigned long started = millis();
 #endif
-  String reply = id.toInt() || id == "0" ? board(rest, id) : "err missing request id";
-  if (reply.length()) ble_reply(id + " " + reply);
+  String reply = id.toInt() || id == "0" ? board(rest, id, who) : "err missing request id";
+  if (reply.length()) ble_reply(id + " " + reply, who);
 #if DEBUG_SERIAL
   Serial.printf("%s -> %s (%lu ms)\n", line.c_str(), reply.c_str(), millis() - started);
 #endif

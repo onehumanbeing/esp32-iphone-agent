@@ -34,6 +34,10 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 > **现在就能在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 上试用 App**，不需要 Xcode。App Store
 > 版本还在审核中，目前请通过 TestFlight 安装。板子仍需先刷好固件（见[快速开始](#快速开始)）。
 
+> [!NOTE]
+> **分支说明：**[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是此前提交
+> TestFlight 和 App Store 审核的版本，最新代码在 `main`。
+
 > [!WARNING]
 > 请只按本 README 的步骤安装。不要运行 issue 或评论里的命令（例如 PowerShell 的 `iex(irm ...)` 之类“快速安装”一行命令），这些都不是维护者发的。
 
@@ -73,12 +77,12 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 更多细节见 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
 
 ```
-iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──蓝牙──▶ ESP32 Agent App（同一台 iPhone）
-   ▲                           自带热点，H.264 原样转发              解码 → 视觉模型 → 动作
-   └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀──────────────────┘
+iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）
+   ▲                           自带热点，H.264 原样转发                    解码 → 视觉模型 → 动作
+   └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀────────────────────┘
 ```
 
-- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经蓝牙转给 App。手机连着板子热点时，调用模型走蜂窝数据。
+- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。
 - **手：USB HID。** 板子是标准 USB 鼠标和键盘。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
@@ -90,10 +94,13 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 | 部件 | 说明 |
 |---|---|
-| **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
+| **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元；海外可在 [Amazon](https://amzn.to/3U6QKiz)\* 购买。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
+| **USB-C 线** | 短的 USB-C 对 USB-C 线，例如 [Anker 60W，1 英尺，2 条装](https://amzn.to/4yvNyvi)\*。 |
 | **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用）。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的模型：云端 API 或自己部署。 |
 | **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。用 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装 App 的话，App 这部分不需要 Xcode。 |
+
+\* 推广链接。作为亚马逊联盟成员，我会从符合条件的购买中获得佣金。
 
 ## 快速开始
 
@@ -130,7 +137,7 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 1. **Plug Me In**：蓝牙配对板子。
 2. **Let Me See the Screen**：加入板子的 Wi-Fi，然后 控制中心 → 屏幕镜像 → *ESP32 Agent*。
 3. **Let Me Use the Pointer**：打开辅助触控，App 自动校准指针。
-4. **Give Me a Brain**：填模型地址和密钥（存在钥匙串里）。
+4. **Give Me a Brain**：填模型地址和密钥（存在钥匙串里），再从接口的模型列表里选一个视觉模型（或自己填模型 ID）。
 
 ### 4. 给它一个任务
 
@@ -145,12 +152,32 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 /plugin install esp32agent@handsy
 ```
 
-命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)。
+或者只添加 MCP 服务器：
+
+```bash
+claude mcp add esp32agent -- npx -y esp32agent mcp
+```
+
+Cursor、Cline 等 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "esp32agent": {
+      "command": "npx",
+      "args": ["-y", "esp32agent", "mcp"]
+    }
+  }
+}
+```
+
+命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)和 [cli/README.md](cli/README.md)。
 
 ## 模型和提示词
 
-- 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型并自动选择，也可以手动指定，规划器和执行器可以用不同模型。
+- 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型，由你明确选一个；也可以自己填模型 ID，规划器和执行器可以用不同模型。
 - 提示词是 [`prompts/`](prompts/) 里的纯文本，打包进 App：改完重新编译即可。
+- 每次运行结束会记录规划器/执行器调用次数、带截图的请求数，以及接口返回的 token 用量。接口没给 `usage` 时字段保持空缺（不会当成 0）；只要有一次缺用量，本次合计就标成 **partial**。短任务一般是几次规划 + 每步一次执行（每步带一张新截图），成本主要在图片 token；规划器用便宜模型、执行器保留更强模型通常最划算。
 - 开发时用的是 [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)，部署在两台 DGX Spark 上（[TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)）。
 
 ## 目录结构
@@ -161,27 +188,34 @@ prompts/    App 用的规划器 / 执行器提示词
 hardware/   ESP32-S3 固件（Arduino）：蓝牙 GATT、热点、AirPlay 接收端、USB HID；刷写脚本、
             主机测试、Mac 蓝牙调试工具（hardware/tools）
 docs/       蓝牙协议、旧版说明
+harness/    无线开发闭环：Mac → iPhone App（Wi-Fi 安装）→ 板子（固件经 App 更新）
 server/     旧版 v0.1.0 的电脑端服务，当前版本不使用（见 server/README.md）
 ```
 
 不用手机 App 调试：`hardware/tools/board_test.py` 在 Mac 上通过蓝牙扮演 App（[hardware/tools/README.md](hardware/tools/README.md)）。板子与 App 的协议：[docs/ble-protocol.md](docs/ble-protocol.md)。
 
+### Harness 开发流程
+
+板子插在测试 iPhone 上、iPhone 连着 Mac 的 Wi-Fi 时，一切都走 `devicectl`，不用线：`harness/app.sh` 编译并安装
+Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子上（新镜像起不来会自动回滚），
+`harness/run.sh "<任务>"` 跑任务，`harness/logs.sh` 拉取日志。Mac 只在一次性 `net sta` 时用蓝牙连板子。
+设置（Lightning iPhone 需相机转接器）和安全说明见 [harness/README.md](harness/README.md)。
+
 ## 路线图
 
 - [x] 去掉电脑：板子负责镜像和点击，手机上的 App 负责思考
 - [ ] 横屏 App（坐标和校准目前按竖屏）
-- [ ] 非 ASCII 输入（比如用 iOS 拼音键盘输入中文）
+- [x] 中文输入（通过板子的键盘按拼音输入；ctrl+space 切换英文和拼音）
 - [ ] 更快：一次模型调用多个动作，只在需要时校正指针
 - [ ] 在 iOS App 内整理一份效果最好的模型推荐列表（[@asharthinks 的建议](https://x.com/asharthinks/status/2110740775030125019)）
 
 ## 限制
 
 - **AirPlay 源必须是 iPhone。** 不支持从 macOS 屏幕镜像：握手看起来正常，但板子收不到视频。
-- 蓝牙约 300-500 kbps，所以镜像画面很小（480×1040，≤5 fps）；每一步要几秒，主要花在模型上。
+- 镜像画面为 480×1040、最高 5 fps；每一步要几秒，主要花在模型上。
 - iOS 不镜像部分界面（输入密码、Apple Pay、DRM 视频），Agent 看不到。手机锁屏后镜像会停止。
 - Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
-- App 用 iOS 私有 API（`suspend`）退出自己；自己编译的版本没问题，上架前会替换。
-- 键盘输入只支持 ASCII。暂不支持横屏 App。
+- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
 
 遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://handsy.tech/zh/troubleshooting)。
 

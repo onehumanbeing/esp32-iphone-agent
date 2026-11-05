@@ -53,7 +53,11 @@ struct DraftStep: Identifiable, Equatable {
 
     /// An intent without a reference run: only its words to edit.
     convenience init(intent: SavedTask) {
-        self.init(source: .intent, folder: nil, runID: nil, outcome: nil, steps: [], name: intent.name,
+        let recording = intent.refRecording.flatMap { name -> URL? in
+            guard !name.isEmpty, !name.contains("/"), !name.contains("..") else { return nil }
+            return DemoRecorder.root.appendingPathComponent(name)
+        }
+        self.init(source: .intent, folder: recording, runID: nil, outcome: nil, steps: [], name: intent.name,
                   prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, intentID: intent.id)
     }
 
@@ -112,7 +116,56 @@ struct DraftStep: Identifiable, Equatable {
         item.icon = icon
         item.hints = hints.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         item.refRun = runID ?? item.refRun
+        if source == .recording { item.refRecording = folder?.lastPathComponent }
+        let corrections = steps.compactMap { step -> String? in
+            guard !step.uncertain else { return nil }
+            if let point = step.fix { return "For \(StepText.title(step.action)), use screen position \(Int(point.x)), \(Int(point.y)) (0–1000). \(step.note)" }
+            if !step.note.isEmpty { return step.note }
+            if step.inserted { return step.action["text"]?.str }
+            return nil
+        }
+        for correction in corrections where !(item.hints ?? []).contains(correction) {
+            item.hints = (item.hints ?? []) + [correction]
+        }
         return item
+    }
+
+    /// The moves to replay next time (Replay), their screens copied next to the intent so deleting the run or
+    /// recording keeps them. nil = nothing to replay here (an intent opened without its steps): keep the old ones.
+    func recordedSteps(for id: UUID) throws -> [RecordedStep]? {
+        // A demonstration keeps script steps too; a note or an unsure move there becomes an AI step (ScriptRunner).
+        let demo = source == .recording
+        let kept = Replay.replayable.union(Replay.scriptKinds).union(demo ? ["note"] : [])
+        let picked = steps.filter { kept.contains($0.name) && !$0.inserted && ($0.verdict != false || $0.fix != nil) }
+        guard !picked.isEmpty else { return source == .intent ? nil : [] }
+        let folder = IntentFrames.folder(id)
+        let staging = folder.deletingLastPathComponent().appendingPathComponent(id.uuidString + ".new")
+        try? FileManager.default.removeItem(at: staging)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let result = try picked.enumerated().map { i, step -> RecordedStep in
+            var action = Actions.key(step.action)
+            var sure = source == .run ? outcome == .done && step.action["changed"] != .bool(false) : !step.uncertain
+            if let fix = step.fix, step.name == "tap" {
+                action["x"] = .int(Int(fix.x)); action["y"] = .int(Int(fix.y))
+                sure = true
+            }
+            if step.verdict == true { sure = true }
+            if demo && (step.name == "note" || (!sure && Replay.replayable.contains(step.name))) {
+                let goal = step.name == "note" ? step.action["text"]?.str ?? "" : "Do this step: " + StepText.title(action)
+                action = ["action": .str("ai"), "goal": .str(goal)]
+                sure = true
+            }
+            if Replay.scriptKinds.contains(action["action"]?.str ?? "") { sure = true }
+            var name: String?
+            if let frame = step.frame, let data = try? Data(contentsOf: frame) {
+                name = String(format: "s%02d.jpg", i + 1)
+                try data.write(to: staging.appendingPathComponent(name!), options: .atomic)
+            }
+            return RecordedStep(action: action, sure: sure, frame: name)
+        }
+        try? FileManager.default.removeItem(at: folder)
+        try FileManager.default.moveItem(at: staging, to: folder)
+        return result
     }
 
     // MARK: - AI optimization
@@ -177,12 +230,19 @@ struct DraftStep: Identifiable, Equatable {
     private var editsURL: URL? { folder?.appendingPathComponent("review.json") }
 
     func saveEdits() {
+        do { try persistEdits() } catch { persistenceError = error.localizedDescription }
+    }
+
+    @Published var persistenceError: String?
+
+    func persistEdits() throws {
         guard let editsURL else { return }
         let e = Edits(steps: steps.map {
             .init(action: PyJSON.dumps($0.action, ascii: false), frame: $0.frame?.lastPathComponent, t: $0.t,
                   verdict: $0.verdict, fix: $0.fix, note: $0.note, uncertain: $0.uncertain, inserted: $0.inserted)
         }, name: name, prompt: prompt, hints: hints, icon: icon)
-        try? JSONEncoder().encode(e).write(to: editsURL)
+        try JSONEncoder().encode(e).write(to: editsURL, options: .atomic)
+        persistenceError = nil
     }
 
     private func loadEdits() {

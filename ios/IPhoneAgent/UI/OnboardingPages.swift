@@ -56,6 +56,7 @@ struct ConnectPage: View {
                     boards
                 }
             }
+            if !board.connected { FirmwareLinks() }
         }
         .onAppear { board.scan(); autoPair() }
         .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
@@ -78,12 +79,10 @@ struct ConnectPage: View {
         } else if board.pairedID == nil, board.found.count == 1, let f = board.found.first {
             CheckRow(title: "Found \(f.name)", done: false, active: true, waiting: true)
         } else if !board.found.isEmpty {
-            Text("Choose your board:").font(.subheadline).foregroundStyle(.secondary)
-                .padding(.bottom, Space.s)
             ForEach(board.found) { f in
                 Button { board.pair(f.id) } label: {
                     HStack {
-                        Text(verbatim: f.name)
+                        Text("Pair \(f.name)").lineLimit(1)
                         Spacer()
                         Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                     }
@@ -93,17 +92,51 @@ struct ConnectPage: View {
         } else {
             CheckRow(title: "Searching for the board over Bluetooth…", done: false, active: true, waiting: board.scanning)
         }
-        if !board.connected || (board.signalStrength ?? 0) < -80 {
+        if board.pairingLost {
+            // Short: a long warning pushed the button off small screens.
+            Text("Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+                .font(.footnote).foregroundStyle(Palette.warning).lineLimit(2).minimumScaleFactor(0.85)
+                .padding(.top, Space.s)
+        } else if !board.connected || (board.signalStrength ?? 0) < -80 {
             Text((board.signalStrength ?? 0) < -80
                  ? "Weak signal? Try placing the board right against the side of your phone, or attach its antenna."
                  : "No antenna? Try placing the board right against the side of your phone.")
                 .font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
         }
-        if !board.connected {
+        if !board.connected && !board.pairingLost {
             if !board.lastError.isEmpty {
-                Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning)
+                Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning).lineLimit(2)
             }
         }
+    }
+}
+
+/// A board fresh from the shop has no firmware and never shows up: point to the browser installer and the source.
+struct FirmwareLinks: View {
+    static let install = URL(string: "https://handsy.tech/install")!
+
+    /// One line, so both links stay above the bottom button on every iPhone.
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Text("New board?").foregroundStyle(.secondary)
+            Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
+            Link(destination: AboutView.repo) {
+                Label { Text(verbatim: "GitHub") } icon: {
+                    Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
+                }
+            }
+        }
+        .font(.footnote.weight(.semibold))
+        .labelStyle(TightLabel())
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .tint(.primary)
+    }
+}
+
+private struct TightLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Space.xs) { configuration.icon; configuration.title }
     }
 }
 
@@ -117,10 +150,7 @@ struct SeePage: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
-    // The board counts hotspot clients, so joining by hand is detected without the hotspot entitlement.
-    private var joined: Bool {
-        app.otherWiFi == nil && (onWiFi || app.join == .joined || app.hotspotSSID != nil || streaming || (board.connected && (board.status?.sta ?? 0) > 0))
-    }
+    private var joined: Bool { app.onBoardHotspot(manual: onWiFi) }
     private var failure: String? { if case .failed(let why) = app.join { return why } else { return nil } }
 
     var body: some View {
@@ -137,8 +167,12 @@ struct SeePage: View {
             }
             if !joined {
                 if let net = app.manualHotspot, let ssid = net.ssid, failure != nil { manual(ssid: ssid, pass: net.pass) }
-                Label("Internet uses cellular data while on the board's Wi-Fi.", systemImage: "antenna.radiowaves.left.and.right")
-                    .font(.footnote).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Label("Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi.",
+                          systemImage: "personalhotspot")
+                    Label("Internet uses cellular data while on the board's Wi-Fi.", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .font(.footnote).foregroundStyle(.secondary)
                 Button("I'm already on the board's Wi-Fi") { onWiFi = true }.font(.footnote)
             } else if !streaming {
                 Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")

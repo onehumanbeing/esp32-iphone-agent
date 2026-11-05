@@ -5,11 +5,17 @@ struct AboutView: View {
     @ObservedObject var app: AppModel
     static let repo = URL(string: "https://github.com/onehumanbeing/esp32-iphone-agent")!
     static let author = URL(string: "https://x.com/iamhenryyuan")!
-    static let discord = URL(string: "https://discord.gg/BSJEnfdDX")!
+    static let website = URL(string: "https://handsy.tech")!
+    static let privacyPolicy = URL(string: "https://handsy.tech/privacy")!
 
     private var version: String {
         let info = Bundle.main.infoDictionary
         return "\(info?["CFBundleShortVersionString"] as? String ?? "1.0") (\(info?["CFBundleVersion"] as? String ?? "1"))"
+    }
+
+    /// The board's firmware, when one is connected (Settings › Board › Firmware updates it).
+    private var firmware: String? {
+        app.board.connected ? Firmware.version(of: app.board.status).description : nil
     }
 
     /// A new GitHub issue, prefilled with what we always ask for.
@@ -25,20 +31,13 @@ struct AboutView: View {
         **Steps**
         1.
 
-        ESP32 Agent \(version) · \(device.systemName) \(device.systemVersion) · \(Self.model)
+        ESP32 Agent \(version) · board \(firmware ?? "not connected") · \(device.systemName) \(device.systemVersion) · \(DeviceInfo.model)
         (Attach the zip from Settings › About › Logs › Export all logs.)
         """
         var c = URLComponents(url: Self.repo.appendingPathComponent("issues/new"), resolvingAgainstBaseURL: false)!
         c.queryItems = [URLQueryItem(name: "labels", value: "bug"), URLQueryItem(name: "body", value: body)]
         return c.url ?? Self.repo
     }
-
-    /// The hardware model, e.g. "iPhone17,2".
-    private static let model: String = {
-        var info = utsname()
-        uname(&info)
-        return withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-    }()
 
     var body: some View {
         List {
@@ -48,6 +47,9 @@ struct AboutView: View {
                         .accessibilityHidden(true)
                     Text(verbatim: "ESP32 Agent").font(.title2.bold())
                     Text("Version \(version)").font(.subheadline).foregroundStyle(.secondary)
+                    if let firmware {
+                        Text("Board firmware \(firmware)").font(.subheadline).foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Space.s)
@@ -56,9 +58,10 @@ struct AboutView: View {
             Section("Community") {
                 CommunityRow(logo: "GitHubMark", title: "View source on GitHub", url: Self.repo)
                 CommunityRow(logo: "XLogo", title: "Author on X", detail: "@iamhenryyuan", url: Self.author)
-                CommunityRow(logo: "DiscordLogo", title: "Join the Discord", url: Self.discord)
             }
             Section {
+                LinkRow(title: "Website", symbol: "globe", color: .blue, url: Self.website)
+                LinkRow(title: "Privacy policy", symbol: "hand.raised.fill", color: .indigo, url: Self.privacyPolicy)
                 NavigationLink { AcknowledgementsView() } label: {
                     SettingsLabel(title: "Acknowledgements", symbol: "heart.fill", color: .pink)
                 }
@@ -66,17 +69,10 @@ struct AboutView: View {
                     SettingsLabel(title: "Disclaimer", symbol: "exclamationmark.shield.fill", color: .orange)
                 }
             } footer: {
-                Text("Open source. No data leaves this iPhone except the requests to the model endpoint you set up.")
+                Text("Open source. No data leaves this iPhone except the requests to the model endpoint you set up, and anonymous usage stats if you turn them on.")
             }
             Section {
-                Link(destination: bugReport) {
-                    HStack {
-                        SettingsLabel(title: "Report a bug", symbol: "ladybug.fill", color: .red)
-                        Spacer()
-                        Image(systemName: "arrow.up.forward.app").foregroundStyle(.tertiary)
-                    }
-                }
-                .tint(.primary)
+                LinkRow(title: "Report a bug", symbol: "ladybug.fill", color: .red, url: bugReport)
                 NavigationLink { LogsView(app: app) } label: {
                     SettingsLabel(title: "Logs", symbol: "text.alignleft", color: .gray)
                 }
@@ -90,6 +86,25 @@ struct AboutView: View {
 }
 
 /// A link row with a brand mark (template image: black or white with the appearance), opened with openURL.
+/// A settings-style row that opens a web page.
+struct LinkRow: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    let color: Color
+    let url: URL
+
+    var body: some View {
+        Link(destination: url) {
+            HStack {
+                SettingsLabel(title: title, symbol: symbol, color: color)
+                Spacer()
+                Image(systemName: "arrow.up.forward.app").foregroundStyle(.tertiary)
+            }
+        }
+        .tint(.primary)
+    }
+}
+
 struct CommunityRow: View {
     let logo: String
     let title: LocalizedStringKey
@@ -164,9 +179,25 @@ struct LogsView: View {
     @ObservedObject var app: AppModel
     @State private var shareURL: URL?
     @State private var exporting = false
+    @State private var confirmSend = false
+    @State private var sending = false
 
     var body: some View {
         List {
+            if Trial.available {
+                Section {
+                    Button { confirmSend = true } label: {
+                        HStack {
+                            Label("Send diagnostics to the developer", systemImage: "paperplane")
+                            Spacer()
+                            if sending { ProgressView() }
+                        }
+                    }
+                    .disabled(sending)
+                } footer: {
+                    Text("One tap sends the debug log, the board's state and log, and crash reports, so a problem can be looked into. No runs, screenshots or API keys.")
+                }
+            }
             Section {
                 Button { exportAll() } label: {
                     HStack {
@@ -180,7 +211,7 @@ struct LogsView: View {
                     ShareLink(item: DebugLog.url) { Label("Share debug log", systemImage: "doc.text.magnifyingglass") }
                 }
             } footer: {
-                Text("A zip of debug.log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it.")
+                Text("A zip of debug.log, the board's log, crash reports from iOS and every run (steps, model replies, screenshots, video). Your API key is never in it.")
             }
             if app.log.isEmpty {
                 Text("Nothing logged yet.").foregroundStyle(.secondary)
@@ -194,6 +225,12 @@ struct LogsView: View {
         }
         .listStyle(.plain)
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
+        .confirmationDialog("Send diagnostics?", isPresented: $confirmSend, titleVisibility: .visible) {
+            Button("Send") { send() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(verbatim: DiagnosticReport.contents.map { "• " + $0 }.joined(separator: "\n"))
+        }
         .navigationTitle("Logs")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -204,11 +241,23 @@ struct LogsView: View {
     }
 
     /// Zip the whole Documents folder (debug.log, debug.1.log, traces/) off the main thread.
+    private func send() {
+        sending = true
+        Task {
+            defer { sending = false }
+            app.notice = await DiagnosticReport.send(app)
+        }
+    }
+
     private func exportAll() {
         exporting = true
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         DebugLog.write("export: all logs")
         Task {
+            if let log = await BoardLogDump.read(app.board.commands) {  // the board's RAM log goes in the zip too
+                let crash = await BoardLogDump.crash(app.board.commands) ?? ""
+                try? ("crash: \(crash)\n\n" + log).write(to: docs.appendingPathComponent("board.log"), atomically: true, encoding: .utf8)
+            }
             let result = await Task.detached { Result { try TraceStore.zip(docs, name: "esp32-agent-logs.zip") } }.value
             exporting = false
             switch result {
