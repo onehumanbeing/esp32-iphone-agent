@@ -190,6 +190,13 @@ Cursor, Cline and other MCP clients:
 }
 ```
 
+DeepSeek Harness (dsh): install the plugin in [integrations/dsh](integrations/dsh/README.md), which adds the same
+MCP server and skill:
+
+```bash
+dsh plugin --profile web add dsh-esp32agent
+```
+
 The CLI talks to the board from your computer over Bluetooth, so it works without the iPhone app or TestFlight.
 Commands and options are in the [CLI reference](https://handsy.tech/docs/cli) and [cli/README.md](cli/README.md).
 
