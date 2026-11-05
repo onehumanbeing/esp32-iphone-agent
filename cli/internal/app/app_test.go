@@ -163,7 +163,7 @@ func TestSimPairScreenshotTapText(t *testing.T) {
 	}
 
 	// testsrc shows no pointer to calibrate on: use a known span
-	os.WriteFile(config.CalibrationPath(dir, "246f28aa6ad5"), []byte(`{"w":400,"h":860}`), 0o600)
+	os.WriteFile(config.CalibrationPath(dir, "246f28aa6ad5"), []byte(`{"w":400,"h":860,"moves":"axis"}`), 0o600)
 	if o := run(t, a, "io", "tap", "240,520"); o.Status != "ok" {
 		t.Fatalf("tap: %+v", o)
 	}
@@ -211,7 +211,7 @@ func TestSimPairScreenshotTapText(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	logged, _ := os.ReadFile(filepath.Join(dir, "sim.log"))
-	for _, want := range []string{" stream on\n", " home\n", " move 200 430\n", " click\n", " type natie\n", " key space\n", " type ok\n"} {
+	for _, want := range []string{" stream on\n", " home\n", " move 200 0\n", " move 0 430\n", " click\n", " type natie\n", " key space\n", " type ok\n"} {
 		if !strings.Contains(string(logged), want) {
 			t.Errorf("the board never got %q:\n%s", strings.TrimSpace(want), logged)
 		}

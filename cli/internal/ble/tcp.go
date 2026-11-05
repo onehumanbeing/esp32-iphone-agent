@@ -88,7 +88,9 @@ func newStreamLink(nc net.Conn) proto.Link {
 			if _, err := io.ReadFull(r, f); err != nil {
 				break
 			}
-			l.deliver(f)
+			if !l.deliverWait(f, done) { // a burst (the whole GOP at once) waits instead of losing frames
+				break
+			}
 		}
 		l.drop()
 		nc.Close()

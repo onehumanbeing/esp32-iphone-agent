@@ -203,6 +203,8 @@ func errText(err error) string {
 
 // net: the CLI's link and the board's Wi-Fi. arg: "" (show), "via auto|ble", "join SSID PASS", "hotspot".
 func (s *Server) net(ctx context.Context, c *Conn, arg string) Response {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	verb, rest, _ := strings.Cut(strings.TrimSpace(arg), " ")
 	switch verb {
 	case "":
