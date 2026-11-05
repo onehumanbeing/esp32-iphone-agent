@@ -1,5 +1,7 @@
 # ESP32 Agent plugin for DeepSeek Harness
 
+English · [简体中文](README.zh-CN.md)
+
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets the agent see and drive
 a real iPhone through an ESP32 Agent (Handsy) board. It adds:
 
