@@ -797,6 +797,26 @@
         }
       }
     },
+    "Countdown" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "倒计时"
+          }
+        }
+      }
+    },
+    "Recording time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制时长"
+          }
+        }
+      }
+    },
     "Look" : {
       "localizations" : {
         "zh-Hans" : {
