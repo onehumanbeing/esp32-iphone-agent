@@ -112,13 +112,13 @@ import XCTest
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
     }
 
-    func testPointerRehomesBeforeEveryGesture() async throws {
+    func testPointerRehomesEveryTenGestures() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         let pointer = Pointer(device: device, calibrationFile: file)
         pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
-        for _ in 0..<3 { try await pointer.point(0.5, 0.5) }
-        XCTAssertEqual(device.sent.filter { $0 == "home" }.count, 3)
+        for _ in 0..<11 { try await pointer.point(0.5, 0.5) }
+        XCTAssertEqual(device.sent.filter { $0 == "home" }.count, 2)
         XCTAssertEqual(device.sent[0], "release")  // a new link: let go first
         XCTAssertEqual(device.sent[2], "move 200 400")
     }

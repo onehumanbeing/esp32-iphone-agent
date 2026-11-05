@@ -8,11 +8,11 @@ import UIKit
 @MainActor final class Pointer: ObservableObject {
     static let calibrationMove = 200        // mouse units moved diagonally for a manual (one point) calibration
     static let calibrationStops = [150, 350]  // automatic calibration finds the pointer at these distances
-    /// Gestures between re-homing: every one. Relative moves between taps drift (2026-11-06 Duolingo: a +256 x
-    /// move went 75% of the way, a narrow CONTINUE landed +3.5% then -2.3%), and the learned fit (`fix`) only
-    /// describes moves from the corner, like the calibration. A home costs ~0.16 s; a missed tap a whole round.
-    static let rehomeEvery = 1
-    static let samplesVersion = 2  // landings saved before every gesture re-homed mix in that drift: dropped
+    /// Gestures between re-homing. Not every one: each home pushes the pointer into the top corner, and doing it
+    /// before every tap opened Control Center and the Screen Mirroring panel 4 times in one run (2026-11-06).
+    /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
+    static let rehomeEvery = 10
+    static let samplesVersion = 2  // landings saved before a big miss re-homed mix in that drift: dropped
     static let hold = 0.25                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
@@ -189,6 +189,9 @@ import UIKit
     func landing(_ x: Double, _ y: Double) async -> CGPoint? {
         guard let found = try? await measure(x, y, model: false) else { return nil }
         learn(x, y, found)
+        // A big miss: the tracked position drifted (relative moves between taps: a +256 x move went 75% of the
+        // way, 2026-11-06), so the next gesture starts from the corner again.
+        if max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss { pos = nil }
         log(String(format: "landing (%.3f, %.3f): pointer at (%.3f, %.3f)", x, y, found.x, found.y))
         return found
     }
