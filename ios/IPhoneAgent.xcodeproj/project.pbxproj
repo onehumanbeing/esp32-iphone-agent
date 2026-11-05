@@ -69,6 +69,7 @@
 		58405C052C5CE287759E2AA4 /* ProbeFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435B39A7D499300AADA2D16C /* ProbeFit.swift */; };
 		58C479C02501E3E4F2F34A17 /* ResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1467515C688880A8A57AD8A /* ResultCard.swift */; };
 		5A33023268931BCF26AD1C3A /* AgentMinimalStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068467110687822B205043D4 /* AgentMinimalStatus.swift */; };
+		5A6AA718FC12DB193AE6EC8E /* DecidersSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98FCB3CC93B5580515B2ED3D /* DecidersSheets.swift */; };
 		5BEC984820264DE4C650FC5C /* ScriptSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEC662BD901F01994E23515 /* ScriptSection.swift */; };
 		5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5962900FEB08728899160DD1 /* DemoRecorder.swift */; };
 		5EC81FBCFE439052A8F26EA2 /* Pointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CC3BCF7F90AF60B075DD96 /* Pointer.swift */; };
@@ -128,6 +129,7 @@
 		A42DB537742861FF668DB34A /* JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7FAA4989F36E7F9B4C021 /* JSON.swift */; };
 		A5A1640A615256B576F9A055 /* RunSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB6FEBD55DCBE8EED6834C /* RunSession.swift */; };
 		A5A78F1B4D15D843B8932932 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A02583BE955659071F3172 /* ModelProvider.swift */; };
+		A8146F03F1C5164120A183B1 /* JevTypeSafe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */; };
 		ABEF22E60573E04FACD0E4A9 /* AgentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7314ABD64EC1106422C685E /* AgentFace.swift */; };
 		AD702230192ADBF827044490 /* LiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A03E1A122C50B8ED88AC91 /* LiveActivity.swift */; };
 		AE1B524EBE9E22B698176242 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9924DF8869348C0458073E8B /* PrivacyInfo.xcprivacy */; };
@@ -271,6 +273,7 @@
 		39CDABB93A11C0AD55A52E4F /* Notebook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notebook.swift; sourceTree = "<group>"; };
 		3A091027B026D22579AA4972 /* HomeWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWidgets.swift; sourceTree = "<group>"; };
 		3B94481DB51BD93A2900698F /* ModelSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSettingsView.swift; sourceTree = "<group>"; };
+		3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JevTypeSafe.swift; sourceTree = "<group>"; };
 		3E74E2758C4170812147466F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3EC8ECB7FF0B63991E8AEFFB /* AgentSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSnapshot.swift; sourceTree = "<group>"; };
 		3F79752565BC836B68DC6693 /* LocalNetworkPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNetworkPermission.swift; sourceTree = "<group>"; };
@@ -338,6 +341,7 @@
 		98111895572CDFBCBA4C5268 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		98425438C4A7C1EB827CDD2C /* IPhoneAgent.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = IPhoneAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		987C1E28FD7756E03C976FD4 /* SendIntentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendIntentView.swift; sourceTree = "<group>"; };
+		98FCB3CC93B5580515B2ED3D /* DecidersSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecidersSheets.swift; sourceTree = "<group>"; };
 		9924DF8869348C0458073E8B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		99381FBF82EA7EB76556866E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		9E49E4897714D436F985C230 /* UITreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeTests.swift; sourceTree = "<group>"; };
@@ -420,6 +424,7 @@
 				4E2922DB7E8B844E6C11E8D1 /* ChatContext.swift */,
 				8E677990F3420C8F264848AE /* Deciders.swift */,
 				11AC34B2265506C543C662F5 /* JevStep.swift */,
+				3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */,
 				FCC7FAA4989F36E7F9B4C021 /* JSON.swift */,
 				20A331F9D92E58D8705C0444 /* Keyboard.swift */,
 				1822FD290B50A818CE12228E /* ModelCall.swift */,
@@ -539,6 +544,7 @@
 				E2E3712143A195602610004B /* CalibrationToast.swift */,
 				E1828194EBD7CDB8FEFF8643 /* CalibrationViews.swift */,
 				2732CFF0E55395C82C4A329B /* DecidersPanel.swift */,
+				98FCB3CC93B5580515B2ED3D /* DecidersSheets.swift */,
 				2F3122E7A1DB53F3BFCCFD06 /* DiagnosticsView.swift */,
 				503EC3A78FFFF188D620D156 /* FirmwareViews.swift */,
 				406D13832E556B804F6F3887 /* HomeParts.swift */,
@@ -990,6 +996,7 @@
 				419FA08397BAF31F91A62633 /* DebugLog.swift in Sources */,
 				342F4EA40765044DE8EEAE1E /* Deciders.swift in Sources */,
 				F29FF2D2BF00DC997EF914FD /* DecidersPanel.swift in Sources */,
+				5A6AA718FC12DB193AE6EC8E /* DecidersSheets.swift in Sources */,
 				5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */,
 				CE7F2614189EEA971E33548A /* DiagnosticReport.swift in Sources */,
 				9BA8ABE4398546618D6AE675 /* DiagnosticsView.swift in Sources */,
@@ -1011,6 +1018,7 @@
 				F0989DBA8FA72168CA371221 /* IslandStatus.swift in Sources */,
 				A42DB537742861FF668DB34A /* JSON.swift in Sources */,
 				067F217DA07A144DE5E70807 /* JevStep.swift in Sources */,
+				A8146F03F1C5164120A183B1 /* JevTypeSafe.swift in Sources */,
 				F250923A306EFB522382E32C /* Keyboard.swift in Sources */,
 				BB3C60862112DB87D3555158 /* LLMClient.swift in Sources */,
 				AD702230192ADBF827044490 /* LiveActivity.swift in Sources */,

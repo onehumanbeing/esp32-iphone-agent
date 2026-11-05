@@ -320,7 +320,7 @@ import UIKit
         }
         // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
         // once, the first sure answer wins)
-        let jev = role == "actor" ? Deciders.load(freeLine: true, defaults: defaults)
+        let jev = role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
             .freeLineHeader(race: defaults.bool(forKey: Deciders.raceKey)) : [:]
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
             ? { try Trial.shared.headers().merging(jev) { a, _ in a } } : nil
@@ -330,10 +330,11 @@ import UIKit
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.
     /// Nil means the plain model. The free line does this on its server instead (see `client`).
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
-        guard provider != .handsyTrial, Trial.available, JevConsent.granted else { return nil }
-        let deciders = Deciders.load(freeLine: false, defaults: defaults)
+        let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key
+        guard Trial.available, freeLine ? JevConfig.ownActive : JevConsent.granted else { return nil }
+        let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }
-        return JevDeciderModel(inner: actor, jev: JevStepClient(), mode: deciders.mode,
+        return JevDeciderModel(inner: actor, jev: JevConfig.client(), mode: deciders.mode,
                                race: defaults.bool(forKey: Deciders.raceKey))
     }
 }

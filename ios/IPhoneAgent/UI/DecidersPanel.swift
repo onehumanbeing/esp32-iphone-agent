@@ -1,29 +1,41 @@
 import SwiftUI
 
 /// The heart of the model page (onboarding's "Give Me a Brain" and Settings › Model): who decides each step.
-/// Two rows, Jev and the model: hold and drag one to set the order, switch each on or off. The model row folds
-/// its provider, key and model into a sheet. On your own model, switching Jev on asks for its consent first.
+/// Two rows, Jev and the large language model: drag a row by its handle to set the order, switch each on or off,
+/// tap one for its settings (Jev: Handsy or your own TypeSafe key; the model: provider, key and model). Below,
+/// on its own, the switch to ask both at once. On your own model, switching Jev on asks for its consent first.
 /// Builds without the free line have no Jev: the caller shows the model fields as they are.
 struct DecidersPanel: View {
     @ObservedObject var settings: Settings
     var inForm = false
     @State private var deciders = Deciders.standard(freeLine: false)
     @State private var editingModel = false
+    @State private var editingJev = false
     @State private var askingConsent = false
+    @State private var dragging: Decider?
+    @State private var dragOffset: CGFloat = 0
+    @State private var swapped: CGFloat = 0  // rows moved past while dragging, in points
     @AppStorage(Deciders.raceKey) private var race = false
+    @AppStorage(JevConfig.ownKey) private var jevOwnKey = false
 
+    private static let rowHeight: CGFloat = 64
     private var freeLine: Bool { settings.provider == .handsyTrial }
 
     var body: some View {
         Group {
             if inForm {
                 Section { rows } header: { Text("Who decides each step") } footer: { Text(footer) }
+                if deciders.mode == .jevFirst { Section { raceRow } footer: { Text(raceFooter) } }
             } else {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text("Who decides each step").font(.footnote).foregroundStyle(.secondary)
                         .padding(.horizontal, Space.l)
                     Panel { rows }
                     Text(footer).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
+                    if deciders.mode == .jevFirst {
+                        Panel { raceRow }.padding(.top, Space.l)
+                        Text(raceFooter).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
+                    }
                 }
             }
         }
@@ -32,69 +44,111 @@ struct DecidersPanel: View {
         .onChange(of: deciders) { deciders.save(freeLine: freeLine) }
         .sheet(isPresented: $askingConsent) { JevConsentSheet { deciders.set(.jev, on: true, freeLine: false) } }
         .sheet(isPresented: $editingModel) { ModelFieldsSheet(settings: settings) }
+        .sheet(isPresented: $editingJev) { JevFieldsSheet() }
     }
 
     @ViewBuilder private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(deciders.order.enumerated()), id: \.element) { index, decider in
-                if index > 0 { Divider() }
                 row(decider)
-            }
-            if deciders.mode == .jevFirst {
-                Divider()
-                Toggle("Ask Jev and the model together", isOn: $race).tint(Palette.accent).frame(minHeight: 48)
+                    .overlay(alignment: .top) { if index > 0 && dragging == nil { Divider() } }
+                    .offset(y: dragging == decider ? dragOffset : 0)
+                    .zIndex(dragging == decider ? 1 : 0)
+                    .animation(dragging == decider ? nil : .snappy, value: deciders.order)
             }
             if AIConsent.store && settings.isConfigured && !AIConsent.granted(settings.baseURL) {
                 Divider()
                 AIConsentRow(settings: settings)
             }
         }
+        .coordinateSpace(.named("deciders"))  // on the container: the dragged row itself moves
     }
 
     private func row(_ decider: Decider) -> some View {
         HStack(spacing: Space.m) {
-            Image(systemName: "line.3.horizontal").font(.footnote).foregroundStyle(.tertiary)
+            Image(systemName: "line.3.horizontal")
+                .font(.body).foregroundStyle(.tertiary)
+                .frame(width: 32, height: Self.rowHeight)
+                .contentShape(.rect)
+                .highPriorityGesture(drag(decider))
+                .accessibilityLabel("Reorder")
             Image(systemName: decider == .jev ? "bolt" : "brain").frame(width: 24)
-            if decider == .model {
-                Button { editingModel = true } label: { label(decider) }.buttonStyle(.plain)
-            } else {
-                label(decider)
-            }
-            Toggle(decider == .jev ? "Jev" : "Model", isOn: binding(decider))
+            Button { if decider == .jev { editingJev = true } else { editingModel = true } } label: { label(decider) }
+                .buttonStyle(.plain)
+            Toggle(title(decider), isOn: binding(decider))
                 .labelsHidden()
                 .tint(Palette.accent)
                 .disabled(decider == .model && freeLine)
         }
-        .frame(minHeight: 60)
-        .contentShape(.rect)
-        .draggable(decider.rawValue) { label(decider).padding(Space.m).background(Palette.surface, in: .rect(cornerRadius: 10)) }
-        .dropDestination(for: String.self) { items, _ in
-            guard let raw = items.first, let moved = Decider(rawValue: raw), moved != decider,
-                  let from = deciders.order.firstIndex(of: moved), let to = deciders.order.firstIndex(of: decider)
-            else { return false }
-            withAnimation(.snappy) { deciders.order.remove(at: from); deciders.order.insert(moved, at: to) }
-            Haptics.tick()
-            return true
+        .frame(height: Self.rowHeight)
+        .background {
+            if dragging == decider {
+                RoundedRectangle(cornerRadius: 12).fill(Palette.surface).shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+                    .padding(.horizontal, -Space.s)
+            }
         }
+    }
+
+    /// Hold the handle, then move: past half a row, the rows swap; the row keeps following the finger.
+    /// The short hold first lets the page's scroll view leave the drag to the row.
+    private func drag(_ decider: Decider) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.15)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("deciders")))
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if dragging == nil { dragging = decider; Haptics.tick() }
+                let moved = drag?.translation.height ?? 0
+                dragOffset = moved - swapped
+                guard let i = deciders.order.firstIndex(of: decider) else { return }
+                let j = dragOffset > Self.rowHeight / 2 ? i + 1 : dragOffset < -Self.rowHeight / 2 ? i - 1 : i
+                guard j != i, deciders.order.indices.contains(j) else { return }
+                deciders.order.swapAt(i, j)
+                swapped += CGFloat(j - i) * Self.rowHeight
+                dragOffset = moved - swapped
+                Haptics.tick()
+            }
+            .onEnded { _ in
+                swapped = 0
+                withAnimation(.snappy) { dragOffset = 0; dragging = nil }
+            }
+    }
+
+    private var raceRow: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: "arrow.triangle.branch").frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ask Both at Once")
+                Text("Faster, uses more tokens").font(.footnote).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle("Ask Both at Once", isOn: $race).labelsHidden().tint(Palette.accent)
+        }
+        .frame(minHeight: Self.rowHeight)
+    }
+
+    private var raceFooter: LocalizedStringKey {
+        "Jev and the Large Language Model get each step together. When Jev isn't sure, the model's answer is already on the way, so no time is lost. The model also answers the steps Jev takes, so it uses more tokens."
+    }
+
+    private func title(_ decider: Decider) -> LocalizedStringKey {
+        decider == .jev ? "Jev (decision model)" : "Large Language Model"
     }
 
     private func label(_ decider: Decider) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(decider == .jev ? "Jev (decision model)" : "Model").foregroundStyle(.primary)
-            if decider == .jev {
-                Text("Takes the plain steps in a fraction of a second.").font(.footnote).foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: Space.xs) {
-                    Text(verbatim: modelName).lineLimit(1).truncationMode(.middle)
-                    Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            Text(title(decider)).foregroundStyle(.primary).lineLimit(1)
+            HStack(spacing: Space.xs) {
+                Text(verbatim: decider == .jev ? jevName : modelName).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
             }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
     }
+
+    private var jevName: String { jevOwnKey && JevConfig.ownActive ? "TypeSafe · \(JevConfig.model)" : "Handsy" }
 
     private var modelName: String {
         if freeLine { return ModelProvider.handsyTrial.title }
@@ -113,103 +167,11 @@ struct DecidersPanel: View {
 
     private var footer: LocalizedStringKey {
         switch deciders.mode {
-        case .jevFirst: return "Jev goes first and leaves the steps it isn't sure about to the model. Drag to change the order."
-        case .modelFirst: return "The model decides. Jev steps in only when the model doesn't answer. Drag to change the order."
+        case .jevFirst: return "Jev takes the plain steps in a fraction of a second and leaves the rest to the Large Language Model. Drag ≡ to change the order."
+        case .modelFirst: return "The Large Language Model decides. Jev steps in only when the model doesn't answer. Drag ≡ to change the order."
         case .jevOnly: return "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you."
-        case .modelOnly: return freeLine ? "Only the model decides. On the free line the model stays on."
-            : "Only your model decides. Jev sends each step to Handsy, so it asks before it turns on."
-        }
-    }
-}
-
-/// The model row's fold: provider, key and model, the same fields as before.
-struct ModelFieldsSheet: View {
-    @ObservedObject var settings: Settings
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    ProviderFields(settings: settings)
-                } footer: {
-                    if let url = settings.provider.keyURL { Link("Get an API key", destination: url) }
-                }
-            }
-            .navigationTitle("Model")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
-    }
-}
-
-/// What goes to Jev from an own-model run, before the first step goes there. Agree only after reading.
-struct JevConsentSheet: View {
-    var onAgree: () -> Void = {}
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Jev is Handsy's decision model. It takes the plain steps of a run quickly, so your model has less to do. Nothing goes to Jev until you agree.")
-                }
-                Section("Sent to") {
-                    Label("Holomix, Inc. (Handsy) and its provider TypeSafe", systemImage: "server.rack")
-                }
-                Section("What is sent") {
-                    Label("A screenshot of your mirrored screen at every step", systemImage: "photo")
-                    Label("Your task, the plan and the recent actions", systemImage: "text.bubble")
-                }
-                Section("What happens to it") {
-                    Label("Kept privately to run and improve Jev", systemImage: "lock")
-                    Label("Avoid private tasks while Jev is on", systemImage: "eye.slash")
-                    Label("Withdraw anytime in Settings › Privacy; Jev then turns off", systemImage: "arrow.uturn.backward")
-                }
-                if let url = Trial.privacyURL {
-                    Section { Link("Privacy policy", destination: url) }
-                }
-            }
-            .navigationTitle("Turn On Jev?")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Not Now") { dismiss() } }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    JevConsent.grant()
-                    Analytics.capture("jev_consent", ["granted": true])
-                    onAgree()
-                    dismiss()
-                } label: {
-                    Text("I Agree, Turn On Jev").font(.headline).frame(maxWidth: .infinity, minHeight: 34)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal).padding(.vertical, Space.s)
-                .background(.bar)
-            }
-        }
-        .interactiveDismissDisabled()
-    }
-}
-
-/// Settings › Privacy: Jev's consent for own-model runs, and withdraw (which turns Jev off).
-struct JevConsentSection: View {
-    @State private var granted = JevConsent.granted
-
-    var body: some View {
-        if Trial.available, granted {
-            Section {
-                LabeledContent("Jev", value: String(localized: "Allowed"))
-                Button("Withdraw", role: .destructive) {
-                    JevConsent.revoke()
-                    Analytics.capture("jev_consent", ["granted": false])
-                    granted = false
-                }
-            } footer: {
-                Text("With your own model, each step's screenshot, task, plan and recent actions go to Jev while it is on.")
-            }
+        case .modelOnly: return freeLine ? "Only the Large Language Model decides. On the free line it stays on."
+            : "Only your Large Language Model decides. Jev sends each step to its server, so it asks before it turns on."
         }
     }
 }

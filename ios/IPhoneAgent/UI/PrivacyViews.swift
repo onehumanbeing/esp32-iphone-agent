@@ -5,22 +5,27 @@ import SwiftUI
 struct PrivacyLists: View {
     var body: some View {
         Section {
-            ForEach(Self.kept.indices, id: \.self) { Text(Self.kept[$0]) }
+            entry("Kept on this iPhone", Self.kept)
+            entry("Never collected", Self.never)
         } header: {
-            Text("Kept on this iPhone")
-        }
-        Section {
-            ForEach(Self.never.indices, id: \.self) { Text(Self.never[$0]) }
-        } header: {
-            Text("Never collected")
+            Text("Your data")
         } footer: {
             Text("Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
         }
     }
 
-    static let kept: [LocalizedStringKey] = ["Per-step screenshots", "Actions", "Model replies", "Timings",
-                                             "Board metrics", "Device model and iOS version"]
-    static let never: [LocalizedStringKey] = ["Wi-Fi password", "API key", "Base URL", "Contacts"]
+    private func entry(_ title: LocalizedStringKey, _ items: [String.LocalizationValue]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(verbatim: ListFormatter.localizedString(byJoining: items.map { String(localized: $0) }))
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+    }
+
+    static let kept: [String.LocalizationValue] = ["Per-step screenshots", "Actions", "Model replies", "Timings",
+                                                   "Board metrics", "Device model and iOS version"]
+    static let never: [String.LocalizationValue] = ["Wi-Fi password", "API key", "Base URL", "Contacts"]
 }
 
 /// The usage-stats switch, off by default; only in builds that can send stats (see Analytics).

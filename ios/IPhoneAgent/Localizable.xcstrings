@@ -8933,16 +8933,6 @@
         }
       }
     },
-    "Ask Jev and the model together" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同时请求 Jev 和模型"
-          }
-        }
-      }
-    },
     "Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
@@ -9003,16 +8993,6 @@
         }
       }
     },
-    "Takes the plain steps in a fraction of a second." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "简单的步骤，不到一秒就能完成。"
-          }
-        }
-      }
-    },
     "Thinks through each step it gets." : {
       "localizations" : {
         "zh-Hans" : {
@@ -9023,52 +9003,12 @@
         }
       }
     },
-    "Jev goes first and leaves the steps it isn't sure about to the model. Drag to change the order." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jev 先来，没把握的步骤交给模型。拖动可以调整顺序。"
-          }
-        }
-      }
-    },
-    "The model decides. Jev steps in only when the model doesn't answer. Drag to change the order." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "由模型决定。只有模型没有回应时，Jev 才接手。拖动可以调整顺序。"
-          }
-        }
-      }
-    },
     "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "实验功能：只由 Jev 决定。遇到没把握的步骤，运行会停下来问你。"
-          }
-        }
-      }
-    },
-    "Only the model decides. On the free line the model stays on." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只由模型决定。免费线路上模型不能关闭。"
-          }
-        }
-      }
-    },
-    "Only your model decides. Jev sends each step to Handsy, so it asks before it turns on." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只由你的模型决定。Jev 会把每一步发给 Handsy，所以打开前会先征求你的同意。"
           }
         }
       }
@@ -9189,6 +9129,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多服务商"
+          }
+        }
+      }
+    },
+    "Large Language Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大模型"
+          }
+        }
+      }
+    },
+    "Ask Both at Once" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时问两边"
+          }
+        }
+      }
+    },
+    "Faster, uses more tokens" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更快，但更费 token"
+          }
+        }
+      }
+    },
+    "Jev and the Large Language Model get each step together. When Jev isn't sure, the model's answer is already on the way, so no time is lost. The model also answers the steps Jev takes, so it uses more tokens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 和大模型同时收到每一步。Jev 拿不准时，大模型的回答已经在路上，不耽误时间；Jev 接手的步骤大模型也会回答，所以更费 token。"
+          }
+        }
+      }
+    },
+    "Jev takes the plain steps in a fraction of a second and leaves the rest to the Large Language Model. Drag ≡ to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 不到一秒就能接手简单的步骤，其余交给大模型。拖动 ≡ 调整顺序。"
+          }
+        }
+      }
+    },
+    "The Large Language Model decides. Jev steps in only when the model doesn't answer. Drag ≡ to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由大模型决定。只有大模型没有回答时，Jev 才接手。拖动 ≡ 调整顺序。"
+          }
+        }
+      }
+    },
+    "Only the Large Language Model decides. On the free line it stays on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由大模型决定。免费线路上大模型始终开启。"
+          }
+        }
+      }
+    },
+    "Only your Large Language Model decides. Jev sends each step to its server, so it asks before it turns on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由你的大模型决定。Jev 会把每一步发给它的服务器，所以开启前会先征求你的同意。"
+          }
+        }
+      }
+    },
+    "Reorder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调整顺序"
+          }
+        }
+      }
+    },
+    "Runs on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行在"
+          }
+        }
+      }
+    },
+    "TypeSafe, your key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TypeSafe（你的密钥）"
+          }
+        }
+      }
+    },
+    "Steps go straight from this iPhone to TypeSafe on your key; Handsy gets nothing. The key stays in this iPhone's Keychain." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Handsy 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
+          }
+        }
+      }
+    },
+    "Steps go to Jev on Handsy's server, free of charge." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步发给 Handsy 服务器上的 Jev，免费。"
+          }
+        }
+      }
+    },
+    "Get a TypeSafe key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 TypeSafe 密钥"
+          }
+        }
+      }
+    },
+    "TypeSafe, on your own key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TypeSafe，用你自己的密钥"
+          }
+        }
+      }
+    },
+    "Your data" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的数据"
           }
         }
       }

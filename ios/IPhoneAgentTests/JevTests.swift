@@ -206,4 +206,31 @@ import XCTest
         StubProtocol.respond = { _ in (503, "application/json", "{}") }
         do { _ = try await client.step(JevStepInput.parse(prompt, image: jpeg)!); XCTFail("503 is a failure") } catch {}
     }
+
+    // MARK: own TypeSafe key
+
+    private func choice(_ c: String, _ ids: [String]) -> [String: Any] {
+        ["choice": c, "confidence": 0.9, "probabilities": Dictionary(uniqueKeysWithValues: ids.map { ($0, $0 == c ? 0.9 : 0.1 / Double(ids.count - 1)) })]
+    }
+
+    func testTypeSafeRepliesLikeTheServer() {
+        let steps = JevRules.planSteps("1. Open Notes\n2. Tap New note")
+        XCTAssertEqual(steps.map(\.key), ["1", "2"])
+        let ids = ["step 1", "step 2", "done", "other"], ops = Array(JevRules.operations.keys)
+        let open = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 1", ids), "operation": choice("OPEN", ops)]], goal: "new note")
+        XCTAssertEqual(open?.do, "open Notes")
+        XCTAssertEqual(open?.taken, true)
+        let box: [String: Any] = ["confidence": 0.95, "box": ["top": 0.1, "bottom": 0.2, "left": 0.4, "right": 0.6]]
+        let tap = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("TAP", ops), "box_2": box]], goal: "new note")
+        XCTAssertEqual(tap?.do, "tap 500 150")
+        let done = JevRules.reply(steps: steps, response: ["answers": ["step": choice("done", ids), "operation": choice("DONE", ops)]], goal: "how many notes")
+        XCTAssertEqual(done?.taken, false)  // a question needs the model to answer it
+        XCTAssertNil(JevRules.reply(steps: steps, response: ["answers": ["step": ["choice": "step 1"]]], goal: "x"))
+    }
+
+    func testShortProviderError() {
+        let raw = "GET /models: HTTP 400 {\n  \"error\": {\n    \"message\": \"Please pass a valid API key\"\n  }\n}"
+        XCTAssertEqual(ProviderFields.short(raw), "Please pass a valid API key")
+        XCTAssertEqual(ProviderFields.short("timed out"), "timed out")
+    }
 }
