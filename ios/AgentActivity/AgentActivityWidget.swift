@@ -39,7 +39,7 @@ struct AgentLiveActivity: Widget {
                         Says(state: s, full: true).font(.subheadline.weight(.semibold))
                         if let since = s.waitingSince, !s.finished {
                             Text(since, style: .timer).monospacedDigit().font(.footnote)
-                                .accessibilityLabel("Waiting time")
+                                .timerAccessibility("Waiting time")
                         }
                         if s.line != s.labelFull && (s.phase != .running || s.finished) {
                             Text(verbatim: s.line).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
@@ -88,12 +88,22 @@ private struct Counter: View {
             // The system counts down on its own; the app switches to recording when it ends.
             Text(timerInterval: state.since.addingTimeInterval(-10)...state.since, countsDown: true)
                 .monospacedDigit().foregroundStyle(.white).multilineTextAlignment(.trailing)
+                .timerAccessibility("Countdown")
         } else if state.phase == .recording && !state.finished {
-            Text(timerInterval: state.since...Date.distantFuture, countsDown: false)
+            Text(state.since, style: .timer)
                 .monospacedDigit().foregroundStyle(.red).multilineTextAlignment(.trailing)
+                .timerAccessibility("Recording time")
         } else {
             Text(verbatim: "\(state.step)/\(state.limit)").monospacedDigit().foregroundStyle(.secondary)
         }
+    }
+}
+
+private extension View {
+    /// A fixed label instead of the live timer text. Archiving the Live Activity encodes a timer's accessibility
+    /// text, and SwiftUI aborts there (NSRangeException in ResolvableTextSegmentAttribute, TestFlight 1.0.1 (9)).
+    func timerAccessibility(_ label: LocalizedStringKey) -> some View {
+        accessibilityElement(children: .ignore).accessibilityLabel(Text(label))
     }
 }
 
