@@ -371,12 +371,18 @@ import UIKit
     /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
     /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
     /// hit, which was a text message mentioning the app.
+    /// Only the Home key first, never goHome's flick: on the Home Screen the key changes nothing, and the flick
+    /// then opened the App Switcher (2026-11-06). Spotlight opens from any app anyway.
+    /// The results show up a moment after the name: wait for them, or the model sees the screen from before
+    /// and sends home + open again (2026-11-06, Brain task #885).
     func openApp(_ name: String) async throws {
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
-        try await goHome()
+        if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+        try await Task.sleep(nanoseconds: 400_000_000)
         try await key("cmd+space")
         try await Task.sleep(nanoseconds: 700_000_000)
         try await type(name)
+        await screen?.settled(quiet: 0.5, least: 1.0, most: 3.0)
     }
 
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
