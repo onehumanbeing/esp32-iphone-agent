@@ -174,7 +174,7 @@ struct LLMError: LocalizedError {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
             if status == 503 && Trial.isTrial(baseURL.absoluteString) {  // the free line took the run back or is full
-                throw LLMError(message: String(localized: "The free line is busy or ended this run. Tap Retry in a moment."), status: status)
+                throw LLMError(message: String(localized: "Handsy Free is busy or ended this run. Tap Retry in a moment."), status: status)
             }
             throw LLMError(message: "LLM HTTP \(status): \(errorText.prefix(300))", status: status)
         }

@@ -11,7 +11,7 @@ struct DecidersPanel: View {
     @State private var deciders = Deciders.standard(freeLine: false)
     @State private var editingModel = false
     @State private var editingJev = false
-    @State private var askingConsent = false
+    @State private var consentRevision = 0  // JevConsent isn't observable: bumped after the sheet agrees
     @State private var dragging: Decider?
     @State private var dragOffset: CGFloat = 0
     @State private var swapped: CGFloat = 0  // rows moved past while dragging, in points
@@ -42,9 +42,8 @@ struct DecidersPanel: View {
         .onAppear { deciders = .load(freeLine: freeLine) }
         .onChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
         .onChange(of: deciders) { deciders.save(freeLine: freeLine) }
-        .sheet(isPresented: $askingConsent) { JevConsentSheet { deciders.set(.jev, on: true, freeLine: false) } }
-        .sheet(isPresented: $editingModel) { ModelFieldsSheet(settings: settings) }
-        .sheet(isPresented: $editingJev) { JevFieldsSheet() }
+        .sheet(isPresented: $editingModel, onDismiss: reload) { ModelFieldsSheet(settings: settings) }
+        .sheet(isPresented: $editingJev, onDismiss: reload) { JevFieldsSheet() }
     }
 
     @ViewBuilder private var rows: some View {
@@ -56,9 +55,10 @@ struct DecidersPanel: View {
                     .zIndex(dragging == decider ? 1 : 0)
                     .animation(dragging == decider ? nil : .snappy, value: deciders.order)
             }
-            if AIConsent.store && settings.isConfigured && !AIConsent.granted(settings.baseURL) {
+            let pending = pendingConsent
+            if pending.model || pending.jev {
                 Divider()
-                AIConsentRow(settings: settings)
+                SendConsentCard(settings: settings, model: pending.model, jev: pending.jev) { consentRevision += 1 }
             }
         }
         .coordinateSpace(.named("deciders"))  // on the container: the dragged row itself moves
@@ -78,7 +78,6 @@ struct DecidersPanel: View {
             Toggle(title(decider), isOn: binding(decider))
                 .labelsHidden()
                 .tint(Palette.accent)
-                .disabled(decider == .model && freeLine)
         }
         .frame(height: Self.rowHeight)
         .background {
@@ -160,9 +159,17 @@ struct DecidersPanel: View {
         Binding {
             deciders.isOn(decider)
         } set: { on in
-            if decider == .jev, on, !freeLine, !JevConsent.granted { askingConsent = true; return }
             deciders.set(decider, on: on, freeLine: freeLine)
         }
+    }
+
+    private func reload() { deciders = .load(freeLine: freeLine); consentRevision += 1 }
+
+    /// One card asks for every yes still missing (the model's host, Jev once it is on), so a first setup taps once.
+    private var pendingConsent: (model: Bool, jev: Bool) {
+        _ = consentRevision
+        let model = AIConsent.store && settings.isConfigured && !AIConsent.granted(settings.baseURL)
+        return (model, deciders.isOn(.jev) && JevConsent.needed(freeLine: freeLine))
     }
 
     private var footer: LocalizedStringKey {
@@ -170,8 +177,8 @@ struct DecidersPanel: View {
         case .jevFirst: return "Jev takes the plain steps in a fraction of a second and leaves the rest to the Large Language Model. Drag ≡ to change the order."
         case .modelFirst: return "The Large Language Model decides. Jev steps in only when the model doesn't answer. Drag ≡ to change the order."
         case .jevOnly: return "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you."
-        case .modelOnly: return freeLine ? "Only the Large Language Model decides. On the free line it stays on."
-            : "Only your Large Language Model decides. Jev sends each step to its server, so it asks before it turns on."
+        case .modelOnly: return freeLine ? "Only the Large Language Model decides. On Handsy Free it stays on."
+            : "Only your Large Language Model decides. Jev sends each step to its server, so it asks you first."
         }
     }
 }

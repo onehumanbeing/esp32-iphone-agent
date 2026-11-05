@@ -67,13 +67,13 @@ struct TrialBadge: View {
 struct TrialConsentSections: View {
     var body: some View {
         Section("Recorded") {
-            Label("Each run on the free line (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
+            Label("Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
             Label("Requests pass through Cloudflare and Hong Kong; the model and the records are on the developer's own servers in mainland China", systemImage: "globe.asia.australia")
         }
         Section {
-            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on the free line. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
+            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
                 .font(.footnote).foregroundStyle(.secondary)
-            if let url = Trial.privacyURL { Link("Free line privacy notice", destination: url).font(.footnote) }
+            if let url = Trial.privacyURL { Link("Handsy Free privacy notice", destination: url).font(.footnote) }
         }
     }
 }

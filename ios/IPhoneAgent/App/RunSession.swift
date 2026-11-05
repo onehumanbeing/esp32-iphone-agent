@@ -66,7 +66,8 @@ extension AppModel {
             blocked(String(localized: "Set up the model in Settings first."))
             return
         }
-        guard AIConsent.granted(settings.baseURL) else {
+        let pending = settings.pendingConsent
+        guard !pending.model, !pending.jev else {
             Analytics.capture("run_blocked", ["reason": "ai_consent"])
             aiConsentRun = task
             return
@@ -92,7 +93,7 @@ extension AppModel {
             say("LLM: \(error.localizedDescription)")
             if case TrialError.usedUp = error { blocked(error.localizedDescription) }
             else if settings.provider == .handsyTrial {
-                blocked(String(localized: "The free line is busy. Try again in a minute, or switch to your own model."))
+                blocked(String(localized: "Handsy Free is busy. Try again in a minute, or switch to your own model."))
             } else { blocked(error.localizedDescription) }
             return
         }

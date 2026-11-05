@@ -92,67 +92,12 @@ struct KeyLinkRow: View {
     }
 }
 
-/// What goes to Jev from an own-model run, before the first step goes there. Agree only after reading.
-struct JevConsentSheet: View {
-    var onAgree: () -> Void = {}
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Jev is Handsy's decision model. It takes the plain steps of a run quickly, so your model has less to do. Nothing goes to Jev until you agree.")
-                }
-                Section("Sent to") {
-                    if JevConfig.ownActive {
-                        Label("TypeSafe, on your own key", systemImage: "server.rack")
-                    } else {
-                        Label("Holomix, Inc. (Handsy) and its provider TypeSafe", systemImage: "server.rack")
-                    }
-                }
-                Section("What is sent") {
-                    Label("A screenshot of your mirrored screen at every step", systemImage: "photo")
-                    Label("Your task, the plan and the recent actions", systemImage: "text.bubble")
-                }
-                Section("What happens to it") {
-                    if !JevConfig.ownActive { Label("Kept privately to run and improve Jev", systemImage: "lock") }
-                    Label("Avoid private tasks while Jev is on", systemImage: "eye.slash")
-                    Label("Withdraw anytime in Settings › Privacy; Jev then turns off", systemImage: "arrow.uturn.backward")
-                }
-                if let url = Trial.privacyURL {
-                    Section { Link("Privacy policy", destination: url) }
-                }
-            }
-            .navigationTitle("Turn On Jev?")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Not Now") { dismiss() } }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    JevConsent.grant()
-                    Analytics.capture("jev_consent", ["granted": true])
-                    onAgree()
-                    dismiss()
-                } label: {
-                    Text("I Agree, Turn On Jev").font(.headline).frame(maxWidth: .infinity, minHeight: 34)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal).padding(.vertical, Space.s)
-                .background(.bar)
-            }
-        }
-        .interactiveDismissDisabled()
-    }
-}
-
 /// Settings › Privacy: Jev's consent for own-model runs, and withdraw (which turns Jev off).
 struct JevConsentSection: View {
     @State private var granted = JevConsent.granted
 
     var body: some View {
-        if Trial.available, granted {
+        if Trial.available, granted || JevConsent.granted {
             Section {
                 LabeledContent("Jev", value: String(localized: "Allowed"))
                 Button("Withdraw", role: .destructive) {

@@ -104,7 +104,7 @@ import UIKit
                                        body: ["run_id": run, "consent_version": Self.consentVersion])
                 break
             } catch TrialError.waiting(let ms) where Date() < waitUntil {
-                app?.homeHint = String(localized: "Waiting for the free line…")
+                app?.homeHint = String(localized: "Waiting for Handsy Free…")
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
             }
         }
@@ -261,12 +261,12 @@ enum TrialError: LocalizedError {
     case waiting(Int)  // milliseconds until asking again
     var errorDescription: String? {
         switch self {
-        case .waiting: return String(localized: "Waiting for the free line…")
+        case .waiting: return String(localized: "Waiting for Handsy Free…")
         case .usedUp: return String(localized: "You've used the free runs on this iPhone. Add your own model to keep going.")
-        case .busy: return String(localized: "The free line is busy or your free runs are used up. Try again in a few minutes, or use your own model.")
-        case .unavailable: return String(localized: "The free line isn't available on this phone right now. Use your own model instead.")
-        case .unsupported: return String(localized: "The free line needs the App Store version on a real iPhone.")
-        case .runsOnly: return String(localized: "The free line only runs tasks. Use your own model for tests and intent analysis.")
+        case .busy: return String(localized: "Handsy Free is busy or your free runs are used up. Try again in a few minutes, or use your own model.")
+        case .unavailable: return String(localized: "Handsy Free isn't available on this phone right now. Use your own model instead.")
+        case .unsupported: return String(localized: "Handsy Free needs the App Store version on a real iPhone.")
+        case .runsOnly: return String(localized: "Handsy Free only runs tasks. Use your own model for tests and intent analysis.")
         }
     }
 }

@@ -154,6 +154,7 @@
 		CFDC07BA9E09D3446164B1B9 /* OnboardingDemos.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17A722B1C48BF8FBF8B4222 /* OnboardingDemos.swift */; };
 		D04078EE246F6B5EB38D64B5 /* prompts in Resources */ = {isa = PBXBuildFile; fileRef = 769290C5E01DE7CA97412DDA /* prompts */; };
 		D35EDAC063CFA9E85BB88201 /* AIConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193C76A9C0C9A1912160F987 /* AIConsent.swift */; };
+		D4047FA847D62DA5D9FFB3AD /* SendConsentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AC0BB22701C4464A436CC3 /* SendConsentSheet.swift */; };
 		D48CF75915F3D1FFE18ADC3A /* BoardLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33107099A7483949F03FBDB6 /* BoardLink.swift */; };
 		D5D197473F9BD99FD38F6231 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */; };
 		D8B54E7DFEBA5E0CDB888F1F /* RunPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A968FDD77A1645F819A588 /* RunPause.swift */; };
@@ -243,6 +244,7 @@
 		13664BFD54E7827E0E53B7F6 /* MockMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMode.swift; sourceTree = "<group>"; };
 		15BE425EE3F93A69E03F9515 /* Skills.skillsbundle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Skills.skillsbundle; path = IPhoneAgent/Skills.skillsbundle; sourceTree = SOURCE_ROOT; };
 		16165E2AD13D29F06CBFA5B0 /* AgentActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgentActivity.entitlements; sourceTree = "<group>"; };
+		16AC0BB22701C4464A436CC3 /* SendConsentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendConsentSheet.swift; sourceTree = "<group>"; };
 		17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLoop.swift; sourceTree = "<group>"; };
 		1822FD290B50A818CE12228E /* ModelCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCall.swift; sourceTree = "<group>"; };
 		1887982FE1A729487269296E /* VisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionTests.swift; sourceTree = "<group>"; };
@@ -571,6 +573,7 @@
 				915FC0D291F09BE0A0439D9C /* RunsView.swift */,
 				DE62DFCF20AF38CCC273FB57 /* RunViewAnnotations.swift */,
 				CDEC662BD901F01994E23515 /* ScriptSection.swift */,
+				16AC0BB22701C4464A436CC3 /* SendConsentSheet.swift */,
 				987C1E28FD7756E03C976FD4 /* SendIntentView.swift */,
 				3E74E2758C4170812147466F /* SettingsView.swift */,
 				96BDA430E0C54DC956DE9366 /* StatusChips.swift */,
@@ -1070,6 +1073,7 @@
 				1DE8E596908DD14C90E40761 /* RunsView.swift in Sources */,
 				882100A52FBC222F06535B94 /* ScriptRunner.swift in Sources */,
 				5BEC984820264DE4C650FC5C /* ScriptSection.swift in Sources */,
+				D4047FA847D62DA5D9FFB3AD /* SendConsentSheet.swift in Sources */,
 				BBD2CFD5C2027397076BD8A6 /* SendIntentView.swift in Sources */,
 				E86B4A3177FC9F0A5D846C2F /* Settings.swift in Sources */,
 				3055C34496B3D24F2DEEAD81 /* SettingsBackup.swift in Sources */,

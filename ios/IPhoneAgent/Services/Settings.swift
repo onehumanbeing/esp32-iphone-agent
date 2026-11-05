@@ -329,9 +329,16 @@ import UIKit
 
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.
     /// Nil means the plain model. The free line does this on its server instead (see `client`).
+    /// What a run still needs a yes for: the model's host, Jev (when it is on).
+    var pendingConsent: (model: Bool, jev: Bool) {
+        let freeLine = provider == .handsyTrial
+        let jev = Trial.available && Deciders.load(freeLine: freeLine, defaults: defaults).isOn(.jev)
+        return (!AIConsent.granted(baseURL), jev && JevConsent.needed(freeLine: freeLine))
+    }
+
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
         let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key
-        guard Trial.available, freeLine ? JevConfig.ownActive : JevConsent.granted else { return nil }
+        guard Trial.available, !freeLine || JevConfig.ownActive, !JevConsent.needed(freeLine: freeLine) else { return nil }
         let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }
         return JevDeciderModel(inner: actor, jev: JevConfig.client(), mode: deciders.mode,

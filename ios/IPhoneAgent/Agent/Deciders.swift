@@ -48,7 +48,6 @@ struct Deciders: Equatable, Codable {
               var saved = try? JSONDecoder().decode(Deciders.self, from: data),
               Set(saved.order) == Set(Decider.allCases), saved.order.count == Decider.allCases.count
         else { return standard(freeLine: freeLine) }
-        if !freeLine, !JevConsent.granted { saved.off.insert(.jev) }  // withdrawn: Jev is off
         if freeLine || saved.off.count == Decider.allCases.count { saved.off.remove(.model) }
         return saved
     }
@@ -58,12 +57,16 @@ struct Deciders: Equatable, Codable {
     }
 }
 
-/// Own-model users: steps go to Jev (Holomix, Inc. and its provider TypeSafe) only after this separate yes.
+/// Steps go to Jev only after this separate yes, per target: Handsy (Holomix, Inc. and its provider TypeSafe),
+/// or TypeSafe on the user's own key. Handsy Free's own agreement already covers Jev on Handsy.
 enum JevConsent {
     static let key = "jevConsentVersion"
-    static let version = "2026-11-05"
-    static var granted: Bool { UserDefaults.standard.string(forKey: key) == version }
-    static func grant() { UserDefaults.standard.set(version, forKey: key) }
+    static let version = "2026-11-06"
+    static let handsy = "handsy"
+    static var target: String { UserDefaults.standard.bool(forKey: JevConfig.ownKey) ? "api.typesafe.ai" : handsy }
+    static var granted: Bool { UserDefaults.standard.string(forKey: key) == "\(version) \(target)" }
+    static func needed(freeLine: Bool) -> Bool { !(freeLine && target == handsy) && !granted }
+    static func grant() { UserDefaults.standard.set("\(version) \(target)", forKey: key) }
 
     static func revoke() {
         UserDefaults.standard.removeObject(forKey: key)
