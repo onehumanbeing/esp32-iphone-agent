@@ -300,6 +300,32 @@ import XCTest
         XCTAssertEqual(model.prompts.count, 1)
     }
 
+    /// 2026-11-06: the pointer landed 3% above the Search pill, outside the target's mask; the pointer alone
+    /// read as "changed". Found where it really is, the tap reads as a miss.
+    func testAPointerLandedOffTargetIsNotAScreenChange() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen(pointer: (249, 518))
+        phone.onTap = { screen.frame = v.screen(pointer: (232, 852)) }
+        phone.landed = v.p(232, 852)
+        let model = FakeModel { _ in "THINK: Search\nDO: tap 500 814" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.pointerAt = v.p(249, 518)
+        _ = try await agent.step()
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNotNil(agent.steps.last?["landed"])
+        XCTAssertEqual(agent.pointerAt, v.p(232, 852))
+        // new content still counts, with the pointer found
+        let other = FakeGestures(), shown = FakeScreen()
+        shown.frame = v.screen(pointer: (249, 518))
+        other.onTap = { shown.frame = v.screen(pointer: (232, 852), checked: true) }
+        other.landed = v.p(232, 852)
+        let again = AgentLoop(phone: other, screen: shown, actor: FakeModel { _ in "THINK: x\nDO: tap 500 814" },
+                              planner: nil, trace: nil)
+        again.pointerAt = v.p(249, 518)
+        _ = try await again.step()
+        XCTAssertEqual(again.steps.last?["changed"], .bool(true))
+    }
+
     func testAMissedTapSaysWhereThePointerIs() async throws {
         let phone = FakeGestures()
         phone.landed = CGPoint(x: 0.5, y: 0.958)
@@ -355,7 +381,12 @@ import XCTest
     let device: HIDDevice = FakeDevice()
     var calls: [String] = []
     var taps: [CGPoint] = []
-    func tap(_ x: Double, _ y: Double, aim: Bool) async throws { calls.append("tap"); taps.append(CGPoint(x: x, y: y)) }
+    var onTap: (() -> Void)?  // e.g. the screen shows the pointer where it landed
+    func tap(_ x: Double, _ y: Double, aim: Bool) async throws {
+        calls.append("tap")
+        taps.append(CGPoint(x: x, y: y))
+        onTap?()
+    }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     func type(_ text: String) async throws { calls.append("type") }

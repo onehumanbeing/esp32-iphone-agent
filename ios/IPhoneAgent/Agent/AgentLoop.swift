@@ -440,9 +440,8 @@ extension Gestures {
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
-                if !Vision.changed(seen, screen?.frame, ignore: spots) {
+                if !(await tapChanged(seen, &spots)) {
                     steps[steps.count - 1]["changed"] = .bool(false)
-                    await noteLanding()
                     return false  // skip the rest; the actor looks again
                 }
             }
@@ -450,19 +449,34 @@ extension Gestures {
         timing.frameMs += await settle(ignoring: spots)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        let changed = Vision.changed(seen, screen?.frame, ignore: spots)
+        let changed = steps.last?["action"]?.str == "tap" ? await tapChanged(seen, &spots)
+            : Vision.changed(seen, screen?.frame, ignore: spots)
         steps[steps.count - 1]["changed"] = .bool(changed)
-        if !changed { await noteLanding() }
         return false
     }
 
-    /// A tap that changed nothing: find where the pointer really is, for the model (and the pointer's own
+    /// Did the last tap change the screen? Only the pointer may have changed, landed off target: then find
+    /// where it really is (which also teaches the pointer's correction) and look again without it. 2026-11-06:
+    /// the pointer 3% above the Search pill read as "changed", so the miss went unseen and nothing was learned.
+    private func tapChanged(_ seen: Data?, _ spots: inout [CGPoint]) async -> Bool {
+        let frame = screen?.frame
+        if Vision.bigChange(seen, frame, ignore: spots) { return true }
+        let small = Vision.changed(seen, frame, ignore: spots)
+        guard let landed = await noteLanding() else { return small }
+        spots.append(landed)
+        pointerAt = landed  // the next tap's mask starts where the pointer really is
+        return small && Vision.changed(seen, screen?.frame, ignore: spots)
+    }
+
+    /// A tap that changed little or nothing: find where the pointer really is, for the model (and the pointer's own
     /// correction, which learns from it), e.g. 37 units under a narrow button.
-    private func noteLanding() async {
+    @discardableResult
+    private func noteLanding() async -> CGPoint? {
         let last = steps.count - 1
         guard last >= 0, steps[last]["action"]?.str == "tap", let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double,
-              let p = await phone?.landing(x / 1000, y / 1000) else { return }
+              let p = await phone?.landing(x / 1000, y / 1000) else { return nil }
         steps[last]["landed"] = .arr([.int(Int((p.x * 1000).rounded())), .int(Int((p.y * 1000).rounded()))])
+        return p
     }
 
     func settle(ignoring spots: [CGPoint] = []) async -> Double {
