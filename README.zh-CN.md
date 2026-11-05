@@ -169,6 +169,12 @@ Cursor、Cline 等 MCP 客户端：
 }
 ```
 
+DeepSeek Harness（dsh）：安装 [integrations/dsh](integrations/dsh/README.md) 里的插件，同样包含这个 MCP 服务器和技能：
+
+```bash
+dsh plugin --profile web add dsh-esp32agent
+```
+
 命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)和 [cli/README.md](cli/README.md)。
 
 ## 模型和提示词
