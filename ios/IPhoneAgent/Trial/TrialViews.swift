@@ -12,23 +12,11 @@ struct TrialSection: View {
                 settings.selectedProvider = .handsyTrial
                 dismiss()
             } label: {
-                HStack(spacing: Space.m) {
-                    ProviderLogoView(provider: .handsyTrial, size: 34)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Text(verbatim: ModelProvider.handsyTrial.title).font(.body.weight(.medium)).lineLimit(1)
-                            Spacer(minLength: Space.s)
-                            if settings.provider == .handsyTrial {
-                                StatusBadge(text: "In Use", color: .blue, symbol: "checkmark.circle.fill")
-                            }
-                            TrialBadge(status: trial.status)
-                        }
-                        Text("Private model, no API key. Limited capacity.")
-                            .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                    }
+                ProviderRow(logo: .handsyTrial, title: ModelProvider.handsyTrial.title,
+                            subtitle: String(localized: "Private model, no API key. Limited capacity."),
+                            selected: settings.provider == .handsyTrial, wraps: true) {
+                    TrialBadge(status: trial.status)
                 }
-                .padding(.vertical, 4)
-                .contentShape(.rect)
             }
             .buttonStyle(.plain)
         } header: {
@@ -65,11 +53,11 @@ struct TrialBadge: View {
 
     var body: some View {
         switch status {
-        case .free: StatusBadge(text: "Free", color: .green, symbol: "circle.fill")
-        case .waiting: StatusBadge(text: "Queue", color: .orange, symbol: "hourglass")
-        case .busy: StatusBadge(text: "Busy", color: .orange, symbol: "hourglass")
-        case .usedUp: StatusBadge(text: "Used Up", color: .gray, symbol: "checkmark.circle")
-        case .unavailable: StatusBadge(text: "Unavailable", color: .gray, symbol: "nosign")
+        case .free: StatusBadge(text: "Free", symbol: "circle.fill", emphasized: true)
+        case .waiting: StatusBadge(text: "Queue", symbol: "hourglass")
+        case .busy: StatusBadge(text: "Busy", symbol: "hourglass")
+        case .usedUp: StatusBadge(text: "Used Up")
+        case .unavailable: StatusBadge(text: "Unavailable")
         case .unknown: ProgressView().controlSize(.mini)
         }
     }

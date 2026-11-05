@@ -69,7 +69,7 @@ struct AIConsentRow: View {
             Group {
                 if AIConsent.granted(settings.baseURL) {
                     Label { Text("Allowed to send to \(host)") } icon: {
-                        Image(systemName: "checkmark.shield.fill").foregroundStyle(Palette.ok)
+                        Image(systemName: "checkmark.shield.fill").foregroundStyle(Palette.muted)
                     }
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 } else {

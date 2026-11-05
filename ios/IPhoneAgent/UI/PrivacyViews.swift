@@ -5,12 +5,12 @@ import SwiftUI
 struct PrivacyLists: View {
     var body: some View {
         Section {
-            ForEach(Self.kept.indices, id: \.self) { Label(Self.kept[$0], systemImage: "checkmark.circle") }
+            ForEach(Self.kept.indices, id: \.self) { Text(Self.kept[$0]) }
         } header: {
             Text("Kept on this iPhone")
         }
         Section {
-            ForEach(Self.never.indices, id: \.self) { Label(Self.never[$0], systemImage: "xmark.circle") }
+            ForEach(Self.never.indices, id: \.self) { Text(Self.never[$0]) }
         } header: {
             Text("Never collected")
         } footer: {

@@ -571,32 +571,12 @@
         }
       }
     },
-    "In Use" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用中"
-          }
-        }
-      }
-    },
     "All" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部"
-          }
-        }
-      }
-    },
-    "Providers" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服务商"
           }
         }
       }
@@ -9199,6 +9179,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用你自己的模型时，只要 Jev 开着，每一步的截图、任务、计划和最近的操作都会发给 Jev。"
+          }
+        }
+      }
+    },
+    "More Providers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多服务商"
           }
         }
       }

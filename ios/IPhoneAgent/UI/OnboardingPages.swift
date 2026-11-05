@@ -298,11 +298,20 @@ struct BrainPage: View {
     }
 }
 
-/// Endpoint and key with placeholders only; the model is picked from the endpoint (nothing personal is built in), as a grouped box.
+/// The model box of the Brain page: who decides each step (with the model folded into its row) when the build has
+/// Jev, else endpoint and key with placeholders only; the model is picked from the endpoint (nothing personal is built in).
 struct ModelFieldsPanel: View {
     @ObservedObject var settings: Settings
 
     var body: some View {
+        if Trial.available {
+            DecidersPanel(settings: settings)
+        } else {
+            fields
+        }
+    }
+
+    private var fields: some View {
         VStack(spacing: Space.xs) {
             Panel { ProviderFields(settings: settings) }
             if let url = settings.provider.keyURL {

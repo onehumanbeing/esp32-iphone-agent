@@ -5,17 +5,12 @@ struct ProviderPicker: View {
     @ObservedObject var settings: Settings
     @State private var showing = false
 
-    private var name: String {
-        guard settings.provider == .others else { return settings.provider.title }
-        return settings.customEndpoints.first { $0.id == settings.activeCustomID }?.title ?? String(localized: "Custom Endpoint")
-    }
-
     var body: some View {
         Button { showing = true } label: {
             LabeledContent("Provider") {
                 HStack(spacing: Space.s) {
                     ProviderLogoView(provider: settings.provider, size: 22)
-                    Text(verbatim: name).lineLimit(1).truncationMode(.middle)
+                    Text(verbatim: settings.providerName).lineLimit(1).truncationMode(.middle)
                     Image(systemName: "chevron.right").font(.footnote).accessibilityHidden(true)
                 }
                 .foregroundStyle(.secondary)
@@ -28,7 +23,15 @@ struct ProviderPicker: View {
     }
 }
 
-/// All providers with their logos (recommended first), then the saved custom endpoints.
+extension Settings {
+    /// The provider's name, or the custom endpoint's.
+    var providerName: String {
+        guard provider == .others else { return provider.title }
+        return customEndpoints.first { $0.id == activeCustomID }?.title ?? String(localized: "Custom Endpoint")
+    }
+}
+
+/// All providers with their logos (recommended ones in their own section), then the saved custom endpoints.
 /// A filter narrows the list to what's already set up.
 struct ProviderSelectionView: View {
     @ObservedObject var settings: Settings
@@ -37,8 +40,7 @@ struct ProviderSelectionView: View {
 
     private var presets: [ModelProvider] {
         let all = ModelProvider.allCases.filter { $0 != .others && $0 != .handsyTrial }  // free line: own section
-        let ordered = all.filter(\.recommended) + all.filter { !$0.recommended }
-        return configuredOnly ? ordered.filter(settings.isConfigured) : ordered
+        return configuredOnly ? all.filter(settings.isConfigured) : all
     }
 
     var body: some View {
@@ -53,8 +55,12 @@ struct ProviderSelectionView: View {
                 .listRowInsets(EdgeInsets())
 
                 if Trial.available && !configuredOnly { TrialSection(settings: settings, dismiss: dismiss) }  // free line
-                if !presets.isEmpty {
-                    Section("Providers") { ForEach(presets, content: presetRow) }
+                let recommended = presets.filter(\.recommended), more = presets.filter { !$0.recommended }
+                if !recommended.isEmpty {
+                    Section("Recommended") { ForEach(recommended, content: presetRow) }
+                }
+                if !more.isEmpty {
+                    Section("More Providers") { ForEach(more, content: presetRow) }
                 }
                 if !configuredOnly || !settings.customEndpoints.isEmpty {
                     Section("Custom Endpoints") {
@@ -83,7 +89,7 @@ struct ProviderSelectionView: View {
             dismiss()
         } label: {
             ProviderRow(logo: provider, title: provider.title, subtitle: provider.host,
-                        recommended: provider.recommended, configured: settings.isConfigured(provider), selected: selected)
+                        configured: settings.isConfigured(provider), selected: selected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -97,7 +103,7 @@ struct ProviderSelectionView: View {
         } label: {
             ProviderRow(logo: .others, title: endpoint.title,
                         subtitle: endpoint.model.isEmpty ? endpoint.baseURL : endpoint.model,
-                        recommended: false, configured: true, selected: selected)
+                        configured: true, selected: selected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -131,29 +137,32 @@ struct ProviderSelectionView: View {
     }
 }
 
-/// One provider in the list: logo, name and address, status badges at the top right.
-private struct ProviderRow: View {
+/// One provider in the list: logo, name and address; at the trailing edge "Configured" or, for the one in
+/// use, the selection checkmark (like Settings.app).
+struct ProviderRow<Status: View>: View {
     let logo: ModelProvider
     let title: String
     let subtitle: String
-    let recommended: Bool
-    let configured: Bool
+    var configured = false
     let selected: Bool
+    var wraps = false  // a sentence, not an address: wrap instead of cutting the middle out
+    @ViewBuilder var status: Status
 
     var body: some View {
         HStack(spacing: Space.m) {
             ProviderLogoView(provider: logo, size: 34)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                    Text(verbatim: title).font(.body.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
-                    Spacer(minLength: Space.s)
-                    if selected { StatusBadge(text: "In Use", color: .blue, symbol: "checkmark.circle.fill") }
-                    else if configured { StatusBadge(text: "Configured", color: .green, symbol: "checkmark") }
-                    if recommended { RecommendedBadge() }
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: title).foregroundStyle(.primary).lineLimit(1)
                 Text(verbatim: subtitle)
                     .font(.footnote).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
+                    .lineLimit(wraps ? 2 : 1).truncationMode(wraps ? .tail : .middle)
+            }
+            Spacer(minLength: Space.s)
+            status
+            if configured && !selected { StatusBadge(text: "Configured") }
+            if selected {
+                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(Palette.accent)
+                    .accessibilityLabel("Selected")
             }
         }
         .padding(.vertical, 4)
@@ -161,21 +170,22 @@ private struct ProviderRow: View {
     }
 }
 
-/// A provider's mark in its brand color on a tinted rounded square.
+extension ProviderRow where Status == EmptyView {
+    init(logo: ModelProvider, title: String, subtitle: String, configured: Bool, selected: Bool) {
+        self.init(logo: logo, title: title, subtitle: subtitle, configured: configured, selected: selected) { EmptyView() }
+    }
+}
+
+/// A provider's mark, one color on a quiet rounded square: the list stays calm, the names do the work.
 struct ProviderLogoView: View {
     let provider: ModelProvider
     let size: CGFloat
 
-    private var color: Color {
-        let c = provider.brandColor
-        return Color(red: c.red, green: c.green, blue: c.blue)
-    }
-
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
-            .fill(color.opacity(0.15))
+            .fill(Color(uiColor: .tertiarySystemFill))
             .frame(width: size, height: size)
-            .overlay { mark.foregroundStyle(color) }
+            .overlay { mark.foregroundStyle(Palette.ink) }
             .accessibilityHidden(true)
     }
 
@@ -191,26 +201,25 @@ struct ProviderLogoView: View {
     }
 }
 
-/// Small tinted capsule for list status ("Recommended", "Configured").
+/// Quiet status text at the end of a list row ("Configured", "Busy"). `emphasized` takes the accent, for the
+/// one state worth noticing (the free line is free); everything else stays secondary.
 struct StatusBadge: View {
     let text: LocalizedStringKey
-    let color: Color
     var symbol: String?
+    var emphasized = false
 
     var body: some View {
-        HStack(spacing: 3) {
-            if let symbol { Image(systemName: symbol).font(.system(size: 9, weight: .bold)) }
+        HStack(spacing: 4) {
+            if let symbol { Image(systemName: symbol).font(.system(size: 8, weight: .bold)) }
             Text(text)
         }
-        .font(.caption2.weight(.semibold))
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(color.opacity(0.15), in: Capsule())
-        .foregroundStyle(color)
+        .font(.footnote)
+        .foregroundStyle(emphasized ? Palette.accent : Palette.muted)
         .fixedSize()
     }
 }
 
-/// "Recommended" badge, shared by the provider and model lists.
+/// "Recommended" in the model list.
 struct RecommendedBadge: View {
-    var body: some View { StatusBadge(text: "Recommended", color: .orange, symbol: "star.fill") }
+    var body: some View { StatusBadge(text: "Recommended") }
 }
