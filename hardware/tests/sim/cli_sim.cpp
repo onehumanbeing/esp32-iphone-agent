@@ -104,6 +104,10 @@ void ble_cli_drop(int) {
   writeRecord(NULL, 0);
   cli_reset(0);
 }
+// No Wi-Fi link in the sim (cli_tcp.h).
+bool cli_tcp_up() { return false; }
+bool cli_tcp_send(const uint8_t *, size_t, uint32_t) { return false; }
+void cli_tcp_drop() {}
 static std::vector<std::string> cmds;
 void ble_cli_push_cmd(const char *line, size_t n) { cmds.push_back(std::string(line, n)); }
 

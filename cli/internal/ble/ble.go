@@ -14,9 +14,10 @@ import (
 const base = "6e400001-a9e8-4b1b-9c39-6d6f8a3c"
 
 var (
-	svcUUID = mustUUID(base + "0010")
-	inUUID  = mustUUID(base + "0011")
-	outUUID = mustUUID(base + "0012")
+	svcUUID  = mustUUID(base + "0010")
+	inUUID   = mustUUID(base + "0011")
+	outUUID  = mustUUID(base + "0012")
+	inNRUUID = mustUUID(base + "0013") // cli_in as write commands (firmware 0.2.2+)
 )
 
 func mustUUID(s string) bluetooth.UUID {
@@ -126,26 +127,37 @@ func (b *BLE) Connect(ctx context.Context, f Found) (proto.Link, error) {
 	if err != nil || len(svcs) == 0 {
 		return fail(fmt.Errorf("no cli service (firmware too old?): %v", err))
 	}
-	chars, err := svcs[0].DiscoverCharacteristics([]bluetooth.UUID{inUUID, outUUID})
-	if err != nil || len(chars) < 2 {
+	chars, err := svcs[0].DiscoverCharacteristics(nil) // all: cli_in_nr is optional
+	if err != nil {
 		return fail(fmt.Errorf("cli characteristics missing: %v", err))
 	}
-	var in, out *bluetooth.DeviceCharacteristic
+	var in, out, inNR *bluetooth.DeviceCharacteristic
 	for i := range chars {
 		switch chars[i].UUID() {
 		case inUUID:
 			in = &chars[i]
 		case outUUID:
 			out = &chars[i]
+		case inNRUUID:
+			inNR = &chars[i]
 		}
 	}
 	if in == nil || out == nil {
 		return fail(errors.New("cli characteristics missing"))
 	}
-	var wmu sync.Mutex // CoreBluetooth: one write with response per characteristic at a time
+	// Frames that fit one packet go as write commands: a write request waits for its response, and behind the
+	// board's video that took seconds (CoreBluetooth gives up after 10 s, 2026-11-06). Longer ones (the OS splits
+	// them into a long write) still need requests. One write at a time keeps the frames in counter order.
+	var wmu sync.Mutex
 	l := newChanLink(func(p []byte) error {
 		wmu.Lock()
 		defer wmu.Unlock()
+		if inNR != nil {
+			if room, err := inNR.GetMTU(); err == nil && len(p) <= int(room) {
+				_, err := inNR.WriteWithoutResponse(p)
+				return err
+			}
+		}
 		_, err := in.Write(p)
 		return err
 	}, func() {

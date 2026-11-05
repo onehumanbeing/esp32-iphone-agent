@@ -194,10 +194,11 @@ void net_poll() {
   startWifi();
 }
 
-String net_json() {
+String net_json(bool vtok) {
   bool sta = mode == "sta";
-  return String("{\"mode\":\"") + mode + "\",\"ssid\":\"" + jsonEsc(sta ? staSsid : apSsid) + "\",\"pass\":\"" +
-         jsonEsc(sta ? staPass : apPass) + "\",\"ip\":\"" + net_ip() + "\",\"vtok\":\"" + wv_token() + "\"}";
+  String j = String("{\"mode\":\"") + mode + "\",\"ssid\":\"" + jsonEsc(sta ? staSsid : apSsid) + "\",\"pass\":\"" +
+             jsonEsc(sta ? staPass : apPass) + "\",\"ip\":\"" + net_ip() + "\"";
+  return j + (vtok ? ",\"vtok\":\"" + wv_token() + "\"}" : "}");
 }
 
 const char *net_mode() {

@@ -35,6 +35,10 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   io button HOME
   screencapture --format h264|mjpeg   video to stdout
   device info                      board status
+  net                              the CLI's link (BLE or Wi-Fi) and the board's Wi-Fi
+  net via auto|ble                 auto: move to Wi-Fi when this computer reaches the board (default)
+  net join SSID [PASSWORD]         the board joins your Wi-Fi (the iPhone must mirror over it too)
+  net hotspot                      the board opens its own hotspot again
   calibrate                        measure the pointer (automatic on the first tap)
   history list | show RUN | new    what was done on the phone (runs; a new one after 10 min idle)
   intent list | show NAME          saved intents (the app's format)
@@ -161,6 +165,16 @@ func (a *App) Run(args []string) int {
 			return a.fail(errUnsupported)
 		}
 		return a.call(daemon.Request{Cmd: "info", Device: *dev})
+	case "net":
+		pos, err := parse(fs, rest)
+		if err != nil {
+			return a.fail(err)
+		}
+		text := strings.Join(pos, " ")
+		if len(pos) >= 2 && pos[0] == "join" { // SSIDs and passwords may hold spaces
+			text = "join " + pos[1] + "\x00" + strings.Join(pos[2:], " ")
+		}
+		return a.call(daemon.Request{Cmd: "net", Device: *dev, Text: text})
 	case "screenshot":
 		return a.screenshot(fs, dev, rest)
 	case "screencapture":

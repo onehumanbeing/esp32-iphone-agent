@@ -42,6 +42,9 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `screencapture --format h264\|mjpeg` | live video to stdout, e.g. `\| ffplay -` |
 | `device info` | board status: `ap` (mirroring), `fz` (video frozen), `busy` (the app holds the phone), `usb`, `ble` |
 | `calibrate` | measure the pointer (runs by itself on the first tap; needs the pointer visible) |
+| `net` | the CLI's link (`via`: `ble` or `wifi`) and the board's Wi-Fi. With this computer on the board's network (same Wi-Fi, or its hotspot) commands and video go over Wi-Fi; BLE stays as the way back |
+| `net join SSID [PASSWORD]` / `net hotspot` | the board joins your Wi-Fi, or opens its hotspot again (the iPhone mirrors over that network too) |
+| `net via auto\|ble` | `ble` keeps the session on BLE (also `ESP32AGENT_TRANSPORT=ble`) |
 | `history list`, `history show RUN\|latest`, `history new` | what was done on the phone: runs (newest first, 30), one run's steps; start a new run |
 | `intent list`, `intent show NAME\|ID` | saved intents |
 | `intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]` | save an intent; steps are the run's replayable moves (all, or the numbers from `history show`) |

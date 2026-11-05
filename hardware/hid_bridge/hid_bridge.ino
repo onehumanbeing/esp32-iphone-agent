@@ -20,6 +20,7 @@
 #include "netcfg.h"
 #include "video_link.h"
 #include "cli_link.h"
+#include "cli_tcp.h"
 #include "wifi_video.h"
 #include "ota.h"
 #include "version.h"
@@ -177,6 +178,14 @@ String board(const String &line, const String &id, char who) {
   if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair" || cmd == "res" || cmd == "fps" ||
                           cmd == "txpower" || cmd == "coex"))
     return "err not available from the CLI";
+  if (cmd == "net" && who == FROM_CLI) {  // the board's Wi-Fi for the CLI's link (docs/cli-protocol.md, "Wi-Fi link")
+    if (arg.length()) {
+      if (!arg.startsWith("{")) return "err usage: net [{\"mode\":\"ap\"} | {\"mode\":\"sta\",\"ssid\":...,\"pass\":...}]";
+      net_request(arg);  // applied by net_poll(): the reply goes out first
+      return "ok";
+    }
+    return "ok " + net_json(false);
+  }
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
@@ -236,6 +245,11 @@ String statusJson(bool full, char who) {
            (unsigned long)wv_nacks(), (unsigned long)wv_drops());
   // owner: who drives the phone (app, cli, none); the CLI's busy is 1 while that is the app
   bool app = ble_app_active();
+  if (who == FROM_CLI) {  // the CLI's own link, not the app's (ble.mtu above is the app's)
+    size_t l = strlen(s);
+    snprintf(s + l - 1, sizeof s - l + 1, ",\"link\":{\"via\":\"%s\",\"mtu\":%u,\"kbps\":%lu}}", cli_wifi() ? "wifi" : "ble",
+             cli_mtu(), (unsigned long)(cli_wifi() ? cli_tcp_kbps() : ble_kbps()));
+  }
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
@@ -248,7 +262,9 @@ String statusJson(bool full, char who) {
   snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
-  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d", app);
+  if (who == FROM_CLI)
+    snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\",\"link\":{\"via\":\"%s\",\"mtu\":%u}", app,
+             net_ip().c_str(), cli_wifi() ? "wifi" : "ble", cli_mtu());
   strlcat(s, "}", sizeof s);
   return s;
 }
@@ -326,6 +342,7 @@ void setup() {
   if (!ota_begin()) board_log("ota: failed to start");
   arb_init(&arb);
   cli_begin();
+  if (!cli_tcp_begin()) board_log("cli: Wi-Fi link failed to start");
   ble_begin("ESP32 Agent " + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
@@ -361,7 +378,7 @@ void loop() {
       ble_cli_status(statusJson(true, FROM_CLI), statusJson(false, FROM_CLI));
       cliDropAt = millis() + 300;
     } else if ((int32_t)(millis() - cliDropAt) >= 0) {
-      ble_cli_drop(cli_slot());
+      cli_drop();
       cliDropAt = millis() + 2000;  // once more later if it's still there
     }
   } else {
@@ -389,7 +406,7 @@ void loop() {
     serialLine = "";
     line.trim();
     if (line.startsWith("0 net ")) { net_request(line.substring(6)); Serial.println("0 ok"); return; }
-    if (line == "0 netinfo") { Serial.println("0 " + net_json()); return; }  // what the app reads over BLE (incl. vtok)
+    if (line == "0 netinfo") { Serial.println("0 " + net_json(true)); return; }  // what the app reads over BLE (incl. vtok)
     if (line == "0 status") { Serial.println("0 " + statusJson(true, FROM_APP)); return; }
     int sp = line.indexOf(' ');
     String id = sp < 0 ? line : line.substring(0, sp);

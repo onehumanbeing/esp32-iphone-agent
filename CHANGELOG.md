@@ -2,6 +2,10 @@
 
 ## Unreleased (main)
 
+- CLI over Wi-Fi: with the computer on the board's network (same Wi-Fi, or its hotspot) the CLI's session moves
+  to TCP port 7202 (same sealed frames), and falls back to BLE when it drops. `esp32agent net` shows the link,
+  `net join` / `net hotspot` set the board's Wi-Fi, `net via ble` stays on BLE. Over BLE, short frames go as
+  write commands (`cli_in_nr`), so commands no longer wait behind video; calibration waits up to 3 s for a frame.
 - DeepSeek Harness plugin (`integrations/dsh`, npm `dsh-esp32agent`): the esp32agent MCP server plus the
   handsy skill as a dsh bundle. Uses esp32agent 0.1.2 (CLI binary v0.1.1: empty `required` arrays, #77).
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a

@@ -28,6 +28,9 @@ const (
 	MaxMiss         = 0.06                   // bigger misses are still corrected, but not learned from
 	SettleLag       = 300 * time.Millisecond // after a key, frames captured sooner still show the old screen
 	ChangeWait      = 5 * time.Second        // how long GoHome watches for the screen to change
+	// FreshWait: how long a wiggle waits for a frame captured after it. Over BLE, video yields to commands, and a
+	// frame often took over a second: calibration with 1 s saw no pointer (2026-11-06).
+	FreshWait = 3 * time.Second
 )
 
 // CalibrationStops are the distances at which calibration finds the pointer.
@@ -165,6 +168,9 @@ func (p *Pointer) Calibrate(ctx context.Context) error {
 			break
 		}
 		pt, ok, err := p.findPointer(ctx)
+		if err == nil && !ok { // once more: a frame lost or a late one
+			pt, ok, err = p.findPointer(ctx)
+		}
 		if err != nil {
 			return err
 		}
@@ -203,7 +209,7 @@ func (p *Pointer) findPointer(ctx context.Context) (Point, bool, error) {
 	if err := p.send(ctx, "move %d 0", Nudge); err != nil {
 		return Point{}, false, err
 	}
-	after := p.screen.Fresh(ctx, sent, time.Second)
+	after := p.screen.Fresh(ctx, sent, FreshWait)
 	if after != nil {
 		p.screen.Settled(ctx, 150*time.Millisecond, 100*time.Millisecond, 600*time.Millisecond)
 		after = p.screen.Frame()

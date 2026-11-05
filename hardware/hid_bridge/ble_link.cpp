@@ -56,7 +56,7 @@ struct Text {
 };
 
 static NimBLEServer *server;
-static NimBLECharacteristic *chars[CH_COUNT], *netChar, *cliIn;
+static NimBLECharacteristic *chars[CH_COUNT], *netChar, *cliIn, *cliInNR;
 static QueueHandle_t cmdQueue, replyQueue;
 static SemaphoreHandle_t statusLock;
 static Text statusText, cliStatus;
@@ -195,7 +195,7 @@ class ServerCb : public NimBLEServerCallbacks {
 class CharCb : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
     const NimBLEAttValue &raw = c->getValue();
-    if (c == cliIn) { cli_on_frame(slotFor(ci.getConnHandle()), raw.data(), raw.length()); return; }
+    if (c == cliIn || c == cliInNR) { cli_on_frame(slotFor(ci.getConnHandle()), raw.data(), raw.length()); return; }
     String v(raw.c_str(), raw.length());
     if (!ci.isEncrypted()) return;
     if (c == netChar) { net_request(v); return; }
@@ -290,7 +290,7 @@ static void dropIdlePlainLinks() {
   if (ble_pair_window_open()) return;
   for (int i = 0; i < MAX_PEERS; i++) {
     int h = peers[i];
-    if (h >= 0 && !encrypted(h) && !cli_authed(i) && millis() - connAt[i] > PLAIN_GRACE_MS) {
+    if (h >= 0 && !encrypted(h) && !cli_known(i) && millis() - connAt[i] > PLAIN_GRACE_MS) {
       BLE_LOG("conn %d: plain and idle for %lu s, dropped\n", h, PLAIN_GRACE_MS / 1000);
       connAt[i] = millis();  // once
       server->disconnect(h);
@@ -424,8 +424,12 @@ void ble_begin(const String &name) {
                                                         NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::WRITE_ENC);
   NimBLEService *cliSvc = server->createService(UUID("0010"));
   cliIn = cliSvc->createCharacteristic(UUID("0011"), NIMBLE_PROPERTY::WRITE, CMD_MAX + 64);
+  // The same frames as write commands (no ATT response to wait for), for frames that fit the MTU: a CLI waiting
+  // on each write's response stalled behind video and timed out (2026-11-06).
+  cliInNR = cliSvc->createCharacteristic(UUID("0013"), NIMBLE_PROPERTY::WRITE_NR, CMD_MAX + 64);
   chars[CH_CLI] = cliSvc->createCharacteristic(UUID("0012"), NIMBLE_PROPERTY::NOTIFY);
   cliIn->setCallbacks(&charCb);
+  cliInNR->setCallbacks(&charCb);
   cmd->setCallbacks(&charCb);
   netChar->setCallbacks(&charCb);
   for (auto *c : chars) c->setCallbacks(&charCb);
@@ -483,7 +487,7 @@ void ble_reply(const String &line, char dest) {
 void ble_cli_status(const String &full, const String &compact) {
   int slot = cli_slot();
   if (slot < 0) return;
-  const String &s = full.length() + 1 + CLI_OVERHEAD + 3 <= ble_cli_mtu(slot) ? full : compact;
+  const String &s = full.length() + 1 + CLI_OVERHEAD + 3 <= cli_mtu() ? full : compact;
   xSemaphoreTake(statusLock, portMAX_DELAY);
   toText(cliStatus, s);
   if (!cliStatusDirty) ctrlPending++;
