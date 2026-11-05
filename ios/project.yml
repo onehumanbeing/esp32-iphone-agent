@@ -44,6 +44,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSBluetoothAlwaysUsageDescription: ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.
         NSLocalNetworkUsageDescription: ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
+        NSScreenCaptureUsageDescription: Share this iPhone screen so the agent can see and operate it during tasks.
         NSBonjourServices: [_esp32agent._tcp]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

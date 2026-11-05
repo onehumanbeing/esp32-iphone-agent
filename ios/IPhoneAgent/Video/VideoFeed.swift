@@ -12,6 +12,8 @@ import UIKit
     var aspect: Double { get }
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
     func afterAction(since: Double) async
+    /// Throw when a source cannot recover without starting a new session.
+    func checkAvailability() throws
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -28,6 +30,7 @@ enum FrameMode: String {
 }
 
 extension ScreenSource {
+    func checkAvailability() throws {}
     var changed: Double { updated }
     func afterAction(since: Double) async { await settled() }
 

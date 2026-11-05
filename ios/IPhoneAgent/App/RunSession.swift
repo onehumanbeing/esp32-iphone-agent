@@ -46,7 +46,10 @@ extension AppModel {
                 notifier.clearLinkAsks()
             }
         }
-        let job = Task { await self.prepareAgent(task) }
+        let job = Task {
+            await self.screenCleanup?.value
+            await self.prepareAgent(task)
+        }
         startupTask = job
         await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
     }
@@ -70,6 +73,16 @@ extension AppModel {
             Analytics.capture("run_blocked", ["reason": "ai_consent"])
             aiConsentRun = task
             return
+        }
+        defer { if onDeviceCapture && !agent.running { finishScreen() } }
+        if onDeviceCapture {
+            do {
+                try await prepareLocalCapture()
+                startupDeadline = now() + Recovery.limit
+            } catch {
+                if !(error is CancellationError) { blocked(error.localizedDescription) }
+                return
+            }
         }
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
@@ -102,12 +115,14 @@ extension AppModel {
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
-        let snapMode = FrameMode.current == .snap
+        let snapMode = !onDeviceCapture && FrameMode.current == .snap
         live.start(task: task, runID: runID, limit: agent.maxSteps)
         mark("Live Activity requested")
         do {
             // Ready the screen while still in front: iOS cannot start the video decoder in the background.
-            if snapMode {
+            if onDeviceCapture {
+                mark("on-device capture ready")
+            } else if snapMode {
                 if feed.streamOn { try await startupBoardCommand { try await feed.stream(false) } }
                 mark("snap-per-step mode (stream off)")
             } else {
@@ -144,8 +159,11 @@ extension AppModel {
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
             try Task.checkCancellation()
             guard appIsBackgrounded,
-                  frameBoundary.accepts(capturedAt: feed.capturedAt, backgroundEnteredAt: backgroundEnteredAt) else {
+                  frameBoundary.accepts(capturedAt: screen.capturedAt, backgroundEnteredAt: backgroundEnteredAt) else {
                 if !appIsBackgrounded { throw onScreenError() }
+                if onDeviceCapture {
+                    throw ScreenCaptureError(message: String(localized: "No screen image arrived. Stop sharing and try again."))
+                }
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
@@ -162,14 +180,14 @@ extension AppModel {
             ]) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
-            traces.write(feed.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
+            traces.write(screen.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
                                                     "reason": .str(cancelled ? "cancelled before agent start" : "cannot start: \(error.localizedDescription)")])
             videoSink = nil
-            saveVideoFrame(feed.frame)
+            saveVideoFrame(screen.frame)
             videoDir = nil
             live.end(cancelled ? (.idle, String(localized: "Stopped")) : (.failure, error.localizedDescription))
             endBackgroundTask()
-            Task { try? await feed.stream(false); prewarmStream() }  // back on only if the app is open
+            if !onDeviceCapture { finishScreen() }
             runs.reload()
             runMood = cancelled ? nil : .failure
             if !cancelled {
@@ -251,7 +269,7 @@ extension AppModel {
     func ended() {
         Trial.shared.end()  // free line
         videoSink = nil
-        saveVideoFrame(feed.frame)  // the last screen too, however the run ended
+        saveVideoFrame(screen.frame)  // the last screen too, however the run ended
         videoDir = nil
         help = nil
         takingOver = false
@@ -300,8 +318,31 @@ extension AppModel {
     func agentFinished() {
         ended()
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
-        Task { try? await feed.stream(false); prewarmStream() }  // back on only if the app is open
+        finishScreen()
         endBackgroundTask()
+    }
+
+    /// Release the AirPlay transport before asking for local screen-sharing permission.
+    func prepareLocalCapture() async throws {
+        await screenCleanup?.value
+        prewarmJob?.cancel()
+        await prewarmJob?.value
+        if feed.streamOn { try await feed.stream(false) }
+        if #available(iOS 27.0, *), onDeviceCapture { try await localCapture.start() }
+    }
+
+    func stopLocalCapture() async {
+        if #available(iOS 27.0, *) { await localCapture.stop() }
+    }
+
+    /// Serialize teardown with the next startup so an old run cannot stop a new sharing session.
+    func finishScreen() {
+        let previous = screenCleanup
+        screenCleanup = Task {
+            await previous?.value
+            await stopLocalCapture()
+            if !onDeviceCapture { try? await feed.stream(false); prewarmStream() }
+        }
     }
 
     func endBackgroundTask() {
@@ -422,7 +463,7 @@ extension AppModel {
         guard let dir = traces.dir?.appendingPathComponent("video") else { return }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         videoDir = dir
-        videoSink = feed.$frame.compactMap { $0 }
+        videoSink = screen.$frame.compactMap { $0 }
             .throttle(for: .milliseconds(500), scheduler: RunLoop.main, latest: true)
             .sink { [weak self] jpeg in self?.saveVideoFrame(jpeg) }
     }

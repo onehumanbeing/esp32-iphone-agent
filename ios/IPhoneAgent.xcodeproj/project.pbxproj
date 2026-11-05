@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		92C8EC4EAB63FEB0E75B18BF /* TaskScreenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677EE20C3B50B068FB2CBC0A /* TaskScreenTests.swift */; };
+		C3FBFFA837E4820079268A1C /* TaskScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91B9E17599DC04B8AFF3E86 /* TaskScreen.swift */; };
+		FB398583FAAB7AB4F31D6EC8 /* FrameThrottleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72E1CBAFCD64C56A5753EAB /* FrameThrottleTests.swift */; };
+		FB60FC7E757BB4ACD6B7FFDB /* FrameThrottle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 205FF1F56ABB049AE1D40386 /* FrameThrottle.swift */; };
+		82D14811C282D8D1375C6EF1 /* ScreenCaptureFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAD5FB686BF05BB33A94F63 /* ScreenCaptureFeed.swift */; };
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
 		00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */; };
 		01BAE28C7BD64CE7AE0D2303 /* ProviderSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7439B820D6DA2D4C35103F /* ProviderSelectionView.swift */; };
@@ -212,6 +217,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		677EE20C3B50B068FB2CBC0A /* TaskScreenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskScreenTests.swift; sourceTree = "<group>"; };
+		F91B9E17599DC04B8AFF3E86 /* TaskScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskScreen.swift; sourceTree = "<group>"; };
+		E72E1CBAFCD64C56A5753EAB /* FrameThrottleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameThrottleTests.swift; sourceTree = "<group>"; };
+		205FF1F56ABB049AE1D40386 /* FrameThrottle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameThrottle.swift; sourceTree = "<group>"; };
+		3EAD5FB686BF05BB33A94F63 /* ScreenCaptureFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureFeed.swift; sourceTree = "<group>"; };
 		0278B11885CA8C4A96C96531 /* AgentIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntents.swift; sourceTree = "<group>"; };
 		02C2C2C9EBE006E896050646 /* BoardCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCommands.swift; sourceTree = "<group>"; };
 		058E1A3713DF7C52A472CAAD /* ChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTests.swift; sourceTree = "<group>"; };
@@ -425,6 +435,9 @@
 				607F9EBBC39E74507B73F751 /* H264Decoder.swift */,
 				CD4270DF66937405FC86B145 /* VideoAssembler.swift */,
 				D9615E8664A5DC600B1B97E0 /* VideoFeed.swift */,
+				F91B9E17599DC04B8AFF3E86 /* TaskScreen.swift */,
+				205FF1F56ABB049AE1D40386 /* FrameThrottle.swift */,
+				3EAD5FB686BF05BB33A94F63 /* ScreenCaptureFeed.swift */,
 				D99ADF6602527D2D22023167 /* VideoReorder.swift */,
 			);
 			path = Video;
@@ -474,6 +487,8 @@
 				0884D2AF849046D0FA2E62C1 /* StoreTests.swift */,
 				E4B0E258DD4494C631F0E77A /* TrialTests.swift */,
 				44E6D0770452B562B5CA484E /* VideoTests.swift */,
+				677EE20C3B50B068FB2CBC0A /* TaskScreenTests.swift */,
+				E72E1CBAFCD64C56A5753EAB /* FrameThrottleTests.swift */,
 				1887982FE1A729487269296E /* VisionTests.swift */,
 			);
 			path = IPhoneAgentTests;
@@ -879,6 +894,8 @@
 				0638DE7546BE2E3578EAE3D6 /* StoreTests.swift in Sources */,
 				E45965E6B985C29D7DDC83BB /* TrialTests.swift in Sources */,
 				8FCFB9340A6E3F74CE629FBF /* VideoTests.swift in Sources */,
+				92C8EC4EAB63FEB0E75B18BF /* TaskScreenTests.swift in Sources */,
+				FB398583FAAB7AB4F31D6EC8 /* FrameThrottleTests.swift in Sources */,
 				3607786AAF7296B3414B6F08 /* VisionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1009,6 +1026,9 @@
 				F3ACA8FFF8F76B6B827CEC58 /* TrialViews.swift in Sources */,
 				F3DE9777E0FAD414E17465BC /* VideoAssembler.swift in Sources */,
 				63B0CAE819339D8FC103AC8B /* VideoFeed.swift in Sources */,
+				C3FBFFA837E4820079268A1C /* TaskScreen.swift in Sources */,
+				FB60FC7E757BB4ACD6B7FFDB /* FrameThrottle.swift in Sources */,
+				82D14811C282D8D1375C6EF1 /* ScreenCaptureFeed.swift in Sources */,
 				2396B1A98B2579DE22F67974 /* VideoReorder.swift in Sources */,
 				E272EFE2910E1E89516C63EE /* VideoSocket.swift in Sources */,
 				76AB5A1B6807F71F3F375ACF /* VideoStream.swift in Sources */,
