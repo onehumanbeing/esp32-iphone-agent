@@ -4,6 +4,7 @@ struct ModelSelectionView: View {
     @ObservedObject var settings: Settings
     @Binding var selection: String
     let allowsDefault: Bool
+    var onChoose: ((String) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var customID = ""
@@ -18,14 +19,21 @@ struct ModelSelectionView: View {
         }
     }
 
+    private var tested: [TestedModel] { TestedModels.list(for: settings.provider).filter { matchesSearch($0.id) } }
+
+    /// The endpoint's list, without the tested models shown above it.
     private var matches: [String] {
-        let ids = Set(settings.models + (selection.isEmpty ? [] : [selection]))
-        return ids.filter { search.isEmpty || $0.localizedStandardContains(search)
-            || Self.displayName($0).localizedStandardContains(search) }.sorted()
+        let testedIDs = Set(TestedModels.list(for: settings.provider).map(\.id))
+        let ids = Set(settings.models + (selection.isEmpty ? [] : [selection])).subtracting(testedIDs)
+        return ids.filter(matchesSearch).sorted()
+    }
+
+    private func matchesSearch(_ id: String) -> Bool {
+        search.isEmpty || id.localizedStandardContains(search) || Self.displayName(id).localizedStandardContains(search)
     }
 
     var body: some View {
-        let visible = matches
+        let visible = matches, tested = tested
         NavigationStack {
             List {
                 if allowsDefault && search.isEmpty {
@@ -37,19 +45,21 @@ struct ModelSelectionView: View {
                     Button("Use Model ID") { choose(customID.trimmingCharacters(in: .whitespacesAndNewlines)) }
                         .disabled(customID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                if !visible.filter({ Self.routers.contains($0) }).isEmpty {
-                    Section {
-                        ForEach(visible.filter { Self.routers.contains($0) }, id: \.self) { id in row(id) }
-                    } header: { Text("Automatic routing") } footer: {
-                        Text("OpenRouter chooses a model for each request. Free model availability and responses can vary.")
+                if !tested.isEmpty {
+                    Section("Tested") {
+                        ForEach(tested, id: \.id) { row($0.id, recommended: $0.recommended) }
                     }
                 }
-                Section("Models") {
-                    ForEach(visible.filter { !Self.routers.contains($0) }, id: \.self) { id in row(id) }
+                if settings.provider == .openRouter {
+                    openRouterSections(visible)
+                } else if !visible.isEmpty {
+                    Section("Models") {
+                        ForEach(visible, id: \.self) { id in row(id) }
+                    }
                 }
                 if settings.loadingModels {
                     ProgressView("Loading models…")
-                } else if visible.isEmpty {
+                } else if visible.isEmpty && tested.isEmpty {
                     if search.isEmpty {
                         ContentUnavailableView("No models loaded", systemImage: "list.bullet",
                                                description: Text("Refresh the list or enter a model ID below."))
@@ -78,7 +88,29 @@ struct ModelSelectionView: View {
         }
     }
 
-    private func row(_ id: String) -> some View {
+    /// Free (the free router first) and paid (the auto router first); the list holds vision models only.
+    @ViewBuilder private func openRouterSections(_ visible: [String]) -> some View {
+        let free = visible.filter { settings.freeModels.contains($0) || $0 == "openrouter/free" }
+            .sorted { ($0 == "openrouter/free" ? 0 : 1, $0) < ($1 == "openrouter/free" ? 0 : 1, $1) }
+        let paid = visible.filter { !free.contains($0) }
+            .sorted { ($0 == "openrouter/auto" ? 0 : 1, $0) < ($1 == "openrouter/auto" ? 0 : 1, $1) }
+        if !free.isEmpty {
+            Section {
+                ForEach(free, id: \.self) { id in row(id) }
+            } header: { Text("Free") } footer: {
+                Text("Free models are rate-limited (about 20 requests a minute, 50 a day) and often busy; a run takes 20–40 requests, so runs can be slow or stop partway. Automatic picks a free vision model for each request.")
+            }
+        }
+        if !paid.isEmpty {
+            Section {
+                ForEach(paid, id: \.self) { id in row(id) }
+            } header: { Text(verbatim: "OpenRouter") } footer: {
+                Text("Billed to your OpenRouter credits. Vision models only.")
+            }
+        }
+    }
+
+    private func row(_ id: String, recommended: Bool = false) -> some View {
         Button { choose(id) } label: {
             HStack {
                 VStack(alignment: .leading) {
@@ -88,6 +120,7 @@ struct ModelSelectionView: View {
                     }
                 }
                 Spacer()
+                if recommended { RecommendedBadge() }
                 if selection == id {
                     Image(systemName: "checkmark").accessibilityLabel("Selected")
                 }
@@ -100,7 +133,7 @@ struct ModelSelectionView: View {
     }
 
     private func choose(_ id: String) {
-        selection = id
+        if let onChoose, !id.isEmpty { onChoose(id) } else { selection = id }
         dismiss()
     }
 }

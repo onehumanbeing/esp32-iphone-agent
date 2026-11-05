@@ -6,7 +6,7 @@ v0.1.0 needed a computer next to the phone:
 |---|---|---|
 | Eyes | UxPlay on a Mac/Linux computer | AirPlay receiver on the ESP32 itself |
 | Brain | Python server + web UI on the computer | ESP32 Agent app on the same iPhone |
-| Board ↔ brain | Wi-Fi TCP, line commands | BLE GATT ([ble-protocol.md](ble-protocol.md)) |
+| Board ↔ brain | Wi-Fi TCP, line commands | BLE for commands and status; video over Wi-Fi TCP ([ble-protocol.md](ble-protocol.md)) |
 | Network | phone and computer on one Wi-Fi | board's own hotspot; model over cellular |
 | On the phone | nothing installed | the app (built with Xcode) |
 

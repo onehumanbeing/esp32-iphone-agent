@@ -19,7 +19,25 @@ extension AppModel {
         joinTask = Task { [weak self] in await self?.runJoin() }
     }
 
+    /// The board restarted (a firmware update, a crash) while the phone was on its Wi-Fi: its access point went
+    /// away, and iOS moves to another known network and doesn't come back by itself (2026-10-19). Join it again
+    /// once its access point is up, unless the phone found its way back meanwhile.
+    func rejoinAfterReboot() {
+        Task { [weak self] in
+            for _ in 0..<4 {  // the access point needs a few seconds after boot
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard let self, self.board.connected else { continue }
+                if (self.board.status?.sta ?? 0) > 0 { return DebugLog.write("hotspot: back on the board's Wi-Fi after its restart") }
+            }
+            guard let self, self.board.connected, !self.join.busy else { return }
+            DebugLog.write("hotspot: the board restarted and the phone didn't come back to its Wi-Fi; joining again")
+            self.join = .idle
+            self.startJoin()
+        }
+    }
+
     private func runJoin() async {
+        Hotspot.watchWiFi()
         if MockMode.on {
             join = .joining
             try? await Task.sleep(nanoseconds: 800_000_000)
@@ -64,9 +82,10 @@ extension AppModel {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         let current = await Hotspot.currentSSID()
-        say("hotspot: applied, but after 10 s the phone is on \(current ?? "no readable network"), not \(ssid)")
+        say("hotspot: applied, but after 10 s the phone is on \(current ?? "no readable network"), not \(ssid); Wi-Fi link \(Hotspot.wifiLink ? "up" : "none")")
         manualHotspot = net
-        join = .failed(String(localized: "The iPhone didn't switch to the board's Wi-Fi. Join by hand with the password below."))
+        join = .failed(Hotspot.wifiLink ? String(localized: "The iPhone didn't switch to the board's Wi-Fi. Join by hand with the password below.")
+                                        : Self.wifiOffText)
     }
 
     private func joined(_ ssid: String) {
@@ -76,15 +95,38 @@ extension AppModel {
         say("hotspot: joined \(ssid)")
     }
 
+    /// On the board's hotspot, for the See page. The board counts its clients: while it reports, that count is
+    /// the truth (joining by hand is seen without the hotspot entitlement, and leaving, e.g. Wi-Fi turned
+    /// off, undoes the check). Before that: joined in-app or confirmed by hand, and not on another network.
+    func onBoardHotspot(manual: Bool) -> Bool {
+        if board.connected, let s = board.status, let sta = s.sta { return sta > 0 || s.ap == "streaming" }
+        return otherWiFi == nil && (manual || join == .joined || hotspotSSID != nil)
+    }
+
     /// On the board's network: the current SSID matches, or the board counts a client.
     private func onBoardWiFi(_ ssid: String) async -> Bool {
         if await Hotspot.currentSSID() == ssid { return true }
         return board.connected && (board.status?.sta ?? 0) > 0
     }
 
-    /// Poll while the See page is up (and when the app comes back): the user may have joined in Settings.
+    static var wifiOffText: String {
+        String(localized: "Wi-Fi looks off. Turn on Wi-Fi in Control Center, then tap Try Again.")
+    }
+
+    /// Poll while the See page is up (and when the app comes back): the user may have joined in Settings,
+    /// or left (Wi-Fi turned off, another network): then the join is undone so the page asks again.
     func refreshHotspot() async {
         guard !MockMode.on else { return }
+        // The board says no client and the phone isn't on its network either (the count lags a join by a few s).
+        // iOS reads back only networks this app configured, so a fall-back to home Wi-Fi reads as no network.
+        if join == .joined || hotspotSSID != nil, board.connected, board.status?.sta == 0, board.status?.ap != "streaming",
+           await Hotspot.currentSSID() != board.net?.ssid {
+            hotspotSSID = nil
+            join = .failed(Hotspot.wifiLink ? String(localized: "The iPhone left the board's Wi-Fi. Tap Try Again to join it again.")
+                                            : Self.wifiOffText)
+            DebugLog.write("hotspot: the phone left the board's Wi-Fi (Wi-Fi link \(Hotspot.wifiLink ? "up" : "none"))")
+            return
+        }
         let current = await Hotspot.currentSSID()
         let ours = board.net?.ssid
         let on = current != nil && (current == ours || (ours == nil && (current?.hasPrefix("ESP32Agent") == true || current?.hasPrefix("iPhoneAgent") == true)))

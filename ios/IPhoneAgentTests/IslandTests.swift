@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import IPhoneAgent
 
 /// What the character says in the Dynamic Island, and where its eyes go.
@@ -18,6 +19,66 @@ import XCTest
         XCTAssertTrue(states.allSatisfy(\.waits))
         XCTAssertEqual(IslandStatus.acting(["action": .str("swipe")]).minimal, "Swipe")
         XCTAssertEqual(IslandStatus.acting(["action": .str("wait")]).minimal, "Wait")
+    }
+
+    func testMinimalPresentationUsesExplicitPhaseAndFullAccessibleStatus() {
+        for status in [IslandStatus.looking, .waiting, .planning, .thinking, .retrying,
+                       .help, .confirm, .yourTurn, .leavingApp, .waitingForBoard, .boardSlow,
+                       .ended(.success), .ended(.failure)] {
+            let state = AgentActivityAttributes.ContentState(
+                mood: .thinking, step: 1, limit: 12, line: "private step detail",
+                label: status.short, labelFull: status.full, minimalLabel: status.minimal)
+            XCTAssertEqual(state.minimalStatusText, status.minimal)
+            XCTAssertEqual(state.statusAccessibilityText, status.full)
+        }
+    }
+
+    func testMinimalPresentationNeverShowsBlankOrRawStepDetail() {
+        var state = AgentActivityAttributes.ContentState(
+            mood: .thinking, step: 1, limit: 12, line: "private step detail",
+            label: "Planning…", minimalLabel: " \n ")
+        XCTAssertEqual(state.minimalStatusText, "Planning…")
+        XCTAssertEqual(state.statusAccessibilityText, "Planning…")
+        state.label = ""
+        XCTAssertEqual(state.minimalStatusText, "Wait")
+        state.phase = .help
+        XCTAssertEqual(state.minimalStatusText, "Help")
+        state.finished = true
+        state.mood = .failure
+        XCTAssertEqual(state.minimalStatusText, "Error")
+    }
+
+    func testMinimalIslandPhasePreview() throws {
+        let statuses = [IslandStatus.waiting, .planning, .thinking,
+                        .acting(["action": .str("tap")]), .waitingForBoard, .help, .ended(.success)]
+        let preview = VStack(alignment: .leading, spacing: 16) {
+            Text("Shared island · actual 36 × 24 content").font(.headline)
+            ForEach(statuses.indices, id: \.self) { index in
+                let status = statuses[index]
+                let state = AgentActivityAttributes.ContentState(
+                    mood: .thinking, step: 1, limit: 12, line: "",
+                    label: status.short, labelFull: status.full, minimalLabel: status.minimal)
+                HStack(spacing: 16) {
+                    Text(verbatim: status.short).font(.caption).frame(width: 100, alignment: .leading)
+                    AgentMinimalStatus(state: state)
+                        .background(.black, in: .capsule)
+                    AgentFace(mood: .thinking, animated: false, showsTab: false)
+                        .padding(3).frame(width: 24, height: 24)
+                        .background(.black, in: .capsule)
+                    AgentFace(mood: .thinking, animated: false, showsTab: false)
+                        .padding(4).frame(width: 44, height: 44)
+                        .background(.black, in: .capsule)
+                }
+            }
+        }
+        .padding(24).foregroundStyle(.white).background(Color(white: 0.12))
+        let renderer = ImageRenderer(content: preview)
+        renderer.scale = 3
+        let image = try XCTUnwrap(renderer.uiImage)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "Dynamic Island phase and face insets"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testTargetFromThought() {

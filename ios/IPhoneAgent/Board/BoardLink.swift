@@ -21,6 +21,7 @@ import Foundation
     @Published private(set) var status: BoardStatus?
     @Published private(set) var net: NetConfig?
     @Published private(set) var lastError = ""
+    @Published private(set) var pairingLost = false  // iOS and the board disagree about their bond: see forgetBoard
     @Published private(set) var signalStrength: Int?
 
     let commands = CommandChannel()
@@ -43,6 +44,7 @@ import Foundation
     private var scanDeadline: Task<Void, Never>?
     private var connectionDeadline: Task<Void, Never>?
     private var retryTask: Task<Void, Never>?
+    private var failures = 0  // connect/setup failures in a row, for the retry back-off
     private var candidates: [UUID: CBPeripheral] = [:]
     let mock: Bool  // demo data: no Bluetooth, every command answers ok (MockMode)
 
@@ -169,6 +171,8 @@ import Foundation
         let item = Found(id: p.identifier, name: name, rssi: rssi)
         if let i = found.firstIndex(where: { $0.id == item.id }) { found[i] = item } else { found.append(item) }
         log("BLE found \(name), RSSI \(rssi)")
+        // Developer launch flag (devicectl ... -pair-first): pair the first board found, no taps needed.
+        if pairedID == nil && ProcessInfo.processInfo.arguments.contains("-pair-first") { return pair(p.identifier) }
         if p.identifier == pairedID && !connected && !linking && !connecting {
             stopScan()
             peripheral = p
@@ -176,15 +180,43 @@ import Foundation
         }
     }
 
-    private func failConnection(_ message: String) {
+    /// A failed connect or setup. A paired board is tried again (a timeout or failed encryption is often a busy
+    /// radio, e.g. right as Screen Mirroring starts: 2026-10-19), backing off to 30 s; firmware problems are not.
+    private var encryptFailures = 0
+
+    /// The board takes new phones only in the 3 minutes after power-on (ble_link.cpp PAIR_WINDOW_MS); outside them
+    /// it drops a new bond, and iOS then keeps a bond the board no longer has. Fix: replug the board, forget it on
+    /// the phone, pair again. Apps cannot forget a bond themselves.
+    static var forgetBoard: String {
+        String(localized: "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+    }
+
+    /// iOS says "Peer removed pairing information" when the board was reflashed or refused a new bond.
+    private func describe(_ error: Error?) -> String {
+        if (error as? CBError)?.code == .peerRemovedPairingInformation { pairingLost = true; return Self.forgetBoard }
+        return error?.localizedDescription ?? "connect failed"
+    }
+
+    private func failConnection(_ message: String, retry: Bool = true) {
         retryTask?.cancel()
-        lastError = message
+        // The board no longer knows this phone's pairing keys (e.g. it was reflashed or paired with other
+        // devices): iOS keeps failing to encrypt until the phone forgets the board, so say how.
+        encryptFailures = message.localizedCaseInsensitiveContains("encrypt") ? encryptFailures + 1 : 0
+        if encryptFailures >= 2 { pairingLost = true }
+        lastError = pairingLost ? Self.forgetBoard : message
         log("BLE setup failed: \(message)")
         let previous = peripheral
         peripheral = nil
         setDisconnected()
         stopScan()
         if let previous { central.cancelPeripheralConnection(previous) }
+        guard retry, pairedID != nil else { return }
+        failures += 1
+        let delay = min(30, 3 * Double(failures))
+        retryTask = Task { [weak self] in
+            guard (try? await Task.sleep(nanoseconds: UInt64(delay * 1e9))) != nil else { return }
+            self?.reconnect()
+        }
     }
 
     private func reconnect() {
@@ -350,7 +382,9 @@ extension BoardLink: CBCentralManagerDelegate {
         MainActor.assumeIsolated {
             state = central.state
             log("BLE state \(central.state.rawValue)")
-            if central.state == .poweredOn { reconnect() } else { stopScan(); setDisconnected() }
+            if central.state == .poweredOn {
+                if pairedID == nil && ProcessInfo.processInfo.arguments.contains("-pair-first") { scan() } else { reconnect() }
+            } else { stopScan(); setDisconnected() }
         }
     }
 
@@ -386,7 +420,7 @@ extension BoardLink: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
         MainActor.assumeIsolated {
             guard p === peripheral else { return }
-            lastError = error?.localizedDescription ?? "connect failed"
+            lastError = describe(error)
             let e = error as NSError?
             DebugLog.write("BLE connect failed: \(e?.domain ?? "-") \(e?.code ?? 0): \(lastError)")
             failConnection(lastError)
@@ -401,8 +435,10 @@ extension BoardLink: CBCentralManagerDelegate {
             DebugLog.write(String(format: "BLE disconnect: %@ %d: %@; last notification %.1f s ago; link up %.0f s",
                                   e?.domain ?? "no error", e?.code ?? 0, e?.localizedDescription ?? "-",
                                   lastNotify > 0 ? now() - lastNotify : -1, readySince > 0 ? now() - readySince : -1))
+            // Dropped while pairing (before the encrypted read): the board refused this phone, outside its window.
+            if linking && (error as? CBError)?.code == .peripheralDisconnected { pairingLost = true }
             setDisconnected()
-            if let error { lastError = error.localizedDescription }
+            if let error { lastError = pairingLost ? Self.forgetBoard : describe(error) }
             retryTask?.cancel()
             retryTask = Task { [weak self] in
                 guard (try? await Task.sleep(nanoseconds: 2_000_000_000)) != nil else { return }
@@ -426,7 +462,7 @@ extension BoardLink: CBPeripheralDelegate {
             guard p === peripheral else { return }
             if let error { failConnection(error.localizedDescription); return }
             guard let service = p.services?.first(where: { $0.uuid == BoardUUID.service }) else {
-                failConnection(String(localized: "Board service missing. Check the board firmware."))
+                failConnection(String(localized: "Board service missing. Check the board firmware."), retry: false)
                 return
             }
             p.discoverCharacteristics(BoardUUID.all, for: service)
@@ -439,7 +475,7 @@ extension BoardLink: CBPeripheralDelegate {
             if let error { failConnection(error.localizedDescription); return }
             let available = Set((service.characteristics ?? []).map(\.uuid))
             guard available.isSuperset(of: BoardUUID.all) else {
-                failConnection(String(localized: "Board firmware is missing required features. Update the firmware.")); return
+                failConnection(String(localized: "Board firmware is missing required features. Update the firmware."), retry: false); return
             }
             for c in service.characteristics ?? [] {
                 chars[c.uuid] = c
@@ -479,6 +515,7 @@ extension BoardLink: CBPeripheralDelegate {
                         connected = true
                         linking = false
                         lastError = ""
+                        pairingLost = false
                         pairedID = p.identifier
                         UserDefaults.standard.set(p.identifier.uuidString, forKey: Self.pairedKey)
                         readySince = now()
@@ -486,6 +523,7 @@ extension BoardLink: CBPeripheralDelegate {
                         startFullStatusReads()
                         onLinkUp?()
                         log("board ready, encrypted configuration read (MTU \(mtu))")
+                        failures = 0; encryptFailures = 0
                     }
                     waiters.forEach { $0.resume(returning: config) }
                 } else {

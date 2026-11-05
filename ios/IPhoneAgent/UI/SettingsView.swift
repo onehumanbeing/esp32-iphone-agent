@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var board: BoardLink
     @AppStorage(MockMode.key) private var demoData = false
+    @AppStorage(AskMode.key) private var askMode = AskMode.current
 
     var body: some View {
         NavigationStack {
@@ -17,7 +18,7 @@ struct SettingsView: View {
                     }
                     NavigationLink { BoardSettingsView(app: app, board: board) } label: {
                         row("Board", "cable.connector", .blue,
-                            value: board.connected ? board.name : String(localized: "Not connected"))
+                            value: board.connected ? "\(board.name) · \(Firmware.version(of: board.status))" : String(localized: "Not connected"))
                     }
                     CalibrationRow(app: app, calibrator: app.calibrator, pointer: app.pointer)
                     Button { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) } label: {
@@ -40,10 +41,18 @@ struct SettingsView: View {
                         }
                     }
                     .tint(.primary)
+                    NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
+                        row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
+                    }
+                    Picker(selection: $askMode) {
+                        ForEach(AskMode.allCases) { Text($0.title).tag($0) }
+                    } label: {
+                        SettingsLabel(title: "Ask me first", symbol: "checkmark.shield.fill", color: .orange)
+                    }
                 } header: {
                     Text("Runs")
                 } footer: {
-                    Text("Every run keeps a low-frame-rate video of the mirrored screen, next to the step screenshots, for the review.")
+                    Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
                 }
                 Section {
                     NavigationLink { DiagnosticsView(app: app, metrics: app.metrics, board: board, feed: app.feed) } label: {
@@ -140,8 +149,9 @@ struct BoardSettingsView: View {
             } header: {
                 Text("Wi-Fi")
             } footer: {
-                Text("While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
+                Text("Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
             }
+            FirmwareSection(app: app, updater: app.firmware, board: board)
             if board.pairedID != nil {
                 Section {
                     Button("Unpair Board", role: .destructive) { Task { await board.unpair() } }

@@ -12,6 +12,7 @@ enum StepText {
         case "path": return String(localized: "Draw a path")
         case "circle": return String(localized: "Draw a circle")
         case "type": return String(localized: "Type “\(s["text"]?.str ?? "")”")
+        case "open": return String(localized: "Open \(s["app"]?.str ?? "")")
         case "key": return String(localized: "Press \(s["combo"]?.str ?? "")")
         case "home": return String(localized: "Go to the Home Screen")
         case "back": return String(localized: "Go back")
@@ -25,7 +26,18 @@ enum StepText {
         case "help": return String(localized: "Asked for your help")
         case "takeover": return String(localized: "You took over")
         case "skipped": return String(localized: "Skipped")
+        case "confirm": return String(localized: "Asked you first")
+        case "confirmed": return String(localized: "You said yes")
         case "note": return String(localized: "Note")
+        case "read": return String(localized: "Read “\(s["what"]?.str ?? "")”")
+        case "progress": return String(localized: "Progress")
+        case "write": return String(localized: "Copy the notebook")
+        case "remember": return String(localized: "Remember")
+        case "learn": return String(localized: "Learned")
+        case "ai done": return String(localized: "Part done")
+        case "ai": return String(localized: "AI: \(s["goal"]?.str ?? "")")
+        case "manual": return String(localized: "You: \(s["reason"]?.str ?? "")")
+        case "check": return String(localized: "Checked")
         default: return s["action"]?.str ?? ""
         }
     }
@@ -43,22 +55,29 @@ enum StepText {
         case "tap": return "hand.tap"
         case "swipe", "path", "circle": return "hand.draw"
         case "type": return "keyboard"
+        case "open": return "magnifyingglass"
         case "key": return "command"
         case "home": return "house"
         case "back": return "chevron.backward"
         case "wait": return "hourglass"
         case "done": return "checkmark.circle.fill"
+        case "ai done", "check": return "checkmark.circle"
         case "stopped": return "stop.circle"
-        case "help", "takeover": return "hand.raised"
+        case "help", "takeover", "confirm": return "hand.raised"
+        case "confirmed": return "checkmark.shield"
         case "skipped": return "forward"
-        case "note": return "text.bubble"
+        case "note", "progress": return "text.bubble"
+        case "read": return "doc.text.viewfinder"
+        case "write": return "doc.on.clipboard"
+        case "remember", "learn": return "brain.head.profile"
         case "reconnected": return "arrow.triangle.2.circlepath"
         default: return "exclamationmark.triangle"
         }
     }
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
-                                        "takeover", "skipped", "note", "reconnected"]
+                                        "takeover", "skipped", "note", "reconnected", "confirm", "confirmed",
+                                        "read", "progress", "remember", "learn", "ai done", "check"]
 }
 
 /// How a run ended.

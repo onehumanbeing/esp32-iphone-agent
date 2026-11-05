@@ -24,7 +24,7 @@ enum RunShare {
     /// Copies each run redacted (steps, metrics, review edits, screenshots, video) plus debug.log, then zips it.
     static func export(_ runs: [URL], redactor: Redactor, debugLog: URL?) throws -> Package {
         let fm = FileManager.default
-        let stage = fm.temporaryDirectory.appendingPathComponent("iPhone-Agent-runs")
+        let stage = fm.temporaryDirectory.appendingPathComponent("ESP32-Agent-runs")
         try? fm.removeItem(at: stage)
         try fm.createDirectory(at: stage, withIntermediateDirectories: true)
         for run in runs {
@@ -51,7 +51,7 @@ enum RunShare {
             let clean = text.split(separator: "\n", omittingEmptySubsequences: false).map { redactor.text(String($0)) }
             try Data(clean.joined(separator: "\n").utf8).write(to: stage.appendingPathComponent("debug.log"))
         }
-        let zip = try TraceStore.zip(stage, name: "iPhone-Agent-runs.zip")
+        let zip = try TraceStore.zip(stage, name: "ESP32-Agent-runs.zip")
         let bytes = (try? fm.attributesOfItem(atPath: zip.path)[.size] as? Int) ?? 0
         return Package(url: zip, runs: runs.count, bytes: bytes)
     }

@@ -35,6 +35,7 @@ struct FixSheet: View {
                 }
                 Section("Note") {
                     TextField("e.g. Tap the + at the top right", text: $note, axis: .vertical).lineLimit(2...4)
+                        .accessibilityIdentifier("intent.step.note")
                 }
                 if point != nil {
                     Section { Button("Clear the Point", role: .destructive) { point = nil } }
@@ -132,6 +133,7 @@ struct SaveIntentSheet: View {
     @ObservedObject var intents: IntentStore
     var saved: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
+    @State private var saveError: String?
     static let icons = ["bolt.fill", "alarm.fill", "message.fill", "note.text", "gearshape.fill", "cart.fill",
                         "music.note", "map.fill", "camera.fill", "envelope.fill", "paintbrush.fill", "star.fill"]
 
@@ -140,6 +142,7 @@ struct SaveIntentSheet: View {
             Form {
                 Section {
                     TextField("Name", text: $draft.name, prompt: Text("e.g. Morning alarm"))
+                        .accessibilityIdentifier("intent.name")
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: Space.m) {
                         ForEach(Self.icons, id: \.self) { icon in
                             Button { draft.icon = icon; Haptics.tick() } label: {
@@ -166,19 +169,29 @@ struct SaveIntentSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let item = draft.intent(existing: intents.item(draft.intentID))
-                        intents.upsert(item)
-                        draft.intentID = item.id
-                        draft.saveEdits()
-                        Haptics.success()
-                        dismiss()
-                        saved()
+                        save()
                     }
                     .fontWeight(.semibold)
                     .disabled(draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
+        .alert("Could not save intent", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("OK") { saveError = nil }
+        } message: { Text(verbatim: saveError ?? "") }
+    }
+
+    private func save() {
+        do {
+            try draft.persistEdits()
+            var item = draft.intent(existing: intents.item(draft.intentID))
+            if let steps = try draft.recordedSteps(for: item.id) { item.steps = steps }
+            intents.upsert(item)
+            draft.intentID = item.id
+            Haptics.success()
+            dismiss()
+            saved()
+        } catch { saveError = error.localizedDescription }
     }
 }
 

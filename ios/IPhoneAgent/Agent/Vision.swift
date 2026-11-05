@@ -60,6 +60,22 @@ enum Vision {
         return hits >= 6
     }
 
+    /// True when two frames show the same screen, loosely: size-independent (a reference from another decode or
+    /// an imported intent), the status bar and small things (pointer, badges, the clock) ignored.
+    static func similar(_ a: Data?, _ b: Data?) -> Bool {
+        guard let a, let b, let ia = image(a), let ib = image(b) else { return false }
+        let w = 36, h = 78, top = Int(topMask * Double(h)) + 1
+        let ga = gray(ia, w, h), gb = gray(ib, w, h)
+        var total = 0, big = 0
+        for i in (top * w)..<(w * h) {
+            let d = abs(Int(ga.px[i]) - Int(gb.px[i]))
+            total += d
+            if d > 40 { big += 1 }
+        }
+        let n = Double(w * (h - top))
+        return Double(total) / n < 10 && Double(big) / n < 0.04
+    }
+
     /// Where the pointer is in `before`, given it moved right by `shift` (fraction of width) in `after`.
     ///
     /// Only the pointer moved between the two frames, so the changed pixels within `reach` of `near` are the

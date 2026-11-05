@@ -14,7 +14,7 @@ struct AgentActivityBundle: WidgetBundle {
 }
 
 /// The Live Activity and Dynamic Island: running (eyes, "3/12", current step, Stop), needs help
-/// (Continue / Skip / Stop) and recording a demonstration (red dot, timer, Stop).
+/// (Continue / Skip / Stop), the 3-2-1 before a recording, and recording a demonstration (red dot, timer, Stop).
 struct AgentLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AgentActivityAttributes.self) { context in
@@ -26,7 +26,7 @@ struct AgentLiveActivity: Widget {
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Eyes(state: s).frame(width: 44, height: 44).padding(.leading, 4)
+                    Eyes(state: s).padding(4).frame(width: 44, height: 44).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Counter(state: s).font(.headline).padding(.trailing, 4)
@@ -53,28 +53,25 @@ struct AgentLiveActivity: Widget {
             } compactLeading: {
                 if s.phase == .recording {
                     Image(systemName: "record.circle.fill").foregroundStyle(.red)
+                } else if s.phase == .countdown {
+                    Image(systemName: "record.circle").foregroundStyle(.white)
                 } else {
-                    Eyes(state: s).frame(width: 24, height: 24)
+                    Eyes(state: s).padding(3).frame(width: 24, height: 24)
                 }
             } compactTrailing: {
-                if s.phase == .recording && !s.finished {
+                if (s.phase == .recording || s.phase == .countdown) && !s.finished {
                     Counter(state: s).font(.caption).frame(maxWidth: 44)
                 } else {
-                    Says(state: s, full: false).font(.caption.bold()).frame(maxWidth: 92, alignment: .trailing)
+                    Says(state: s, full: false).font(.caption.bold()).frame(width: 92, alignment: .trailing)
                 }
             } minimal: {
                 if s.phase == .recording {
                     Image(systemName: "record.circle.fill").foregroundStyle(.red)
+                } else if s.phase == .countdown && !s.finished {
+                    Counter(state: s).font(.caption2)
                 } else {
-                    // Minimal presentation is the primary surface while Screen Mirroring is active.
-                    // Keep it text-only: the former face-over-label layout was too small to read,
-                    // and idle gaze updates caused distracting system refresh transitions.
-                    // Eyes remains below for compact/expanded presentations and future reuse.
-                    Text(verbatim: s.minimalLabel ?? s.label)
-                        .font(.caption2.bold()).foregroundStyle(.white)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                        .frame(width: 36, height: 24)
-                        .accessibilityLabel(Text(verbatim: s.labelFull))
+                    // Screen Mirroring shares the island during a run and leaves only this bubble: the face.
+                    AgentMinimalStatus(state: s)
                 }
             }
             .widgetURL(AgentActivityAttributes.url(run: context.attributes.runID))
@@ -83,11 +80,15 @@ struct AgentLiveActivity: Widget {
     }
 }
 
-/// "3/12" while running, the elapsed time while recording.
+/// "3/12" while running, 3-2-1 before a recording, the elapsed time while recording.
 private struct Counter: View {
     let state: AgentActivityAttributes.ContentState
     var body: some View {
-        if state.phase == .recording && !state.finished {
+        if state.phase == .countdown && !state.finished {
+            // The system counts down on its own; the app switches to recording when it ends.
+            Text(timerInterval: state.since.addingTimeInterval(-10)...state.since, countsDown: true)
+                .monospacedDigit().foregroundStyle(.white).multilineTextAlignment(.trailing)
+        } else if state.phase == .recording && !state.finished {
             Text(timerInterval: state.since...Date.distantFuture, countsDown: false)
                 .monospacedDigit().foregroundStyle(.red).multilineTextAlignment(.trailing)
         } else {
@@ -107,12 +108,19 @@ private struct Buttons: View {
                 Button(intent: SkipStepIntent()) { Label("Skip", systemImage: "forward.fill").frame(maxWidth: .infinity) }
                     .tint(.gray)
                 Button(intent: StopAgentIntent()) { Image(systemName: "stop.fill") }.tint(.red)
-            case .recording:
+            case .countdown, .recording:
                 Button(intent: StopRecordingIntent()) {
                     Label("Stop Recording", systemImage: "stop.fill").frame(maxWidth: .infinity)
                 }
                 .tint(.red)
             case .running:
+                Button(intent: PauseAgentIntent()) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
+                    .tint(.gray)
+                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                    .tint(.red)
+            case .paused:
+                Button(intent: UnpauseAgentIntent()) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                    .tint(.green)
                 Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             }
@@ -121,15 +129,14 @@ private struct Buttons: View {
     }
 }
 
-/// The character's face without the USB tab. Widgets do not animate on their own, but a change of `look`
-/// between action updates springs toward the gesture's target before the pointer moves.
-/// Random idle gaze updates are disabled for the text-only minimal presentation.
+/// The character's face without the USB tab. Widgets do not animate on their own, but between updates a
+/// new `look` springs toward the gesture's target and a new mood morphs the expression.
 private struct Eyes: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let state: AgentActivityAttributes.ContentState
     var body: some View {
         AgentFace(mood: state.mood, look: state.look, lookRange: 2.4, animated: false, showsTab: false)
-            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.65), value: state.look)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: state)
     }
 }
 
@@ -144,7 +151,7 @@ private struct Says: View {
             .minimumScaleFactor(0.75)
             .foregroundStyle(color)
             .contentTransition(.opacity)
-            .animation(.easeOut(duration: 0.25), value: text)
+            .animation(.easeInOut(duration: 0.3), value: state)  // the same beat as the face
     }
 
     private var color: Color {
@@ -160,8 +167,9 @@ private struct LockScreenView: View {
     var body: some View {
         let s = context.state
         HStack(alignment: .top, spacing: 14) {
-            if s.phase == .recording && !s.finished {
-                Image(systemName: "record.circle.fill").font(.system(size: 40)).foregroundStyle(.red).frame(width: 52)
+            if (s.phase == .recording || s.phase == .countdown) && !s.finished {
+                Image(systemName: s.phase == .recording ? "record.circle.fill" : "record.circle")
+                    .font(.system(size: 40)).foregroundStyle(s.phase == .recording ? .red : .white).frame(width: 52)
             } else {
                 Eyes(state: s).frame(width: 52, height: 52)
             }

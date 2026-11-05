@@ -8,15 +8,18 @@ enum Actions {
     }
 
     /// Bookkeeping keys that are not part of the action itself.
-    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed"]
+    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
-        "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"],
-        "home": [], "back": [], "wait": [], "replan": [],
+        "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
+        "home": [], "back": [], "wait": [], "replan": [], "open": ["app"],
+        "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
-    static let textArgs: Set<String> = ["text", "combo", "answer", "reason"]
+    static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
+    /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
+    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
 
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
@@ -51,8 +54,35 @@ enum Actions {
         let zh = firstGroup(#"^\s*ZH\s*[:：]\s*(.*?)\s*$"#, in: text, multiline: true)
         var acts = try allGroups(#"^\s*DO\s*[:：]\s*(.*?)\s*$"#, in: text).map(parseCommand).prefix(6).map { $0 }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
+        acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
         return acts
+    }
+
+    /// The part of a batch that can run without a new look. `done` only counts on its own: after other actions the
+    /// model hasn't seen their result. After `type` only keys follow: typing can open a keyboard or panel that moves
+    /// what the next tap aims at. (A chat run's blind "tap field, type, tap send" missed the field, the "send" tap
+    /// opened another panel, and a trailing "done" ended the run unsent.) Switching the keyboard (ctrl+space) ends
+    /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
+    /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
+    static func blindSafe(_ acts: [JObject]) -> [JObject] {
+        let ending: Set<String?> = ["done", "fail", "confirm", "write"]
+        var out: [JObject] = []
+        var typed = false
+        for a in acts {
+            let name = a["action"]?.str
+            // `read` copies the screen the model looked at: only before any gesture
+            if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
+            out.append(a)
+            if ending.contains(name) || name == "open" || isKeyboardSwitch(a) { break }
+            typed = typed || name == "type"
+        }
+        return out
+    }
+
+    static func isKeyboardSwitch(_ a: JObject) -> Bool {
+        guard a["action"]?.str == "key", let combo = a["combo"]?.str?.lowercased() else { return false }
+        return combo.replacingOccurrences(of: " ", with: "") == "ctrl+space"
     }
 
     /// Split an optional EN: / ZH: plan reply; a plain reply is used for both.

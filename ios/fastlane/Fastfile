@@ -1,7 +1,9 @@
-# Store builds: `fastlane beta` (from ios/) archives a Release and uploads it to TestFlight.
+# Store builds: `fastlane beta` (from ios/) archives a Release and uploads it to TestFlight;
+# `fastlane package` makes the same build in build/store without uploading.
 # Auth is an App Store Connect API key described in ~/.appstoreconnect/config.env
 # (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH); signing uses Xcode's Apple ID and the team in Config/Local.xcconfig.
-# The LLM preset from Local.xcconfig is cleared and the built app is checked for it.
+# The LLM preset from Local.xcconfig is cleared and the built app is checked for it. The official PostHog key
+# (IA_POSTHOG_KEY in config.env) is set only here, so local builds never report usage stats.
 
 default_platform(:ios)
 
@@ -22,10 +24,29 @@ platform :ios do
   end
 
   desc "Release build to TestFlight (internal testers get it once processing finishes)"
-  lane :beta do
+  lane :beta do |options|
+    ipa = package(options)
+    upload_to_testflight(ipa: ipa, skip_waiting_for_build_processing: true,
+                         skip_submission: true, distribute_external: false)
+    UI.success("Uploaded build #{lane_context[SharedValues::BUILD_NUMBER]}")
+  end
+
+  desc "Upload an already packaged and checked IPA to TestFlight (no submission, no external testers)"
+  lane :upload do |options|
+    asc_key
+    upload_to_testflight(ipa: options[:ipa], skip_waiting_for_build_processing: true,
+                         skip_submission: true, distribute_external: false)
+  end
+
+  desc "The same store build as beta, kept in build/store without uploading"
+  lane :package do |options|
     asc_key
     bundle_id = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
-    build = latest_testflight_build_number(app_identifier: bundle_id, initial_build_number: 0) + 1
+    UI.important("IA_POSTHOG_KEY is not in #{STORE_ENV}: this build sends no usage stats") if ENV["IA_POSTHOG_KEY"].to_s.empty?
+    UI.important("IA_TRIAL_ORIGIN is not in #{STORE_ENV}: this build has no free line") if ENV["IA_TRIAL_ORIGIN"].to_s.empty?
+    latest = latest_testflight_build_number(app_identifier: bundle_id, initial_build_number: 0)
+    build = (options[:build] || latest + 1).to_i
+    UI.user_error!("Build #{build} is not above the latest TestFlight build #{latest}") unless build > latest
     # Signing uses the Apple ID signed in to Xcode: only it can register the App Group (the API key can't).
     auth = "-allowProvisioningUpdates"
     settings = {
@@ -33,15 +54,26 @@ platform :ios do
       IA_ENTITLEMENTS: "IPhoneAgent/IPhoneAgent.entitlements",
       IA_WIDGET_ENTITLEMENTS: "AgentActivity/AgentActivity.entitlements",
       IA_PRESET_BASE_URL: "", IA_PRESET_MODEL: "", IA_PRESET_KEY: "",
+      IA_POSTHOG_KEY: ENV["IA_POSTHOG_KEY"].to_s,
+      IA_STORE_BUILD: "YES",
+      IA_TRIAL_ORIGIN: ENV["IA_TRIAL_ORIGIN"].to_s, IA_APP_ATTEST_ENV: "production",  # free line
       CURRENT_PROJECT_VERSION: build,
-    }.map { |k, v| "#{k}='#{v}'" }.join(" ")
+    }
+    # TestFlight-only builds read the TestFlight firmware list (Firmware.swift); store builds keep the default.
+    settings[:SWIFT_ACTIVE_COMPILATION_CONDITIONS] = "$(inherited) TESTFLIGHT" if options[:testflight]
+    settings = settings.map { |k, v| "#{k}='#{v}'" }.join(" ")
 
     ipa = build_app(project: "IPhoneAgent.xcodeproj", scheme: "IPhoneAgent", configuration: "Release",
                     export_method: "app-store", output_directory: "build/store", clean: true,
                     xcargs: "#{settings} #{auth}", export_xcargs: auth)
     check_no_preset(ipa: ipa)
-    upload_to_testflight(ipa: ipa, skip_waiting_for_build_processing: true)
-    UI.success("Uploaded #{bundle_id} build #{build}")
+    # Keep each build's symbols: crash_report events carry raw addresses, symbolicated with these.
+    dsyms = File.expand_path("~/Library/Developer/ESP32Agent-dSYMs")
+    FileUtils.mkdir_p(dsyms)
+    FileUtils.cp(lane_context[SharedValues::DSYM_OUTPUT_PATH], "#{dsyms}/#{bundle_id}-#{build}.dSYM.zip")
+    lane_context[SharedValues::BUILD_NUMBER] = build
+    UI.success("Packaged #{bundle_id} build #{build}: #{ipa}")
+    ipa
   end
 
   # Stop the upload if any LLM preset made it into the app: the Info.plist keys must be empty, and the
