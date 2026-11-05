@@ -1,5 +1,7 @@
 # Harness: develop on a test iPhone and board without cables
 
+English · [简体中文](README.zh-CN.md)
+
 ```
 Mac ──Wi-Fi (devicectl)── iPhone (Debug build of the app) ──USB── board (HID, power)
                               └──── BLE + Wi-Fi :7300 OTA ──────── board
