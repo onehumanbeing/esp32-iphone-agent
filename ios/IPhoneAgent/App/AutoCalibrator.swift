@@ -49,8 +49,8 @@ import UIKit
 
     var busy: Bool { phase.step != nil }
 
-    /// The mouse is up (board connected, USB HID mounted).
-    var boardReady: Bool { app.board.connected && app.board.status?.usb == "ok" }
+    /// 指针和控制通道都就绪时才能开始校准。
+    var boardReady: Bool { app.board.connected && app.board.status?.inputReady == true }
     var mirroring: Bool { app.board.status?.ap == "streaming" }
 
     /// Calibration is due: never done, the screen shape changed, or the learned correction drifted.
@@ -163,7 +163,7 @@ import UIKit
     }
 
     static var noTapsText: String {
-        String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
+        String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the pointer connected?")
     }
 
     func finished(_ error: Double) {

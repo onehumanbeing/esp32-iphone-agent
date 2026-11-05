@@ -77,6 +77,9 @@ extension BoardTransport {
         last = now(); beat = last  // fresh link: nothing to keep awake yet
     }
 
+    // 系统指针断开但控制通道仍在时，正在处理的旧画面和相对坐标也必须失效。
+    func inputLinkLost() { links += 1 }
+
     /// The link dropped: fail everything in flight.
     func linkDown() {
         let waiting = pending

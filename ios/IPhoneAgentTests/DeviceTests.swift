@@ -242,6 +242,39 @@ import XCTest
         XCTAssertNil(BoardReply.parse("ok"))
     }
 
+    func testNote4PairingIsSeparateFromTheControlConnection() throws {
+        let board = BoardLink(mock: true)
+        let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"note4","usb":"ok","hid":"off","ap":"streaming"}"#.utf8)))
+        board.updateStatus(full)
+        XCTAssertTrue(full.needsWirelessPointer)
+        XCTAssertFalse(full.inputReady)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.inputReady, true)
+        XCTAssertEqual(board.status?.ap, "streaming")
+        let paired = board.commands.links
+        board.updateStatus(BoardStatus(up: 200))
+        XCTAssertEqual(board.status?.hid, "ok")
+        board.updateStatus(BoardStatus(hid: "off"))
+        XCTAssertNotEqual(board.commands.links, paired, "指针与 GATT 可独立断开，应废弃断线前的动作")
+        XCTAssertEqual(board.status?.needsWirelessPointer, true)
+        XCTAssertEqual(board.status?.usb, "ok")
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.needsWirelessPointer, false)
+    }
+
+    func testUSBUpdateRequiresAnIdentifiedUSBBoard() {
+        XCTAssertFalse(BoardStatus().acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(fw: .init([0, 2, 2]), usb: "off", board: "note4").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", hid: "off").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", board: "another-board").acceptsUSBRelease)
+        let usb = BoardStatus(usb: "ok")
+        XCTAssertTrue(usb.acceptsUSBRelease)
+        XCTAssertTrue(usb.inputReady)
+        XCTAssertFalse(usb.needsWirelessPointer)
+        XCTAssertFalse(BoardStatus(usb: "asleep").inputReady)
+        XCTAssertTrue(BoardStatus(usb: "asleep").acceptsUSBRelease)
+    }
+
     func testStatusDecoding() throws {
         let json = #"{"up":123456,"rst":"power-on","heap":81234,"psram":6200000,"usb":"ok","net":"ap","ip":"192.168.4.1","sta":1,"ap":"streaming","w":480,"h":1040,"kbps":180,"fps":4.8,"idr":2000,"gop":42000,"ble":{"mtu":247,"phy":2,"kbps":350,"drop":0}}"#
         let s = try XCTUnwrap(BoardStatus.decode(Data(json.utf8)))

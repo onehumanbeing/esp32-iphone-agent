@@ -21,6 +21,8 @@ from pathlib import Path
 
 import serial
 
+from usb_ota_image import is_usb_app
+
 
 def ask(port: serial.Serial, line: str, timeout: float = 3) -> str:
     port.reset_input_buffer()
@@ -61,15 +63,19 @@ def main() -> None:
     ap.add_argument("--token", help="use this token instead of the board's (expect err wrong token)")
     a = ap.parse_args()
 
+    image = bytearray(a.image.read_bytes())
+    if not is_usb_app(image):
+        ap.error("此 OTA 工具仅接受 8 MiB USB 板的 ESP32-S3 应用镜像。")
     port = serial.Serial(a.serial, 115200, timeout=0.3)
-    net = json.loads(ask(port, "0 netinfo"))
     before = status(port)
+    if before.get("board") == "note4":
+        ap.error("Note 4 不支持此 OTA 通道。")
+    net = json.loads(ask(port, "0 netinfo"))
     print(f"board fw {before.get('fw', 1)}, net {net.get('mode')} {net.get('ssid')} {net.get('ip')}")
     if a.join:
         subprocess.run(["networksetup", "-setairportnetwork", "en0", net["ssid"], net["pass"]], check=True)
         time.sleep(5)
 
-    image = bytearray(a.image.read_bytes())
     md5 = hashlib.md5(image).hexdigest()
     if a.corrupt:
         image[len(image) // 2] ^= 0xFF

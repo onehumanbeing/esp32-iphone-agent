@@ -20,6 +20,8 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
 
+from usb_ota_image import is_usb_app
+
 HW = Path(__file__).resolve().parent.parent
 KEY = Path.home() / ".config/esp32agent/firmware-signing.pem"
 
@@ -34,6 +36,8 @@ def main() -> None:
 
     version = a.version or re.search(r'#define FW_VERSION "([0-9.]+)"\n#endif', (HW / "hid_bridge/version.h").read_text()).group(1)
     image = a.bin.read_bytes()
+    if not is_usb_app(image):
+        ap.error("此 OTA 发布通道仅接受 8 MiB USB 板的 ESP32-S3 应用镜像。")
     name = f"hid_bridge-{version}.bin"
     r = {"version": version, "size": len(image), "sha256": hashlib.sha256(image).hexdigest(),
          "md5": hashlib.md5(image).hexdigest(), "url": name}

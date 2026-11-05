@@ -28,6 +28,8 @@ struct BoardStatus: Codable, Equatable {
     var heap: Int?
     var psram: Int?
     var usb: String?   // ok | asleep | off
+    var board: String? // Note 4 报告 note4，原版 USB 固件没有板型字段。
+    var hid: String?   // 本连接的蓝牙 HID 状态；配对且订阅后为 ok。
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
@@ -40,12 +42,20 @@ struct BoardStatus: Codable, Equatable {
     var ble: BLE?
     var udp: UDP?
 
+    var isWirelessHID: Bool { board == "note4" || hid != nil }
+    var inputState: String? { isWirelessHID ? hid : usb }
+    var inputReady: Bool { inputState == "ok" }
+    var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
+    // 现有签名清单只提供 USB 镜像；未收到板型状态时也不允许安装。
+    var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
+
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
     /// A small MTU makes the board notify a reduced object (up, usb, net, ap, ble.mtu); a `status` read returns
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
+        m.board = n.board ?? board; m.hid = n.hid ?? hid
         m.fw = n.fw ?? fw
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
