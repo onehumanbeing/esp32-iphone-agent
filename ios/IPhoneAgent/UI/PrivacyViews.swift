@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// What run data holds, for the consent sheet and Settings › Privacy. Nothing is uploaded.
+/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded.
 struct PrivacyLists: View {
     var body: some View {
         Section {
@@ -13,7 +13,7 @@ struct PrivacyLists: View {
         } header: {
             Text("Never collected")
         } footer: {
-            Text("Nothing is uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
+            Text("Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
         }
     }
 
@@ -22,7 +22,23 @@ struct PrivacyLists: View {
     static let never: [LocalizedStringKey] = ["Wi-Fi password", "API key", "Base URL", "Contacts"]
 }
 
-/// First launch, before setup: what is kept, and the sharing switch (off by default).
+/// The usage-stats switch, off by default; only in builds that can send stats (see Analytics).
+struct UsageStatsSection: View {
+    @AppStorage(Analytics.consentKey) private var on = false
+
+    var body: some View {
+        if Analytics.available {
+            Section {
+                Toggle("Share anonymous usage stats", isOn: $on)
+                    .onChange(of: on) { _, value in Analytics.consentChanged(value) }
+            } footer: {
+                Text("Helps improve setup and runs: which setup steps finish, run results, step counts and timings, the model provider, model speed and token counts, app and iOS version, and crash reports. Never your tasks, screenshots, model replies, keys or addresses.")
+            }
+        }
+    }
+}
+
+/// First launch, before setup: what is kept, the sharing switch and the usage-stats switch (both off by default).
 struct ConsentSheet: View {
     @AppStorage(RunShare.keepKey) private var keep = false
     @Environment(\.dismiss) private var dismiss
@@ -36,6 +52,7 @@ struct ConsentSheet: View {
                 } footer: {
                     Text("Lets you export redacted runs from Settings › Privacy to share with the community. You can change this anytime.")
                 }
+                UsageStatsSection()
             }
             .navigationTitle("Your Data")
             .toolbar {
@@ -58,9 +75,12 @@ struct PrivacySettingsView: View {
 
     var body: some View {
         List {
+            AIConsentSection(settings: app.settings)
             PrivacyLists()
             Section { Toggle("Keep run data for sharing", isOn: $keep) }
             if keep { export }
+            UsageStatsSection()
+            Section { LinkRow(title: "Privacy policy", symbol: "hand.raised.fill", color: .indigo, url: AboutView.privacyPolicy) }
         }
         .navigationTitle("Privacy")
         .onAppear { runs.reload() }

@@ -7,8 +7,13 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var prompt: String
     var icon: String?
     var hints: [String]?     // checklist, appended to the actor prompt as hints when it runs
+    var refRecording: String? // folder name of the original demonstration
     var refRun: String?      // the run it was made from
+    var steps: [RecordedStep]? // replayed before asking the model (Replay)
     var history: [RunStat]?  // its runs, newest last
+    var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
+    var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
+    var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
 
     var symbol: String { icon ?? "bolt.fill" }
     var checklist: [String] { hints ?? [] }
@@ -29,23 +34,38 @@ struct RunStat: Codable, Equatable, Hashable {
     @Published private(set) var items: [SavedTask] = []
     private let defaults: UserDefaults
     private static let key = "savedTasks"
+    private static let diagnosticsKey = "seededDiagnosticsIntent"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.key), let saved = try? JSONDecoder().decode([SavedTask].self, from: data) {
             items = saved
+            if !defaults.bool(forKey: Self.diagnosticsKey) {  // existing installs get it once; deleting it sticks
+                defaults.set(true, forKey: Self.diagnosticsKey)
+                if !items.contains(where: { $0.builtin == Self.diagnostics.builtin }) { items.append(Self.diagnostics); save() }
+            }
         } else {
+            defaults.set(true, forKey: Self.diagnosticsKey)
             items = Self.examples
             save()
         }
     }
 
-    static var examples: [SavedTask] {
-        [SavedTask(name: String(localized: "8 AM Mon & Tue alarm"),
-                   prompt: String(localized: "Set an alarm for 8:00 AM that repeats every Monday and Tuesday, then save it")),
-         SavedTask(name: String(localized: "Draw a smiley"), prompt: String(localized: "Open Whiteboard and draw a smiley face")),
-         SavedTask(name: String(localized: "Wi-Fi settings"), prompt: String(localized: "Open Settings and go to Wi-Fi")),
-         SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))]
+    /// First launch: one intent for Notes and one for Clock (the demo run is the alarm).
+    static var examples: [SavedTask] { [note, alarm, diagnostics] }
+    static var note: SavedTask {
+        SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))
+    }
+    static var alarm: SavedTask {
+        SavedTask(name: String(localized: "7 AM daily alarm"),
+                  prompt: String(localized: "Set an alarm for 7:00 AM that repeats every day, then save it"))
+    }
+
+    /// Sends the debug log, board state and crash reports to the developer (DiagnosticReport).
+    static var diagnostics: SavedTask {
+        SavedTask(name: String(localized: "Send diagnostics"),
+                  prompt: String(localized: "Send the debug log, board state and crash reports to the developer"),
+                  icon: "paperplane", builtin: "diagnostics")
     }
 
     func add(name: String, prompt: String) {
@@ -55,11 +75,13 @@ struct RunStat: Codable, Equatable, Hashable {
     }
 
     func delete(at offsets: IndexSet) {
+        offsets.forEach { IntentFrames.delete(items[$0].id) }
         items.remove(atOffsets: offsets)
         save()
     }
 
     func delete(_ id: UUID) {
+        IntentFrames.delete(id)
         items.removeAll { $0.id == id }
         save()
     }
@@ -100,6 +122,22 @@ struct Run: Identifiable, Equatable {
     let task: String
     let date: Date
     let steps: [Step]
+    var modelCalls = 0  // from the llm records of the trace
+    var tokens = 0
+
+    /// One line for a list row or a chat reply: "12 steps · 1m 3s · 14 AI calls · 52k tokens".
+    static func statsText(steps: Int, seconds: Double?, calls: Int, tokens: Int) -> String {
+        var parts = [String(localized: "\(steps) steps")]
+        if let seconds { parts.append(seconds.durationText) }
+        if calls > 0 { parts.append(String(localized: "\(calls) AI calls")) }
+        if tokens > 0 {
+            let t = tokens >= 1000 ? "\(Int((Double(tokens) / 1000).rounded()))k" : "\(tokens)"
+            parts.append(String(localized: "\(t) tokens"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    var stats: String { Self.statsText(steps: moves.count, seconds: duration, calls: modelCalls, tokens: tokens) }
 
     /// The low-fps recording of the mirror stream (video/<ms>.jpg), if it was on.
     var video: [(url: URL, t: Double)] {
@@ -115,6 +153,11 @@ struct Run: Identifiable, Equatable {
     var outcome: Outcome { Outcome(last: steps.last?.name, running: false) }
     func outcome(isActive: Bool) -> Outcome {
         Outcome(last: steps.last?.name, running: isActive)
+    }
+    /// What the run found for the user (the done step's answer); nil when it gave none. Text only for now.
+    var result: String? {
+        guard steps.last?.name == "done", let text = steps.last?.action["answer"]?.str, !text.isEmpty else { return nil }
+        return text
     }
     var cover: URL? { steps.last(where: { $0.frame != nil })?.frame }
     var firstFrame: URL? { steps.first(where: { $0.frame != nil })?.frame }
@@ -137,7 +180,7 @@ struct Run: Identifiable, Equatable {
 
     static func load(_ folder: URL) -> Run? {
         guard let text = try? String(contentsOf: folder.appendingPathComponent("steps.jsonl"), encoding: .utf8) else { return nil }
-        var task = "", frame: URL?, steps: [Run.Step] = []
+        var task = "", frame: URL?, steps: [Run.Step] = [], calls = 0, tokens = 0
         for line in text.split(separator: "\n") {
             guard let any = try? JSONSerialization.jsonObject(with: Data(line.utf8)),
                   case .obj(let rec) = PyJSON.from(any) else { continue }
@@ -146,6 +189,11 @@ struct Run: Identifiable, Equatable {
             case "task": task = rec["task"]?.str ?? ""
             case "step": steps.append(Run.Step(id: steps.count, action: rec.without(["n", "t", "kind", "frame"]), frame: frame,
                                                t: rec["t"]?.double))
+            case "llm":
+                calls += 1
+                if case .obj(let u) = rec["usage"] {
+                    tokens += u["total_tokens"]?.int ?? ((u["prompt_tokens"]?.int ?? 0) + (u["completion_tokens"]?.int ?? 0))
+                }
             default: break
             }
         }
@@ -154,15 +202,15 @@ struct Run: Identifiable, Equatable {
         f.locale = Locale(identifier: "en_US_POSIX")
         return Run(id: folder.lastPathComponent, folder: folder, task: task,
                    date: f.date(from: folder.lastPathComponent.replacingOccurrences(of: "imported-", with: "")) ?? Date(),
-                   steps: steps)
+                   steps: steps, modelCalls: calls, tokens: tokens)
     }
 
     func run(_ id: String) -> Run? {
         runs.first { $0.id == id } ?? Self.load(traces.root.appendingPathComponent(id))
     }
 
-    func delete(_ run: Run) {
-        try? FileManager.default.removeItem(at: run.folder)
+    func delete(_ run: Run) throws {
+        try FileManager.default.removeItem(at: run.folder)
         runs.removeAll { $0.id == run.id }
     }
 }

@@ -28,6 +28,9 @@ struct DiagnosticsView: View {
                 row("Status age", String(format: "%.1f s", metrics.statusAge))
             }
             SwiftUI.Section("Video") {
+                row("Path", board.status?.udp?.n == 1 ? "Wi-Fi" : "BLE")
+                row("Board Wi-Fi kbps", f(board.status?.udp?.kbps))
+                row("Wi-Fi resends / drops (board)", "\(board.status?.udp?.nack.map(String.init) ?? "–") / \(board.status?.udp?.drop.map(String.init) ?? "–")")
                 row("AirPlay kbps", f(board.status?.kbps))
                 row("AirPlay fps", f(board.status?.fps, "%.1f"))
                 row("IDR interval (board / app)", "\(board.status?.idr.map { "\($0) ms" } ?? "–") / \(f(metrics.idrIntervalMs)) ms")

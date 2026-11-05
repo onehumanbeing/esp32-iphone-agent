@@ -14,7 +14,9 @@ struct StatusChips: View {
             chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
             chip("Mouse", "cursorarrow", ok: board.connected && board.status?.usb == "ok", page: .act)
             chip(calibrator.busy ? "Calibrating" : "Pointer", "scope", ok: pointer.calibrated, busy: calibrator.busy, page: .act)
-            chip("Model", "brain", ok: app.modelReady && app.modelOK != false, page: .brain)
+            chip(app.settings.provider == .handsyTrial && app.modelOK == false
+                 ? (Trial.shared.status == .usedUp ? "Free Runs Used" : "Free Line Busy") : "Model", "brain",  // free line
+                 ok: app.modelReady && app.modelOK != false, page: .brain)
         }
         .padding(.horizontal, Space.l)
     }

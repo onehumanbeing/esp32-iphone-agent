@@ -4,6 +4,8 @@ import Foundation
 /// A request from Siri, Shortcuts, a widget or a control, handled by the app process (AppModel sets `handle`).
 enum AgentRequest {
     case runTask(String), runSaved(UUID?), status, calibrate
+    /// Opens a recorded run in the review screen (Siri's "replay" tool).
+    case openRun(String)
 }
 
 @MainActor enum AgentRequests {

@@ -11,7 +11,7 @@ import XCTest
         XCTAssertEqual(r.next(link(false), at: 100), .wait(.init(part: .board, ask: false)))
         XCTAssertEqual(r.next(link(sta: 0, ap: "idle"), at: 107), .wait(.init(part: .hotspot, ask: false)))
         XCTAssertEqual(r.next(link(sta: 1, ap: "idle"), at: 133), .wait(.init(part: .mirroring, ask: false)))
-        XCTAssertEqual(r.next(link(frameAt: 99), at: 140), .wait(.init(part: .mirroring, ask: false)),
+        XCTAssertEqual(r.next(link(frameAt: 99), at: 140), .wait(.init(part: .frames, ask: false)),
                        "streaming, but no frame newer than the loss yet")
         XCTAssertEqual(r.next(link(frameAt: 141), at: 141), .live)
     }
@@ -26,6 +26,14 @@ import XCTest
         XCTAssertEqual(r.next(link(ap: "idle"), at: 51), .wait(.init(part: .mirroring, ask: true)))
     }
 
+    func testAsksAtOnceWhenTheBoardGetsNoAirPlayFrames() {
+        var r = Recovery(at: 0)
+        XCTAssertEqual(r.next(link(), at: 5), .wait(.init(part: .frames, ask: false)))
+        var stalled = link()
+        stalled.stalled = true
+        XCTAssertEqual(r.next(stalled, at: 6), .wait(.init(part: .frames, ask: true)), "restarting mirroring is the only fix")
+    }
+
     func testGivesUpAfterFiveMinutesNamingWhatIsMissing() {
         var r = Recovery(at: 0)
         XCTAssertEqual(r.next(link(ap: "idle"), at: 0), .wait(.init(part: .mirroring, ask: false)))
@@ -34,11 +42,37 @@ import XCTest
         XCTAssertTrue(reason.contains("Screen Mirroring"))
     }
 
+    func testConnectedMirroringWaitsForFreshImageWithoutAskingToStartMirroring() {
+        var r = Recovery(at: 100)
+        XCTAssertEqual(r.next(link(frameAt: 100), at: 100), .wait(.init(part: .frames, ask: false)))
+        XCTAssertEqual(r.next(link(frameAt: 99), at: 119), .wait(.init(part: .frames, ask: false)))
+        XCTAssertEqual(r.next(link(frameAt: 99), at: 120), .wait(.init(part: .frames, ask: true)))
+        XCTAssertEqual(r.next(link(frameAt: 121), at: 121), .live)
+        let pending = Recovery.Stage(part: .frames, ask: false)
+        XCTAssertEqual(pending.status.minimal, "Frame")
+        XCTAssertTrue(pending.status.full.contains("Mirroring is connected"))
+        XCTAssertFalse(pending.line.contains("Start Screen Mirroring"))
+        XCTAssertTrue(Recovery.Stage(part: .frames, ask: true).line.contains("restart Screen Mirroring"))
+    }
+
+    func testFrameWaitingHasItsOwnQuietWindowAfterMirroringConnects() {
+        var r = Recovery(at: 0)
+        XCTAssertEqual(r.next(link(ap: "idle"), at: 0), .wait(.init(part: .mirroring, ask: false)))
+        XCTAssertEqual(r.next(link(ap: "idle"), at: 20), .wait(.init(part: .mirroring, ask: true)))
+        XCTAssertEqual(r.next(link(frameAt: 0), at: 21), .wait(.init(part: .frames, ask: false)))
+        XCTAssertEqual(r.next(link(frameAt: 0), at: 40), .wait(.init(part: .frames, ask: false)))
+        XCTAssertEqual(r.next(link(frameAt: 0), at: 41), .wait(.init(part: .frames, ask: true)))
+    }
+
     func testTheStatusLabelsSayWhatIsMissing() {
-        XCTAssertEqual(Recovery.Stage(part: .board, ask: false).status.full, "Reconnecting…")
+        XCTAssertEqual(Recovery.Stage(part: .board, ask: false).status, .waitingForBoard)
+        XCTAssertEqual(Recovery.Stage(part: .board, ask: true).line, IslandStatus.waitingForBoard.full)
+        XCTAssertEqual(Recovery.Stage(part: .board, ask: false).status.minimal, "Board")
+        XCTAssertEqual(Recovery.Stage(part: .hotspot, ask: false).status.minimal, "Wi-Fi")
+        XCTAssertEqual(Recovery.Stage(part: .mirroring, ask: false).status.minimal, "Mirror")
         XCTAssertEqual(Recovery.Stage(part: .mirroring, ask: false).status.full, "Waiting for mirroring…")
         XCTAssertEqual(Recovery.Stage(part: .mirroring, ask: true).status.full, "Tap Screen Mirroring → ESP32 Agent to continue")
-        for part in [Recovery.Part.board, .hotspot, .mirroring] {
+        for part in [Recovery.Part.board, .hotspot, .mirroring, .frames] {
             for ask in [false, true] {
                 XCTAssertLessThanOrEqual(Recovery.Stage(part: part, ask: ask).status.short.count, IslandStatus.compactLimit)
             }
@@ -84,5 +118,18 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("fail"))
         XCTAssertEqual(agent.steps.last?["reason"], .str(Recovery.reason(.mirroring)))
         XCTAssertTrue(model.prompts.isEmpty, "the model never saw a stale screen")
+    }
+
+    func testConnectedMirroringWithoutFramesNeverQueriesTheModel() async {
+        let screen = FakeScreen()
+        screen.live = false
+        let model = FakeModel { _ in "1. go home" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: 0) }
+        agent.recoveryLimit = 0.3
+        await agent.run()
+        XCTAssertEqual(agent.steps.last?["action"], .str("fail"))
+        XCTAssertEqual(agent.steps.last?["reason"], .str(Recovery.reason(.frames)))
+        XCTAssertTrue(model.prompts.isEmpty)
     }
 }

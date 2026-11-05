@@ -64,6 +64,17 @@
                ReferencedContainer = "container:IPhoneAgent.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B302E2848B8D8CB3CDDAD5D1"
+               BuildableName = "IPhoneAgentUITests.xctest"
+               BlueprintName = "IPhoneAgentUITests"
+               ReferencedContainer = "container:IPhoneAgent.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

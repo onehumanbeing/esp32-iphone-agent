@@ -76,6 +76,8 @@ import UIKit
 
     /// One automatic calibration, on the board when the app is in front.
     func run(why: String) async {
+        // An open keyboard would take the board's test taps (and type into the field): close it first.
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         reason = why
         problem = nil
         progress = nil
@@ -163,6 +165,7 @@ import UIKit
         progress = nil
         problem = nil
         phase = .done
+        Analytics.capture("calibration_done", ["error_pct": (error * 1000).rounded() / 10])
         app.say(String(format: "calibration: ±%.1f%%", error * 100))
         closeBoard()
         toast = true
@@ -176,6 +179,7 @@ import UIKit
 
     /// The board stays up with the problem, Try Again and "Tap the pointer yourself".
     private func failed(_ why: String) {
+        Analytics.capture("calibration_failed")
         progress = nil
         problem = why
         phase = .failed
@@ -187,6 +191,7 @@ import UIKit
     /// "Tap the pointer yourself": park the pointer at a known spot, then the next tap on the board is where it is.
     func startManual() {
         guard boardOpen else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         problem = nil
         phase = .needsTap
         current?.cancel()

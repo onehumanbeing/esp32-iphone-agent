@@ -29,6 +29,29 @@ enum Haptics {
     static func stop() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     static func tick() { UISelectionFeedbackGenerator().selectionChanged() }
+    static func failure() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+}
+
+/// A short side-to-side shake, e.g. a Start that couldn't go ahead. Bump `shakes` to play it.
+struct Shake: GeometryEffect {
+    var shakes: CGFloat
+    var animatableData: CGFloat { get { shakes } set { shakes = newValue } }
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 8 * sin(shakes * .pi * 4), y: 0))
+    }
+}
+
+/// The line over Home from `AppModel.toast`; it goes away by itself.
+struct ToastView: View {
+    let text: String
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.circle")
+            .font(.footnote.weight(.medium))
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+            .padding(.horizontal, Space.m)
+    }
 }
 
 /// The screen's main action, pinned above the home indicator (HIG: one prominent button at the bottom).
@@ -48,13 +71,14 @@ struct BottomBar<Content: View>: View {
 /// Full-width prominent button label: `Button { } label: { BigLabel("Start", "play.fill") }`.
 struct BigButton: ButtonStyle {
     var tint: Color = .accentColor
+    var ink: Color = .white
     @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .foregroundStyle(enabled ? Color.white : Color.secondary)
+            .foregroundStyle(enabled ? ink : Color.secondary)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(enabled ? tint : Color(uiColor: .tertiarySystemFill)))
             .opacity(configuration.isPressed ? 0.8 : 1)

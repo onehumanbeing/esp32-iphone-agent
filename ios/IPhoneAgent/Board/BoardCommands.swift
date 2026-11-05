@@ -88,6 +88,10 @@ extension BoardTransport {
         let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("app ") { return onAppCommand?(String(text.dropFirst(4))) ?? () }
         if text.hasPrefix("log ") { return }  // our own log lines, relayed to the harness
+        if text.hasPrefix("blog ") {  // the board's AirPlay log: "blog <board ms> <line>"
+            let parts = text.dropFirst(5).split(separator: " ", maxSplits: 1)
+            return DebugLog.write("board: " + (parts.count > 1 ? String(parts[1]) : ""))
+        }
         guard let reply = BoardReply.parse(line), let c = pending.removeValue(forKey: reply.id) else { return }
         c.resume(returning: reply)
     }

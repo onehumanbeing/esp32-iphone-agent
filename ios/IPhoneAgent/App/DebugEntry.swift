@@ -1,9 +1,64 @@
 import Foundation
 
+#if DEBUG
+/// Explicit developer input, separate from UserDefaults' temporary argument overrides.
+struct ModelLaunchConfiguration {
+    let baseURL: String
+    let model: String
+    let apiKey: String
+    let extraBody: String
+
+    enum ParseError: LocalizedError {
+        case arguments, endpoint, extraBody
+        var errorDescription: String? {
+            switch self {
+            case .arguments: return "Use -llm-base-url and -llm-model together, once each, with nonempty values. The optional -llm-extra-body must also have one value and appear only once."
+            case .endpoint: return "The model endpoint must be an HTTP or HTTPS URL with a host and no credentials, query, or fragment."
+            case .extraBody: return "The extra request body must be a valid JSON object."
+            }
+        }
+    }
+
+    static func parse(_ args: [String], environment: [String: String] = [:]) throws -> Self? {
+        let flags = ["-llm-base-url", "-llm-model"]
+        let extraFlag = "-llm-extra-body"
+        guard (flags + [extraFlag]).contains(where: args.contains) else { return nil }
+        func value(_ flag: String) throws -> String {
+            let positions = args.indices.filter { args[$0] == flag }
+            guard positions.count == 1, let index = positions.first, index + 1 < args.count else {
+                throw ParseError.arguments
+            }
+            let value = args[index + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, !value.hasPrefix("-") else { throw ParseError.arguments }
+            return value
+        }
+        let baseURL = try value(flags[0]), model = try value(flags[1])
+        guard let parts = URLComponents(string: baseURL), let url = parts.url,
+              ["http", "https"].contains(parts.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty, !host.contains(where: { $0.isWhitespace }),
+              parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil else {
+            throw ParseError.endpoint
+        }
+        var extraBody = "{}"
+        if args.contains(extraFlag) {
+            let raw = try value(extraFlag)
+            guard let object = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any],
+                  let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) else {
+                throw ParseError.extraBody
+            }
+            extraBody = String(decoding: data, as: UTF8.self)
+        }
+        return Self(baseURL: baseURL, model: model,
+                    apiKey: environment["IA_LLM_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                    extraBody: extraBody)
+    }
+}
+#endif
+
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
-/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap
+/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
 /// The URL commands exist in Debug builds only: in a release any web page could open them.
@@ -34,7 +89,7 @@ extension AppModel {
     }
 
     /// A line from the Mac harness, relayed by the board: "run <task>", "calibrate", "stop", "bench <kb>",
-    /// "snap" or "status".
+    /// "snap", "status", "log <n>", "mode <m>" or "ota [dir]".
     func handleAppCommand(_ line: String) {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
@@ -44,6 +99,16 @@ extension AppModel {
         case "bench": debugCommand("bench", kb: Int(rest) ?? 256)
         case "status": say(statusSummary)
         case "log": relayHistory(Int(rest) ?? 50)
+        case "ota":  // a test build staged in Documents/<rest or firmware>, sent over Wi-Fi like Update Board does
+            if !rest.isEmpty { Firmware.localDir = rest }
+            Task { [weak self] in
+                guard let self else { return }
+                await self.firmware.check()
+                if let blocker = self.firmware.blocker { return self.say("ota: \(blocker)") }
+                guard let release = self.firmware.release else { return self.say("ota: no release found") }
+                self.say("ota: installing \(release.version)")
+                self.firmware.install()
+            }
         case "mode":
             if let mode = FrameMode(rawValue: rest) { setFrameMode(mode) } else { say("frame mode: \(FrameMode.current.rawValue)") }
         default: say("debug: unknown app command \"\(line.prefix(40))\"")
@@ -87,9 +152,42 @@ extension AppModel {
             return args[i + 1]
         }
         #if DEBUG
+        do {
+            if try settings.importLaunchConfiguration(arguments: args, environment: ProcessInfo.processInfo.environment) {
+                say("debug: model configuration imported")
+            }
+        } catch {
+            say("debug: model configuration rejected: \(error.localizedDescription)")
+            return  // never run a requested test against a stale endpoint after an invalid import
+        }
+        // Provider keys for a test phone: IA_KEY_<provider rawValue> in the launch environment, stored under
+        // that provider's endpoint like a key typed in Settings. Values are never logged.
+        let env = ProcessInfo.processInfo.environment
+        let keyed = ModelProvider.allCases.filter { p in
+            guard !p.baseURL.isEmpty, let key = env["IA_KEY_" + p.rawValue]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !key.isEmpty else { return false }
+            Keychain.set(key, for: "llm-endpoint-" + p.baseURL)
+            return true
+        }
+        if !keyed.isEmpty { say("debug: keys stored for " + keyed.map(\.title).joined(separator: ", ")) }
+        if args.contains("-delete-intent") {
+            guard args.filter({ $0 == "-delete-intent" }).count == 1,
+                  let raw = value(after: "-delete-intent"), let id = UUID(uuidString: raw) else {
+                say("debug: intent deletion rejected; provide one valid saved intent UUID")
+                return
+            }
+            if intents.item(id) != nil {
+                intents.delete(id)
+                say("debug: saved intent deleted")
+            } else {
+                say("debug: saved intent already absent")
+            }
+        }
         if let requested = value(after: "-setup"),
            let page = ["connect": SetupPage.connect, "brain": .brain][requested] { setupPage = page }
         if args.contains("-test-model") { Task { await pingLLM() } }
+        if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
+        if let commands = value(after: "-hid") { harnessHID(commands) }  // harness/hid.sh
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
@@ -123,6 +221,55 @@ extension AppModel {
             }
         }
     }
+
+    #if DEBUG
+    /// harness/lib.sh drops `Documents/harness-inbox/<time>.json` = ["-run", "<task>"] (launch arguments): iOS
+    /// often restores the app for Bluetooth first, and devicectl's launch then only brings it to the front, without
+    /// the arguments. Checked every second; each file is handled once and removed.
+    func readHarnessInbox() {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("harness-inbox")
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
+        for name in names.sorted() where name.hasSuffix(".json") {
+            let file = dir.appendingPathComponent(name)
+            let args = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            try? FileManager.default.removeItem(at: file)
+            guard let args else { say("harness: unreadable \(name)"); continue }
+            say("harness: \(name)")
+            handleLaunchArguments(["harness"] + args)
+        }
+    }
+
+    /// Raw board commands ("key ctrl+space; type abc"), one after another, each reply logged: harness experiments.
+    private func harnessHID(_ commands: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
+                let reply: String
+                if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
+                    let st = board.status
+                    reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
+                } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
+                    wifiVideo.stop()
+                    wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)
+                    reply = "reconnecting, resume at \(feed.resumeMs.map(String.init) ?? "none")"
+                } else if command == "shot" {  // the mirrored screen now, for harness/hid.sh to pull
+                    await feed.settled(most: 1.5)
+                    let name = "harness-shots/\(Int(Date().timeIntervalSince1970)).jpg"
+                    let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
+                    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
+                } else {
+                    do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
+                }
+                say("harness hid: \(command) → \(reply)")
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+            say("harness hid: done")
+        }
+    }
+    #endif
 
     /// Board connected (and USB up), plus mirroring streaming when asked; waits up to `timeout` s.
     func waitReady(mirroring: Bool, timeout: Double = 30) async -> Bool {

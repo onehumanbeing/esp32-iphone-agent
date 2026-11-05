@@ -1,10 +1,18 @@
 import XCTest
 @testable import IPhoneAgent
 
+/// API keys live in the Keychain, which an unsigned simulator build (CI: CODE_SIGNING_ALLOWED=NO) can't use.
+let keychainWorks: Bool = {
+    Keychain.set("probe", for: "keychain-probe")
+    defer { Keychain.set("", for: "keychain-probe") }
+    return Keychain.get("keychain-probe") == "probe"
+}()
+
 /// An in-memory endpoint: records request bodies and answers with `respond`.
 final class StubProtocol: URLProtocol {
     nonisolated(unsafe) static var respond: ([String: Any]) -> (Int, String, String) = { _ in (200, "application/json", "{}") }
     nonisolated(unsafe) static var seen: [[String: Any]] = []
+    nonisolated(unsafe) static var headers: [[String: String]] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -23,6 +31,7 @@ final class StubProtocol: URLProtocol {
         }
         let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
         Self.seen.append(json)
+        Self.headers.append(request.allHTTPHeaderFields ?? [:])
         let (status, type, text) = Self.respond(json)
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
                                        headerFields: ["Content-Type": type])!
@@ -41,6 +50,93 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(ModelProvider.infer(baseURL: "https://api.openai.com/v1", model: "custom"), .openAI)
         XCTAssertEqual(ModelProvider.infer(baseURL: "http://192.168.1.4:8080/v1", model: "local"), .others)
         XCTAssertNotEqual(ModelProvider.qwen.baseURL, ModelProvider.qwenInternational.baseURL)
+        for p in [ModelProvider.nvidia, .nebius, .hCompany, .zhipu] {
+            XCTAssertEqual(ModelProvider.infer(baseURL: p.baseURL + "/", model: "x"), p)
+        }
+    }
+
+    func testTestedModelsCarryValidParametersAndTwoRecommended() {
+        let all = ModelProvider.allCases.flatMap { p in TestedModels.list(for: p).map { (p, $0) } }
+        for (_, m) in all {
+            XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(m.extraBody.utf8)) as? [String: Any], m.id)
+        }
+        XCTAssertEqual(all.filter { $0.1.recommended }.map(\.1.id).sorted(), ["gemini-3.8-flash", "qwen3.8-flash"])
+        XCTAssertEqual(ModelProvider.allCases.filter(\.recommended), [.gemini, .qwen])
+    }
+
+    func testRecommendedProviderPreselectsItsTestedModel() {
+        let name = "tested-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        settings.selectProvider(.qwen)
+        XCTAssertEqual(settings.model, "qwen3.8-flash")
+        XCTAssertEqual(settings.extra["enable_thinking"] as? Bool, false)
+        settings.selectProvider(.nvidia)  // no recommended model: pick one first
+        XCTAssertEqual(settings.model, "")
+        XCTAssertEqual(settings.extraBody, "{}")
+        settings.chooseModel("nvidia/nemotron-3.5-super-vl-120b-a12b")
+        XCTAssertNotNil(settings.extra["chat_template_kwargs"])
+        settings.extraBody = #"{"mine": 1}"#
+        settings.chooseModel("some/listed-model")  // not tested: keeps the user's parameters
+        XCTAssertEqual(settings.model, "some/listed-model")
+        XCTAssertEqual(settings.extra["mine"] as? Int, 1)
+    }
+
+    func testModelCallStatsCarryNoContent() {
+        var reply = ChatResult(text: "secret reply", firstToken: 1.234, total: 4.567)
+        reply.usage = ["prompt_tokens": 1200, "completion_tokens": 80]
+        reply.servedModel = "google/gemma-4-31b-it:free"
+        let ok = ModelCall(role: "actor", model: "openrouter/free", reply: reply, error: nil, imageKB: 90).props
+        XCTAssertEqual(ok["total_s"] as? Double, 4.57)
+        XCTAssertEqual(ok["prompt_tokens"] as? Int, 1200)
+        XCTAssertEqual(ok["served_model"] as? String, "google/gemma-4-31b-it:free")
+        XCTAssertFalse(ok.values.contains { ($0 as? String)?.contains("secret") == true })
+        let failed = ModelCall(role: "actor", model: "m", reply: nil, error: LLMError(message: "x", status: 429), imageKB: 0)
+        XCTAssertEqual(failed.props["error"] as? String, "http_429")
+        XCTAssertEqual(ModelCall(role: "a", model: "m", reply: nil, error: URLError(.timedOut), imageKB: 0).props["error"] as? String,
+                       "timeout")
+        var usage = ModelUsage()
+        usage.add(ModelCall(role: "actor", model: "m", reply: reply, error: nil, imageKB: 0))
+        usage.add(failed)
+        XCTAssertEqual(usage.props["model_calls"] as? Int, 2)
+        XCTAssertEqual(usage.props["model_failures"] as? Int, 1)
+        XCTAssertEqual(usage.props["avg_total_s"] as? Double, 4.57)
+        XCTAssertEqual(usage.props["actor_calls"] as? Int, 2)
+        XCTAssertEqual(usage.props["prompt_tokens"] as? Int, 1200)
+        XCTAssertEqual(usage.props["completion_tokens"] as? Int, 80)
+        XCTAssertEqual(usage.props["usage_partial"] as? Bool, false)
+
+        // Missing usage must not become 0, and must mark the run partial.
+        let bare = ChatResult(text: "ok", firstToken: nil, total: 1.0)
+        var partial = ModelUsage()
+        partial.add(ModelCall(role: "planner", model: "m", reply: reply, error: nil, imageKB: 0))
+        partial.add(ModelCall(role: "actor", model: "m", reply: bare, error: nil, imageKB: 42))
+        XCTAssertEqual(partial.props["planner_calls"] as? Int, 1)
+        XCTAssertEqual(partial.props["actor_calls"] as? Int, 1)
+        XCTAssertEqual(partial.props["image_requests"] as? Int, 1)
+        XCTAssertEqual(partial.props["prompt_tokens"] as? Int, 1200)
+        XCTAssertEqual(partial.props["completion_tokens"] as? Int, 80)
+        XCTAssertEqual(partial.props["usage_partial"] as? Bool, true)
+        XCTAssertTrue(partial.summaryLine.contains("partial"))
+        XCTAssertTrue(partial.summaryLine.contains("images 1"))
+
+        // No call reported usage: no token fields at all, not zeros.
+        var none = ModelUsage()
+        none.add(ModelCall(role: "actor", model: "m", reply: bare, error: nil, imageKB: 42))
+        XCTAssertNil(none.props["prompt_tokens"])
+        XCTAssertNil(none.props["usage_partial"])
+        XCTAssertFalse(none.summaryLine.contains("tokens"))
+        XCTAssertEqual(none.tokens, 0)
+
+        // A provider that sends only total_tokens still counts, as Run.load reads it.
+        var total = bare
+        total.usage = ["total_tokens": 900]
+        var totals = ModelUsage()
+        totals.add(ModelCall(role: "actor", model: "m", reply: total, error: nil, imageKB: 42))
+        XCTAssertEqual(totals.tokens, 900)
+        XCTAssertEqual(totals.props["total_tokens"] as? Int, 900)
+        XCTAssertEqual(totals.props["usage_partial"] as? Bool, false)
     }
 
     func testProviderSwitchResetsModelOverridesAndOthersKeepsEditableConfig() async throws {
@@ -49,7 +145,7 @@ final class StubProtocol: URLProtocol {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = Settings(defaults: defaults, info: [:])
         settings.selectProvider(.openRouter)
-        settings.model = "openrouter/free"
+        XCTAssertEqual(settings.model, "openrouter/free")  // the default, no pick needed
         XCTAssertEqual(settings.baseURL, "https://openrouter.ai/api/v1")
         let model = try await settings.resolvedModel()
         XCTAssertEqual(model, "openrouter/free")
@@ -70,6 +166,249 @@ final class StubProtocol: URLProtocol {
         settings.baseURL = "httpjunk://endpoint"
         XCTAssertFalse(settings.isConfigured)
     }
+
+    func testEachProviderKeepsItsConfigurationAndKey() throws {
+        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
+        let name = "profile-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        let custom = "http://10.0.0.\(Int.random(in: 2...250)):8080/v1"
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            Keychain.set("", for: "llm-endpoint-" + ModelProvider.gemini.baseURL)
+            Keychain.set("", for: "llm-endpoint-" + custom)
+        }
+        let settings = Settings(defaults: defaults, info: [:])
+        settings.selectProvider(.gemini)
+        settings.apiKey = "gemini-key"
+        settings.chooseModel("my-gemini")
+        settings.plannerModel = "gemini-planner"
+        settings.selectProvider(.others)
+        settings.baseURL = custom
+        settings.model = "local-model"
+        settings.extraBody = #"{"local": true}"#
+        XCTAssertTrue(settings.isConfigured(.gemini))
+        XCTAssertFalse(settings.isConfigured(.deepSeek))
+        settings.selectProvider(.gemini)
+        XCTAssertEqual(settings.model, "my-gemini")
+        XCTAssertEqual(settings.plannerModel, "gemini-planner")
+        XCTAssertEqual(settings.apiKey, "gemini-key")
+        XCTAssertTrue(settings.isConfigured(.others))
+        settings.selectProvider(.others)
+        XCTAssertEqual(settings.baseURL, custom)
+        XCTAssertEqual(settings.model, "local-model")
+        XCTAssertEqual(settings.extra["local"] as? Bool, true)
+        // Persisted: a fresh Settings (next launch) restores the same way.
+        let reopened = Settings(defaults: defaults, info: [:])
+        reopened.selectProvider(.gemini)
+        XCTAssertEqual(reopened.model, "my-gemini")
+        XCTAssertEqual(reopened.apiKey, "gemini-key")
+    }
+
+    func testSeveralCustomEndpointsAreKept() {
+        let name = "custom-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        settings.selectCustom(nil)
+        settings.baseURL = "http://10.0.0.5:8080/v1"
+        settings.model = "first"
+        settings.selectCustom(nil)  // add another
+        XCTAssertEqual(settings.baseURL, "")
+        settings.baseURL = "https://example.com/v1"
+        settings.model = "second"
+        settings.selectProvider(.qwen)
+        XCTAssertEqual(settings.customEndpoints.map(\.model), ["first", "second"])
+        XCTAssertEqual(settings.customEndpoints.first?.title, "10.0.0.5:8080")
+        settings.selectCustom(settings.customEndpoints[0].id)
+        XCTAssertEqual(settings.baseURL, "http://10.0.0.5:8080/v1")
+        XCTAssertEqual(settings.model, "first")
+        settings.deleteCustom(settings.customEndpoints[0].id)  // in use: kept
+        XCTAssertEqual(settings.customEndpoints.count, 2)
+        settings.deleteCustom(settings.customEndpoints[1].id)
+        XCTAssertEqual(Settings(defaults: defaults, info: [:]).customEndpoints.map(\.model), ["first"])
+    }
+
+    func testLegacySingleCustomProfileMigrates() {
+        let name = "legacy-custom-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(["baseURL": "http://10.0.0.9/v1", "model": "m"], forKey: "modelProfile.others")
+        let settings = Settings(defaults: defaults, info: [:])
+        XCTAssertEqual(settings.customEndpoints.map(\.baseURL), ["http://10.0.0.9/v1"])
+        XCTAssertTrue(settings.isConfigured(.others))
+    }
+
+    #if DEBUG
+    func testLaunchModelConfigurationParsesExplicitParametersOnly() throws {
+        XCTAssertNil(try ModelLaunchConfiguration.parse(["app", "-test-model"], environment: ["IA_LLM_API_KEY": "unused"]))
+        let parsed = try XCTUnwrap(ModelLaunchConfiguration.parse(
+            ["app", "-llm-model", " vision/model ", "-llm-base-url", " http://model-server.local:8000/v1/ ", "-test-model"],
+            environment: ["IA_LLM_API_KEY": " test-server-key "]))
+        XCTAssertEqual(parsed.baseURL, "http://model-server.local:8000/v1/")
+        XCTAssertEqual(parsed.model, "vision/model")
+        XCTAssertEqual(parsed.apiKey, "test-server-key")
+        let noKey = try XCTUnwrap(ModelLaunchConfiguration.parse(
+            ["app", "-llm-base-url", "https://model-server.local/v1", "-llm-model", "vision"]))
+        XCTAssertEqual(noKey.apiKey, "")
+        XCTAssertEqual(noKey.extraBody, "{}")
+    }
+
+    func testLaunchModelConfigurationParsesOptionalProviderOptionsAsJSON() throws {
+        let parsed = try XCTUnwrap(ModelLaunchConfiguration.parse([
+            "app", "-llm-base-url", "https://model-server.local/v1", "-llm-model", "vision",
+            "-llm-extra-body", " { \"top_p\": 0.8, \"chat_template_kwargs\": { \"enable_thinking\": false } } "
+        ]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(parsed.extraBody.utf8)) as? [String: Any])
+        XCTAssertEqual((object["chat_template_kwargs"] as? [String: Any])?["enable_thinking"] as? Bool, false)
+        XCTAssertEqual(try XCTUnwrap(object["top_p"] as? Double), 0.8, accuracy: 0.000001)
+    }
+
+    func testLaunchModelConfigurationRejectsMissingDuplicateOrNonObjectExtraBody() {
+        let base = ["app", "-llm-base-url", "https://model-server.local/v1", "-llm-model", "vision"]
+        for args in [base + ["-llm-extra-body"], base + ["-llm-extra-body", " "],
+                     base + ["-llm-extra-body", "{}", "-llm-extra-body", "{}"],
+                     ["app", "-llm-extra-body", "{}"]] {
+            XCTAssertThrowsError(try ModelLaunchConfiguration.parse(args))
+        }
+        for body in ["{", "[]", "true", "null", "42", "\"string\""] {
+            XCTAssertThrowsError(try ModelLaunchConfiguration.parse(base + ["-llm-extra-body", body]))
+        }
+    }
+
+    func testLaunchModelConfigurationRejectsMissingDuplicateOrUnsafeInput() {
+        let base = ["app", "-llm-base-url", "http://model-server.local:8000/v1", "-llm-model", "vision"]
+        for args in [
+            ["app", "-llm-base-url", "http://model-server.local/v1"],
+            ["app", "-llm-model", "vision"],
+            ["app", "-llm-base-url", "-llm-model", "vision"],
+            Array(base.dropLast()),
+            Array(base.dropLast()) + [" "],
+            base + ["-llm-model", "other"],
+            base + ["-llm-base-url", "http://other-server.local/v1"]
+        ] {
+            XCTAssertThrowsError(try ModelLaunchConfiguration.parse(args))
+        }
+        for endpoint in ["ftp://model-server.local/v1", "/v1", "http:///v1", "http://", "http://bad host/v1",
+                         "http://user@model-server.local/v1", "http://user:password@model-server.local/v1",
+                         "http://model-server.local/v1?key=secret", "http://model-server.local/v1#fragment"] {
+            XCTAssertThrowsError(try ModelLaunchConfiguration.parse(
+                ["app", "-llm-base-url", endpoint, "-llm-model", "vision"]))
+        }
+    }
+
+    func testLaunchModelImportClearsSameHostCredentialsAndOverridesAndPersists() throws {
+        let name = "launch-model-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("others", forKey: "modelProvider")
+        defaults.set("http://model-server.local:8000/v1", forKey: "baseURL")
+        defaults.set("stale-auto", forKey: "autoModel")
+        Keychain.set("old-cloud-api-key", for: "llm-api-key")
+        let settings = Settings(defaults: defaults, info: [:])
+        defer { settings.apiKey = "" }
+        XCTAssertEqual(settings.autoModel, "stale-auto")
+        settings.model = "vision"
+        settings.plannerModel = "old-planner"
+        settings.actorModel = "old-actor"
+        settings.tokenParam = "max_completion_tokens"
+        settings.extraBody = "{\"reasoning_effort\":\"high\"}"
+        let revision = settings.configurationRevision
+        XCTAssertTrue(try settings.importLaunchConfiguration(arguments:
+            ["app", "-llm-base-url", settings.baseURL, "-llm-model", "vision"]))
+        XCTAssertEqual(settings.provider, .others)
+        XCTAssertEqual(settings.apiKey, "")
+        XCTAssertEqual(settings.plannerModel, "")
+        XCTAssertEqual(settings.actorModel, "")
+        XCTAssertEqual(settings.tokenParam, "auto")
+        XCTAssertEqual(settings.extraBody, "{}")
+        XCTAssertEqual(settings.autoModel, "")
+        XCTAssertTrue(settings.models.isEmpty)
+        XCTAssertGreaterThan(settings.configurationRevision, revision)
+        let reloaded = Settings(defaults: defaults, info: [:])
+        XCTAssertEqual(reloaded.provider, .others)
+        XCTAssertEqual(reloaded.baseURL, "http://model-server.local:8000/v1")
+        XCTAssertEqual(reloaded.currentModel, "vision")
+        XCTAssertEqual(reloaded.apiKey, "")
+        XCTAssertEqual(reloaded.plannerModel, "")
+        XCTAssertEqual(reloaded.actorModel, "")
+        XCTAssertEqual(reloaded.tokenParam, "auto")
+        XCTAssertEqual(reloaded.extraBody, "{}")
+        XCTAssertEqual(defaults.string(forKey: "modelProvider"), "others")
+    }
+
+    func testLaunchModelImportUsesOnlyExplicitEnvironmentCredential() throws {
+        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
+        let name = "launch-model-key-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        defer { settings.apiKey = "" }
+        settings.selectProvider(.openRouter)
+        settings.apiKey = "old-cloud-api-key"
+        XCTAssertTrue(try settings.importLaunchConfiguration(arguments:
+            ["app", "-llm-base-url", "http://model-server.local:8000/v1", "-llm-model", "vision"],
+            environment: ["IA_LLM_API_KEY": "new-local-server-key"]))
+        XCTAssertEqual(settings.provider, .others)
+        XCTAssertEqual(settings.apiKey, "new-local-server-key")
+        XCTAssertEqual(Settings(defaults: defaults, info: [:]).apiKey, "new-local-server-key")
+    }
+
+    func testLaunchModelImportAppliesAndPersistsExplicitProviderOptions() throws {
+        let name = "launch-model-options-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        defer { settings.apiKey = "" }
+        settings.extraBody = "{\"old_provider_option\":true}"
+        XCTAssertTrue(try settings.importLaunchConfiguration(arguments: [
+            "app", "-llm-base-url", "https://model-server.local/v1", "-llm-model", "vision",
+            "-llm-extra-body", "{\"chat_template_kwargs\":{\"enable_thinking\":false}}"
+        ]))
+        let options = try XCTUnwrap(settings.extra["chat_template_kwargs"] as? [String: Any])
+        XCTAssertEqual(options["enable_thinking"] as? Bool, false)
+        XCTAssertNil(settings.extra["old_provider_option"])
+        let reloaded = Settings(defaults: defaults, info: [:])
+        XCTAssertEqual(reloaded.extraBody, settings.extraBody)
+        XCTAssertEqual((reloaded.extra["chat_template_kwargs"] as? [String: Any])?["enable_thinking"] as? Bool, false)
+    }
+
+    func testInvalidLaunchModelImportLeavesConfigurationUnchanged() throws {
+        let name = "launch-model-invalid-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        defer { settings.apiKey = "" }
+        settings.selectProvider(.openRouter)
+        settings.apiKey = "existing-test-key"
+        settings.plannerModel = "existing-planner"
+        settings.actorModel = "existing-actor"
+        settings.extraBody = "{\"existing_option\":true}"
+        let revision = settings.configurationRevision
+        let saved = defaults.persistentDomain(forName: name) as NSDictionary?
+        XCTAssertThrowsError(try settings.importLaunchConfiguration(arguments:
+            ["app", "-llm-base-url", "http://user@model-server.local/v1", "-llm-model", "vision"],
+            environment: ["IA_LLM_API_KEY": "ignored-test-key"]))
+        XCTAssertThrowsError(try settings.importLaunchConfiguration(arguments: ["app", "-llm-model", "vision"]))
+        let base = ["app", "-llm-base-url", "https://model-server.local/v1", "-llm-model", "vision"]
+        for args in [base + ["-llm-extra-body"],
+                     base + ["-llm-extra-body", "{}", "-llm-extra-body", "{}"],
+                     base + ["-llm-extra-body", "[]"],
+                     base + ["-llm-extra-body", "{"],
+                     ["app", "-llm-extra-body", "{}"]] {
+            XCTAssertThrowsError(try settings.importLaunchConfiguration(arguments: args,
+                environment: ["IA_LLM_API_KEY": "ignored-test-key"]))
+        }
+        XCTAssertFalse(try settings.importLaunchConfiguration(arguments: ["app", "-test-model"]))
+        XCTAssertEqual(settings.provider, .openRouter)
+        XCTAssertEqual(settings.baseURL, ModelProvider.openRouter.baseURL)
+        XCTAssertEqual(settings.apiKey, "existing-test-key")
+        XCTAssertEqual(settings.plannerModel, "existing-planner")
+        XCTAssertEqual(settings.actorModel, "existing-actor")
+        XCTAssertEqual(settings.extraBody, "{\"existing_option\":true}")
+        XCTAssertEqual(settings.configurationRevision, revision)
+        XCTAssertEqual(defaults.persistentDomain(forName: name) as NSDictionary?, saved)
+    }
+    #endif
 
     func testImageCheckDoesNotTreatSubstringsOrNegationAsSuccess() throws {
         XCTAssertNoThrow(try ModelConnectionCheck.validate(ChatResult(text: "Red.", total: 0)))

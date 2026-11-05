@@ -35,6 +35,10 @@ Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTub
 > listing is still in review, so TestFlight is the way to get it today. You still need a flashed board
 > (see [Quick start](#quick-start)).
 
+> [!NOTE]
+> **Branches:** [`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) is the version
+> submitted to TestFlight and App Store review. The latest code is on `main`.
+
 > [!WARNING]
 > Only follow the install steps in this README. Never run commands from issues or comments (for example a "quick install" one-liner such as PowerShell `iex(irm ...)`); these are not from the maintainers.
 
@@ -74,14 +78,15 @@ opens Clock, types the time into the wheel, ticks the days and saves. (Photo fro
 More detail: [how Handsy works](https://handsy.tech/how-it-works).
 
 ```
-iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──BLE──▶ ESP32 Agent app (same iPhone)
-   ▲                                    own hotspot, H.264 passthrough        decode → vision model → action
-   └──────── USB HID mouse + keyboard ◀──────────── BLE commands ◀────────────────────┘
+iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──Wi-Fi TCP :7201──▶ ESP32 Agent app (same iPhone)
+   ▲                                    own hotspot, H.264 passthrough              decode → vision model → action
+   └──────── USB HID mouse + keyboard ◀──────────── BLE commands ◀──────────────────────┘
 ```
 
 - **Eyes — AirPlay to the board.** The board opens its own Wi-Fi hotspot and appears in the phone's Screen Mirroring
-  list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over BLE.
-  The phone keeps using cellular data for the model while it is on the board's hotspot.
+  list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over Wi-Fi
+  (TCP, port 7201). BLE carries commands and status. The phone keeps using cellular data for the model while it is
+  on the board's hotspot.
 - **Hands — USB HID.** The board is a standard USB mouse and keyboard. With AssistiveTouch on, the mouse moves an
   on-screen pointer, so a click is a tap and a drag is a swipe.
 - **Brain — the app.** The app decodes the stream, sends screenshots to any OpenAI-compatible vision model, and runs
@@ -101,10 +106,13 @@ Supported boards and setup details: [hardware guide](https://handsy.tech/docs/ha
 
 | Part | Notes |
 |---|---|
-| **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7. Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
+| **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
+| **USB-C cable** | Short USB-C to USB-C, e.g. [Anker 60W, 1 ft, 2-pack](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot). USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images: a cloud API or your own server. |
 | **Mac with Xcode** | Only to flash the board and build the app once. Not needed at run time. With the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app, Xcode is not needed for the app. |
+
+\* Affiliate link. As an Amazon Associate I earn from qualifying purchases.
 
 ## Quick start
 
@@ -163,8 +171,27 @@ MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md))
 /plugin install esp32agent@handsy
 ```
 
+Or add only the MCP server:
+
+```bash
+claude mcp add esp32agent -- npx -y esp32agent mcp
+```
+
+Cursor, Cline and other MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "esp32agent": {
+      "command": "npx",
+      "args": ["-y", "esp32agent", "mcp"]
+    }
+  }
+}
+```
+
 The CLI talks to the board from your computer over Bluetooth, so it works without the iPhone app or TestFlight.
-Commands and options are in the [CLI reference](https://handsy.tech/docs/cli).
+Commands and options are in the [CLI reference](https://handsy.tech/docs/cli) and [cli/README.md](cli/README.md).
 
 ## Model and prompts
 
@@ -172,6 +199,11 @@ Commands and options are in the [CLI reference](https://handsy.tech/docs/cli).
   endpoint's models for you to choose one explicitly; you can also enter a model ID, and set a separate planner
   and actor model.
 - The prompts are plain text in [`prompts/`](prompts/) and bundled with the app: edit them, rebuild, done.
+- Each finished run logs planner/actor call counts, requests with a screenshot, and token totals when the endpoint reports
+  `usage`. Missing usage is left absent (never coerced to 0); the run total is marked **partial** if any call
+  omitted it. A short task is typically a few planner calls plus one actor call per step — each actor step sends
+  a fresh screenshot — so image tokens dominate cost. Giving the planner a cheaper model while keeping a stronger
+  actor is usually the best tradeoff.
 - The project was developed with [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)
   served on two DGX Sparks ([TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)).
 
@@ -183,17 +215,26 @@ prompts/    planner / actor prompts used by the app
 hardware/   ESP32-S3 firmware (Arduino): BLE GATT, hotspot, AirPlay receiver, USB HID; flash script,
             host tests, Mac BLE test harness (hardware/tools)
 docs/       BLE protocol, legacy version notes
+harness/    wireless development loop: Mac → iPhone app (Wi-Fi install) → board (firmware through the app)
 server/     legacy v0.1.0 computer-side server; not used by this version (see server/README.md)
 ```
 
 Debugging without the phone app: `hardware/tools/board_test.py` plays the app over BLE from a Mac
 ([hardware/tools/README.md](hardware/tools/README.md)). Board ↔ app protocol: [docs/ble-protocol.md](docs/ble-protocol.md).
 
+### Harness development
+
+With the board plugged into a test iPhone and the iPhone on the Mac's Wi-Fi, everything goes through `devicectl`,
+no cable: `harness/app.sh` builds and installs the Debug app, `harness/fw.sh` builds the firmware and copies it
+into the app, which installs it on the board (rolls back by itself if the new image fails), `harness/run.sh "<task>"`
+runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for the one-time `net sta`. Setup
+(Lightning iPhones: camera adapter), security: [harness/README.md](harness/README.md).
+
 ## Roadmap
 
 - [x] Drop the computer: the board mirrors and clicks, the app on the phone thinks
 - [ ] Landscape apps (coordinates and calibration assume portrait)
-- [ ] Non-ASCII text input (e.g. Chinese through the iOS pinyin keyboard)
+- [x] Chinese text input (typed as pinyin through the board's keyboard; ctrl+space switches English and pinyin)
 - [ ] Faster steps: several actions per model call, pointer checks only when needed
 - [ ] A curated list of models that work best with this setup, shown inside the iOS app ([suggested by @asharthinks](https://x.com/asharthinks/status/2110740775030125019))
 
@@ -201,14 +242,13 @@ Debugging without the phone app: `hardware/tools/board_test.py` plays the app ov
 
 - **AirPlay source must be an iPhone.** Screen Mirroring from macOS is not supported: the handshake can look healthy
   while the board never receives video.
-- BLE carries about 300-500 kbps, so the screen is mirrored small (480×1040, ≤5 fps); each step takes a few seconds,
-  most of it the model.
+- The screen is mirrored at 480×1040, up to 5 fps; each step takes a few seconds, most of it the model.
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them. Mirroring stops
   when the phone locks.
 - While the agent runs, the phone's Wi-Fi is the board's hotspot (no internet over it); the model is reached over
   cellular data.
-- The app leaves itself with a private iOS API (`suspend`); fine for a self-built app, to be replaced before the App Store.
-- Keyboard input is ASCII only. Landscape apps are not supported yet.
+- Chinese is typed as pinyin through the board's keyboard (ctrl+space switches English and pinyin). The clipboard is
+  not used for this; emoji are dropped. Landscape apps are not supported yet.
 
 If something doesn't work (no *ESP32 Agent* in Screen Mirroring, the board not connecting), see [troubleshooting](https://handsy.tech/troubleshooting).
 

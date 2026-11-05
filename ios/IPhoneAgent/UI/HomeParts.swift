@@ -1,25 +1,46 @@
 import SwiftUI
 
-/// The character takes off before a run: a hop, then up and away (a fade under Reduce Motion).
+/// The character takes off before a run: "See you later!" and it shrinks up toward the island while the
+/// board sends the app home at once (a fade under Reduce Motion). Only a problem (board slow, swipe up yourself)
+/// brings back words and Cancel; the overlay stays until the app is really in the background.
 struct DepartureOverlay: View {
+    let problem: String?
+    let cancel: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var gone = false
 
     var body: some View {
         ZStack {
-            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+            Color(uiColor: .systemBackground).ignoresSafeArea()  // plain, no blur: the app is flicked away at once
             VStack(spacing: Space.l) {
                 AgentFace(mood: .acting)
                     .frame(width: 140, height: 157)
-                    .offset(y: gone && !reduceMotion ? -520 : 0)
-                    .scaleEffect(gone && !reduceMotion ? 0.6 : 1)
+                    .scaleEffect(gone && !reduceMotion ? 0.15 : 1, anchor: .top)
+                    .offset(y: gone && !reduceMotion ? -360 : 0)
                     .opacity(gone ? 0 : 1)
+                    .accessibilityHidden(true)
                 Text("See you later!").font(.title2.bold()).opacity(gone ? 0 : 1)
+                if let problem {
+                    VStack(spacing: Space.m) {
+                        Text(verbatim: problem)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                        Button("Cancel", role: .cancel, action: cancel)
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .frame(minHeight: 44)
+                    }
+                    .padding(Space.l)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
             }
+            .padding(Space.xl)
+            .frame(maxWidth: .infinity)
+            .animation(.easeOut(duration: 0.25), value: problem)
         }
         .transition(.opacity)
         .onAppear {
-            withAnimation(.easeIn(duration: 0.4).delay(0.35)) { gone = true }  // 0.75 s, inside the 0.8 s wait
+            withAnimation(.easeIn(duration: 0.3).delay(0.1)) { gone = true }  // with the board's flick
         }
         .accessibilityLabel(Text("Starting"))
     }
@@ -76,53 +97,20 @@ struct RecoveryPanel: View {
                 Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
                     .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
-            Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+            if stage.line != stage.status.full {
+                Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+            }
             HStack {
                 Spacer()
                 Button(role: .destructive) { Task { await app.stopAgent() } } label: { Label("Stop", systemImage: "stop.fill") }
                     .buttonStyle(.bordered)
             }
         } header: {
-            Text("Connection lost, run paused")
-        }
-    }
-}
-
-/// A demonstration in progress: timer, screens captured, Stop / Cancel; then "working out the steps".
-struct RecordingPanel: View {
-    @ObservedObject var recorder: DemoRecorder
-
-    var body: some View {
-        Section {
-            if recorder.recording {
-                HStack {
-                    Image(systemName: "record.circle.fill").foregroundStyle(.red)
-                        .symbolEffect(.pulse, options: .repeating)
-                    Text(timerInterval: recorder.started...Date.distantFuture, countsDown: false)
-                        .font(.title3.monospacedDigit().weight(.semibold))
-                    Spacer()
-                    Text("\(recorder.keyframes) screens").foregroundStyle(.secondary).monospacedDigit()
-                }
-                Text("Go to the Home Screen and do the task. Stop here or in the Dynamic Island.")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                HStack {
-                    Button { Task { await recorder.stop() } } label: { Label("Stop Recording", systemImage: "stop.fill") }
-                        .buttonStyle(.borderedProminent).tint(.red)
-                    Spacer()
-                    Button("Cancel", role: .destructive) { recorder.cancel() }
-                }
-            } else if recorder.inferring {
-                HStack(spacing: Space.m) {
-                    ProgressView()
-                    Text("Working out the steps from \(recorder.keyframes) screens…")
-                }
-            } else if let error = recorder.error {
-                Label { Text(verbatim: error) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
-                    .foregroundStyle(Palette.warning)
-                Button("OK") { recorder.error = nil }
+            if stage.part == .frames {
+                Text("Waiting for a screen image")
+            } else {
+                Text("Connection lost, run paused")
             }
-        } header: {
-            Text("Recording")
         }
     }
 }

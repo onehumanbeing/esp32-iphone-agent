@@ -4,28 +4,32 @@ import Foundation
 /// Starts, updates and ends the Live Activity of a run or a recording. While the agent works the app is in
 /// the background, so this is the user's view of the run; the app updates it whenever BLE wakes it.
 ///
-/// Larger presentations animate gaze changes when actions update `look`. The former random idle gaze
-/// loop is preserved but disabled to keep the primary text-only minimal presentation stable.
+/// The face springs to a gesture's target when an action updates `look` and morphs on a mood change. The
+/// random idle gaze loop is kept but off: cosmetic updates make the whole island flicker.
 /// Updates go through a token bucket (burst 2, then 1 per second), so the system never sees more than ~1/s.
 @MainActor final class LiveActivityController {
     typealias State = AgentActivityAttributes.ContentState
     private var activity: Activity<AgentActivityAttributes>?
+    private var recentlyEnded: Activity<AgentActivityAttributes>?
+    private var recentEndTask: Task<Void, Never>?
     private var last: State?    // the newest state (sent or waiting for a token)
     private var sent: State?
     private var tokens = 2.0, refilled = 0.0
     private var flush: Task<Void, Never>?
     private var darting: Task<Void, Never>?
 
-    func start(task: String, runID: String, limit: Int, phase: AgentActivityAttributes.Phase = .running) {
+    func start(task: String, runID: String, limit: Int, phase: AgentActivityAttributes.Phase = .running,
+               since: Date = Date()) {
         end(nil)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return DebugLog.write("Live Activity: disabled in Settings") }
-        let line = phase == .recording ? String(localized: "Do the task yourself. I'm watching.")
-            : String(localized: "Reading the screen…")
-        let status = phase == .recording
-            ? IslandStatus(short: String(localized: "Watching you"), full: String(localized: "Watching you"), look: CGPoint(x: 0, y: 0.6))
-            : IslandStatus.looking
-        var state = State(mood: phase == .recording ? .listening : .thinking, step: 0, limit: limit, line: line,
-                          phase: phase, since: Date())
+        let line: String, status: IslandStatus
+        switch phase {
+        case .countdown: (line, status) = (String(localized: "Recording starts after the countdown."), .getReady)
+        case .recording: (line, status) = (String(localized: "Do the task yourself. I'm watching."), .watching)
+        default: (line, status) = (String(localized: "Reading the screen…"), .looking)
+        }
+        var state = State(mood: phase == .running || phase == .help ? .thinking : .listening, step: 0, limit: limit,
+                          line: line, phase: phase, since: since)
         apply(status, to: &state)
         do {
             activity = try Activity.request(attributes: AgentActivityAttributes(task: task, runID: runID, name: Settings.storedAgentName),
@@ -43,12 +47,14 @@ import Foundation
     }
 
     /// Step counter, the model's words, the mood; `status` also changes what the character says and where it looks.
-    func update(mood: Mood, step: Int, line: String, phase: AgentActivityAttributes.Phase? = nil, status: IslandStatus? = nil) {
+    func update(mood: Mood, step: Int, line: String, phase: AgentActivityAttributes.Phase? = nil, status: IslandStatus? = nil,
+                since: Date? = nil) {
         guard var state = last else { return }
         state.mood = mood
         state.step = step
         state.line = line
         if let phase { state.phase = phase }
+        if let since { state.since = since }
         if let status { apply(status, to: &state) }
         push(state)
     }
@@ -71,7 +77,7 @@ import Foundation
         if let outcome {
             state.mood = outcome.mood
             state.line = outcome.line
-            if state.phase != .recording { apply(.ended(outcome.mood), to: &state) }
+            if state.phase == .running || state.phase == .help { apply(.ended(outcome.mood), to: &state) }
         }
         state.finished = true
         state.waitingSince = nil
@@ -79,9 +85,40 @@ import Foundation
         self.activity = nil
         last = nil
         sent = nil
-        Task {
+        let completion = Task {
             await activity.end(.init(state: state, staleDate: nil),
                                dismissalPolicy: outcome == nil ? .immediate : .after(.now + 15 * 60))
+        }
+        if outcome != nil {
+            recentlyEnded = activity
+            recentEndTask = completion
+        }
+    }
+
+    /// A deleted run must also disappear from the Lock Screen, including its retained finished activity.
+    func dismiss(runID: String) {
+        var matches = Activity<AgentActivityAttributes>.activities.filter { $0.attributes.runID == runID }
+        if let activity, activity.attributes.runID == runID {
+            matches.append(activity)
+            stopDarting()
+            flush?.cancel()
+            flush = nil
+            self.activity = nil
+            last = nil
+            sent = nil
+        }
+        let pending = recentlyEnded?.attributes.runID == runID ? recentEndTask : nil
+        if let recentlyEnded, recentlyEnded.attributes.runID == runID {
+            matches.append(recentlyEnded)
+            self.recentlyEnded = nil
+            recentEndTask = nil
+        }
+        var seen: Set<String> = []
+        let unique = matches.filter { seen.insert($0.id).inserted }
+        guard !unique.isEmpty else { return }
+        Task {
+            await pending?.value  // the earlier delayed-dismissal end must finish before immediate removal
+            for activity in unique { await activity.end(nil, dismissalPolicy: .immediate) }
         }
     }
 
@@ -103,10 +140,8 @@ import Foundation
 
     /// While waiting: glance somewhere else every 1.4-2.2 s, mostly sideways, never twice at the same spot.
     private func startDarting() {
-        // Preserve the gaze implementation, but do not send cosmetic updates while the primary
-        // minimal presentation is text-only. ActivityKit does not tell this controller which
-        // presentation is visible; repeated updates can animate the entire island. Action-driven
-        // gaze and mood updates remain enabled in the larger presentations.
+        // Off: ActivityKit does not say which presentation is visible, and repeated cosmetic updates
+        // animate the entire island. Action-driven gaze and mood updates stay on.
         guard Self.idleGazeEnabled else { return }
         guard darting == nil else { return }
         darting = Task { [weak self] in

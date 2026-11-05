@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25">
+  <!-- The character as a tab glyph: rounded board, two eye slots, the USB-C tab -->
+  <path fill-rule="evenodd" fill="#000" d="M7.5 1.5h10a5.5 5.5 0 0 1 5.5 5.5v8.5a5.5 5.5 0 0 1-5.5 5.5h-10A5.5 5.5 0 0 1 2 15.5V7a5.5 5.5 0 0 1 5.5-5.5zM9.25 7a1.75 1.75 0 0 0-1.75 1.75v4a1.75 1.75 0 0 0 3.5 0v-4A1.75 1.75 0 0 0 9.25 7zm6.5 0A1.75 1.75 0 0 0 14 8.75v4a1.75 1.75 0 0 0 3.5 0v-4A1.75 1.75 0 0 0 15.75 7z"/>
+  <path fill="#000" d="M9.5 20.5h6v2.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/>
+</svg>

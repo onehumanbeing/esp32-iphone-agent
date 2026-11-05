@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.onehumanbeing/esp32agent",
+  "title": "ESP32 Agent",
+  "description": "Lets your AI see and control a real iPhone through an ESP32 board over Bluetooth.",
+  "repository": {
+    "url": "https://github.com/onehumanbeing/esp32-iphone-agent",
+    "source": "github",
+    "subfolder": "cli"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "esp32agent",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,14 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["bleak>=0.22"]
+# dependencies = ["bleak>=0.22", "pyserial>=3.5"]
 # ///
 """Mac stand-in for the iOS app: talks to the board over BLE exactly as docs/ble-protocol.md says.
 
     uv run hardware/tools/board_test.py all          # full check (see README.md)
     uv run hardware/tools/board_test.py snap --png out/snap.png
     uv run hardware/tools/board_test.py cmd "move 100 0" click
+    uv run hardware/tools/board_test.py udp --kb 2048   # video over Wi-Fi (Mac joined to the board's AP)
+    uv run hardware/tools/board_test.py udp --serial /dev/cu.usbmodem…   # same, commands over USB serial
 """
 import argparse
 import asyncio
@@ -66,6 +68,132 @@ class Reassembler:
         return b"".join(au for _, _, au in self.aus)
 
 
+class UdpVideo(asyncio.DatagramProtocol):
+    """The app's Wi-Fi video session (docs/ble-protocol.md, "Wi-Fi video"): hello + keep-alive, and a nack for
+    every seq gap. Chunks go to the Reassembler in order once the gap is filled (or given up on)."""
+
+    def __init__(self, token: str):
+        self.token, self.video = token, Reassembler()
+        self.pending: dict[int, bytes] = {}
+        self.expect = None
+        self.nacks = self.recovered = self.lost = self.datagrams = 0
+        self.gap_at = None
+        self.ka_at = 0.0
+        self.ok = asyncio.Event()
+
+    def connection_made(self, transport):
+        self.transport = transport
+        transport.sendto(f"hello {self.token}".encode())
+
+    def datagram_received(self, data, _):
+        if data == b"ok":
+            self.ok.set()
+            return
+        self.datagrams += 1
+        seq = struct.unpack_from("<H", data)[0]
+        if self.expect is None:
+            self.expect = seq
+        if (seq - self.expect) & 0xFFFF >= 0x8000:  # old or duplicate
+            return
+        self.pending[seq] = data
+        if seq != self.expect and self.gap_at is None:
+            self.gap_at = time.monotonic()
+            self.nacks += 1
+            self.transport.sendto(f"nack {self.expect} {(seq - 1) & 0xFFFF}".encode())
+        self.drain()
+
+    def drain(self):
+        while self.expect in self.pending:
+            if self.gap_at is not None:
+                self.recovered += 1
+                self.gap_at = None
+            self.video.feed(self.pending.pop(self.expect))
+            self.expect = (self.expect + 1) & 0xFFFF
+
+    async def keepalive(self):
+        while True:
+            await asyncio.sleep(0.1)
+            if self.gap_at is not None and time.monotonic() - self.gap_at > 0.25:  # give up: skip to what we have
+                self.lost += 1
+                self.gap_at = None
+                self.transport.sendto(b"resync")
+                self.expect = min(self.pending, key=lambda s: (s - self.expect) & 0xFFFF) if self.pending else None
+                self.drain()
+            if time.monotonic() - self.ka_at >= (1 if self.ok.is_set() else 0.3):
+                self.ka_at = time.monotonic()
+                self.transport.sendto(b"ka" if self.ok.is_set() else f"hello {self.token}".encode())
+
+
+class SerialBoard:
+    """Commands over the board's USB serial (`<id> <command>` lines) when the Mac isn't bonded over BLE."""
+
+    def __init__(self, port: str):
+        import serial
+        self.port = serial.Serial(port, 115200, timeout=0.2)
+        self.id = 0
+        self.status = {}
+
+    async def cmd(self, line: str, timeout: float = 15) -> tuple[str, float]:
+        self.id += 1
+        start = time.monotonic()
+        self.port.reset_input_buffer()
+        self.port.write(f"{self.id} {line}\n".encode())
+        while time.monotonic() - start < timeout:
+            got = await asyncio.to_thread(self.port.readline)
+            text = got.decode(errors="replace").strip()
+            if text.startswith(("wv:", "video:")) and f" {self.id} " not in f" {text} ":
+                print("board:", text)
+            for prefix in (f"{self.id} ", f"video: {self.id} "):  # snap/bench answer from the video task
+                if text.startswith(prefix) and text != f"{self.id}":
+                    return text[len(prefix):], (time.monotonic() - start) * 1000
+        return "timeout", timeout * 1000
+
+    async def net(self) -> dict:
+        self.port.reset_input_buffer()
+        self.port.write(b"0 netinfo\n")
+        for _ in range(20):
+            text = (await asyncio.to_thread(self.port.readline)).decode(errors="replace").strip()
+            if text.startswith("0 {"):
+                return json.loads(text[2:])
+        raise RuntimeError("no netinfo reply")
+
+
+async def t_udp(b, kb: int, seconds: float, h264: Path, png: Path | None, token: str | None = None):
+    net = await b.net()
+    loop = asyncio.get_running_loop()
+    transport, v = await loop.create_datagram_endpoint(lambda: UdpVideo(token or net["vtok"]),
+                                                       remote_addr=(net["ip"], 7200))
+    ka = asyncio.create_task(v.keepalive())
+    try:
+        await asyncio.wait_for(v.ok.wait(), 3)
+    except asyncio.TimeoutError:
+        print("udp: no answer to hello (wrong token, or the Mac isn't on the board's network)")
+        ka.cancel(); transport.close()
+        return
+    await asyncio.sleep(1.2)  # the board sees the session as active (status udp.n) from here on
+    print("udp: session up")
+    start = time.monotonic()
+    reply, ms = await b.cmd(f"bench {kb}", timeout=120)
+    await asyncio.sleep(1)  # late resends
+    dur = (v.video.last_at - v.video.first_at) if v.video.first_at else 0
+    print(f"udp bench {kb} KB: reply '{reply}' after {ms:.0f} ms; {v.video.bench_bytes} B payload in {dur:.2f} s = "
+          f"{v.video.bench_bytes * 8 / 1000 / dur if dur else 0:.0f} kbps; {v.datagrams} datagrams, "
+          f"{v.nacks} nacks, {v.recovered} recovered, {v.lost} given up, {v.video.gaps} gaps after reorder")
+    if seconds:
+        v.video = Reassembler()
+        print("stream on:", (await b.cmd("stream on"))[0])
+        await asyncio.sleep(seconds)
+        print("stream off:", (await b.cmd("stream off"))[0])
+        await asyncio.sleep(0.5)
+        dur = (v.video.last_at - v.video.first_at) if v.video.first_at else 0
+        print(f"udp stream {seconds:.0f}s: {len(v.video.aus)} AUs, "
+              f"{v.video.bytes * 8 / 1000 / dur if dur else 0:.0f} kbps, {v.nacks} nacks, {v.lost} given up")
+        if v.video.aus:
+            save_video(v, h264, png)
+    ka.cancel()
+    transport.close()
+
+
 class Board:
     def __init__(self, client: BleakClient):
         self.c = client
@@ -83,7 +211,7 @@ class Board:
     def _on_reply(self, _, data: bytearray):
         text = data.decode(errors="replace")
         rid, _, rest = text.partition(" ")
-        if rid in ("log", "app"):  # relayed app debug lines (the phone's app is the other peer)
+        if rid in ("log", "app", "blog"):  # relayed app debug lines, and the board's own AirPlay log
             print(f"{time.strftime('%H:%M:%S')} [{rid}] {rest}", flush=True)
             return
         fut = self.pending.pop(rid, None)
@@ -241,7 +369,7 @@ async def t_app(b: Board, lines: list[str], seconds: float, snap_every: float, o
 
 async def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("test", choices=["all", "info", "bench", "snap", "stream", "hid", "cmd", "app", "stress"])
+    ap.add_argument("test", choices=["all", "info", "bench", "snap", "stream", "hid", "cmd", "app", "stress", "udp"])
     ap.add_argument("lines", nargs="*", help="command lines for `cmd`")
     ap.add_argument("--kb", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=10)
@@ -252,7 +380,14 @@ async def main():
     ap.add_argument("--load", choices=["bench", "stream"], default="bench",
                     help="`stress`: synthetic `bench --kb` filler, or `stream on` (needs mirroring)")
     ap.add_argument("--every", type=float, default=0.2, help="`stress`: seconds between ping/move commands")
+    ap.add_argument("--serial", help="`udp`: send commands over this USB serial port instead of BLE")
+    ap.add_argument("--token", help="`udp`: hello with this token instead of the board's (expect no answer)")
     a = ap.parse_args()
+
+    if a.test == "udp" and a.serial:
+        await t_udp(SerialBoard(a.serial), a.kb, a.seconds if "--seconds" in sys.argv else 0,
+                    a.out / "udp.h264", a.out / "udp.png", a.token)
+        return
 
     async with BleakClient(await find_board(a.scan), timeout=20) as client:
         b = Board(client)
@@ -269,6 +404,8 @@ async def main():
             await t_stream(b, a.seconds, a.out / "stream.h264", a.out / "stream.png")
         if a.test in ("all", "hid"):
             await t_hid(b)
+        if a.test == "udp":
+            await t_udp(b, a.kb, a.seconds if "--seconds" in sys.argv else 0, a.out / "udp.h264", a.out / "udp.png", a.token)
         if a.test == "stress":
             await t_stress(b, a.seconds, a.load, a.kb, a.every)
         if a.test == "app":  # drive the phone's app through the board, print its log, snap now and then

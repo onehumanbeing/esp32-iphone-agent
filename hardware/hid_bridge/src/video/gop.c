@@ -24,23 +24,53 @@ static void restart(gop_buf *g) {
   g->gen++;
 }
 
-int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
-  if (idr) {
-    restart(g);
-    g->wait_idr = false;
-  } else if (g->wait_idr) {
-    return -1;
-  }
-  if (g->used + len > g->cap || g->n == g->max) {  // GOP too big: drop it and wait for the next IDR
-    restart(g);
-    g->wait_idr = true;
-    g->overflows++;
-    return -1;
-  }
+int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
+  if (g->used + len > g->cap || g->n == g->max) return -1;
   memcpy(g->arena + g->used, annexb, len);
   g->aus[g->n] = (gop_au){(uint32_t)g->used, (uint32_t)len, ts, idr};
   g->used += len;
   return g->n++;
+}
+
+void gop_clear(gop_buf *g) {
+  g->used = 0;
+  g->n = 0;
+}
+
+int gop_find(const gop_buf *g, uint32_t ts) {
+  for (int i = g->n - 1; i >= 0; i--)
+    if (g->aus[i].ts == ts) return i;
+  return -1;
+}
+
+void gop_drop_front(gop_buf *g, int k) {
+  if (k <= 0) return;
+  if (k >= g->n) return gop_clear(g);
+  uint32_t off = g->aus[k].off;
+  memmove(g->arena, g->arena + off, g->used - off);
+  memmove(g->aus, g->aus + k, (size_t)(g->n - k) * sizeof *g->aus);
+  g->n -= k;
+  g->used -= off;
+  for (int i = 0; i < g->n; i++) g->aus[i].off -= off;
+}
+
+int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
+  if (idr) {
+    restart(g);
+    g->wait_idr = false;
+    g->frozen = false;
+  } else if (g->wait_idr || g->frozen) {
+    return -1;
+  }
+  int i = gop_append(g, annexb, len, idr, ts);
+  if (i < 0) {
+    // Full. Keep what we have: it still decodes, and iOS 26 may send no IDR for the rest of the mirroring
+    // session, so restarting would leave nothing to show at all (#25). Only an IDR too big leaves it empty.
+    if (g->n) g->frozen = true;
+    else g->wait_idr = true;
+    g->overflows++;
+  }
+  return i;
 }
 
 bool annexb_has_idr(const uint8_t *p, size_t len) {
