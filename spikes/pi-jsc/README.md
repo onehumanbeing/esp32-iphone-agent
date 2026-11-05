@@ -1,5 +1,7 @@
 # pi-jsc spike
 
+English · [简体中文](README.zh-CN.md)
+
 pi-agent-core + pi-ai bundled for a bare JavaScriptCore context, with a Swift host (timers, streaming fetch).
 Findings: [docs/pi-spike.md](../../docs/pi-spike.md).
 
