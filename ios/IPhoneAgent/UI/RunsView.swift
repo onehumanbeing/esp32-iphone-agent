@@ -24,6 +24,7 @@ struct RunsView: View {
                             Button { app.openReview(run: run.id) } label: { RunRow(run: run, running: isRunning(run)) }
                                 .buttonStyle(.plain)
                                 .deleteDisabled(!app.canDeleteRun(run))
+                                .handsyRunAnnotation(run.id)  // Siri: "replay this one"
                         }
                         .onDelete(perform: delete)
                     }

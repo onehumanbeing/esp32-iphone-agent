@@ -1,6 +1,20 @@
 import SwiftUI
 
 @main
+enum AppEntry {
+    /// The unit tests' host process: they build their own objects, so the app itself (Bluetooth, the video
+    /// listener, analytics) stays off. UI tests launch the app normally, without this variable.
+    static let hostingUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
+    static func main() {
+        if hostingUnitTests { TestHostApp.main() } else { IPhoneAgentApp.main() }
+    }
+}
+
+struct TestHostApp: App {
+    var body: some Scene { WindowGroup { Color.clear } }
+}
+
 struct IPhoneAgentApp: App {
     @StateObject private var app = AppModel.shared
 

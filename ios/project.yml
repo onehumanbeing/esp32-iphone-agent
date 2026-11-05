@@ -18,6 +18,11 @@ targets:
     sources:
       - IPhoneAgent
       - Shared
+      # Siri AI Developer Preview: a Skills bundle Siri reads for multi-step guidance. Copying the
+      # folder keeps Skills.skillsbundle/ as a bundle in the app instead of a loose folder.
+      - path: IPhoneAgent/Skills.skillsbundle
+        type: folder
+        buildPhase: resources
       - path: ../prompts  # the model prompts, bundled as a folder
         type: folder
         buildPhase: resources

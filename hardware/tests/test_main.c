@@ -9,6 +9,8 @@
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
 #include "../hid_bridge/src/log/logring.h"
+#include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
+#include "../hid_bridge/src/airplay/ap_internal.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -130,6 +132,18 @@ static void test_gop(void) {
   CHECK(avcc_to_annexb(avcc, sizeof avcc) && !memcmp(avcc, want, sizeof want));
   uint8_t bad[] = {0, 0, 0, 9, 0x65};
   CHECK(!avcc_to_annexb(bad, sizeof bad));
+
+  // The AU list fills before the arena: freeze the same way, the next IDR restarts (a still screen, tiny AUs).
+  static uint8_t big[1000];
+  gop_init(&g, big, sizeof big, aus, 4);
+  for (uint32_t i = 0; i < 4; i++) CHECK(gop_push(&g, au, 5, i == 0, 10 + i) == (int)i);
+  CHECK(gop_push(&g, au, 5, false, 14) == -1 && g.frozen && g.n == 4);
+  CHECK(gop_find(&g, 13) == 3);  // what was kept stays findable while frozen
+  CHECK(gop_push(&g, au, 5, true, 15) == 0 && !g.frozen && g.n == 1);
+  // An IDR too big for the arena: wait for the next one that fits, never keep P-frames without their IDR.
+  CHECK(gop_push(&g, big, sizeof big + 1, true, 16) == -1 && g.wait_idr && g.n == 0);
+  CHECK(gop_push(&g, au, 5, false, 17) == -1 && g.n == 0);
+  CHECK(gop_push(&g, au, 5, true, 18) == 0 && !g.wait_idr && g.n == 1);
 }
 
 static void test_chunker(void) {
@@ -326,7 +340,63 @@ static void test_logring(void) {
   CHECK(strlen(out) > 0 && strstr(out, "789\\n") != NULL);
 }
 
+// What the iPhone sees in Screen Mirroring: the Bonjour services and TXT records (airplay/mdns.c).
+mdns_stub_service mdns_stub[4];
+int mdns_stub_count;
+char mdns_stub_host[32];
+esp_err_t mdns_init(void) { mdns_stub_count = 0; return ESP_OK; }
+esp_err_t mdns_hostname_set(const char *name) { snprintf(mdns_stub_host, sizeof mdns_stub_host, "%s", name); return ESP_OK; }
+esp_err_t mdns_instance_name_set(const char *name) { (void)name; return ESP_OK; }
+esp_err_t mdns_service_add(const char *instance, const char *type, const char *proto, uint16_t port,
+                           mdns_txt_item_t *txt, size_t n) {
+  (void)proto;
+  mdns_stub_service *s = &mdns_stub[mdns_stub_count++];
+  snprintf(s->instance, sizeof s->instance, "%s", instance);
+  snprintf(s->type, sizeof s->type, "%s", type);
+  s->port = port;
+  s->n = n;
+  for (size_t i = 0; i < n; i++) {
+    snprintf(s->keys[i], sizeof s->keys[i], "%s", txt[i].key);
+    snprintf(s->values[i], sizeof s->values[i], "%s", txt[i].value);
+  }
+  return ESP_OK;
+}
+airplay_cfg ap_cfg;
+uint8_t ap_pk[32];
+void ap_log(const char *fmt, ...) { (void)fmt; }
+
+static const char *txt_value(const mdns_stub_service *s, const char *key) {
+  for (size_t i = 0; i < s->n; i++) if (!strcmp(s->keys[i], key)) return s->values[i];
+  return NULL;
+}
+
+static void test_mdns(void) {
+  ap_cfg.name = "ESP32 Agent";
+  uint8_t mac[6] = {0x7C, 0x3E, 0x01, 0x02, 0xAB, 0xCD};
+  memcpy(ap_cfg.hwaddr, mac, 6);
+  for (int i = 0; i < 32; i++) ap_pk[i] = (uint8_t)i;
+  CHECK(ap_mdns_start() && mdns_stub_count == 2);
+  const mdns_stub_service *a = &mdns_stub[0], *r = &mdns_stub[1];
+  CHECK(!strcmp(a->type, "_airplay") && !strcmp(a->instance, "ESP32 Agent"));
+  CHECK(!strcmp(r->type, "_raop") && !strcmp(r->instance, "7C3E0102ABCD@ESP32 Agent"));
+  CHECK(a->port == r->port && a->port > 0);
+  CHECK(txt_value(a, "deviceid") && !strcmp(txt_value(a, "deviceid"), "7C:3E:01:02:AB:CD"));
+  const char *pk = txt_value(a, "pk");
+  CHECK(pk && strlen(pk) == 64 && !strncmp(pk, "000102", 6) && !strcmp(pk, txt_value(r, "pk")));
+  CHECK(txt_value(a, "features") && !strcmp(txt_value(a, "features"), txt_value(r, "ft")));
+  CHECK(txt_value(a, "pw") && !strcmp(txt_value(a, "pw"), "false"));  // no PIN prompt on the iPhone
+
+  // The raw TXT record: length-prefixed "k=v" entries, whole entries only, never past cap.
+  uint8_t rec[512];
+  size_t len = ap_txt_record(true, rec, sizeof rec), o = 0, entries = 0;
+  while (o < len) { o += 1 + rec[o]; entries++; }
+  CHECK(o == len && entries == a->n && !memcmp(rec + 1, "deviceid=7C:3E:01:02:AB:CD", 26));
+  size_t cut = ap_txt_record(true, rec, 40);
+  CHECK(cut <= 40 && cut == 1u + rec[0]);  // only the first entry (28 bytes) fits
+}
+
 int main(void) {
+  test_mdns();
   test_logring();
   test_bplist_roundtrip();
   test_bplist_utf16();

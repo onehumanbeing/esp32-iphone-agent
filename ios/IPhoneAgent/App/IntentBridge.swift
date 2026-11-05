@@ -19,6 +19,12 @@ extension AppModel {
             guard MockMode.on || board.connected else { return String(localized: "The board isn't connected.") }
             calibrator.calibrate()
             return String(localized: "Calibrating the pointer…")
+        case .openRun(let id):
+            // "Replay" from Siri: the same review screen a tap on the Runs row opens.
+            runs.reload()
+            guard let run = runs.run(id) else { return String(localized: "That run isn't on this iPhone any more.") }
+            openReview(run: run.id)
+            return String(localized: "Showing the run: \(run.task)")
         }
     }
 
