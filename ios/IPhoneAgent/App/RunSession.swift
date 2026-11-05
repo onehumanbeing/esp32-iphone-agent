@@ -81,6 +81,7 @@ extension AppModel {
             if settings.provider == .handsyTrial { try await Trial.shared.begin() }  // free line: take it before leaving
             agent.actor = try await settings.client("actor")
             agent.planner = try await settings.client("planner")
+            agent.screenTree = settings.provider == .handsyTrial
         } catch is CancellationError {
             return  // Cancel while waiting for the free line
         } catch {

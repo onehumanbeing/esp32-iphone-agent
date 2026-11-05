@@ -51,6 +51,8 @@ import UIKit
         }
     }
     static let agentNameKey = "agentName"
+    /// Free line: ask Jev and the model together (faster when Jev declines, costs the model's work when it doesn't).
+    static let jevRaceKey = "jevRace"
     static var defaultAgentName: String { String(localized: "ESP32 Agent") }
     /// The name, for code without a Settings instance (Live Activity).
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
@@ -318,7 +320,10 @@ import UIKit
             let others = freeModels.filter { $0 != model && $0.hasSuffix(":free") }.sorted().prefix(2)
             if !others.isEmpty { extra["models"] = [model] + others }
         }
-        let headers: (() throws -> [String: String])? = provider == .handsyTrial ? { try Trial.shared.headers() } : nil  // free line
+        // free line; the actor's steps go to Jev first (race: Jev and the model at once, the first sure answer wins)
+        let jev = role == "actor" ? ["X-Handsy-Jev": defaults.bool(forKey: Self.jevRaceKey) ? "race" : "1"] : [:]
+        let headers: (() throws -> [String: String])? = provider == .handsyTrial
+            ? { try Trial.shared.headers().merging(jev) { a, _ in a } } : nil
         return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
     }
 }

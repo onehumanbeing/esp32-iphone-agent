@@ -89,6 +89,10 @@ extension Pointer: Gestures {}
     var onConfirm: ((String) async -> HelpChoice)?
     static let askBeforeRiskyKey = "askBeforeRisky"
     var askMode: AskMode?  // nil = the stored setting
+    /// Free line: the actor sees the screen's element list (UITree, built here) and may answer `tap #ID`.
+    var screenTree = false
+    /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
+    private(set) var lastServed: String?
 
     init(phone: Gestures?, screen: ScreenSource?, actor: ChatModel?, planner: ChatModel?, trace: TraceStore?,
          maxSteps: Int = 40, maxFailures: Int = 3) {
@@ -213,6 +217,10 @@ extension Pointer: Gestures {}
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
             let frame = screen.frame, started = now(), requestLinks = phone?.device.links
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
+            // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
+            var tree: UITree?
+            if role == "actor", screenTree, let sent { tree = await UITree.build(jpeg: sent) }
+            let text = prompt + (tree?.listing ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in
@@ -226,7 +234,7 @@ extension Pointer: Gestures {}
             let maxTokens = Self.maxTokens[role] ?? 1000
             do {
                 DebugLog.write("model request starting (\(role)): \(llm.model), maxTokens \(maxTokens), image \((sent?.count ?? 0) / 1024) KB")
-                reply = try await llm.chat(system: system, text: prompt, image: sent,
+                reply = try await llm.chat(system: system, text: text, image: sent,
                                            maxTokens: maxTokens, temperature: temperature)
             } catch {
                 if !Task.isCancelled {
@@ -250,8 +258,14 @@ extension Pointer: Gestures {}
             let seconds = ((now() - started) * 100).rounded() / 100
             metrics?.llm(first: reply.firstToken, total: reply.total)
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
-            var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(prompt),
+            let answer = tree?.resolve(reply.text) ?? reply.text
+            lastServed = reply.servedModel
+            var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(text),
                                 "reply": .str(reply.text), "seconds": .num(seconds)]
+            if let tree {
+                rec["tree_ms"] = .num(((tree.ocrSeconds + tree.cvSeconds) * 1000).rounded())
+                if answer != reply.text { rec["resolved"] = .str(answer) }
+            }
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
             if lastActed > 0 { rec["frame_after_action_s"] = .num(((screen.capturedAt - lastActed) * 100).rounded() / 100) }
             trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
@@ -263,7 +277,7 @@ extension Pointer: Gestures {}
                 continue
             }
             acceptedLookLinks = requestLinks
-            return (reply.text, seconds, frame)
+            return (answer, seconds, frame)
         }
     }
 
@@ -472,7 +486,7 @@ extension Pointer: Gestures {}
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
-        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed", "replay"]
+        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed", "replay", "jev"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             let effect = s["changed"] == .bool(true) ? " -> screen changed"
                 : s["changed"] == .bool(false) ? " -> screen did NOT change" : ""
@@ -493,6 +507,7 @@ extension Pointer: Gestures {}
                 continue
             }
             acts[0]["think_s"] = .num(seconds)
+            if lastServed == "handsy-jev" { acts[0]["jev"] = .bool(true) }  // the free line's Jev took this step
             return acts.map { Planned(act: $0, shot: frame) }
         }
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")

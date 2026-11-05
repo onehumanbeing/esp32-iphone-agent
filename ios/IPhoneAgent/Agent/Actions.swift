@@ -8,7 +8,7 @@ enum Actions {
     }
 
     /// Bookkeeping keys that are not part of the action itself.
-    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay"]
+    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay", "jev"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
