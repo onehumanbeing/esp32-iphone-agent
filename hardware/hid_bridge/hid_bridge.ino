@@ -30,6 +30,10 @@
 #include "src/heard/heard.h"
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
+#ifdef ZECTRIX_NOTE4
+#include "ble_hid.h"
+#include <driver/gpio.h>
+#endif
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
@@ -40,9 +44,17 @@ const int HOME_REPORTS = 25;  // per axis
 
 const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the board instead of staying offline
 
+#ifdef ZECTRIX_NOTE4
+BleHidMouse mouse;
+BleHidKeyboard keyboard;
+BleHidConsumer consumer;
+const int HOME_REPORT_MS = 15;  // 按蓝牙连接间隔发送归零报告。
+#else
+const int HOME_REPORT_MS = 2;
 USBHIDMouse mouse;
 USBHIDKeyboard keyboard;
 USBHIDConsumerControl consumer;
+#endif
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
 static String receiverName = "ESP32 Agent";
 
@@ -52,6 +64,9 @@ void movePaced(long dx, long dy, int step = STEP) {
   int sx, sy;
   while (pace_next(&p, &sx, &sy)) {
     mouse.move(sx, sy);
+#ifdef ZECTRIX_NOTE4
+    if (!ble_hid_command_ok()) return;
+#endif
     delay(STEP_MS);
   }
 }
@@ -104,11 +119,15 @@ String run(const String &line) {
 
   if (cmd == "ping") return "ok";
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
+#ifdef ZECTRIX_NOTE4
+  if (!ble_hid_ready()) return "err Bluetooth HID not paired";
+#else
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
+#endif
   if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(2); }
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(2); }
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(HOME_REPORT_MS); }
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(HOME_REPORT_MS); }
     return "ok";
   }
   if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
@@ -118,7 +137,15 @@ String run(const String &line) {
   if (cmd == "scroll") { mouse.move(0, 0, a, b); return "ok"; }
   if (cmd == "type") { keyboard.print(arg); return "ok"; }
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
-  if (cmd == "homescreen") { consumer.press(AC_HOME); delay(40); consumer.release(); return "ok"; }
+  if (cmd == "homescreen") {
+#ifdef ZECTRIX_NOTE4
+    // 辅助触控将按钮 2 映射到主屏幕。
+    mouse.press(MOUSE_RIGHT); delay(60); mouse.release(MOUSE_RIGHT);
+#else
+    consumer.press(AC_HOME); delay(40); consumer.release();
+#endif
+    return "ok";
+  }
   return "err unknown command";
 }
 
@@ -130,6 +157,9 @@ String drive(const String &line, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String reply = run(line);
+#ifdef ZECTRIX_NOTE4
+  if (!ble_hid_command_ok()) reply = "err Bluetooth HID report failed";
+#endif
   arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");
   return reply;
 }
@@ -291,6 +321,10 @@ String statusJson(bool full, char who) {
   }
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
+#ifdef ZECTRIX_NOTE4
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"board\":\"note4\",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
+  len = strlen(s);
+#endif
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
   // AirPlay audio: packets, sound segments, a segment going on, sender volume (dB), records lost to the app
   airplay_audio_stats au = airplay_audio();
@@ -306,6 +340,9 @@ String statusJson(bool full, char who) {
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
   snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
+#ifdef ZECTRIX_NOTE4
+  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"board\":\"note4\",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
+#endif
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
   if (who == FROM_CLI)
     snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\",\"link\":{\"via\":\"%s\",\"mtu\":%u}", app,
@@ -369,6 +406,21 @@ void startAirplay() {
 }
 
 void setup() {
+#ifdef ZECTRIX_NOTE4
+  // 电池供电需要先锁存电源；闲置外设关闭，避免音频噪声和额外耗电。
+  gpio_hold_dis(GPIO_NUM_17);
+  gpio_set_level(GPIO_NUM_17, 1);
+  gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
+  gpio_hold_en(GPIO_NUM_17);
+  for (int pin : {6, 42, 46}) {
+    gpio_hold_dis(static_cast<gpio_num_t>(pin));
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, LOW);
+  }
+  gpio_hold_dis(GPIO_NUM_3);
+  pinMode(3, OUTPUT);
+  digitalWrite(3, HIGH);
+#endif
   Serial.begin(115200);
 #if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, to check the rollback after an update
   delay(3000);
@@ -390,7 +442,10 @@ void setup() {
   net_begin();
   if (!video_begin()) board_log("video: no PSRAM for the GOP buffer");
   if (!wv_begin()) board_log("video: Wi-Fi video channel failed to start");
+#ifndef ZECTRIX_NOTE4
+  // 现有 OTA 清单只发行 USB 板镜像；Note 4 须先有可验证板型的更新协议。
   if (!ota_begin()) board_log("ota: failed to start");
+#endif
   arb_init(&arb);
   cli_begin();
   if (!cli_tcp_begin()) board_log("cli: Wi-Fi link failed to start");
@@ -406,6 +461,10 @@ void setup() {
 void loop() {
   static bool linked = false, cliLinked = false;
   esp_task_wdt_reset();
+#ifdef ZECTRIX_NOTE4
+  ble_hid_command_begin(ble_hid_session());
+  ble_hid_poll();
+#endif
   net_poll();
   bool cli = cli_slot() >= 0;
   // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.

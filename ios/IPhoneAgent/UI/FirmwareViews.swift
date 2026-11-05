@@ -9,7 +9,7 @@ struct FirmwareGate: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task(id: board.connected) { if board.connected { await updater.boardConnected() } }
+            .task(id: updater.usesUSBRelease) { if updater.usesUSBRelease { await updater.boardConnected() } }
             .sheet(isPresented: $updater.presented) { FirmwareSheet(app: app, updater: updater, board: board) }
     }
 }
@@ -53,13 +53,15 @@ struct FirmwareSection: View {
                 Button { showing = true } label: { Label("Update to \(release.ver.description)", systemImage: "arrow.down.circle") }
             } else if updater.checking {
                 HStack { Text("Checking for Updates…").foregroundStyle(.secondary); Spacer(); ProgressView() }
-            } else {
-                Button("Check for Updates") { Task { await updater.check() } }.disabled(!board.connected)
+            } else if board.status?.isWirelessHID != true {
+                Button("Check for Updates") { Task { await updater.check() } }.disabled(!updater.usesUSBRelease)
             }
         } header: {
             Text("Firmware")
         } footer: {
-            if let error = updater.checkError {
+            if board.status?.isWirelessHID == true {
+                Text("Install Note 4 firmware over USB using hardware/flash.sh --note4.")
+            } else if let error = updater.checkError {
                 Text(verbatim: error)
             } else if updater.release != nil && !updater.available && board.connected {
                 Text("The board is up to date.")

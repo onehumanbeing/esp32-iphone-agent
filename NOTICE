@@ -16,3 +16,6 @@ work credits it visibly, for example:
 
   Based on ESP32 iPhone Agent by Henry Yuan
   https://github.com/onehumanbeing/esp32-iphone-agent
+
+Note 4 无线适配的电池电压估算算法参考 Zectrix Lab 的 zectrix-note4-epd-demo，版权为 Copyright (c) 2026 Zectrix Lab，采用 MIT 许可，完整许可见 hardware/hid_bridge/LICENSE-ZECTRIX。
+来源：https://github.com/itopinion/zectrix-note4-epd-demo

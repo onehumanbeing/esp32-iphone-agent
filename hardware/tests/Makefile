@@ -14,3 +14,10 @@ clean:
 	rm -f test
 
 .PHONY: clean
+
+.PHONY: check-note4
+check-note4:
+	mkdir -p ../build/tests
+	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -o ../build/tests/test_note4 test_hid_keys.cpp
+	../build/tests/test_note4
+	python3 test_note4.py

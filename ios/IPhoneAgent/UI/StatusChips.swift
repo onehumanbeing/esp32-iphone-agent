@@ -12,7 +12,7 @@ struct StatusChips: View {
         FlowLayout(spacing: Space.s) {
             chip("Board", "cable.connector", ok: board.connected, page: .connect)
             chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
-            chip("Mouse", "cursorarrow", ok: board.connected && board.status?.usb == "ok", page: .act)
+            chip("Mouse", "cursorarrow", ok: board.connected && board.status?.inputReady == true, page: .act)
             chip(calibrator.busy ? "Calibrating" : "Pointer", "scope", ok: pointer.calibrated, busy: calibrator.busy, page: .act)
             chip(app.settings.provider == .handsyTrial && app.modelOK == false
                  ? (Trial.shared.status == .usedUp ? "Free Runs Used" : "Free Line Busy") : "Model", "brain",  // free line

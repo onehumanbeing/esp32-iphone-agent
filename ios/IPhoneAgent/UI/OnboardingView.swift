@@ -121,7 +121,7 @@ struct OnboardingView: View {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return pointer.calibrated && !calibrator.busy
+        case .act: return pointer.calibrated && !calibrator.busy && board.status?.needsWirelessPointer != true
         case .brain: return app.modelOK == true
         }
     }
@@ -156,6 +156,7 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
+            if board.status?.needsWirelessPointer == true { return "Pair the Bluetooth pointer" }
             if pointer.calibrated { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
@@ -170,7 +171,7 @@ struct OnboardingView: View {
         case .welcome: return accepted
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && !app.join.busy)
-        case .act: return !calibrator.busy && (pointer.calibrated || actReady)
+        case .act: return board.status?.needsWirelessPointer != true && !calibrator.busy && (pointer.calibrated || actReady)
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }

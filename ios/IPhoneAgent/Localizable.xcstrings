@@ -9432,6 +9432,186 @@
           }
         }
       }
+    },
+    "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "告诉我任务，我会通过屏幕镜像查看这台 iPhone，用指针进行操作。"
+          }
+        }
+      }
+    },
+    "Connect the Board" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接开发板"
+          }
+        }
+      }
+    },
+    "Plug in the USB board or power on Note 4. Select the board over Bluetooth and tap Pair when asked." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插上 USB 开发板或启动 Note 4，通过蓝牙选择开发板，在系统询问时轻点“配对”。"
+          }
+        }
+      }
+    },
+    "the board connected in this app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 中连接的同一块开发板"
+          }
+        }
+      }
+    },
+    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。"
+          }
+        }
+      }
+    },
+    "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
+          }
+        }
+      }
+    },
+    "New USB board?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的 USB 开发板？"
+          }
+        }
+      }
+    },
+    "Plug in the USB board or power on Note 4" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插上 USB 开发板或启动 Note 4"
+          }
+        }
+      }
+    },
+    "Plug in the USB board or power on Note 4." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插上 USB 开发板或启动 Note 4。"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对蓝牙指针"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在这台 iPhone 的辅助触控设置中配对蓝牙指针。"
+          }
+        }
+      }
+    },
+    "Check the Note 4 pairing and AssistiveTouch settings on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查这台 iPhone 上的 Note 4 配对状态和辅助触控设置。"
+          }
+        }
+      }
+    },
+    "Clicks aren't reaching the screen — is AssistiveTouch on and the pointer connected?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕没有收到点击。请确认辅助触控已开启，并已连接指针设备。"
+          }
+        }
+      }
+    },
+    "The Bluetooth pointer did not reconnect in 5 minutes." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针在五分钟内未能重新连接。"
+          }
+        }
+      }
+    },
+    "Waiting for the Bluetooth pointer…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待蓝牙指针连接…"
+          }
+        }
+      }
+    },
+    "Firmware updates in this app are for the USB board only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用内固件更新仅支持 USB 开发板。"
+          }
+        }
+      }
+    },
+    "Install Note 4 firmware over USB using hardware/flash.sh --note4." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请通过 USB 使用 hardware/flash.sh --note4 安装 Note 4 固件。"
+          }
+        }
+      }
+    },
+    "Bluetooth HID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

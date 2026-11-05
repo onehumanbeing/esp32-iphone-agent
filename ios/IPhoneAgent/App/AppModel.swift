@@ -179,7 +179,8 @@ import UIKit
             if let up = s.up { self?.feed.boardClock(ms: up) }
             self?.metrics.status(s)
             self?.logStatus(s)
-            self?.refreshLinkRecoveryDisplay()
+            if s.needsWirelessPointer { self?.beginLinkRecoveryDisplay() }
+            else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in
             guard let self else { return }
@@ -341,7 +342,7 @@ import UIKit
     /// The run paused for the board (line) or goes on (nil).
     /// Board status changes go to the debug log (not every identical notify).
     private func logStatus(_ s: BoardStatus) {
-        let line = "board status: ap \(s.ap ?? "-") usb \(s.usb ?? "-") sta \(s.sta.map(String.init) ?? "-")"
+        let line = "board status: ap \(s.ap ?? "-") input \(s.inputState ?? "-") sta \(s.sta.map(String.init) ?? "-")"
             + " screen \(s.w.map(String.init) ?? "-")x\(s.h.map(String.init) ?? "-") rst \(s.rst ?? "-")"
         guard line != lastStatus else { return }
         let wasOnBoardWiFi = lastStatus.contains(" sta ") && !lastStatus.contains(" sta 0") && !lastStatus.contains(" sta -")
