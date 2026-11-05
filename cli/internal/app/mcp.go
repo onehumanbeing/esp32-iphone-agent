@@ -34,6 +34,9 @@ type tool struct {
 
 func schema(required []string, props map[string]any) map[string]any {
 	props["device"] = map[string]any{"type": "string", "description": "board id; only needed with several boards"}
+	if required == nil {
+		required = []string{}
+	}
 	return map[string]any{"type": "object", "properties": props, "required": required}
 }
 
