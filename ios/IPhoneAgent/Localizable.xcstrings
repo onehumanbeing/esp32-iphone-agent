@@ -9282,6 +9282,46 @@
           }
         }
       }
+    },
+    "Listen to phone audio" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收听手机声音"
+          }
+        }
+      }
+    },
+    "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech is turned into text on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。语音只在这台 iPhone 上转成文字。"
+          }
+        }
+      }
+    },
+    "Speech recognition is off for ESP32 Agent. Turn it on in Settings › ESP32 Agent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ESP32 Agent 的语音识别已关闭，请在 设置 › ESP32 Agent 中打开。"
+          }
+        }
+      }
+    },
+    "On-device speech recognition isn't available for this language." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前语言不支持在本机识别语音。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
