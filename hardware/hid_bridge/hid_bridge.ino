@@ -284,12 +284,10 @@ void statusTask(void *) {
   }
 }
 
-// AirPlay log lines: to USB serial, and to the app ("blog ...", into its debug.log) so a stall on a board
-// plugged into the phone leaves evidence, and into the RAM log. At most 16 a second; the rest are counted and reported later.
-void logLine(const char *msg) {
-#if DEBUG_SERIAL
-  Serial.printf("[%lu] %s\n", millis(), msg);
-#endif
+// Board log lines to the app ("blog ...", into its debug.log) so a stall on a board plugged into the phone leaves
+// evidence: the AirPlay log, and board_log (the video link's switches and resumes, which stayed in the 8 KB RAM log
+// and were gone before anyone looked, 2026-11-06). At most 16 a second; the rest are counted and reported later.
+void relayLine(const char *msg) {
   static uint32_t windowStart, sent, skipped;
   static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
   uint32_t now = millis();
@@ -299,12 +297,19 @@ void logLine(const char *msg) {
   if (now - windowStart >= 1000) { windowStart = now; sent = 0; }
   if (sent < 16) { sent++; send = true; dropped = skipped; skipped = 0; } else skipped++;
   portEXIT_CRITICAL(&mux);
-  if (!send) return;
-  board_log_keep(msg);
-  if (!ble_connected()) return;
+  if (!send || !ble_connected()) return;
   String line = String("blog ") + now + " " + msg;
   if (dropped) line += String(" (+") + dropped + " skipped)";
   ble_reply(line);
+}
+
+// AirPlay log lines: to USB serial, the RAM log and the app.
+void logLine(const char *msg) {
+#if DEBUG_SERIAL
+  Serial.printf("[%lu] %s\n", millis(), msg);
+#endif
+  board_log_keep(msg);
+  relayLine(msg);
 }
 
 void startAirplay() {
