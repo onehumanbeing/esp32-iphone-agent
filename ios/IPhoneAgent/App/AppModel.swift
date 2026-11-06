@@ -150,7 +150,7 @@ import UIKit
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
         wifiVideo.onAudio = { [weak self] in self?.audio.receive($0) }
         wifiVideo.wantsAudio = { ListenSetting.on }
-        audio.linked = { [weak self] in self?.wifiVideo.active ?? false }
+        audio.linked = { [weak self] in self.map { $0.wifiVideo.active && $0.feed.mirroring } ?? false }
         setListening(ListenSetting.on)
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }

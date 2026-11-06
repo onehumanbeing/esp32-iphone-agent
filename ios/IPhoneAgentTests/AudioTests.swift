@@ -102,12 +102,14 @@ import XCTest
         XCTAssertEqual(feed.heard(), "Phone audio: listening; no sound in the last 30 s.")
     }
 
-    func testEveryLanguageReadingIsLabelled() {
-        XCTAssertEqual(MultiEngine.label(["zh", "en"], ["验证码四七二九", "Ching fei"]), "[zh] 验证码四七二九 [en] Ching fei")
-        XCTAssertEqual(MultiEngine.label(["zh", "en"], ["", "hello"]), "[en] hello")
-        XCTAssertEqual(MultiEngine.label(["en"], ["hello"]), "hello")
-        let multi = MultiEngine([("zh", FakeSpeech(text: "")), ("en", FakeSpeech(text: ""))])
-        XCTAssertEqual(multi?.languages, ["zh", "en"])
+    func testSurerLanguageReadingIsKept() {
+        let zh = Reading(text: "验证码四七二九", confidence: 0.9), en = Reading(text: "Ching fei", confidence: 0.3)
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [en, zh]), "[zh] 验证码四七二九")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [en, .empty]), "[en] Ching fei")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [Reading(text: "a", confidence: 0.5), Reading(text: "b", confidence: 0.5)]), "[en] a")
+        XCTAssertEqual(MultiEngine.pick(["en"], [en]), "Ching fei")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [.empty, .empty]), "")
+        XCTAssertEqual(MultiEngine([("en", FakeSpeech(text: "")), ("zh", FakeSpeech(text: ""))])?.languages, ["en", "zh"])
         XCTAssertNil(MultiEngine([]))
     }
 
@@ -182,6 +184,6 @@ final class FakeSpeech: SpeechEngine {
         let owner: FakeSpeech
         init(_ owner: FakeSpeech) { self.owner = owner }
         func append(_ buffer: AVAudioPCMBuffer) { owner.appended += 1 }
-        func finish() async -> String { owner.text }
+        func finish() async -> Reading { Reading(text: owner.text, confidence: 0.5) }
     }
 }

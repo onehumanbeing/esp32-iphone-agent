@@ -6,11 +6,25 @@ struct ListenSection: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(ListenSetting.key) private var listen = false
+    @State private var second = SpeechLanguages.second
+    @State private var choices: [String] = []
 
     var body: some View {
         Section {
             Toggle(isOn: $listen) { SettingsLabel(title: "Listen to phone audio", symbol: "waveform", color: .mint) }
                 .onChange(of: listen) { _, on in app.setListening(on) }
+            if listen {
+                // English is always recognized; the second language is the other one the phone may play
+                Picker("Second language", selection: $second) {
+                    Text("None").tag("")
+                    ForEach(choices, id: \.self) { Text(verbatim: SpeechLanguages.name($0)).tag($0) }
+                }
+                .onAppear { if choices.isEmpty { choices = SpeechLanguages.choices() } }
+                .onChange(of: second) { _, id in
+                    UserDefaults.standard.set(id, forKey: SpeechLanguages.key)
+                    app.audio.reset()
+                }
+            }
         } footer: {
             footer
         }
@@ -20,7 +34,7 @@ struct ListenSection: View {
         switch listen ? audio.state : nil {
         case .denied?: return Text("Speech recognition is off for ESP32 Agent. Turn it on in Settings › ESP32 Agent.")
         case .unavailable(let why)?: return Text(verbatim: why)  // already localized
-        default: return Text("While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech is turned into text on this iPhone.")
+        default: return Text("While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone.")
         }
     }
 }

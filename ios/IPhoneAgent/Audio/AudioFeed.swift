@@ -27,7 +27,7 @@ enum ListenSetting {
 
     var enabled = false { didSet { if !enabled { endSegment() } } }
     var clock: () -> Double = { now() }
-    /// The board's Wi-Fi video link is up, the only way its audio reaches the app.
+    /// The phone mirrors and the board's Wi-Fi video link is up: the only way its audio reaches the app.
     var linked: () -> Bool = { true }
     private var engine: SpeechEngine?
     private var decoder: AudioDecoder?
@@ -42,11 +42,20 @@ enum ListenSetting {
         guard engine == nil, preparing == nil else { return }
         preparing = Task {
             let (engine, state) = await SpeechSetup.engine()
+            guard !Task.isCancelled else { return }  // reset() while it started: that one's languages are stale
             self.state = state
             if let engine { use(engine) }
             DebugLog.write("audio: speech \(state)")
             preparing = nil
         }
+    }
+
+    /// Settings › Second language changed: the next segment uses an engine for the new languages.
+    func reset() {
+        endSegment()
+        preparing?.cancel()
+        (engine, decoder, state, preparing) = (nil, nil, nil, nil)
+        if enabled { prepare() }
     }
 
     /// Tests and later engines (RemoteTranscriber).
@@ -87,14 +96,14 @@ enum ListenSetting {
         let words: String
         switch state {
         case .ready?: words = (engine as? MultiEngine).map { $0.languages.count > 1
-            ? "words transcribed on the phone once per language (\($0.languages.joined(separator: ", "))), each reading labelled; only one fits the sound"
+            ? "words transcribed on the phone by \($0.languages.joined(separator: " and ")) recognizers, the surer one kept and labelled"
             : "words transcribed on the phone" } ?? "words transcribed on the phone"
         case .denied?: words = "speech recognition is not allowed, so no words, only whether there was sound"
         case .unavailable(let why)?: words = "no words (\(why)), only whether there was sound"
         case nil: words = "speech recognition still starting, so no words yet"
         }
         if !lines.isEmpty { return "Heard (phone audio, last \(Int(seconds)) s; \(words)):\n" + lines.joined(separator: "\n") }
-        guard linked() else { return "Phone audio: not reaching the app right now (no Wi-Fi link to the board), so sound is not heard." }
+        guard linked() else { return "Phone audio: not reaching the app right now (no mirroring or no Wi-Fi link to the board), so sound is not heard." }
         return "Phone audio: listening; no sound in the last \(Int(seconds)) s."
     }
 
@@ -120,7 +129,7 @@ enum ListenSetting {
             if current && segments.last?.end == nil {
                 session = s
             } else {
-                setText(await s.finish(), started: started, final: true)
+                setText(await s.finish().text, started: started, final: true)
             }
         }
     }
@@ -138,7 +147,7 @@ enum ListenSetting {
             return
         }
         session = nil
-        Task { setText(await s.finish(), started: started, final: true) }
+        Task { setText(await s.finish().text, started: started, final: true) }
     }
 
     private func setText(_ text: String, started: Double, final: Bool) {

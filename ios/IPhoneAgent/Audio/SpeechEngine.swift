@@ -1,11 +1,18 @@
 import AVFoundation
 import Speech
 
+/// What one engine made of a segment: the text and how sure it was (0…1, mean over the words; 0 if unknown).
+struct Reading: Equatable {
+    var text: String
+    var confidence: Double
+    static let empty = Reading(text: "", confidence: 0)
+}
+
 /// Speech to text for one segment of phone audio, on the phone. Feed PCM in `format`, then `finish()` for the text.
 protocol SpeechSession: AnyObject {
     func append(_ buffer: AVAudioPCMBuffer)
-    /// The final text ("" if nothing was recognized).
-    func finish() async -> String
+    /// The final reading (empty if nothing was recognized).
+    func finish() async -> Reading
 }
 
 /// Makes sessions. Partial text arrives on `onPartial` (any thread) while the segment goes on.
@@ -17,25 +24,58 @@ protocol SpeechEngine: AnyObject {
 /// A later server-side engine (a new API) plugs in here when the phone can't transcribe; none exists yet.
 protocol RemoteTranscriber: SpeechEngine {}
 
+/// Settings › Listen to phone audio › Second language: English is always recognized, plus this one ("" = none).
+enum SpeechLanguages {
+    static let key = "listenSecondLanguage"
+    static let first = "en-US"
+
+    /// The chosen second language; until one is chosen, the phone's first non-English language it can recognize.
+    static var second: String {
+        if let chosen = UserDefaults.standard.string(forKey: key) { return chosen }
+        return choices().first.flatMap { c in Locale.preferredLanguages.contains { Locale(identifier: c).matches($0) } ? c : nil } ?? ""
+    }
+
+    static var all: [String] { second.isEmpty ? [first] : [first, second] }
+
+    /// Languages the phone can recognize besides English, the phone's own languages first.
+    static func choices() -> [String] {
+        let supported = SFSpeechRecognizer.supportedLocales().map(\.identifier).filter { tag($0) != "en" }
+        var out: [String] = []
+        for p in Locale.preferredLanguages {
+            if let m = supported.first(where: { Locale(identifier: $0).matches(p) }), !out.contains(m) { out.append(m) }
+        }
+        return out + supported.filter { !out.contains($0) }.sorted { name($0) < name($1) }
+    }
+
+    static func name(_ id: String) -> String { Locale.current.localizedString(forIdentifier: id) ?? id }
+    static func tag(_ id: String) -> String { Locale(identifier: id).language.languageCode?.identifier ?? id }
+}
+
+private extension Locale {
+    /// Same language and, when both say, the same script and region (zh-Hans-CN matches zh-CN, not zh-TW).
+    func matches(_ preferred: String) -> Bool {
+        let p = Locale(identifier: preferred)
+        guard language.languageCode == p.language.languageCode else { return false }
+        if let a = language.script, let b = p.language.script, a != b { return false }
+        if let a = region, let b = p.region, a != b { return false }
+        return true
+    }
+}
+
 enum SpeechSetup {
     enum State: Equatable {
         case ready, denied, unavailable(String)
     }
 
-    /// Asks for speech recognition (once) and returns an on-device engine for the phone's first two languages
-    /// (Settings › Language & Region), or why not. Nothing says which language a segment is in, so each language
-    /// transcribes it and the model gets every reading, labelled.
-    static func engine(languages: [String] = Locale.preferredLanguages) async -> (SpeechEngine?, State) {
+    /// Asks for speech recognition (once) and returns an on-device engine for `languages`, or why not.
+    static func engine(languages: [String] = SpeechLanguages.all) async -> (SpeechEngine?, State) {
         let auth = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
         guard auth == .authorized else { return (nil, .denied) }
         var engines: [(String, SpeechEngine)] = []
         for id in languages {
-            let locale = Locale(identifier: id)
-            let tag = locale.language.languageCode?.identifier ?? id
-            guard engines.count < 2, !engines.contains(where: { $0.0 == tag }), let e = await single(locale) else { continue }
-            engines.append((tag, e))
+            if let e = await single(Locale(identifier: id)) { engines.append((SpeechLanguages.tag(id), e)) }
         }
-        DebugLog.write("audio: speech in \(engines.map(\.0)) (phone languages \(languages))")
+        DebugLog.write("audio: speech in \(engines.map(\.0)) (asked for \(languages))")
         guard let engine = MultiEngine(engines) else {
             return (nil, .unavailable(String(localized: "On-device speech recognition isn't available for this language.")))
         }
@@ -49,9 +89,10 @@ enum SpeechSetup {
     }
 }
 
-// MARK: several languages over the same sound
+// MARK: English and a second language over the same sound
 
-/// One session per language; the text is every non-empty reading, "[zh] … [en] …" (just the text for one language).
+/// Nothing says which language a segment is in, so each language transcribes it and only the surer reading is
+/// kept, labelled "[zh] …" (no label with one language). While it goes on, the longer partial text shows.
 final class MultiEngine: SpeechEngine {
     let format: AVAudioFormat
     let languages: [String]
@@ -64,9 +105,12 @@ final class MultiEngine: SpeechEngine {
         (self.format, languages, self.engines) = (format, same.map(\.0), same.map(\.1))
     }
 
-    static func label(_ languages: [String], _ texts: [String]) -> String {
-        guard languages.count > 1 else { return texts.first ?? "" }
-        return zip(languages, texts).filter { !$0.1.isEmpty }.map { "[\($0.0)] \($0.1)" }.joined(separator: " ")
+    /// The highest-confidence non-empty reading (ties: the earlier language), labelled when there are several.
+    static func pick(_ languages: [String], _ readings: [Reading]) -> String {
+        var best: (String, Reading)?
+        for (l, r) in zip(languages, readings) where !r.text.isEmpty && r.confidence > (best?.1.confidence ?? -1) { best = (l, r) }
+        guard let best else { return "" }
+        return languages.count > 1 ? "[\(best.0)] \(best.1.text)" : best.1.text
     }
 
     func begin(onPartial: @escaping @Sendable (String) -> Void) async throws -> SpeechSession {
@@ -86,7 +130,7 @@ final class MultiEngine: SpeechEngine {
         func set(_ i: Int, _ text: String) -> String {
             lock.lock(); defer { lock.unlock() }
             texts[i] = text
-            return MultiEngine.label(languages, texts)
+            return MultiEngine.pick(languages, texts.map { Reading(text: $0, confidence: Double($0.count)) })
         }
     }
 
@@ -97,10 +141,14 @@ final class MultiEngine: SpeechEngine {
 
         func append(_ buffer: AVAudioPCMBuffer) { sessions.forEach { $0.append(buffer) } }
 
-        func finish() async -> String {
-            var texts: [String] = []
-            for s in sessions { texts.append(await s.finish()) }
-            return MultiEngine.label(languages, texts)
+        func finish() async -> Reading {
+            var readings: [Reading] = []
+            for s in sessions { readings.append(await s.finish()) }
+            if languages.count > 1 {
+                DebugLog.write("audio: confidence " + zip(languages, readings)
+                    .map { String(format: "%@ %.2f", $0.0, $0.1.confidence) }.joined(separator: ", "))
+            }
+            return Reading(text: MultiEngine.pick(languages, readings), confidence: readings.map(\.confidence).max() ?? 0)
         }
     }
 }
@@ -114,10 +162,16 @@ final class AnalyzerEngine: SpeechEngine {
 
     private init(locale: Locale, format: AVAudioFormat) { (self.locale, self.format) = (locale, format) }
 
+    /// progressiveTranscription's options, plus per-word confidence to choose between languages.
+    private static func transcriber(_ locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults, .fastResults],
+                          attributeOptions: [.transcriptionConfidence])
+    }
+
     static func make(locale: Locale) async -> AnalyzerEngine? {
         guard SpeechTranscriber.isAvailable,
               let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else { return nil }
-        let probe = SpeechTranscriber(locale: supported, preset: .progressiveTranscription)
+        let probe = transcriber(supported)
         do {
             if let install = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
                 try await install.downloadAndInstall()
@@ -131,22 +185,33 @@ final class AnalyzerEngine: SpeechEngine {
     }
 
     func begin(onPartial: @escaping @Sendable (String) -> Void) async throws -> SpeechSession {
-        let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        let transcriber = Self.transcriber(locale)
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
         try await analyzer.start(inputSequence: input)
-        let results = Task<String, Never> {
+        let results = Task<Reading, Never> {
             var final = "", volatile = ""
+            var weighted = 0.0, chars = 0
             do {
                 for try await r in transcriber.results {
                     let text = String(r.text.characters)
-                    if r.isFinal { final += text; volatile = "" } else { volatile = text }
+                    if r.isFinal {
+                        (final, volatile) = (final + text, "")
+                        for run in r.text.runs {
+                            let n = r.text[run.range].characters.count
+                            weighted += (run.transcriptionConfidence ?? 0) * Double(n)
+                            chars += n
+                        }
+                    } else {
+                        volatile = text
+                    }
                     onPartial(final + volatile)
                 }
             } catch {
                 DebugLog.write("audio: transcriber stopped: \(error.localizedDescription)")
             }
-            return final + volatile
+            return Reading(text: (final + volatile).trimmingCharacters(in: .whitespacesAndNewlines),
+                           confidence: chars > 0 ? weighted / Double(chars) : 0)
         }
         return Session(analyzer: analyzer, feed: feed, results: results)
     }
@@ -154,18 +219,18 @@ final class AnalyzerEngine: SpeechEngine {
     private final class Session: SpeechSession {
         let analyzer: SpeechAnalyzer
         let feed: AsyncStream<AnalyzerInput>.Continuation
-        let results: Task<String, Never>
+        let results: Task<Reading, Never>
 
-        init(analyzer: SpeechAnalyzer, feed: AsyncStream<AnalyzerInput>.Continuation, results: Task<String, Never>) {
+        init(analyzer: SpeechAnalyzer, feed: AsyncStream<AnalyzerInput>.Continuation, results: Task<Reading, Never>) {
             (self.analyzer, self.feed, self.results) = (analyzer, feed, results)
         }
 
         func append(_ buffer: AVAudioPCMBuffer) { feed.yield(AnalyzerInput(buffer: buffer)) }
 
-        func finish() async -> String {
+        func finish() async -> Reading {
             feed.finish()
             try? await analyzer.finalizeAndFinishThroughEndOfInput()
-            return await results.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return await results.value
         }
     }
 }
@@ -188,9 +253,10 @@ final class RecognizerEngine: SpeechEngine {
         let session = Session(request: request)
         session.task = recognizer.recognitionTask(with: request) { [weak session] result, error in
             if let result {
-                let text = result.bestTranscription.formattedString
-                onPartial(text)
-                session?.update(text, final: result.isFinal)
+                let t = result.bestTranscription
+                onPartial(t.formattedString)
+                let c = t.segments.isEmpty ? 0 : t.segments.map { Double($0.confidence) }.reduce(0, +) / Double(t.segments.count)
+                session?.update(Reading(text: t.formattedString, confidence: c), final: result.isFinal)
             }
             if error != nil { session?.update(nil, final: true) }
         }
@@ -201,35 +267,36 @@ final class RecognizerEngine: SpeechEngine {
         let request: SFSpeechAudioBufferRecognitionRequest
         var task: SFSpeechRecognitionTask?
         private let lock = NSLock()
-        private var text = ""
+        private var reading = Reading.empty
         private var done = false
-        private var waiter: CheckedContinuation<String, Never>?
+        private var waiter: CheckedContinuation<Reading, Never>?
 
         init(request: SFSpeechAudioBufferRecognitionRequest) { self.request = request }
 
         func append(_ buffer: AVAudioPCMBuffer) { request.append(buffer) }
 
-        func update(_ new: String?, final: Bool) {
+        func update(_ new: Reading?, final: Bool) {
             lock.lock()
-            if let new { text = new }
+            if let new { reading = new }
             let w = final && !done ? waiter : nil
             if final { done = true; waiter = nil }
-            let out = text
+            let out = reading
             lock.unlock()
             w?.resume(returning: out)
         }
 
-        func finish() async -> String {
+        func finish() async -> Reading {
             request.endAudio()
-            let out = await withCheckedContinuation { (c: CheckedContinuation<String, Never>) in
+            var out = await withCheckedContinuation { (c: CheckedContinuation<Reading, Never>) in
                 lock.lock()
-                if done { let t = text; lock.unlock(); c.resume(returning: t); return }
+                if done { let r = reading; lock.unlock(); c.resume(returning: r); return }
                 waiter = c
                 lock.unlock()
                 DispatchQueue.global().asyncAfter(deadline: .now() + 5) { [weak self] in self?.update(nil, final: true) }
             }
             task = nil
-            return out.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return out
         }
     }
 }
