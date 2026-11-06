@@ -144,6 +144,16 @@ import XCTest
         XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(789), "y": .int(705)]))
     }
 
+    func testARunFromRunsIsRestoredWithItsLastPlan() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        agent.restore(task: "Duolingo lesson", steps: [["action": .str("plan"), "plan": .str("1. Open it")],
+                                                       ["action": .str("tap"), "x": .int(500), "y": .int(255)],
+                                                       ["action": .str("plan"), "plan": .str("1. Tap START")]])
+        XCTAssertEqual(agent.task, "Duolingo lesson")
+        XCTAssertEqual(agent.steps.count, 3)
+        XCTAssertEqual(agent.plan, "1. Tap START")
+    }
+
     func testAResumedRunKeepsItsPlanAndStepsAndSaysItGoesOn() async throws {
         let screen = FakeScreen()
         screen.frame = AgentTests.jpeg()

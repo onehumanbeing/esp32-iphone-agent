@@ -346,7 +346,10 @@ struct ReviewView: View {
         BottomBar {
             VStack(spacing: Space.s) {
                 if resumable {
-                    Button("Continue from Here", systemImage: "play.fill") { dismiss(); Task { await app.resumeRun() } }
+                    Button("Continue from Here", systemImage: "play.fill") {
+                        guard let run = currentRun else { return }
+                        dismiss(); Task { await app.resumeRun(run) }
+                    }
                         .buttonStyle(BigButton())
                     Text("Then switch back to the app it was in.").font(.footnote).foregroundStyle(.secondary)
                 } else if retryable {
@@ -366,8 +369,9 @@ struct ReviewView: View {
         }
     }
 
-    /// The run that just stopped: it can go on from its screen.
-    private var resumable: Bool { draft.runID == app.runID && app.canResume }
+    /// A stopped or failed run: it can go on from the screen in front.
+    private var resumable: Bool { !draft.readOnly && currentRun.map(app.canResume) == true }
+    private var currentRun: Run? { draft.runID.flatMap { runs.run($0) } }
     private var retryable: Bool { draft.runID != nil && (outcome == .failed || outcome == .stopped) }
 
     private func retryRun() {

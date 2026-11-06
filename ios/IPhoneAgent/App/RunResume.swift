@@ -19,6 +19,19 @@ extension AppModel {
         await startAgent(agent.task, resume: true)
     }
 
+    /// Any stopped or failed run in Runs can go on, not only the one still in memory (Henry, 2026-11-06).
+    func canResume(_ run: Run) -> Bool {
+        if run.id == runID && canResume { return true }
+        guard !agent.running, !startingAgent, [.stopped, .failed].contains(outcome(for: run)) else { return false }
+        return run.steps.contains { $0.isMove && !["error", "fail"].contains($0.name) }
+    }
+
+    func resumeRun(_ run: Run) async {
+        guard canResume(run) else { return }
+        if !(run.id == runID && canResume) { agent.restore(task: run.task, steps: run.steps.map(\.action)) }
+        await resumeRun()
+    }
+
     /// The countdown, then the app must be in the background. True once it is.
     func waitForSwitchBack() async throws -> Bool {
         let ends = Date().addingTimeInterval(Self.switchBackSeconds), giveUp = now() + Self.switchBackLimit

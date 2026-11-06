@@ -137,6 +137,15 @@ extension Gestures {
         }
     }
 
+    /// A run from Runs put back in memory so it can go on, also after a relaunch: its task, steps and last plan.
+    /// The notebook and screenshots are not in the trace's steps, so they start empty.
+    func restore(task: String, steps: [JObject]) {
+        guard !running else { return }
+        self.task = task; self.steps = steps; shots = [:]
+        plan = steps.last { $0["action"]?.str == "plan" }?["plan"]?.str ?? ""
+        notebook = Notebook(); learned = []
+    }
+
     func stop() {
         if let job { job.cancel() } else { running = false }  // a shown (demo) run has no job
     }
