@@ -124,18 +124,33 @@ extension ScreenSource {
     /// frame is stale, so the screen is not live until one captured after the action decodes. 2026-11-06: frames
     /// 5–14 minutes old went to the model, which then answered a listening exercise with the old matching pairs.
     private var staleBefore = 0.0
+    private var lastVia = "", seqJumpsLogged = 0
+
+    /// A seq gap breaks the stream until the next IDR. 2026-11-06 (fw 0.2.3): gaps of ~65535 with no Wi-Fi loss,
+    /// i.e. a chunk older than the last one: say which link each came over (BLE and Wi-Fi feed one assembler).
+    private func noteSeqJump(from: UInt16?, to: UInt16?, via: String) {
+        guard seqJumpsLogged < 200, let from, let to else { return }
+        seqJumpsLogged += 1
+        let back = to &- from >= 0x8000
+        DebugLog.write("video: seq \(from) -> \(to) (\(back ? "back \(from &- to)" : "gap \(to &- from &- 1)")) via \(via), last via \(lastVia)")
+    }
     var stale: Bool { capturedAt < staleBefore }
     var live: Bool { mirroring && !frozen && frame != nil && !stale && (device?.connected ?? false) }
 
     /// Frame width / height (portrait iPhone as a fallback).
     var aspect: Double { size.width > 0 && size.height > 0 ? size.width / size.height : 9 / 19.5 }
 
-    /// One `video` notify from BoardLink.
-    func receive(_ chunk: Data) {
+    /// One video chunk, from BLE (BoardLink) or Wi-Fi (VideoStream): both feed the one assembler.
+    func receive(_ chunk: Data, via: String = "ble") {
         metrics?.videoBytes(chunk.count)
-        let dropsBefore = assembler.drops
+        let dropsBefore = assembler.drops, lastSeq = assembler.lastSeq
         let unit = assembler.add(chunk)
-        if assembler.drops > dropsBefore { metrics?.videoDrops(assembler.drops - dropsBefore); broken = true }
+        if assembler.drops > dropsBefore {
+            metrics?.videoDrops(assembler.drops - dropsBefore)
+            broken = true
+            noteSeqJump(from: lastSeq, to: assembler.lastSeq, via: via)
+        }
+        lastVia = via
         guard var unit else { return }
         unit.generation = generation
         if !unit.snap { boardClock(ms: Int(unit.boardMs)) }  // snap units are resent late: their ages say nothing

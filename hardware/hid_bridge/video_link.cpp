@@ -100,6 +100,13 @@ static bool sendAu(Sink &s, const uint8_t *p, size_t n, uint8_t flags, uint32_t 
   vchunk c;
   vchunk_begin(&c, p, n, flags, ts);
   uint16_t &seq = s.seq[sideOf(s.who)];
+  // The app's chunks share one numbering over both links, and its one assembler takes both: a BLE chunk that
+  // lands after newer Wi-Fi ones reads as a ~65535 gap there (2026-11-06, fw 0.2.3). Log every switch.
+  static int8_t appLink = -1;  // -1 unknown, 0 BLE, 1 Wi-Fi
+  if (s.who == FROM_APP && appLink != (int8_t)wifi) {
+    if (appLink >= 0) board_log("video: app link %s -> %s at seq %u", appLink ? "wifi" : "ble", wifi ? "wifi" : "ble", seq);
+    appLink = wifi;
+  }
   for (size_t len; (len = vchunk_next(&c, chunk, room, seq)) > 0;) {
     bool ok = videoSend(s, wifi, chunk, len);
     seq++;

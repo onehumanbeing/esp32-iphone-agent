@@ -3,6 +3,7 @@
 // [u16 LE length][chunk]; a zero-length record answers hello and ka. TCP keeps chunks whole and in order,
 // so there are no nacks: a send that stalls for SEND_TIMEOUT_MS drops the session and the app reconnects.
 #include "wifi_video.h"
+#include "logbuf.h"
 #if WV_TCP
 #include <esp_random.h>
 #include "lwip/sockets.h"
@@ -140,7 +141,15 @@ bool wv_begin() {
 
 String wv_token() { return token; }
 
-bool wv_active() { return authed && client >= 0 && millis() - lastSeen < PEER_TIMEOUT_MS; }
+bool wv_active() {
+  bool on = authed && client >= 0 && millis() - lastSeen < PEER_TIMEOUT_MS;
+  static bool was;  // log why the session stopped counting: a late "ka" sends the app's video over BLE
+  if (was && !on) board_log("wv: inactive (%s, last ka %lu ms ago)", client < 0 ? "closed" : !authed ? "not authed" : "ka late",
+                            (unsigned long)(millis() - lastSeen));
+  if (!was && on) board_log("wv: active");
+  was = on;
+  return on;
+}
 
 bool wv_send(const uint8_t *chunk, size_t n) {
   if (n > VCHUNK_HDR + WV_PAYLOAD || !wv_active()) return false;

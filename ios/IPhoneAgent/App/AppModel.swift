@@ -144,7 +144,7 @@ import UIKit
             self?.modelResponseSeconds = nil
         }
         board.onVideo = { [weak self] in self?.feed.receive($0) }
-        wifiVideo.onChunk = { [weak self] in self?.feed.receive($0) }
+        wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
         wifiVideo.onActive = { [weak self] on in

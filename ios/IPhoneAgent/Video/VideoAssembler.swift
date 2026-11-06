@@ -30,7 +30,7 @@ struct VideoAssembler {
     private(set) var bytes = 0         // all chunk bytes received, bench included
     private(set) var benchBytes = 0
     private(set) var waitingForKey = true  // until the first IDR/CONFIG
-    private var lastSeq: UInt16?
+    private(set) var lastSeq: UInt16?
     private var current: AccessUnit?
 
     mutating func reset() {
