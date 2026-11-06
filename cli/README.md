@@ -1,5 +1,7 @@
 # esp32agent
 
+English · [简体中文](README.zh-CN.md)
+
 Command line and MCP server that let a computer (and the coding agent on it: Claude Code, Codex) see and drive an
 iPhone through an ESP32 Agent board. The board is plugged into the iPhone as its USB mouse and keyboard and receives
 its AirPlay screen mirroring; the computer reaches it over Bluetooth, or over Wi-Fi when both are on the same network, next to the iOS app. Commands and JSON output

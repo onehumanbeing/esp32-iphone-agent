@@ -1,5 +1,7 @@
 # Testing the board from a Mac
 
+English · [简体中文](README.zh-CN.md)
+
 `board_test.py` plays the iOS app over BLE (docs/ble-protocol.md) and reads the BLE `video`
 characteristic. The iPhone app's video goes over Wi-Fi TCP (port 7201). **AirPlay source must be an
 iPhone.** Screen Mirroring from macOS is not supported: the handshake can look healthy while the board
