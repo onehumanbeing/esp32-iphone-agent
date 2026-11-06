@@ -44,6 +44,10 @@ int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t
 void gop_clear(gop_buf *g);
 int gop_find(const gop_buf *g, uint32_t ts);  // the last AU with this timestamp, -1 if none
 void gop_drop_front(gop_buf *g, int k);       // forget the oldest k AUs (a plain AU list, e.g. the tail)
+// Makes room for an AU of len bytes in a plain AU list whose first `sent` AUs a stream has sent: drops sent AUs
+// beyond the newest `keep` (kept for a resume), and more of the sent ones if those don't leave room (big AUs: a
+// scrolling screen). Unsent AUs stay. Returns how many it dropped; 0 if that can't make room.
+int gop_trim_sent(gop_buf *g, int sent, int keep, size_t len);
 // True if the Annex-B data contains an IDR slice (NAL type 5).
 bool annexb_has_idr(const uint8_t *p, size_t len);
 // Rewrites AVCC (4-byte big-endian length prefixes) in place into Annex-B start codes.

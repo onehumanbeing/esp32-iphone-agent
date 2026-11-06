@@ -43,6 +43,20 @@ int gop_find(const gop_buf *g, uint32_t ts) {
   return -1;
 }
 
+static bool gop_room_after(const gop_buf *g, int k, size_t len) {  // room for len once the oldest k AUs go
+  size_t used = k < g->n ? g->used - g->aus[k].off : 0;
+  return used + len <= g->cap && g->n - k < g->max;
+}
+
+int gop_trim_sent(gop_buf *g, int sent, int keep, size_t len) {
+  if (sent > g->n) sent = g->n;
+  int k = sent > keep ? sent - keep : 0;
+  while (k < sent && !gop_room_after(g, k, len)) k++;
+  if (k == 0 || !gop_room_after(g, k, len)) return 0;
+  gop_drop_front(g, k);
+  return k;
+}
+
 void gop_drop_front(gop_buf *g, int k) {
   if (k <= 0) return;
   if (k >= g->n) return gop_clear(g);

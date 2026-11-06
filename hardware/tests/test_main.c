@@ -123,6 +123,22 @@ static void test_gop(void) {
   gop_drop_front(&t, 5);
   CHECK(t.n == 0 && t.used == 0);
 
+  // The tail past a full GOP: sent AUs beyond `keep` go first; with big AUs (a scrolling screen) more of the sent
+  // ones go too, rather than breaking the tail of a stream that is in step. Unsent AUs never go.
+  static uint8_t warena[100];
+  static gop_au waus[8];
+  gop_buf w;
+  gop_init(&w, warena, sizeof warena, waus, 8);
+  for (uint32_t i = 0; i < 4; i++) CHECK(gop_append(&w, au, 25, false, 20 + i) == (int)i);
+  CHECK(gop_trim_sent(&w, 0, 2, 25) == 0 && w.n == 4);          // nothing sent: nothing to drop
+  CHECK(gop_trim_sent(&w, 4, 2, 25) == 2 && w.n == 2 && w.aus[0].ts == 22);  // sent beyond the keep (as before)
+  CHECK(gop_append(&w, au, 25, false, 24) == 2);
+  CHECK(gop_trim_sent(&w, 2, 2, 75) == 2 && w.n == 1 && w.aus[0].ts == 24);  // the keep gives way to room
+  CHECK(gop_trim_sent(&w, 0, 1, 100) == 0 && w.n == 1);         // only the unsent AU: no room
+  gop_init(&w, warena, sizeof warena, waus, 2);                 // the AU list fills first
+  CHECK(gop_append(&w, au, 5, false, 30) == 0 && gop_append(&w, au, 5, false, 31) == 1);
+  CHECK(gop_trim_sent(&w, 2, 4, 5) == 1 && w.n == 1 && w.aus[0].ts == 31);
+
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));
   CHECK(!annexb_has_idr(idr, 6));

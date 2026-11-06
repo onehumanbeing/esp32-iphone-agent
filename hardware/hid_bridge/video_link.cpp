@@ -132,12 +132,13 @@ static bool copyTail(Sink &s, uint32_t gen, int i, gop_au *au) {
   return ok;
 }
 
-// The tail is full: drop what the stream on it sent long ago (TAIL_KEEP stay for a resume). False if it is that
-// far behind (or nobody is on it): the tail breaks, frozen until the next IDR. Under lock.
-static bool makeTailRoom() {
-  int drop = sink.onTail ? sink.tailNext - TAIL_KEEP : 0;
+// The tail is full: drop what the stream on it sent long ago (TAIL_KEEP stay for a resume while they fit: a
+// scrolling screen sends ~50 KB AUs, ~10 of them fill the tail, and keeping 64 broke the tail of a stream in step,
+// frozen within a minute, 2026-11-06). False if it is that far behind (or nobody is on it): the tail breaks,
+// frozen until the next IDR. Under lock.
+static bool makeTailRoom(size_t len) {
+  int drop = sink.onTail ? gop_trim_sent(&tail, sink.tailNext, TAIL_KEEP, len) : 0;
   if (drop <= 0) return false;
-  gop_drop_front(&tail, drop);
   sink.tailNext -= drop;
   tailTrimmed = true;
   return true;
@@ -356,7 +357,7 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
     tailTrimmed = false;
   }
   if (gop.frozen && tailLive && gop_append(&tail, au, len, false, now) < 0 &&
-      !(makeTailRoom() && gop_append(&tail, au, len, false, now) >= 0))
+      !(makeTailRoom(len) && gop_append(&tail, au, len, false, now) >= 0))
     tailLive = false;  // a stream fell too far behind
   bool tailBroke = gop.frozen && !froze && wasLive && !tailLive;
   int aus = gop.n;
