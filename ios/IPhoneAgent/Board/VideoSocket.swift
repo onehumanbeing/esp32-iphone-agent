@@ -51,6 +51,8 @@ import Foundation
         if fd < 0 { reopen() } else { send("hello \(target!.token)") }
     }
 
+    func resume() { if fd >= 0 { send("resync") } }  // UDP: no resume, the board starts over from the IDR
+
     func stop() {
         timer?.cancel()
         timer = nil

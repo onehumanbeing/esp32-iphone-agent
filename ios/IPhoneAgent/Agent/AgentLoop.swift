@@ -93,6 +93,8 @@ extension Gestures {
     private var acceptedLookLinks: Int?
     private enum InvalidatedLook: Error { case connectionChanged }
     enum HelpChoice { case resume, skip, stop }
+    /// The run's own reasons to ask (the help panel words them for people).
+    static let stepLimitReason = "step limit reached", stallReason = "the screen did not change"
     /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
     /// off = it goes on by itself. Continue = do it, Skip = don't, Stop = end the run.
     var onConfirm: ((String) async -> HelpChoice)?
@@ -320,7 +322,7 @@ extension Gestures {
             while true {
                 rounds += 1
                 if rounds > maxSteps || stalls >= maxStalls {
-                    let reason = stalls >= maxStalls ? "the screen did not change in \(stalls) steps" : "step limit reached"
+                    let reason = stalls >= maxStalls ? "\(Self.stallReason) in \(stalls) steps" : Self.stepLimitReason
                     record(nil, ["action": .str("fail"), "reason": .str(reason)])
                     guard try await askForHelp() else { return finish() }
                     rounds = 0; stalls = 0

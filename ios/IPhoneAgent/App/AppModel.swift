@@ -147,6 +147,7 @@ import UIKit
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
+        feed.onGap = { [weak self] in self?.wifiVideo.resume() }
         wifiVideo.onActive = { [weak self] on in
             self?.feed.resetStream()  // the board resends from the IDR on the new path
             if on { LocalNetworkPermission.granted = true }

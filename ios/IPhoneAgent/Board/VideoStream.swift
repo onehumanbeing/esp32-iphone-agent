@@ -12,6 +12,8 @@ import Foundation
     init()
     func update(ip: String?, token: String?)
     func kick()
+    /// The stream lost its place (a seq gap): ask the board to go on right after `resumeAt` without reconnecting.
+    func resume()
     func stop()
 }
 
@@ -65,6 +67,13 @@ enum VideoTransport {
     func kick() {
         guard target != nil, !acked else { return }
         reopen()
+    }
+
+    /// A hello on the open session is a resume request (`hello … at <ms>`): past a frozen GOP no IDR comes, and
+    /// waiting for a reconnect to send it left the screen frozen while the link itself was fine (2026-11-06).
+    func resume() {
+        guard acked, let token = target?.token else { return }
+        if send(hello(token)) { log("video: wifi stream lost its place; asked to go on" + (resumeAt().map { " after \($0)" } ?? " from the IDR")) }
     }
 
     func stop() {

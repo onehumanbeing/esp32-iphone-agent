@@ -46,6 +46,10 @@ struct VideoAssembler {
         bytes += c.count
         let seq = UInt16(c[0]) | UInt16(c[1]) << 8
         let flags = Flags(rawValue: c[2])
+        // A late chunk from the other link (BLE after newer Wi-Fi ones) is stale: dropped without breaking the
+        // stream. It read as a ~65535 gap, and past a frozen GOP that froze the screen (2026-11-06). A board that
+        // restarted its numbering is far behind instead: a gap, as before.
+        if let last = lastSeq, last &- seq < 1024 { return nil }  // seq at or just behind the last one
         if let last = lastSeq, seq != last &+ 1 {
             drops += Int(seq &- last &- 1)
             current = nil

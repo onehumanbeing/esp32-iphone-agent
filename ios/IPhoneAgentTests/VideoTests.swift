@@ -38,6 +38,18 @@ final class VideoTests: XCTestCase {
         XCTAssertNotNil(a.add(chunk(16, [.start, .end], p, ms: 5)))
     }
 
+    func testALateChunkFromTheOtherLinkIsStaleNotAGap() {
+        var a = VideoAssembler()
+        _ = a.add(chunk(100, [.start, .end, .idr], idr, ms: 1))
+        XCTAssertNotNil(a.add(chunk(101, [.start, .end], p, ms: 2)))
+        XCTAssertNil(a.add(chunk(99, [.start, .end], p, ms: 0)))   // BLE, after newer Wi-Fi chunks
+        XCTAssertNil(a.add(chunk(101, [.start, .end], p, ms: 2)))  // a duplicate
+        XCTAssertEqual(a.drops, 0)
+        XCTAssertNotNil(a.add(chunk(102, [.start, .end], p, ms: 3)))  // still in step
+        XCTAssertNil(a.add(chunk(40000, [.start, .end], p, ms: 4)))  // far off: a real gap
+        XCTAssertGreaterThan(a.drops, 0)
+    }
+
     func testRecoversOnIDRAndWrapsSeq() {
         var a = VideoAssembler()
         _ = a.add(chunk(65534, [.start, .end, .idr], idr, ms: 1))

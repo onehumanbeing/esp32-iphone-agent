@@ -125,6 +125,9 @@ extension ScreenSource {
     /// 5–14 minutes old went to the model, which then answered a listening exercise with the old matching pairs.
     private var staleBefore = 0.0
     private var lastVia = "", seqJumpsLogged = 0
+    /// A seq gap: ask the board to go on from `resumeMs` (at most once a second). Set by the app.
+    var onGap: (() -> Void)?
+    private var lastGapAsk = 0.0
 
     /// A seq gap breaks the stream until the next IDR. 2026-11-06 (fw 0.2.3): gaps of ~65535 with no Wi-Fi loss,
     /// i.e. a chunk older than the last one: say which link each came over (BLE and Wi-Fi feed one assembler).
@@ -149,6 +152,7 @@ extension ScreenSource {
             metrics?.videoDrops(assembler.drops - dropsBefore)
             broken = true
             noteSeqJump(from: lastSeq, to: assembler.lastSeq, via: via)
+            if now() - lastGapAsk > 1 { lastGapAsk = now(); onGap?() }
         }
         lastVia = via
         guard var unit else { return }
