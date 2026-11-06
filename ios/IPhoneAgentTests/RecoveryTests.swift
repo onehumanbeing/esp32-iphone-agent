@@ -135,6 +135,15 @@ import XCTest
         XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
     }
 
+    func testATapWhereTheLastOneWentFindsThePointerFirst() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        agent.steps = [["action": .str("tap"), "x": .int(789), "y": .int(705), "changed": .bool(true)], ["action": .str("plan")]]
+        XCTAssertTrue(agent.retaps(["action": .str("tap"), "x": .int(790), "y": .int(704)]))  // a miss the mascot hid
+        XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(499), "y": .int(921)]))
+        agent.steps.append(["action": .str("type"), "text": .str("water")])
+        XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(789), "y": .int(705)]))
+    }
+
     func testAResumedRunKeepsItsPlanAndStepsAndSaysItGoesOn() async throws {
         let screen = FakeScreen()
         screen.frame = AgentTests.jpeg()

@@ -514,6 +514,15 @@ extension Gestures {
     /// The previous round changed nothing on screen, so a tap may have landed off target.
     var missed: Bool { steps.last?["changed"] == .bool(false) }
 
+    /// A tap where the last one went: that one didn't do what was meant even if the screen moved (Duolingo's
+    /// animated mascot read three misses just above the "water" tile as changed, 2026-11-06).
+    func retaps(_ a: JObject) -> Bool {
+        guard let last = steps.last(where: { $0["action"]?.str != "plan" }), last["action"]?.str == "tap",
+              let x = last["x"]?.double, let y = last["y"]?.double, let ax = a["x"]?.double, let ay = a["y"]?.double
+        else { return false }
+        return abs(ax - x) <= 30 && abs(ay - y) <= 30
+    }
+
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
@@ -561,7 +570,7 @@ extension Gestures {
         guard let phone else { throw DeviceError(message: "no phone") }
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
-        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed)
+        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a))
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
