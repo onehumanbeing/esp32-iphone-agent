@@ -299,6 +299,7 @@ static void handle_teardown(ap_conn *c, const ap_req *req, ap_resp *res) {
     ap_mirror_owner = NULL;
   }
   ap_log("teardown (%s)", video ? "video" : any ? "audio" : "session");
+  if (any && !video) ap_mirror_audio_end();
 }
 
 static handler_t find(const char *method, const char *url) {

@@ -27,6 +27,8 @@
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
 #include "src/hid/pace.h"
+#include "src/heard/heard.h"
+#include "src/cli/cli_proto.h"
 #include "logbuf.h"
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
@@ -166,6 +168,15 @@ void readCrash() {
 }
 
 // Board-level commands from the app or the CLI (who); everything else is an HID command for run().
+static bool appHears;  // the app listens and shares what it heard
+
+// The app's transcripts for the CLI, ~3 KB in PSRAM once the app shares any.
+static heard_ring *heardRing() {
+  static heard_ring *r;
+  if (!r && (r = (heard_ring *)heap_caps_calloc(1, sizeof *r, MALLOC_CAP_SPIRAM))) heard_clear(r);
+  return r;
+}
+
 String board(const String &line, const String &id, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
@@ -193,6 +204,30 @@ String board(const String &line, const String &id, char who) {
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
+    return "ok";
+  }
+  // Phone audio for the CLI (docs/cli-protocol.md, "Phone audio"): the app shares what it heard, the CLI reads it
+  // (`heard`) or asks for the raw audio to transcribe itself (`listen raw on`, Wi-Fi only).
+  if (cmd == "hear" && who == FROM_APP) {
+    appHears = arg == "on";
+    if (!appHears && heardRing()) heard_clear(heardRing());
+    return "ok";
+  }
+  if (cmd == "heard" && who == FROM_APP) {
+    if (heardRing()) heard_add(heardRing(), millis(), arg.c_str(), arg.length());
+    return "ok";
+  }
+  if (cmd == "heard") {
+    static char out[HEARD_LINES * 64 + 64];
+    int room = (int)cli_mtu() - 3 - CLI_OVERHEAD - 1 - 16;  // ATT, seal, kind byte, "<id> ok "
+    static const heard_ring none = {};
+    heard_json(heardRing() ? heardRing() : &none, millis(), appHears, out, room > 0 && room < (int)sizeof out ? room : sizeof out);
+    return String("ok ") + out;
+  }
+  if (cmd == "listen" && who == FROM_CLI) {
+    if (arg != "raw on" && arg != "raw off") return "err usage: listen raw on|off";
+    if (arg == "raw on" && !cli_wifi()) return "err raw audio needs the Wi-Fi link (esp32agent net)";
+    cli_audio(arg == "raw on");
     return "ok";
   }
   if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
@@ -235,7 +270,7 @@ String board(const String &line, const String &id, char who) {
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
-  char s[640];
+  char s[704];
   snprintf(s, sizeof s,
            "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
@@ -260,8 +295,9 @@ String statusJson(bool full, char who) {
   // AirPlay audio: packets, sound segments, a segment going on, sender volume (dB), records lost to the app
   airplay_audio_stats au = airplay_audio();
   len = strlen(s);
-  snprintf(s + len - 1, sizeof s - len + 1, ",\"aud\":{\"pk\":%lu,\"seg\":%lu,\"snd\":%d,\"vol\":%.0f,\"drop\":%lu}}",
-           (unsigned long)au.packets, (unsigned long)au.segments, au.sound, au.volume, (unsigned long)wv_audio_drops());
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"aud\":{\"pk\":%lu,\"seg\":%lu,\"snd\":%d,\"vol\":%.0f,\"drop\":%lu,\"hear\":%d,\"raw\":%d}}",
+           (unsigned long)au.packets, (unsigned long)au.segments, au.sound, au.volume, (unsigned long)wv_audio_drops(),
+           appHears, cli_audio_wanted());
   if (who == FROM_CLI) {
     len = strlen(s);
     snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
@@ -378,6 +414,7 @@ void loop() {
     if (arb_gone(&arb, ARB_APP)) mouse.release(MOUSE_LEFT);
     keyboard.releaseAll();
     video_stream(false, FROM_APP);
+    appHears = false;  // until the app says so again
   }
   if (cliLinked && !cli) {
     if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);

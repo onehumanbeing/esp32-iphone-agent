@@ -69,8 +69,9 @@ import XCTest
         feed.clock = { t }
         let engine = FakeSpeech(text: "Your code is 4 2 7 1")
         feed.use(engine)
+        XCTAssertEqual(feed.heard(), "")  // off: no audio part at all
         feed.enabled = true
-        XCTAssertEqual(feed.heard(), "")
+        XCTAssertEqual(feed.heard(), "Phone audio: listening; no sound in the last 30 s.")
         let tone = try Self.encodeELD(seconds: 0.3, tone: true)
         feed.receive(record(seq: 0, flags: AudioRecord.startFlag, frame: tone[0]))
         await Task.yield()
@@ -80,11 +81,13 @@ import XCTest
         feed.receive(record(seq: UInt16(tone.count), flags: AudioRecord.endFlag))
         for _ in 0..<20 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }
         t = 110
-        XCTAssertEqual(feed.heard(), "Heard (phone audio, last 30 s):\n- 6 s ago, 4 s long: \"Your code is 4 2 7 1\"")
+        XCTAssertEqual(feed.heard(), "Heard (phone audio, last 30 s; words transcribed on the phone):\n- 6 s ago, 4 s long: \"Your code is 4 2 7 1\"")
         XCTAssertGreaterThan(engine.appended, 0)
         XCTAssertEqual(feed.gaps, 0)
         t = 200
-        XCTAssertEqual(feed.heard(), "")  // older than 30 s
+        XCTAssertEqual(feed.heard(), "Phone audio: listening; no sound in the last 30 s.")  // older than 30 s
+        feed.linked = { false }
+        XCTAssertTrue(feed.heard().hasPrefix("Phone audio: not reaching the app"))
     }
 
     func testQuietSegmentIsNotHeard() async throws {
@@ -96,7 +99,18 @@ import XCTest
         for (i, f) in quiet.dropFirst().enumerated() { feed.receive(record(seq: UInt16(i + 1), flags: 0, frame: f)) }
         feed.receive(record(seq: UInt16(quiet.count), flags: AudioRecord.endFlag))
         XCTAssertEqual(feed.segments.count, 1)
-        XCTAssertEqual(feed.heard(), "")
+        XCTAssertEqual(feed.heard(), "Phone audio: listening; no sound in the last 30 s.")
+    }
+
+    func testSurerLanguageReadingIsKept() {
+        let zh = Reading(text: "验证码四七二九", confidence: 0.9), en = Reading(text: "Ching fei", confidence: 0.3)
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [en, zh]), "[zh] 验证码四七二九")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [en, .empty]), "[en] Ching fei")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [Reading(text: "a", confidence: 0.5), Reading(text: "b", confidence: 0.5)]), "[en] a")
+        XCTAssertEqual(MultiEngine.pick(["en"], [en]), "Ching fei")
+        XCTAssertEqual(MultiEngine.pick(["en", "zh"], [.empty, .empty]), "")
+        XCTAssertEqual(MultiEngine([("en", FakeSpeech(text: "")), ("zh", FakeSpeech(text: ""))])?.languages, ["en", "zh"])
+        XCTAssertNil(MultiEngine([]))
     }
 
     func testOffIgnoresAudio() {
@@ -170,6 +184,6 @@ final class FakeSpeech: SpeechEngine {
         let owner: FakeSpeech
         init(_ owner: FakeSpeech) { self.owner = owner }
         func append(_ buffer: AVAudioPCMBuffer) { owner.appended += 1 }
-        func finish() async -> String { owner.text }
+        func finish() async -> Reading { Reading(text: owner.text, confidence: 0.5) }
     }
 }

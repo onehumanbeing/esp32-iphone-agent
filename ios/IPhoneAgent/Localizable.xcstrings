@@ -9293,12 +9293,12 @@
         }
       }
     },
-    "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech is turned into text on this iPhone." : {
+    "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。语音只在这台 iPhone 上转成文字。"
+            "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。英语和第二语言的语音只在这台 iPhone 上转成文字。"
           }
         }
       }
@@ -9319,6 +9319,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前语言不支持在本机识别语音。"
+          }
+        }
+      }
+    },
+    "Second language" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第二语言"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
+          }
+        }
+      }
+    },
+    "Share with the computer (CLI)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享给电脑（CLI）"
           }
         }
       }

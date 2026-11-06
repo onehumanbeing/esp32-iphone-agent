@@ -57,6 +57,8 @@ var (
 		{"press_button", "Press a hardware button. Only HOME (go to the Home Screen).",
 			schema([]string{"button"}, map[string]any{"button": map[string]any{"type": "string", "enum": []string{"HOME"}}})},
 		{"device_info", "Board status: mirroring (ap), video frozen (fz), app busy (busy), USB, BLE link.", schema(nil, map[string]any{})},
+		{"phone_audio", "What the iPhone played in the last 30 s (a video, a call, an app's voice) as words, or why it can't be heard " +
+			"(listening off, the app not sharing, no Wi-Fi). The words can be partial or misheard.", schema(nil, map[string]any{})},
 	}
 )
 
@@ -151,6 +153,8 @@ func (a *App) callTool(name string, args map[string]any) map[string]any {
 		req.Cmd, req.Text = "button", s("button")
 	case "device_info":
 		req.Cmd = "info"
+	case "phone_audio":
+		req.Cmd = "listen"
 	default:
 		return textResult("unknown tool "+name, true)
 	}
@@ -178,6 +182,11 @@ func (a *App) callTool(name string, args map[string]any) map[string]any {
 			{"type": "image", "data": d.Data, "mimeType": "image/" + d.Format},
 			{"type": "text", "text": fmt.Sprintf("%dx%d screenshot; tap coordinates are pixels of this image", d.Width, d.Height)},
 		}, "isError": false}
+	}
+	if name == "phone_audio" {
+		var d struct{ Heard string }
+		json.Unmarshal(r.Raw, &d)
+		return textResult(d.Heard, false)
 	}
 	return textResult(string(r.Raw), false)
 }

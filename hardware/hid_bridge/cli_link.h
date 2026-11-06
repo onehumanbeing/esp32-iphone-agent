@@ -18,4 +18,9 @@ void cli_forget_all();                                    // unpair: every clien
 // each stream's counter then grows in send order.
 bool cli_send_ctrl(char kind, const char *text, size_t n, uint32_t timeout_ms);
 bool cli_send_video(const uint8_t *chunk, size_t n);
+// Phone audio records (wifi_video.h's audio record) for a CLI that asked (`listen raw on`), only from wifi_video's
+// audio task and only over Wi-Fi: stream 'A', its own counter. Off again with every new session.
+void cli_audio(bool on);
+bool cli_audio_wanted();
+bool cli_send_audio(const uint8_t *rec, size_t n);
 size_t cli_video_room();                                  // payload bytes per video chunk (as ble_video_room); 0 = no CLI
