@@ -258,7 +258,17 @@ struct LLMError: LocalizedError {
         -> (Int, ChatResult?, String) {
         try AIConsent.check(baseURL.absoluteString)
         var body = body
-        body[tokenParam] = maxTokens
+        // 自动协商只更改字段名，手动配置的输出上限应在每次重试中保持一致。
+        let limits = Self.tokenParams.compactMap { body.removeValue(forKey: $0) }
+        if let configured = limits.first {
+            guard limits.count == 1, let value = configured as? Int, value > 0,
+                  CFGetTypeID(configured as CFTypeRef) != CFBooleanGetTypeID() else {
+                throw LLMError(message: String(localized: "In Extra body JSON, use one positive integer for max_tokens or max_completion_tokens."))
+            }
+            body[tokenParam] = value
+        } else {
+            body[tokenParam] = maxTokens
+        }
         var request = URLRequest(url: baseURL.appendingPathComponent("chat/completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
