@@ -273,6 +273,9 @@ extension AppModel {
                     reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
                 } else {
                     do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
+                    // a raw move or home leaves the pointer where the app doesn't think it is: the next run's home-bar
+                    // flick pressed mid-screen and never left the app (2026-11-06)
+                    if command == "home" || command.hasPrefix("move") { try? await pointer.reset() }
                 }
                 say("harness hid: \(command) → \(reply)")
                 try? await Task.sleep(nanoseconds: 400_000_000)
