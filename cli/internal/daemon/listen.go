@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -86,10 +88,7 @@ func (s *Server) local() *audio.Local {
 	dir, _ := config.Dir()
 	second := audio.Lang(l.Second)
 	if second == "" {
-		second = audio.Lang(os.Getenv("LANG"))
-	}
-	if second == "en" || second == "c" || second == "posix" {
-		second = ""
+		second = systemSecond()
 	}
 	return &audio.Local{FFmpeg: ff, Whisper: audio.FindWhisper(), Model: audio.ModelPath(dir), Second: second}
 }
@@ -142,6 +141,24 @@ func (s *Server) listen(ctx context.Context, c *Conn, arg string) Response {
 	return ok(s.heard(ctx, c, l))
 }
 
+// systemSecond is this computer's first preferred language other than English ("" if none).
+func systemSecond() string {
+	var langs []string
+	if runtime.GOOS == "darwin" { // System Settings › Language & Region; LANG often stays en_US there
+		out, _ := exec.Command("defaults", "read", "-g", "AppleLanguages").Output()
+		for _, f := range strings.FieldsFunc(string(out), func(r rune) bool { return strings.ContainsRune("(),\"\n ", r) }) {
+			langs = append(langs, f)
+		}
+	}
+	langs = append(langs, os.Getenv("LANGUAGE"), os.Getenv("LANG"))
+	for _, l := range langs {
+		if c := audio.Lang(l); c != "" && c != "en" && c != "c" && c != "posix" {
+			return c
+		}
+	}
+	return ""
+}
+
 func ffmpegPath() string { ff, _ := video.FFmpeg(); return ff }
 func modelPath() string  { dir, _ := config.Dir(); return audio.ModelPath(dir) }
 
@@ -177,6 +194,10 @@ func (s *Server) heard(ctx context.Context, c *Conn, l config.Listen) map[string
 				Ago  int64  `json:"ago"`
 				Text string `json:"t"`
 			} `json:"lines"`
+		}
+		if errors.Is(err, ErrAppBusy) || err != nil && strings.Contains(err.Error(), "busy") {
+			text = "Phone audio: the ESP32 Agent app is using the board, so the computer can't hear the phone now; try again when it's done."
+			break
 		}
 		if err != nil || json.Unmarshal([]byte(reply), &board) != nil {
 			text = "Phone audio: the board's firmware can't pass on what the app hears; update the board in the app."

@@ -33,11 +33,11 @@ type fakeConn struct {
 	closeOnce sync.Once
 	closed    chan struct{}
 
-	c2b, b2c   *AEAD
-	authed     bool
-	ctrC       uint32
+	c2b, b2c         *AEAD
+	authed           bool
+	ctrC             uint32
 	ctrB, ctrV, ctrA uint32
-	Sent       [][]byte
+	Sent             [][]byte
 }
 
 // Connect returns the client end of a new connection; the board serves it until Close.
