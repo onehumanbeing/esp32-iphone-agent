@@ -92,7 +92,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 支持的板子和硬件细节见[硬件指南](https://handsy.tech/zh/docs/hardware)。选板子、线材和转接头，或者设置时卡住了，见[安装设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup)。
 
-使用 Zectrix Note 4 源码构建版时，请看[蓝牙键鼠配对与校准](docs/note4-bluetooth.zh-CN.md)。
+源码构建版的无线输入见[通用蓝牙键鼠能力](docs/bluetooth-hid.zh-CN.md)，Zectrix Note 4 的供电、电池和分区配置见[板型适配说明](docs/note4-bluetooth.zh-CN.md)。
 
 | 部件 | 说明 |
 |---|---|

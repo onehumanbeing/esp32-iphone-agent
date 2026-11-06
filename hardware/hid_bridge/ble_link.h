@@ -35,7 +35,7 @@ bool ble_cli_notify(int slot, const uint8_t *p, size_t n, bool video, uint32_t t
 void ble_cli_drop(int slot);
 void ble_cli_push_cmd(const char *line, size_t n);
 
-#ifdef ZECTRIX_NOTE4
-bool ble_note4_trusted(int handle);
-void ble_note4_subscribe(uint16_t handle, bool subscribed);
+#ifdef HID_TRANSPORT_BLE
+bool ble_hid_trusted(int handle);
+void ble_hid_subscribe(uint16_t handle, bool subscribed);
 #endif

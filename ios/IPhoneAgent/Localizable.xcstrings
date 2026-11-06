@@ -9453,12 +9453,12 @@
         }
       }
     },
-    "Plug in the USB board or power on Note 4. Select the board over Bluetooth and tap Pair when asked." : {
+    "Plug in the USB board or power on the Bluetooth board. Select the board over Bluetooth and tap Pair when asked." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "插上 USB 开发板或启动 Note 4，通过蓝牙选择开发板，在系统询问时轻点“配对”。"
+            "value" : "插上 USB 开发板或启动蓝牙开发板，通过蓝牙选择开发板，在系统询问时轻点“配对”。"
           }
         }
       }
@@ -9503,22 +9503,22 @@
         }
       }
     },
-    "Plug in the USB board or power on Note 4" : {
+    "Plug in the USB board or power on the Bluetooth board" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "插上 USB 开发板或启动 Note 4"
+            "value" : "插上 USB 开发板或启动蓝牙开发板"
           }
         }
       }
     },
-    "Plug in the USB board or power on Note 4." : {
+    "Plug in the USB board or power on the Bluetooth board." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "插上 USB 开发板或启动 Note 4。"
+            "value" : "插上 USB 开发板或启动蓝牙开发板。"
           }
         }
       }
@@ -9543,12 +9543,12 @@
         }
       }
     },
-    "Check the Note 4 pairing and AssistiveTouch settings on this iPhone." : {
+    "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请检查这台 iPhone 上的 Note 4 配对状态和辅助触控设置。"
+            "value" : "请检查这台 iPhone 上的蓝牙开发板配对状态和辅助触控设置。"
           }
         }
       }
@@ -9593,12 +9593,12 @@
         }
       }
     },
-    "Install Note 4 firmware over USB using hardware/flash.sh --note4." : {
+    "Use firmware made for Note 4. Back up the board and follow its USB installation guide." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请通过 USB 使用 hardware/flash.sh --note4 安装 Note 4 固件。"
+            "value" : "请使用适用于 Note 4 的固件。先备份开发板，再按指南通过 USB 安装。"
           }
         }
       }
@@ -9609,6 +9609,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "蓝牙指针"
+          }
+        }
+      }
+    },
+    "Use firmware for your board model. Back up the board and follow its installation guide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用适用于当前板型的固件。先备份开发板，再按指南安装。"
           }
         }
       }

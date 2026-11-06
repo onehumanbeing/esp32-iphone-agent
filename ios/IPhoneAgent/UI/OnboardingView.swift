@@ -121,7 +121,7 @@ struct OnboardingView: View {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return pointer.calibrated && !calibrator.busy && board.status?.needsWirelessPointer != true
+        case .act: return pointer.calibrated && !calibrator.busy && (MockMode.on || board.status?.inputReady == true)
         case .brain: return app.modelOK == true
         }
     }
@@ -171,7 +171,7 @@ struct OnboardingView: View {
         case .welcome: return accepted
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && !app.join.busy)
-        case .act: return board.status?.needsWirelessPointer != true && !calibrator.busy && (pointer.calibrated || actReady)
+        case .act: return (MockMode.on || board.status?.inputReady == true) && !calibrator.busy && (pointer.calibrated || actReady)
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }

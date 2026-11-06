@@ -41,7 +41,7 @@ struct ConnectPage: View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: board.connected ? .success : board.scanning ? .listening : .sleeping,
                        title: "Connect the Board",
-                       message: "Plug in the USB board or power on Note 4. Select the board over Bluetooth and tap Pair when asked.")
+                       message: "Plug in the USB board or power on the Bluetooth board. Select the board over Bluetooth and tap Pair when asked.")
             if !board.connected { MiniPhoneDemo(kind: .plugIn) }
             Panel {
                 switch board.state {

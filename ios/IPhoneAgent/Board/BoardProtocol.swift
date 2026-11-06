@@ -28,7 +28,7 @@ struct BoardStatus: Codable, Equatable {
     var heap: Int?
     var psram: Int?
     var usb: String?   // ok | asleep | off
-    var board: String? // Note 4 报告 note4，原版 USB 固件没有板型字段。
+    var board: String? // 板型身份；原版 USB 固件没有此字段。
     var hid: String?   // 本连接的蓝牙 HID 状态；配对且订阅后为 ok。
     var net: String?   // ap | sta | none
     var ip: String?
@@ -42,8 +42,9 @@ struct BoardStatus: Codable, Equatable {
     var ble: BLE?
     var udp: UDP?
 
-    var isWirelessHID: Bool { board == "note4" || hid != nil }
-    var inputState: String? { isWirelessHID ? hid : usb }
+    var isWirelessHID: Bool { hid != nil }
+    // 命名板型须先报告输入能力，不能把用于供电的 USB 误认成手机输入。
+    var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }
     var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
     // 现有签名清单只提供 USB 镜像；未收到板型状态时也不允许安装。

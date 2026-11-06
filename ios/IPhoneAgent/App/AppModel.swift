@@ -179,7 +179,7 @@ import UIKit
             if let up = s.up { self?.feed.boardClock(ms: up) }
             self?.metrics.status(s)
             self?.logStatus(s)
-            if s.needsWirelessPointer { self?.beginLinkRecoveryDisplay() }
+            if s.inputState == nil || s.needsWirelessPointer { self?.beginLinkRecoveryDisplay() }
             else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in

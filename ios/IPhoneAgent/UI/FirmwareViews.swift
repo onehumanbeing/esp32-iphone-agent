@@ -59,8 +59,10 @@ struct FirmwareSection: View {
         } header: {
             Text("Firmware")
         } footer: {
-            if board.status?.isWirelessHID == true {
-                Text("Install Note 4 firmware over USB using hardware/flash.sh --note4.")
+            if board.status?.board == "note4" {
+                Text("Use firmware made for Note 4. Back up the board and follow its USB installation guide.")
+            } else if board.connected && !updater.usesUSBRelease {
+                Text("Use firmware for your board model. Back up the board and follow its installation guide.")
             } else if let error = updater.checkError {
                 Text(verbatim: error)
             } else if updater.release != nil && !updater.available && board.connected {
