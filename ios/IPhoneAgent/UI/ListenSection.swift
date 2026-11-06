@@ -7,7 +7,7 @@ struct ListenSection: View {
     @ObservedObject var audio: AudioFeed
     @AppStorage(ListenSetting.key) private var listen = false
     @AppStorage(ListenSetting.shareKey) private var share = true
-    @State private var second = SpeechLanguages.second
+    @State private var second = UserDefaults.standard.string(forKey: SpeechLanguages.key) ?? SpeechLanguages.automatic
     @State private var choices: [String] = []
 
     var body: some View {
@@ -17,6 +17,7 @@ struct ListenSection: View {
             if listen {
                 // English is always recognized; the second language is the other one the phone may play
                 Picker("Second language", selection: $second) {
+                    Text("Automatic (from the screen)").tag(SpeechLanguages.automatic)
                     Text("None").tag("")
                     ForEach(choices, id: \.self) { Text(verbatim: SpeechLanguages.name($0)).tag($0) }
                 }

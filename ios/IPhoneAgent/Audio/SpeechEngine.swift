@@ -1,4 +1,5 @@
 import AVFoundation
+import NaturalLanguage
 import Speech
 
 /// What one engine made of a segment: the text and how sure it was (0…1, mean over the words; 0 if unknown).
@@ -29,10 +30,33 @@ enum SpeechLanguages {
     static let key = "listenSecondLanguage"
     static let first = "en-US"
 
-    /// The chosen second language; until one is chosen, the phone's first non-English language it can recognize.
+    static let automatic = "auto"
+    /// Automatic: the language last seen on the screen while sound played (AudioFeed sets it).
+    static var seen: String?
+
+    /// The chosen second language. Automatic (the default) follows the screen, the phone's own language until one is
+    /// seen: 2026-11-07 a Japanese Duolingo lesson was transcribed as Chinese ("お汉です" for ごはんです).
     static var second: String {
-        if let chosen = UserDefaults.standard.string(forKey: key) { return chosen }
-        return choices().first.flatMap { c in Locale.preferredLanguages.contains { Locale(identifier: c).matches($0) } ? c : nil } ?? ""
+        let chosen = UserDefaults.standard.string(forKey: key) ?? automatic
+        guard chosen == automatic else { return chosen }
+        return seen ?? choices().first.flatMap { c in Locale.preferredLanguages.contains { Locale(identifier: c).matches($0) } ? c : nil } ?? ""
+    }
+    static var isAutomatic: Bool { (UserDefaults.standard.string(forKey: key) ?? automatic) == automatic }
+
+    /// The non-English language of the screen's text, among `choices` (nil: none worth switching to). A line counts
+    /// when it has non-Latin letters or 3+ words: single English words read as Dutch or Spanish ("rice", "General").
+    static func language(of lines: [String], among choices: [String]) -> String? {
+        var chars: [String: Int] = [:]
+        for line in lines {
+            let latin = line.unicodeScalars.allSatisfy { $0.value < 0x250 }
+            guard !latin || line.split(separator: " ").count >= 3 else { continue }
+            let r = NLLanguageRecognizer()
+            r.processString(line)
+            guard let l = r.dominantLanguage, l != .english, l != .undetermined else { continue }
+            chars[tag(l.rawValue), default: 0] += line.count
+        }
+        guard let (code, n) = chars.max(by: { $0.value < $1.value }), n >= 2 else { return nil }
+        return choices.first { tag($0) == code }
     }
 
     static var all: [String] { second.isEmpty ? [first] : [first, second] }

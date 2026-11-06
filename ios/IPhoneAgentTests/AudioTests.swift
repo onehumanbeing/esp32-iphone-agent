@@ -168,6 +168,17 @@ import XCTest
         lastConfig = encoder.magicCookie
         return frames
     }
+
+    /// Automatic second language: the language on the screen, ignoring single English words read as other languages.
+    func testScreenLanguageFollowsTheLessonNotStrayWords() {
+        let choices = ["zh-CN", "ja-JP", "es-ES", "ko-KR"]
+        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "ごはん", "みず", "おちゃ", "CHECK"], among: choices), "ja-JP")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Translate this sentence", "ごはんです", "rice", "is", "water"], among: choices), "ja-JP")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Select the correct meaning", "El niño come pan", "The boy eats bread"], among: choices), "es-ES")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "我喜欢喝茶", "米饭"], among: choices), "zh-CN")
+        XCTAssertNil(SpeechLanguages.language(of: ["Settings", "Wi-Fi", "Bluetooth", "General", "rice", "water"], among: choices))
+        XCTAssertNil(SpeechLanguages.language(of: ["ごはん"], among: ["zh-CN"]))  // not recognizable here: keep what we have
+    }
 }
 
 /// Collects PCM and answers with a fixed text.

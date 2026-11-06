@@ -41,6 +41,9 @@ enum ListenSetting {
     private var lastSeq: UInt16?
     private var segmentFrom = (frames: 0, undecoded: 0)  // counters when the segment started
     private var preparing: Task<Void, Never>?
+    /// The screen's text lines (OCR of the shown frame), for Second language › Automatic. Set by the app.
+    var screenLines: () async -> [String] = { [] }
+    private var relanguage = false  // the screen showed another language: new engine once this segment ends
 
     /// Speech permission and engine; called when the setting is switched on (and at launch if it is on).
     func prepare() {
@@ -118,6 +121,7 @@ enum ListenSetting {
         segmentFrom = (frames, undecoded)
         DebugLog.write("audio: segment started (\(engine == nil ? "no speech engine" : "transcribing"))")
         segments.removeAll { ($0.end ?? clock()) < clock() - Self.keep }
+        followScreen()
         guard let engine else { return }
         let started = segments[segments.count - 1].start
         pending = []
@@ -139,7 +143,21 @@ enum ListenSetting {
         }
     }
 
+    /// Second language › Automatic: sound plays, so read the screen; another language there means a new engine.
+    private func followScreen() {
+        guard SpeechLanguages.isAutomatic, engine != nil else { return }
+        Task {
+            let lines = await screenLines()
+            guard let id = SpeechLanguages.language(of: lines, among: SpeechLanguages.choices()),
+                  id != SpeechLanguages.second else { return }
+            DebugLog.write("audio: the screen is in \(id); transcribing that from the next sound")
+            SpeechLanguages.seen = id
+            if segments.last?.end == nil { relanguage = true } else { reset() }
+        }
+    }
+
     private func endSegment() {
+        defer { if relanguage { relanguage = false; reset() } }
         guard let i = segments.indices.last, segments[i].end == nil else { return }
         segments[i].end = clock()
         let started = segments[i].start
@@ -168,5 +186,32 @@ enum ListenSetting {
     var summary: String {
         let last = segments.last.map { "last \($0.end == nil ? "going on" : "ended"), \($0.loud ? "loud" : "quiet"), \"\($0.text.prefix(80))\"" } ?? "none"
         return "audio: \(enabled ? "on" : "off"), speech \(state.map { "\($0)" } ?? "not set up"), \(segments.count) segments (\(last)), \(frames) frames, \(gaps) gaps"
+    }
+}
+
+/// Settings › Developer › Audio test (and the harness `audiotest <lang>`): the phone says a phrase twice while it
+/// shows it, so the sound goes out over Screen Mirroring and comes back through the board without another app.
+/// Shown on screen too, so Second language › Automatic switches on the first and transcribes the second.
+@MainActor enum AudioTest {
+    static let phrases: [String: String] = [
+        "en-US": "Please book a table for two at seven tonight.",
+        "ja-JP": "ごはんとおちゃをください。",
+        "zh-CN": "我想喝一杯热茶。",
+        "es-ES": "Quiero un vaso de agua, por favor.",
+    ]
+    private static let voice = AVSpeechSynthesizer()
+
+    static func run(_ language: String, times: Int = 2) async {
+        let text = phrases[language] ?? phrases["en-US"]!
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        for _ in 0..<times {
+            let u = AVSpeechUtterance(string: text)
+            u.voice = AVSpeechSynthesisVoice(language: language)
+            voice.speak(u)
+            while !voice.isSpeaking { try? await Task.sleep(nanoseconds: 50_000_000) }
+            while voice.isSpeaking { try? await Task.sleep(nanoseconds: 100_000_000) }
+            try? await Task.sleep(nanoseconds: 2_500_000_000)  // the segment ends and is transcribed
+        }
     }
 }

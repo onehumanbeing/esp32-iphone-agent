@@ -89,7 +89,7 @@ extension AppModel {
     }
 
     /// A line from the Mac harness, relayed by the board: "run <task>", "calibrate", "stop", "bench <kb>",
-    /// "snap", "status", "log <n>", "mode <m>", "audio" or "ota [dir]".
+    /// "snap", "status", "log <n>", "mode <m>", "audio", "audiotest <lang>" or "ota [dir]".
     func handleAppCommand(_ line: String) {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
@@ -99,6 +99,16 @@ extension AppModel {
         case "bench": debugCommand("bench", kb: Int(rest) ?? 256)
         case "status": say(statusSummary)
         case "audio": say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard()))  // the phone audio the agent hears
+        case "audiotest":  // says a phrase twice over mirroring, then reports what the app heard
+            let language = AudioTest.phrases[rest] != nil ? rest : "en-US"
+            homeHint = AudioTest.phrases[language]  // on screen, for Second language › Automatic
+            Task { [weak self] in
+                await AudioTest.run(language)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let self else { return }
+                self.homeHint = nil
+                self.say(self.audio.summary + "\n" + self.audio.heard(within: 60))
+            }
         case "log": relayHistory(Int(rest) ?? 50)
         case "ota":  // a test build staged in Documents/<rest or firmware>, sent over Wi-Fi like Update Board does
             if !rest.isEmpty { Firmware.localDir = rest }

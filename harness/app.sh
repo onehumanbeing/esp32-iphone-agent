@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../ios"
 DEVICE=${HARNESS_IPHONE:?set HARNESS_IPHONE to the test iPhone (xcrun devicectl list devices)}
 BUILD=1 WIRED=0
 for a in "$@"; do case $a in --no-build) BUILD=0 ;; --allow-wired) WIRED=1 ;; *) echo "unknown $a"; exit 1 ;; esac; done
-transport=$(dc device info details --device "$DEVICE" 2>/dev/null | awk -F': ' '/transportType/ {print $2; exit}')
+transport=$(dc device info details --device "$DEVICE" 2>/dev/null | awk -F': ' '/transportType/ && !t {t=$2} END {print t}')
 [[ -n $transport ]] || { echo "iPhone $DEVICE not reachable (same Wi-Fi as this Mac? unlocked?)"; exit 1; }
 [[ $transport != wired || $WIRED == 1 ]] || { echo "iPhone is on the cable; unplug it or pass --allow-wired"; exit 1; }
 DD=${HARNESS_DERIVED:-/tmp/harness-ios}

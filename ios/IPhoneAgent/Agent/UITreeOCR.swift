@@ -5,8 +5,9 @@ import Vision
 /// The OCR half of the virtual UI tree: Apple Vision text as pixel boxes, like tree.py ocr_lines()
 /// (which reads PP-OCR quads on Spark). Same request as Keyboard.swift: accurate, zh-Hans + en-US.
 /// Vision reads whole lines; PP-OCR boxes words, so a line is split at spaces (each word its own `#ID`).
+/// `languages` nil: Vision picks them itself (reads kana and other scripts; for the language on the screen).
 enum UITreeOCR {
-    static func lines(_ image: CGImage) async -> [(text: String, box: [Int])] {
+    static func lines(_ image: CGImage, languages: [String]? = ["zh-Hans", "en-US"]) async -> [(text: String, box: [Int])] {
         let w = Double(image.width), h = Double(image.height)
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
@@ -29,7 +30,7 @@ enum UITreeOCR {
                 done.resume(returning: lines)
             }
             request.recognitionLevel = .accurate
-            request.recognitionLanguages = ["zh-Hans", "en-US"]
+            if let languages { request.recognitionLanguages = languages } else { request.automaticallyDetectsLanguage = true }
             request.usesLanguageCorrection = false
             DispatchQueue.global(qos: .userInitiated).async {
                 do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { done.resume(returning: []) }
