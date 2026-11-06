@@ -193,8 +193,10 @@ import UIKit
         }
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
+        let previousPosition = pos
+        pos = nil
         try await device.send("move \(mx) \(my)")  // fix this miss right away
-        if let p = pos { pos = (p.0 + mx, p.1 + my) }
+        if let p = previousPosition { pos = (p.0 + mx, p.1 + my) }
     }
 
     /// Wiggle the pointer and find it on screen, near the target first, then anywhere. model: ask the vision
@@ -204,6 +206,9 @@ import UIKit
         let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
         let before = screen.frame, sent = now()
+        // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
+        let previousPosition = pos
+        pos = nil
         try await device.send("move \(nudge) 0")
         var after = await screen.fresh(since: sent, timeout: 1.2)
         if after != nil {
@@ -211,6 +216,7 @@ import UIKit
             after = screen.frame
         }
         try await device.send("move \(-nudge) 0")
+        pos = previousPosition
         let shift = Double(nudge) / Double(span.w)
         guard let before, let after else { return nil }
         if let p = Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
@@ -293,8 +299,8 @@ import UIKit
     /// first, so lists and pickers stop exactly there; system gestures (home, back) need the flick.
     func drag(_ points: [CGPoint], hold: Bool = true) async throws {
         try await point(Double(points[0].x), Double(points[0].y))
-        try await device.send("press")
         do {
+            try await device.send("press")
             for p in points.dropFirst() {
                 try await moveTo(dx(Double(p.x)), dy(Double(p.y)), rehome: false)  // never home mid-drag
             }
@@ -364,15 +370,18 @@ import UIKit
     /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
     func goHome() async throws {
         let before = screen?.live == true ? screen?.frame : nil
-        if (try? await device.send("homescreen")) != nil {
-            guard let screen, let before else { return }
-            await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
-            if Vision.changed(before, screen.frame) { return }
-            log("home: the Home key left the screen unchanged; flicking up from the home bar")
-        } else {
+        do {
+            try await device.send("homescreen")
+        } catch let error as DeviceError where error.message.hasPrefix("err ") {
+            // 开发板明确拒绝时可尝试旧固件的快捷键，回执超时则交给上层重新观察。
             try await key("cmd+h")
             try await Task.sleep(nanoseconds: 350_000_000)
+            return try await homeSwipe()
         }
+        guard let screen, let before else { return }
+        await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
+        if Vision.changed(before, screen.frame) { return }
+        log("home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
     }
 
@@ -399,8 +408,8 @@ import UIKit
         // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
         guard let span else { return }
         try await device.send("move 0 \(span.h / 10)")
-        try await device.send("press")
         do {
+            try await device.send("press")
             try await device.send("move 0 \(-Int(Double(span.h) * 0.85))")  // to the middle only (0.45) left the app card half-way (2026-10-19)
         } catch {
             _ = try? await device.send("release")
