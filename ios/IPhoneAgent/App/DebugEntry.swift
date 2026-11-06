@@ -191,6 +191,11 @@ extension AppModel {
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
+        if args.contains("-stop") { debugCommand("stop") }
+        if args.contains("-pause") || args.contains("-continue") {  // harness/ctl.sh: hold the run while the Mac looks into a step
+            if !agent.running { DebugLog.write("run: not running") }
+            args.contains("-pause") ? pause() : unpause()
+        }
         if args.contains("-bench") { debugCommand("bench", kb: Int(value(after: "-bench") ?? "") ?? 256) }
         if args.contains("-snap") { debugCommand("snap") }
     }
@@ -254,6 +259,12 @@ extension AppModel {
                     wifiVideo.stop()
                     wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)
                     reply = "reconnecting, resume at \(feed.resumeMs.map(String.init) ?? "none")"
+                } else if command.hasPrefix("point ") {  // "point 500 620": move there (no click), report the landing
+                    let xy = command.split(separator: " ").dropFirst().compactMap { Double($0) }
+                    if xy.count == 2, (try? await pointer.point(xy[0] / 1000, xy[1] / 1000)) != nil,
+                       let p = await pointer.landing(xy[0] / 1000, xy[1] / 1000) {
+                        reply = String(format: "landed %.0f %.0f", p.x * 1000, p.y * 1000)
+                    } else { reply = "err not found" }
                 } else if command == "shot" {  // the mirrored screen now, for harness/hid.sh to pull
                     await feed.settled(most: 1.5)
                     let name = "harness-shots/\(Int(Date().timeIntervalSince1970)).jpg"

@@ -3,7 +3,8 @@ import UIKit
 /// Touch-probe calibration, like levelling a 3D printer bed: home the pointer, click at known mouse
 /// distances and catch where each click lands on this app's own screen. Stage 1 clicks twice on the
 /// diagonal for a rough fit; stage 2 clicks near the four corners (25% / 75%) and the centre, all from home,
-/// and fits mouse units → screen fraction per axis by least squares; stage 3 taps a check point.
+/// and fits mouse units → screen fraction per axis by least squares; then the same short move at several speeds
+/// (iOS accelerates by speed: a correction is slower than the probes and falls short); stage 3 taps a check point.
 extension AutoCalibrator {
     enum TouchResult { case done(Double), noTaps, failed(String) }
 
@@ -11,6 +12,8 @@ extension AutoCalibrator {
     static let targets: [(Double, Double)] = [(0.25, 0.25), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0.75, 0.75)]
     static let check = (x: 0.5, y: 0.62)
     static let tapTimeout = 3.0
+    static let speeds = [2, 4, 6]  // per report; the board's full speed (10) is the reference
+    static let speedMove = 80      // units, diagonally, from a point near the centre
 
     func touchCalibrate(full: Bool) async throws -> TouchResult {
         let probe = app.probe, device = app.board.commands, pointer = app.pointer
@@ -20,9 +23,11 @@ extension AutoCalibrator {
         try await pointer.reset()
 
         /// Home, move by (ux, uy), click and wait for the tap. Every probe starts from home, like the agent's moves.
-        func click(_ ux: Int, _ uy: Int) async throws -> CGPoint? {
+        /// then: one more move first (the speed probes).
+        func click(_ ux: Int, _ uy: Int, then: String? = nil) async throws -> CGPoint? {
             try await device.send("home")
             try await device.send("move \(ux) \(uy)")
+            if let then { try await device.send(then) }
             let sent = now()
             try await device.send("click")
             let p = await probe.tap(since: sent, timeout: Self.tapTimeout)
@@ -114,6 +119,10 @@ extension AutoCalibrator {
                        lx.a, lx.b, ly.a, ly.b, lx.rms * 100, ly.rms * 100,
                        "\(Int(DeviceScreen.size.width))×\(Int(DeviceScreen.size.height)) pt @\(Int(DeviceScreen.scale))x"))
         pointer.applyProbe(x: lx, y: ly, samples: samples)
+        if (pointer.boardPace ?? 1) >= 3 {
+            total += Self.speeds.count + 2
+            try await calibrateSpeeds(lx.units(for: 0.35), ly.units(for: 0.4)) { try await click($0, $1, then: $2) }
+        }
 
         // stage 3: check with the agent's own move
         phase = .verifying
@@ -128,6 +137,22 @@ extension AutoCalibrator {
         app.say(String(format: "probe check at (%.2f, %.2f): landed (%.3f, %.3f), ±%.1f%%", Self.check.x, Self.check.y,
                        p.x, p.y, error * 100))
         return .done(error)
+    }
+}
+
+extension AutoCalibrator {
+    /// The same diagonal move at each speed from (bx, by), against the full speed: the distance ratios.
+    func calibrateSpeeds(_ bx: Int, _ by: Int, click: (Int, Int, String?) async throws -> CGPoint?) async throws {
+        let d = Self.speedMove
+        guard let base = try await click(bx, by, nil), let full = try await click(bx, by, "move \(d) \(d)") else { return }
+        let fx = full.x - base.x, fy = full.y - base.y
+        guard fx > 0.02, fy > 0.01 else { return app.say("speed probes: the full-speed move went nowhere") }
+        var measured: [(Double, Double)] = []
+        for v in Self.speeds {
+            guard let p = try await click(bx, by, "move \(d) \(d) \(v)") else { continue }
+            measured.append((Double(v), ((p.x - base.x) / fx + (p.y - base.y) / fy) / 2))
+        }
+        app.pointer.applySpeeds(measured)
     }
 }
 

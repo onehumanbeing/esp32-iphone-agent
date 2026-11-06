@@ -128,6 +128,22 @@ import XCTest
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).origin.x, 0.142, accuracy: 1e-9)  // kept
     }
 
+    func testShortMovesAreScaledUpByTheSpeedCalibration() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        XCTAssertTrue(pointer.paced(5, 0) == (5, 0))  // no speed calibration: as asked
+        pointer.applySpeeds([(2, 0.5), (6, 0.8), (10, 1.3)])  // full speed is the reference, never stored
+        XCTAssertEqual(pointer.ratio(atSpeed: 4), 0.65, accuracy: 1e-9)
+        XCTAssertEqual(pointer.ratio(atSpeed: 1), 0.5)
+        XCTAssertEqual(pointer.ratio(atSpeed: 10), 1)
+        let (x, _) = pointer.paced(4, 0)  // one slow report: sent longer so it goes 4 at full speed's scale
+        XCTAssertEqual(Double(x) * pointer.ratio(atSpeed: Double(x)), 4, accuracy: 0.6)
+        XCTAssertTrue(pointer.paced(300, 0) == (300, 0))  // a long move runs at full speed
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).gain.count, 2)  // saved
+    }
+
     func testACalibrationUnderAnotherBoardPaceIsDoneAgain() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: file) }

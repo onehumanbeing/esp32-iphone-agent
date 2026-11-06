@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the iOS app and install it on the test iPhone over Wi-Fi (or a cable), then start it.
 # Usage: harness/app.sh [--no-build] [--allow-wired]     device: $HARNESS_IPHONE (devicectl name or id)
+# HARNESS_XCODE_SETTINGS: extra build settings, e.g. IA_BUNDLE_ID=... to install over the phone's only copy of the app
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$(dirname "$0")/../ios"
@@ -15,7 +16,7 @@ if (( BUILD )); then
   xcodegen >/dev/null
   xcodebuild -project IPhoneAgent.xcodeproj -scheme IPhoneAgent -configuration Debug -destination "id=$(
     dc device info details --device "$DEVICE" | awk -F': ' '/udid/ {print $2; exit}')" \
-    -derivedDataPath "$DD" -allowProvisioningUpdates -quiet build
+    -derivedDataPath "$DD" -allowProvisioningUpdates -quiet ${HARNESS_XCODE_SETTINGS:-} build
 fi
 APP=$DD/Build/Products/Debug-iphoneos/IPhoneAgent.app
 BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")

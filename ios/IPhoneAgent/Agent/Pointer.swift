@@ -22,8 +22,10 @@ import UIKit
 
     struct Span: Codable, Equatable { var w: Int, h: Int }
     private struct Saved: Codable {
-        var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?
+        var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?,
+            gain: [[Double]]?
     }
+    static let speed = 10.0  // the board's speed per report (STEP), the probes' and every long move's
 
     let device: HIDDevice
     weak var screen: ScreenSource?
@@ -32,6 +34,9 @@ import UIKit
     /// Where home really leaves the pointer (screen fraction). Going left, then up the left edge, the rounded corner
     /// pushes it in to about x 0.14 (2026-11-06): steady, so it is part of the calibration, not learned drift.
     private(set) var origin = CGPoint.zero
+    /// How far a move goes at a slower speed per report, relative to `speed`: (speed, ratio), measured at calibration.
+    /// iOS accelerates the pointer by speed, so a short move or a correction (under one full report) falls short.
+    private(set) var gain: [(Double, Double)] = []
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
     private var link = 0  // device.links when the pointer was last homed
@@ -57,6 +62,7 @@ import UIKit
             span = Span(w: saved.w, h: saved.h)
             (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
             origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
+            gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
             for axis in ["x", "y"] where saved.v == Self.samplesVersion {
                 seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
             }
@@ -129,7 +135,7 @@ import UIKit
 
     /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
     func finishCalibration(x: Double, y: Double) {
-        (quality, aspect, pace, origin) = (nil, screenAspect(), boardPace ?? pace, .zero)
+        (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
         span = Span(w: Int((Double(Self.calibrationMove) / x).rounded(.toNearestOrEven)), h: Int((Double(Self.calibrationMove) / y).rounded(.toNearestOrEven)))
         seen = ["x": [], "y": []]
         save()
@@ -141,7 +147,7 @@ import UIKit
         let s = Span(w: Int((1 / x.a).rounded()), h: Int((1 / y.a).rounded()))
         span = s
         (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
-        origin = CGPoint(x: x.b, y: y.b)
+        (origin, gain) = (CGPoint(x: x.b, y: y.b), [])
         seen = ["x": [], "y": []]
         for p in samples {
             remember("x", (p.ux / Double(s.w) + x.b, p.fx))
@@ -151,6 +157,32 @@ import UIKit
         save()
         log(String(format: "calibration: touch probe span %d x %d, offset %.3f / %.3f, residual %.2f%%",
                    s.w, s.h, x.b, y.b, max(x.rms, y.rms) * 100))
+    }
+
+    /// The speed calibration: ratios of a move's distance at a slower speed to the same move at `speed`.
+    func applySpeeds(_ measured: [(Double, Double)]) {
+        gain = measured.filter { $0.0 < Self.speed && $0.1 > 0.2 && $0.1 < 3 }.sorted { $0.0 < $1.0 }
+        save()
+        log("calibration: speed gain " + gain.map { String(format: "%.0f→%.2f", $0.0, $0.1) }.joined(separator: " "))
+    }
+
+    /// The distance ratio at a speed per report, interpolated between the measured speeds (1 at `speed`).
+    func ratio(atSpeed v: Double) -> Double {
+        let pts = (gain + [(Self.speed, 1.0)]).sorted { $0.0 < $1.0 }
+        if v <= pts[0].0 { return pts[0].1 }
+        for (a, b) in zip(pts, pts.dropFirst()) where v <= b.0 { return a.1 + (b.1 - a.1) * (v - a.0) / (b.0 - a.0) }
+        return 1
+    }
+
+    /// The units to send for a move meant to go (mx, my) at full speed: the board paces a move of length L at
+    /// L / ceil(L / speed) per report, so a short one is slower and goes ratio(v) as far.
+    func paced(_ mx: Int, _ my: Int) -> (Int, Int) {
+        let d = hypot(Double(mx), Double(my))
+        guard d > 0, !gain.isEmpty else { return (mx, my) }
+        var l = d
+        for _ in 0..<4 { l = d / ratio(atSpeed: l / max(ceil(l / Self.speed), 1)) }
+        let k = l / d
+        return (Int((Double(mx) * k).rounded()), Int((Double(my) * k).rounded()))
     }
 
     /// A measured check (e.g. a probe tap) as the current accuracy.
@@ -163,7 +195,8 @@ import UIKit
     private func save() {
         guard let span else { return }
         let saved = Saved(w: span.w, h: span.h, seen: seen.mapValues { $0.map { [$0.0, $0.1] } }, quality: quality,
-                          aspect: aspect, v: Self.samplesVersion, pace: pace, ox: origin.x, oy: origin.y)
+                          aspect: aspect, v: Self.samplesVersion, pace: pace, ox: origin.x, oy: origin.y,
+                          gain: gain.map { [$0.0, $0.1] })
         try? JSONEncoder().encode(saved).write(to: file)
     }
 
@@ -183,7 +216,8 @@ import UIKit
         learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
-        try await device.send("move \(mx) \(my)")  // fix this miss right away
+        let (sx, sy) = paced(mx, my)
+        try await device.send("move \(sx) \(sy)")  // fix this miss right away
         if let p = pos { pos = (p.0 + mx, p.1 + my) }
     }
 
@@ -291,7 +325,8 @@ import UIKit
         }
         let (x, y) = pos!
         pos = nil  // unknown until the move succeeds
-        try await device.send("move \(tx - x) \(ty - y)")
+        let (mx, my) = paced(tx - x, ty - y)
+        try await device.send("move \(mx) \(my)")
         (pos, moves) = ((tx, ty), moves + 1)
     }
 
