@@ -26,7 +26,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 [English](README.md) · 简体中文
 
-演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [handsy.tech](https://handsy.tech)
+演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness 演示](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech)
 
 </div>
 
@@ -171,7 +171,13 @@ Cursor、Cline 等 MCP 客户端：
 }
 ```
 
-命令行工具在电脑上通过蓝牙直接连板子，不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)和 [cli/README.md](cli/README.md)。
+DeepSeek Harness（dsh）：安装 [integrations/dsh](integrations/dsh/README.md) 里的插件，同样包含这个 MCP 服务器和技能（[演示视频](https://www.youtube.com/watch?v=DzYv0QVk_No)）：
+
+```bash
+dsh plugin --profile web add dsh-esp32agent
+```
+
+命令行工具在电脑上通过蓝牙直接连板子，板子和电脑连同一个 Wi-Fi 后改走 Wi-Fi（`esp32agent net join`），不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)和 [cli/README.md](cli/README.md)。
 
 ## 模型和提示词
 

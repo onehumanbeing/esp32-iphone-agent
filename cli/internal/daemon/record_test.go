@@ -27,7 +27,7 @@ func TestActionsAreRecordedAndKeysPaced(t *testing.T) {
 	call(t, c, Request{Cmd: "pair"})
 	b.Status(`{"up":5000,"ap":"idle","w":480,"h":1040}`)
 	time.Sleep(50 * time.Millisecond)
-	os.WriteFile(config.CalibrationPath(s.Dir, "246f28aa6ad5"), []byte(`{"w":400,"h":860}`), 0o600)
+	os.WriteFile(config.CalibrationPath(s.Dir, "246f28aa6ad5"), []byte(`{"w":400,"h":860,"moves":"axis"}`), 0o600)
 
 	if r, _ := call(t, c, Request{Cmd: "tap", Pts: []float64{240, 520}}); r.Status != "ok" {
 		t.Fatalf("tap: %+v", r)

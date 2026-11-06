@@ -1,5 +1,7 @@
 # Prompts
 
+English · [简体中文](README.zh-CN.md)
+
 The model prompts the app sends, as plain text. They are bundled into the app at build time
 (`ios/project.yml`, read by `ios/IPhoneAgent/Agent/Prompts.swift`).
 

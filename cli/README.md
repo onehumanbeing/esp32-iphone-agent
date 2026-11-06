@@ -1,8 +1,10 @@
 # esp32agent
 
+English · [简体中文](README.zh-CN.md)
+
 Command line and MCP server that let a computer (and the coding agent on it: Claude Code, Codex) see and drive an
 iPhone through an ESP32 Agent board. The board is plugged into the iPhone as its USB mouse and keyboard and receives
-its AirPlay screen mirroring; the computer reaches it over Bluetooth, next to the iOS app. Commands and JSON output
+its AirPlay screen mirroring; the computer reaches it over Bluetooth, or over Wi-Fi when both are on the same network, next to the iOS app. Commands and JSON output
 follow [mobilecli](https://github.com/mobile-next/mobilecli).
 
 ## Install
@@ -42,6 +44,10 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `screencapture --format h264\|mjpeg` | live video to stdout, e.g. `\| ffplay -` |
 | `device info` | board status: `ap` (mirroring), `fz` (video frozen), `busy` (the app holds the phone), `usb`, `ble` |
 | `calibrate` | measure the pointer (runs by itself on the first tap; needs the pointer visible) |
+| `net` | the CLI's link (`via`: `ble` or `wifi`) and the board's Wi-Fi. With this computer on the board's network (same Wi-Fi, or its hotspot) commands and video go over Wi-Fi; BLE stays as the way back |
+| `net join` | asks for your Wi-Fi's name and password (not echoed), sends them to the board over the Bluetooth session, and waits until the link moves to Wi-Fi. `net join SSID [PASSWORD]` does it without asking. The iPhone mirrors over that Wi-Fi too |
+| `net hotspot` | the board opens its own hotspot again |
+| `net via auto\|ble` | `ble` keeps the session on BLE (also `ESP32AGENT_TRANSPORT=ble`) |
 | `history list`, `history show RUN\|latest`, `history new` | what was done on the phone: runs (newest first, 30), one run's steps; start a new run |
 | `intent list`, `intent show NAME\|ID` | saved intents |
 | `intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]` | save an intent; steps are the run's replayable moves (all, or the numbers from `history show`) |
@@ -99,7 +105,7 @@ it yourself; esp32agent never sends anything.
 
 - The iOS app has priority: while it drives the phone (and 20 s after), pointer and keyboard commands fail with
   `busy: the app is using the phone`. Wait and retry.
-- Video comes over Bluetooth: screenshots can lag up to about a second and animations are choppy.
+- Over Bluetooth, screenshots can lag up to about a second and animations are choppy; over Wi-Fi they are close to live.
 - Taps are relative mouse moves, dead-reckoned from the top-left corner and re-homed every 10 gestures; accuracy
   depends on calibration (`calibrate`, `io tap --aim`).
 - Typing is ASCII only (one key per character); no clipboard, no volume/power buttons, no app install or launch.

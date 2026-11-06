@@ -7,7 +7,12 @@ void cli_begin();                                         // loads the paired cl
 void cli_on_frame(int slot, const uint8_t *p, size_t n);  // a cli_in write (NimBLE host task)
 void cli_reset(int slot);                                 // that peer disconnected
 bool cli_authed(int slot);                                // its first sealed frame verified
+bool cli_known(int slot);                                 // a paired computer's link (its session may be elsewhere now)
 int cli_slot();                                           // the authenticated CLI's slot, -1 if none
+uint32_t cli_gen();                                       // bumps when a session authenticates (video starts over)
+bool cli_wifi();                                          // that session runs over Wi-Fi (cli_tcp.h)
+uint16_t cli_mtu();                                       // its link's MTU (23 without one)
+void cli_drop();                                          // drops the CLI's links
 void cli_forget_all();                                    // unpair: every client must pair again
 // Sealed board → CLI frames. Control (replies, status) only from the BLE TX task; video only from the video task:
 // each stream's counter then grows in send order.

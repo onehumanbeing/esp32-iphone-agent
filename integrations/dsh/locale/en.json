@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ESP32 Agent (Handsy): drive a real iPhone",
+    "description": "See and operate a real iPhone through an ESP32 Agent board: screenshots over AirPlay, taps, swipes and typing over USB HID. Adds the esp32agent MCP server and the handsy skill."
+  }
+}

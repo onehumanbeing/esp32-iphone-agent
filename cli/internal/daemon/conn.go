@@ -26,7 +26,11 @@ type Conn struct {
 	Name string
 
 	mu       sync.Mutex
+	swap     sync.RWMutex // Send holds it shared across a write, attach exclusively: no frame on a replaced session
 	sess     *proto.Session
+	via      string        // the session's link: "ble" or "wifi"
+	quit     chan struct{} // stops the session's reader (a BLE session moved to Wi-Fi keeps its link)
+	bleLink  proto.Link    // the BLE link, kept while the session runs over Wi-Fi: the way back
 	links    int
 	nextID   int
 	pending  map[string]chan string
@@ -55,6 +59,8 @@ type Conn struct {
 
 	keyMu   sync.Mutex // held across the gap and the send of key/type commands
 	lastKey time.Time  // when the board acknowledged the last one
+
+	wifi *wifiLink // moves the session to the board's Wi-Fi and back (wifi.go); nil: BLE only
 }
 
 // KeyGap separates key and type commands: sent back to back, iOS dropped a backspace (2026-10-21).
@@ -71,16 +77,43 @@ func (c *Conn) connected() bool {
 	return c.sess != nil
 }
 
-// attach takes over a fresh session and turns on the CLI's own video stream.
-func (c *Conn) attach(s *proto.Session) error {
+// attach takes over a fresh session on link l (via "ble" or "wifi") and turns on the CLI's own video stream.
+// The session it replaces stops: a BLE one keeps its link as the way back, a Wi-Fi one is closed.
+func (c *Conn) attach(s *proto.Session, via string, l proto.Link) error {
+	c.swap.Lock()
+	defer c.swap.Unlock()
 	c.mu.Lock()
-	c.sess, c.links = s, c.links+1
+	old, oldVia := c.sess, c.via
+	if c.quit != nil {
+		close(c.quit)
+	}
+	quit := make(chan struct{})
+	c.sess, c.via, c.quit, c.links = s, via, quit, c.links+1
+	if via == "ble" {
+		if c.bleLink != nil && c.bleLink != l {
+			c.bleLink.Close()
+		}
+		c.bleLink = l
+	}
 	c.re = video.NewReassembler()
-	c.mu.Unlock()
-	go c.read(s)
+	if c.dec != nil { // the new stream starts over from the GOP
+		c.dec.Close()
+		c.dec = nil
+	}
+	c.mu.Unlock() // pending commands stay: the board sends their replies on the new session
+	if old != nil && oldVia == "wifi" {
+		old.Close()
+	}
+	go c.read(s, quit)
+	return nil
+}
+
+// start turns on the CLI's video stream on a fresh session; also the client's proof of K (the board sends
+// nothing before it), so the board moves the session to this link now.
+func (c *Conn) start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := c.Send(ctx, "stream on") // also the client's proof of K: the board sends nothing before it
+	_, err := c.Send(ctx, "stream on")
 	return err
 }
 
@@ -91,6 +124,11 @@ func (c *Conn) detach(s *proto.Session, why error) {
 		return
 	}
 	s.Close()
+	if c.via == "ble" {
+		c.bleLink = nil
+	} else if c.wifi != nil && c.bleLink != nil {
+		go c.wifi.fallBack(c, c.bleLink) // after mu is released
+	}
 	c.sess = nil
 	for id, ch := range c.pending {
 		close(ch)
@@ -104,16 +142,43 @@ func (c *Conn) detach(s *proto.Session, why error) {
 }
 
 func (c *Conn) close() {
+	if c.wifi != nil {
+		c.wifi.stop()
+	}
 	c.mu.Lock()
-	s := c.sess
+	s, bl := c.sess, c.bleLink
+	c.bleLink = nil
 	c.mu.Unlock()
 	if s != nil {
 		c.detach(s, errors.New("closed"))
 	}
+	if bl != nil {
+		bl.Close()
+	}
 }
 
-func (c *Conn) read(s *proto.Session) {
-	for f := range s.Recv() {
+// Via is the current session's link ("ble", "wifi"), "" without one.
+func (c *Conn) Via() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.sess == nil {
+		return ""
+	}
+	return c.via
+}
+
+func (c *Conn) read(s *proto.Session, quit chan struct{}) {
+	for {
+		var f []byte
+		var open bool
+		select {
+		case <-quit:
+			return
+		case f, open = <-s.Recv():
+		}
+		if !open {
+			break
+		}
 		m, ok, err := s.Decode(f)
 		if err != nil {
 			c.detach(s, err)
@@ -153,7 +218,15 @@ func (c *Conn) Send(ctx context.Context, line string) (string, error) {
 	ch := make(chan string, 1)
 	c.pending[id] = ch
 	c.mu.Unlock()
-	if err := s.Send(id + " " + line); err != nil {
+	c.swap.RLock() // the session may have moved to another link since: send on the current one
+	c.mu.Lock()
+	if c.sess != nil {
+		s = c.sess
+	}
+	c.mu.Unlock()
+	err := s.Send(id + " " + line)
+	c.swap.RUnlock()
+	if err != nil {
 		c.detach(s, err)
 		return "", err
 	}

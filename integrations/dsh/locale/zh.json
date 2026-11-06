@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ESP32 Agent（Handsy）：操作真实 iPhone",
+    "description": "通过 ESP32 Agent 板子看到并操作真实 iPhone：AirPlay 截屏，USB HID 点击、滑动、输入。包含 esp32agent MCP 服务和 handsy 技能。"
+  }
+}

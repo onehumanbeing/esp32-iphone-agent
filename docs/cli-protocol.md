@@ -1,4 +1,4 @@
-# CLI protocol (ESP32 ⇄ computer, over BLE)
+# CLI protocol (ESP32 ⇄ computer, over BLE and Wi-Fi)
 
 The `esp32agent` CLI talks to the board over BLE next to the iOS app (both can be connected at once). It never uses
 OS-level BLE pairing: a stale bond on either side (macOS `CBError 14`, "Peer removed pairing information") cannot
@@ -22,6 +22,11 @@ Service `...0010`
 |---|---|---|---|
 | `cli_in`  | `...0011` | write | frames from the computer |
 | `cli_out` | `...0012` | notify | frames from the board |
+| `cli_in_nr` | `...0013` | write without response | the same frames, when one fits a packet (newer firmware; the CLI uses it if present) |
+
+A frame that fits `MTU − 3` goes to `cli_in_nr`: a write request waits for its ATT response, and behind the board's
+video that took seconds. Longer frames (the OS splits them into a long write) use `cli_in`. One write at a time, so
+frames reach the board in counter order.
 
 A connection that is neither link-encrypted (the app) nor authenticated here within 15 s is dropped, so a stranger
 cannot sit on one of the board's connection slots.
@@ -80,6 +85,24 @@ Plaintext:
   (`app`, `cli` or `none`: who drives the phone); the CLI's has `busy` too (1 while the app's link is up).
 - `V`: one video chunk exactly as on the app's `video` characteristic: `[seq u16 LE][flags u8][payload]`.
 
+## Wi-Fi link
+When this computer can reach the board's IP (both on the same Wi-Fi, or the computer joined the board's hotspot),
+the session moves there and BLE stays connected as the way back.
+- **TCP port 7202**, one computer at a time. Records `[u16 LE length][frame]` carry the frames above, unchanged.
+  A zero-length record is a keepalive: the CLI sends one every 2 s, and the board drops a link quiet for 6 s.
+  The board sends status every second, so the CLI drops a link quiet for 5 s.
+- **HELLO/WELCOME as over BLE**, with the paired key. PAIR answers `err pair over Bluetooth`: pairing needs the
+  board's pairing window, so whoever pairs is near the board.
+- **Moving.** The CLI learns the IP from the status (`net` `ap`/`sta`, `ip`), opens a session on TCP, and sends
+  `stream on` on it. A session's first DATA frame on a new link takes over from the same client's session on the
+  other link: the old one stops (no replies, status or video), its link stays up. Video starts over from the GOP's
+  IDR. Another client's session can't take over. When the TCP link drops, the CLI opens a new session on its BLE
+  link; after a failed try it waits 10 s, doubling up to a minute.
+- **`net`** (CLI only): `ok {"mode","ssid","pass","ip"}`, the board's Wi-Fi. `net {"mode":"ap"}` or
+  `net {"mode":"sta","ssid":…,"pass":…}` changes it, as the app's `net` write does (the iPhone has to mirror over
+  the same network). The CLI's status has `link`: `{"via":"ble"|"wifi","mtu":…,"kbps":…}` for its own link.
+- `ESP32AGENT_TRANSPORT=ble` (or `esp32agent net via ble`) keeps the session on BLE.
+
 ## Sharing the phone with the app
 One side drives the phone at a time, and the app wins (`hardware/hid_bridge/src/hid/arbiter.h`). The app runs
 unchanged and never sees a new error.
@@ -89,7 +112,8 @@ unchanged and never sees a new error.
   button it held, sends it a status with `owner: app`, `busy: 1`, and drops its link about 300 ms later. The CLI
   waits 30 s before it tries again.
 - **When the app's link goes down** the CLI may connect and drive; it re-homes its pointer on every new session.
-- **Settings stay the app's.** `res fps txpower coex app log unpair` answer `err not available from the CLI`.
+- **Settings stay the app's.** `res fps txpower coex app log unpair` answer `err not available from the CLI`
+  (`net` is allowed: the Wi-Fi link needs it).
 - **Video.** The CLI's video runs on its own task and buffers; it only runs while the CLI owns the board.
 - **Intents** stay in the app: what the CLI does is not recorded there.
 

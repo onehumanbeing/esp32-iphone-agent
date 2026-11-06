@@ -25,7 +25,9 @@ func (f fakeTransport) Connect(context.Context, ble.Found) (proto.Link, error) {
 }
 
 // start runs a daemon in process on a short temp dir (unix socket paths are limited to ~100 bytes).
-func start(t *testing.T, tr ble.Transport) (*Client, *Server) {
+func start(t *testing.T, tr ble.Transport) (*Client, *Server) { return startWith(t, tr, nil) }
+
+func startWith(t *testing.T, tr ble.Transport, dial func(context.Context, string) (proto.Link, error)) (*Client, *Server) {
 	dir, err := os.MkdirTemp("/tmp", "e32a")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +42,7 @@ func start(t *testing.T, tr ble.Transport) (*Client, *Server) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{Transport: tr, Config: cfg, Dir: dir, Version: "test", ScanTime: time.Millisecond}
+	s := &Server{Transport: tr, Config: cfg, Dir: dir, Version: "test", ScanTime: time.Millisecond, DialWiFi: dial}
 	go s.Serve(l)
 	t.Cleanup(s.Stop)
 	return &Client{Dir: dir, Version: "test", NoSpawn: true}, s
