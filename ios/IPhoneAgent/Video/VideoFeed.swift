@@ -224,16 +224,19 @@ extension ScreenSource {
         return "snap"
     }
 
+    private var inStep: Bool { continuous() && mirroring && !broken && !frozen && frame != nil }
+
     /// Ask the board for the current GOP and wait until it is decoded. Returns the latency in ms.
     @discardableResult
     func snap(timeout: Double? = nil, decodeWait: Double = 1) async throws -> Double {
         try Task.checkCancellation()
         guard let device, device.connected else { throw DeviceError(message: "board not connected") }
         let started = now(), previousFrame = updated
-        if continuous() && mirroring && !broken && !frozen && frame != nil {
+        if inStep {
             // Already in step: take a newer frame if the screen moves within a second, else the current one is it
             // (2026-10-20: a 14 s snap stalled calibration, a 24 s one the run start).
             _ = await fresh(since: started, timeout: 1)
+            staleBefore = 0  // in step: the shown frame is the screen now, however long ago it last changed
             DebugLog.write(String(format: "snap: skipped, Wi-Fi stream in step (frame %.1f s old)", now() - updated))
             return (now() - started) * 1000
         }
@@ -294,8 +297,8 @@ extension ScreenSource {
                 // the next IDR (~2 s) mends the stream; a snap meanwhile took 12–30 s and gave the board's old GOP
                 if streamOn, await newer(than: since, timeout: 4) { return DebugLog.write("frame: stream mended by the next keyframe") }
                 DebugLog.write("frame: stream stale (waiting for an IDR); snapping")
-                snapped = true
-                try await snap()
+                snapped = !inStep  // a stream in step skips the snap: a still screen sends no new frame (2026-11-06:
+                try await snap()   // marked stale anyway, recovery re-homed the pointer every 0.7 s for 4 minutes)
             }
         } catch {
             DebugLog.write("frame after action failed: \(error.localizedDescription)")

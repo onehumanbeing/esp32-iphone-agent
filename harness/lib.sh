@@ -29,7 +29,7 @@ log_lines() {
 follow() {
   local from=$1 show=$2 end=$3 deadline=$((SECONDS + $4)) seen=$1 f n last
   while (( SECONDS < deadline )); do
-    sleep 4
+    sleep "${FOLLOW_EVERY:-4}"  # a long run: copying the whole debug.log every 4 s over Wi-Fi hung devicectl
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
     dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
     n=$(wc -l <"$f" | tr -d ' ')
