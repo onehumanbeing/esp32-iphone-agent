@@ -11,6 +11,7 @@ harness/logs.sh         the app's debug.log (+ --runs traces)
 harness/hid.sh "…"      raw board commands through the app (key, type, move…), plus shot / gop / video-reconnect / point
 harness/watch.sh        follow a run live: each step's action, thought, screen changed or not, pointer (run it in a Monitor)
 harness/ctl.sh pause    hold the run to look into a step (continue | stop)
+NO_LAUNCH=1 harness/hid.sh shot   during a run: without NO_LAUNCH the launch brings this app to the front mid-run
 harness/board.py        one-time only: put the board on the Mac's Wi-Fi (net sta | net ap)
 ```
 
