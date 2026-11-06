@@ -162,6 +162,7 @@ import UIKit
             if app.board.connected, let ip = app.board.net?.ip, let token = app.board.net?.vtok,
                !ip.isEmpty, ip != "0.0.0.0", !token.isEmpty { address = (ip, token) }
             if let address { return address }
+            if app.board.connected { _ = try? await app.board.readNet(fresh: true) }  // it may have joined Wi-Fi since
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return nil

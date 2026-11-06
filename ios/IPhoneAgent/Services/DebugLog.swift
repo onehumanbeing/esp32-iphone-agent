@@ -8,6 +8,10 @@ enum DebugLog {
         .appendingPathComponent("debug.log")
     private static let old = url.deletingLastPathComponent().appendingPathComponent("debug.1.log")
     private static let limit = 2_000_000
+    /// The last lines only, for the harness: copying the whole 2 MB log every 20 s over Wi-Fi, beside mirroring and a
+    /// run, timed out for 11 minutes and the run went unwatched (2026-11-06).
+    static let recent = url.deletingLastPathComponent().appendingPathComponent("debug.recent.log")
+    private static let recentLimit = 256_000, recentKeep = 64_000
     private static let queue = DispatchQueue(label: "debug-log")
     nonisolated(unsafe) private static var secrets: [String] = []
     private static let lock = NSLock()
@@ -33,6 +37,16 @@ enum DebugLog {
         }
     }
 
+    private static func append(_ data: Data, to file: URL) {
+        if let h = try? FileHandle(forWritingTo: file) {
+            h.seekToEndOfFile()
+            h.write(data)
+            try? h.close()
+        } else {
+            try? data.write(to: file)
+        }
+    }
+
     static func write(_ text: String) {
         let time = Date()
         lock.lock(); let hidden = secrets; lock.unlock()
@@ -46,13 +60,12 @@ enum DebugLog {
                 try? fm.removeItem(at: old)
                 try? fm.moveItem(at: url, to: old)
             }
-            if let h = try? FileHandle(forWritingTo: url) {
-                h.seekToEndOfFile()
-                h.write(data)
-                try? h.close()
-            } else {
-                try? data.write(to: url)
+            append(data, to: url)
+            if let size = (try? fm.attributesOfItem(atPath: recent.path)[.size]) as? Int, size > recentLimit,
+               let all = try? Data(contentsOf: recent), let cut = all.dropFirst(all.count - recentKeep).firstIndex(of: 10) {
+                try? all[(cut + 1)...].write(to: recent)
             }
+            append(data, to: recent)
         }
     }
 }

@@ -247,9 +247,10 @@ import Foundation
 
     // MARK: - net
 
-    /// Read the network config (the first read pairs the phone with the board).
-    func readNet() async throws -> NetConfig {
-        if connected, let net { return net }
+    /// Read the network config (the first read pairs the phone with the board). `fresh`: read it again, e.g. for
+    /// the board's address: read while it was still joining Wi-Fi after power-on it stays empty (2026-11-06).
+    func readNet(fresh: Bool = false) async throws -> NetConfig {
+        if !fresh, connected, let net { return net }
         guard let peripheral, let c = chars[BoardUUID.net] else { throw DeviceError(message: "board not connected") }
         return try await withCheckedThrowingContinuation { cont in
             netWaiters.append(cont)

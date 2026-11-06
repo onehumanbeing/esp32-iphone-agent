@@ -17,6 +17,7 @@ import UIKit
     let board = BoardLink(mock: MockMode.on)
     let feed = VideoFeed()
     private var lastVideoToken: String?
+    private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
     let metrics = Metrics()
     let traces = MockMode.on
@@ -239,6 +240,12 @@ import UIKit
 
     /// A new per-boot video token: the board rebooted, its GOP and timestamps are new, so no resume.
     private func updateWifiVideo() {
+        // Read at connect while the board was still joining Wi-Fi after power-on, the address stays empty and the
+        // video goes over BLE only (2026-11-06): read it again every 5 s until there is one.
+        if [nil, "", "0.0.0.0"].contains(board.net?.ip), now() - lastNetRead > 5 {
+            lastNetRead = now()
+            Task { _ = try? await board.readNet(fresh: true) }
+        }
         let token = board.net?.vtok
         if token != nil && token != lastVideoToken { feed.forgetResume() }
         lastVideoToken = token ?? lastVideoToken

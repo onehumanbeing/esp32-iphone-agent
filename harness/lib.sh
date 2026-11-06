@@ -24,21 +24,24 @@ log_lines() {
   wc -l <"$f" | tr -d ' '; rm -f "$f"
 }
 
-# follow <from line> <show regex> <end regex> <seconds> [fail regex]: print new log lines matching show until one
-# matches end; returns 1 when that line matches fail (or nothing came in time).
+# follow <since> <show regex> <end regex> <seconds> [fail regex]: print new log lines (stamped after since) matching
+# show until one matches end; returns 1 when that line matches fail (or nothing came in time). Reads the app's small
+# debug.recent.log: the whole 2 MB debug.log over Wi-Fi, beside mirroring and a run, timed out for 11 minutes
+# (2026-11-06). Lines are matched by time, not count, as that file is cut short now and then.
 follow() {
-  local from=$1 show=$2 end=$3 deadline=$((SECONDS + $4)) seen=$1 f n last
+  local since=$1 show=$2 end=$3 deadline=$((SECONDS + $4)) f new last
   while (( SECONDS < deadline )); do
-    sleep "${FOLLOW_EVERY:-4}"  # a long run: copying the whole debug.log every 4 s over Wi-Fi hung devicectl
+    sleep "${FOLLOW_EVERY:-5}"
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
-    dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
-    n=$(wc -l <"$f" | tr -d ' ')
-    (( n < from )) && from=0 seen=0  # the log rolled over (2 MB)
-    tail -n +$((seen + 1)) "$f" | grep -E "$show" || true
-    if last=$(tail -n +$((from + 1)) "$f" | grep -E "$end" | tail -n 1) && [[ -n $last ]]; then
-      rm -f "$f"; [[ -z ${5:-} ]] || ! grep -qE "$5" <<<"$last"; return
+    dc device copy from "${ON[@]}" --source Documents/debug.recent.log --destination "$f" >/dev/null 2>&1 \
+      || dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue  # an older app
+    new=$(awk -v t="$since" '$1 > t' "$f"); rm -f "$f"
+    [[ -n $new ]] || continue
+    since=$(tail -n 1 <<<"$new" | cut -d' ' -f1)
+    grep -E "$show" <<<"$new" || true
+    if last=$(grep -E "$end" <<<"$new" | tail -n 1) && [[ -n $last ]]; then
+      [[ -z ${5:-} ]] || ! grep -qE "$5" <<<"$last"; return
     fi
-    seen=$n; rm -f "$f"
   done
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
 }
@@ -51,7 +54,7 @@ launch() {
   name=$(date +%Y%m%d-%H%M%S)-$RANDOM.json
   f=/tmp/harness-$name
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" >"$f"
-  from=$(log_lines)
+  from=$(date -u -v-2S +%Y-%m-%dT%H:%M:%S)  # follow from here; the phone's clock may run a little behind
   dc device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
   rm -f "$f"
   [[ -n ${NO_LAUNCH:-} ]] || dc device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
