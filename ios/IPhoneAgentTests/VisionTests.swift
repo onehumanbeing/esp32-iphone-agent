@@ -100,4 +100,12 @@ final class VisionTests: XCTestCase {
         XCTAssertEqual(found.x * W, 354, accuracy: 3)
         XCTAssertEqual(found.y * H, 136, accuracy: 3)
     }
+
+    func testChangedAtLooksOnlyAroundThePoint() {
+        let before = screen(), after = screen(button: true)  // the button covers x 150-351, y 400-601
+        XCTAssertTrue(Vision.changed(before, after, at: CGPoint(x: 250 / W, y: 500 / H)))
+        XCTAssertFalse(Vision.changed(before, after, at: CGPoint(x: 0.5, y: 0.9)))  // a tile elsewhere still there
+        let moved = screen(pointer: (100, 900))
+        XCTAssertFalse(Vision.changed(before, moved, at: CGPoint(x: 100 / W, y: 900 / H), ignore: [CGPoint(x: 100 / W, y: 900 / H)]))
+    }
 }

@@ -54,6 +54,21 @@ enum Vision {
         return hits >= 6
     }
 
+    /// True when the area around `at` (fractions; about a word tile) changed, the pointer spots aside.
+    static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = []) -> Bool {
+        guard let before, let after, let a = image(before), let b = image(after) else { return true }
+        if a.width != b.width || a.height != b.height { return true }
+        let w = a.width / 2, h = a.height / 2, fa = gray(a, w, h), fb = gray(b, w, h), counts = kept(ignore)
+        let x0 = max(0, Int((p.x - 0.06) * Double(w))), x1 = min(w - 1, Int((p.x + 0.06) * Double(w)))
+        let y0 = max(0, Int((p.y - 0.02) * Double(h))), y1 = min(h - 1, Int((p.y + 0.02) * Double(h)))
+        guard x0 <= x1, y0 <= y1 else { return false }
+        var hits = 0
+        for y in y0...y1 {
+            for x in x0...x1 where abs(Int(fa.px[y * w + x]) - Int(fb.px[y * w + x])) > 25 && counts(y * w + x, w, h) { hits += 1 }
+        }
+        return hits >= 6
+    }
+
     /// True when the screen changed a lot (new screen, scrolled list): more than a pointer or a checkmark.
     static func bigChange(_ before: Data?, _ after: Data?, ignore: [CGPoint] = []) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }

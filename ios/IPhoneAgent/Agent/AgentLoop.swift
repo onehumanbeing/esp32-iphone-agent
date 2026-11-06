@@ -457,6 +457,16 @@ extension Gestures {
                 let started = now()
                 // after a tap in the same round the pointer moved again unseen: find it before pressing
                 let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
+                // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
+                // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
+                if earlierTap, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                    timing.frameMs += await settle(ignoring: spots)
+                    if Vision.changed(seen, screen?.frame, at: CGPoint(x: x / 1000, y: y / 1000), ignore: spots) {
+                        DebugLog.write("step: the target of tap \(i + 1) changed since the model looked; looking again")
+                        verdict(true)
+                        return false
+                    }
+                }
                 try await perform(act, aim: earlierTap)
                 lastActed = now()
                 let s = lastActed - started
