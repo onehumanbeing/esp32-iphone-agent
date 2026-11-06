@@ -3,7 +3,7 @@
 // iOS app on the same phone. It holds no logic; the app decides. Protocol: docs/ble-protocol.md.
 //
 // HID commands (unchanged from the old TCP protocol, the board answers "ok" or "err <why>"):
-//   ping | home | move <dx> <dy> | press | release | click
+//   ping | pace | home | move <dx> <dy> | press | release | click
 //   scroll <v> <h> | type <ascii text> | key <combo, e.g. cmd+h, enter>
 //   homescreen (the consumer-control Home key, "AC Home": iOS goes to the Home Screen, like a keyboard's home key)
 
@@ -26,11 +26,12 @@
 #include "version.h"
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
+#include "src/hid/pace.h"
 #include "logbuf.h"
 
-const int STEP = 10;      // max pointer delta per report while moving
+const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
-const int HOME_REPORTS = 50;
+const int HOME_REPORTS = 25;  // per axis
 #ifndef DEBUG_SERIAL
 #define DEBUG_SERIAL 0  // 1: echo commands and the AirPlay handshake over USB serial
 #endif
@@ -44,11 +45,11 @@ const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
 static String receiverName = "ESP32 Agent";
 
 void movePaced(long dx, long dy) {
-  while (dx || dy) {
-    int sx = constrain(dx, -STEP, STEP), sy = constrain(dy, -STEP, STEP);
+  pace_t p;
+  pace_start(&p, dx, dy, STEP);
+  int sx, sy;
+  while (pace_next(&p, &sx, &sy)) {
     mouse.move(sx, sy);
-    dx -= sx;
-    dy -= sy;
     delay(STEP_MS);
   }
 }
@@ -100,9 +101,12 @@ String run(const String &line) {
   sscanf(arg.c_str(), "%ld %ld", &a, &b);
 
   if (cmd == "ping") return "ok";
+  if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
-  if (cmd == "home") {  // slam the pointer into the top-left corner
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, -127); delay(2); }
+  if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
+    // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(2); }
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(2); }
     return "ok";
   }
   if (cmd == "move") { movePaced(a, b); return "ok"; }

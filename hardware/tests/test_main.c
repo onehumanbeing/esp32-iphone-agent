@@ -1,13 +1,15 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring.
+// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring, mouse move pacing.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "../hid_bridge/src/bplist/bplist.h"
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
+#include "../hid_bridge/src/hid/pace.h"
 #include "../hid_bridge/src/log/logring.h"
 #include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
 #include "../hid_bridge/src/airplay/ap_internal.h"
@@ -316,6 +318,31 @@ static void test_arbiter(void) {
   CHECK(!arb_gone(&s, ARB_APP));
 }
 
+static void test_pace(void) {
+  // the move -158 -295 of 2026-11-06: every report the same speed, the sum exact, never above the step
+  long moves[][2] = {{-158, -295}, {150, 0}, {8, 295}, {12, 0}, {1, 0}, {-3, 7}, {466, 1316}};
+  for (unsigned m = 0; m < sizeof moves / sizeof moves[0]; m++) {
+    pace_t p;
+    pace_start(&p, moves[m][0], moves[m][1], 10);
+    long x = 0, y = 0, n = 0;
+    double lo = 1e9, hi = 0;
+    int sx, sy;
+    while (pace_next(&p, &sx, &sy)) {
+      double v = sqrt((double)sx * sx + (double)sy * sy);
+      lo = v < lo ? v : lo;
+      hi = v > hi ? v : hi;
+      x += sx, y += sy, n++;
+    }
+    CHECK(x == moves[m][0] && y == moves[m][1]);
+    CHECK(hi <= 11);  // each axis rounds on its own: at most a unit over
+    CHECK(n < 2 || hi - lo <= 1.5);  // one speed, give or take a unit of rounding
+  }
+  pace_t p;
+  pace_start(&p, 0, 0, 10);
+  int sx, sy;
+  CHECK(!pace_next(&p, &sx, &sy));
+}
+
 static void test_logring(void) {
   char buf[32], out[64];
   logring r;
@@ -405,6 +432,7 @@ int main(void) {
   test_keystream_resync();
   test_cli_proto();
   test_arbiter();
+  test_pace();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }
