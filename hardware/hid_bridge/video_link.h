@@ -7,6 +7,10 @@ bool video_begin();
 void video_on_config(const uint8_t *sps_pps, size_t len);  // AirPlay callbacks (mirror task)
 void video_on_au(const uint8_t *au, size_t len, bool idr);
 void video_stream(bool on, char who);             // who: FROM_APP or FROM_CLI (ble_link.h); one is sent at a time, the app first
+// The CLI's `stream on at <ts>` (after video_stream(true, FROM_CLI)): its decoder is in step up to the AU stamped ts
+// (0: none yet). Its session goes on right after it, in the GOP or the tail past a full GOP; and as it takes VF_RESUME,
+// a failed send is retried from that AU instead of starting over from the IDR (docs/cli-protocol.md).
+void video_cli_resume(uint32_t ts);
 void video_snap(const String &id, char who);      // replies "<id> ok" when the GOP is sent, to who
 void video_bench(const String &id, uint32_t kb, char who);  // replies "<id> ok <ms>"
 

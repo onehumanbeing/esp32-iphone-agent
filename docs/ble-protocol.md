@@ -58,7 +58,8 @@ IDR-only instead of building latency).
 Each notify: `[seq u16 LE][flags u8][payload]`, payload up to MTU-3-3 bytes.
 flags: bit0 START of access unit, bit1 END of access unit, bit2 IDR, bit3 CONFIG (payload is SPS+PPS),
 bit4 BENCH (filler, ignore), bit5 SNAP (part of a snap reply), bit6 RESUME (Wi-Fi TCP: the first unit after a
-reconnect that goes on from the app's last one; the app takes it after the gap without waiting for an IDR).
+reconnect that goes on from the app's last one; the app takes it after the gap without waiting for an IDR; the CLI's
+`stream on at` and its retried sends use it too, docs/cli-protocol.md).
 Payload is Annex-B (`00 00 00 01` start codes). On a START chunk the first 4 payload bytes are a u32 LE
 board timestamp (ms) for latency stats, followed by the Annex-B data.
 `seq` increments per notify; the app counts gaps as drops and waits for the next IDR/CONFIG after a gap.

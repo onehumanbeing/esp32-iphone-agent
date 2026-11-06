@@ -79,7 +79,8 @@ handled like a video seq gap (wait for the next IDR/CONFIG); a gap in `C` or `B`
 
 Plaintext:
 - `C`: `'c'` + one command line `<id> <command>`, exactly the app's command set (docs/ble-protocol.md). `stream on|off`
-  and `snap` act on the CLI's own video, independent of the app's.
+  and `snap` act on the CLI's own video, independent of the app's. `stream on at <ms>` (the CLI only): see
+  [Resuming the video](#resuming-the-video).
 - `B`: `'r'` + reply line `<id> ok…|<id> err…` (only replies to the CLI's own commands), or `'s'` + status JSON
   (once a second; the compact form when the full one does not fit). Both statuses carry `owner`
   (`app`, `cli` or `none`: who drives the phone); the CLI's has `busy` too (1 while the app's link is up).
@@ -96,7 +97,7 @@ the session moves there and BLE stays connected as the way back.
 - **Moving.** The CLI learns the IP from the status (`net` `ap`/`sta`, `ip`), opens a session on TCP, and sends
   `stream on` on it. A session's first DATA frame on a new link takes over from the same client's session on the
   other link: the old one stops (no replies, status or video), its link stays up. Video starts over from the GOP's
-  IDR. Another client's session can't take over. When the TCP link drops, the CLI opens a new session on its BLE
+  IDR, or goes on from the CLI's last unit with `stream on at` (below). Another client's session can't take over. When the TCP link drops, the CLI opens a new session on its BLE
   link; after a failed try it waits 10 s, doubling up to a minute.
 - **`net`** (CLI only): `ok {"mode","ssid","pass","ip"}`, the board's Wi-Fi. `net {"mode":"ap"}` or
   `net {"mode":"sta","ssid":…,"pass":…}` changes it, as the app's `net` write does (the iPhone has to mirror over
@@ -118,3 +119,17 @@ unchanged and never sees a new error.
 - **Intents** stay in the app: what the CLI does is not recorded there.
 
 Test vectors: `cli/testdata/vectors.json` (checked by `hardware/tests` and `go test ./cli/...`).
+
+## Resuming the video
+After the GOP fills (a still screen gets an IDR every few minutes or less), starting over from its IDR is no longer
+possible: the screen stays frozen until Screen Mirroring restarts. So the CLI keeps its decoder across sessions and
+turns its video on with `stream on at <ms>`, `<ms>` the board timestamp of the last unit its decoder got (`0`: none,
+start from the IDR).
+- The board goes on right after that unit, in the GOP or in the tail past a full GOP (as for the app's
+  `hello <token> at <ms>`), and flags it RESUME. If that unit is gone, it starts over from the IDR.
+- For a session that sent `stream on at`, a failed video send is retried from the same unit, flagged RESUME,
+  instead of starting over from the IDR.
+- The CLI takes a RESUME unit after a gap without waiting for an IDR, and drops units its decoder already has (by
+  timestamp): what the board sends again after a reconnect or a retry. If units went missing and nothing went on
+  for a second, it sends `stream on at` again.
+- A firmware without it answers `err usage`: the CLI sends `stream on`, as before.

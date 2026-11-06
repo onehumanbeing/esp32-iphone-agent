@@ -54,6 +54,22 @@ func TestReassembler(t *testing.T) {
 	}
 }
 
+// After a gap, a unit the board flags RESUME goes on from the stream's last one: kept without waiting for an IDR.
+func TestReassemblerResume(t *testing.T) {
+	r := NewReassembler()
+	r.Feed(chunk(1, Start|End|IDR, ts(10, "I")))
+	r.Feed(chunk(2, Start, ts(20, "a"))) // its END is lost: a failed send on the board
+	if au := r.Feed(chunk(4, Start|End, ts(30, "P"))); au != nil || r.Gaps != 1 {
+		t.Fatalf("P-frame after a gap: %+v gaps %d", au, r.Gaps)
+	}
+	if au := r.Feed(chunk(5, Start|End|Resume, ts(20, "ab"))); au == nil || au.TS != 20 || string(au.Data) != "ab" {
+		t.Fatalf("resumed AU %+v", au)
+	}
+	if au := r.Feed(chunk(6, Start|End, ts(30, "P"))); au == nil {
+		t.Fatal("the AU after a resumed one was dropped")
+	}
+}
+
 // splitAUs cuts an Annex-B stream at access unit delimiters (x264 aud=1).
 func splitAUs(b []byte) [][]byte {
 	var out [][]byte
