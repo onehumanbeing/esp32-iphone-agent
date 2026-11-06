@@ -120,7 +120,8 @@ import UIKit
         guard let before, let after else { return nil }
         let pixel = Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: 0.025, reach: CGPoint(x: 0.5, y: 0.5))
         var found = pixel
-        if found == nil { found = await locate?(after) }
+        // 与像素差分一致，模型测量微移前的位置。
+        if found == nil { found = await locate?(before) }
         guard let p = found else { return nil }
         if pixel == nil { log(String(format: "calibration: vision model found the pointer at (%.3f, %.3f)", p.x, p.y)) }
         return 0.03 < p.x && p.x < 0.97 && 0.03 < p.y && p.y < 0.97 ? p : nil
@@ -216,7 +217,7 @@ import UIKit
             ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5)) {
             return p
         }
-        return model ? await locate?(after) : nil
+        return model ? await locate?(before) : nil
     }
 
     /// Calibration check without tapping: move to a known point and measure the miss (fraction of the screen).
