@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 @testable import IPhoneAgent
 
@@ -100,6 +101,63 @@ import XCTest
         catch { XCTAssertTrue(error is BlindError) }
         XCTAssertLessThanOrEqual(actor.prompts.count, 2)
         XCTAssertTrue(phone.calls.isEmpty)
+    }
+
+    func testActorRetryUsesOnlyTheDimensionsOfTheImageSentOnThatAttempt() async throws {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: ModelImage.key)
+        defaults.set(true, forKey: ModelImage.key)
+        defer { defaults.set(previous, forKey: ModelImage.key) }
+        let screen = FakeScreen(), block = CGRect(x: 0.25, y: 0.5, width: 0.2, height: 0.1)
+        screen.frame = ReplayTests.screen(block, size: CGSize(width: 600, height: 900))
+        let actor = FakeModel { attempt in
+            if attempt == 1 {
+                screen.frame = ReplayTests.screen(block, size: CGSize(width: 900, height: 600))
+                throw URLError(.timedOut)
+            }
+            return "DO: tap 250 500"
+        }
+        let agent = AgentLoop(phone: nil, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.nextActions()
+        let sizes = try actor.images.map { try XCTUnwrap($0.flatMap { UIImage(data: $0) }).size }
+        XCTAssertEqual(sizes, [CGSize(width: 540, height: 810), CGSize(width: 540, height: 360)])
+        XCTAssertEqual(actor.prompts.count, 2)
+        for (prompt, size) in zip(actor.prompts, sizes) {
+            XCTAssertTrue(prompt.contains("\(Int(size.width))×\(Int(size.height))"))
+            XCTAssertTrue(prompt.contains("0-1000"))
+        }
+        XCTAssertFalse(try XCTUnwrap(actor.prompts.last).contains("540×810"))
+    }
+
+    func testActorPromptAndTraceMatchTheUnshrunkImage() async throws {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: ModelImage.key)
+        defaults.set(false, forKey: ModelImage.key)
+        defer { defaults.set(previous, forKey: ModelImage.key) }
+        let screen = FakeScreen()
+        screen.frame = ReplayTests.screen(CGRect(x: 0.2, y: 0.3, width: 0.1, height: 0.1),
+                                          size: CGSize(width: 600, height: 900))
+        let frame = try XCTUnwrap(screen.frame)
+        let size = try XCTUnwrap(UIImage(data: frame)).size
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let trace = TraceStore(root: root)
+        trace.start(task: "坐标回归")
+        let actor = FakeModel { _ in "DO: tap 250 500" }
+        let agent = AgentLoop(phone: nil, screen: screen, actor: actor, planner: nil, trace: trace)
+        let actions = try await agent.nextActions()
+        XCTAssertEqual(actor.images, [frame])
+        let prompt = try XCTUnwrap(actor.prompts.first)
+        XCTAssertTrue(prompt.contains("\(Int(size.width))×\(Int(size.height))"))
+        XCTAssertTrue(prompt.contains("pixel_x / \(Int(size.width))"))
+        XCTAssertTrue(prompt.contains("pixel_y / \(Int(size.height))"))
+        XCTAssertEqual(actions.first?.act["x"], .int(250))
+        let traceFile = try XCTUnwrap(trace.dir).appendingPathComponent("steps.jsonl")
+        let records = try String(contentsOf: traceFile, encoding: .utf8).split(separator: "\n").map {
+            try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
+        }
+        let lastRecord = try XCTUnwrap(records.last ?? nil)
+        XCTAssertEqual(lastRecord["prompt"] as? String, prompt)
     }
 
     func testPlannerTimeoutRetriesOnceAndChecksGateAgain() async throws {
@@ -294,14 +352,14 @@ import XCTest
     let model = "fake"
     private(set) var prompts: [String] = []
     private(set) var images: [Data?] = []
-    private let reply: (Int) -> String
+    private let reply: (Int) throws -> String
 
-    init(_ reply: @escaping (Int) -> String) { self.reply = reply }
+    init(_ reply: @escaping (Int) throws -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
-        return ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        return ChatResult(text: try reply(prompts.count), firstToken: nil, total: 0)
     }
 }
 

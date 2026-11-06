@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// The screen feed is gone; acting now would be guessing.
 struct BlindError: LocalizedError {
@@ -213,6 +214,14 @@ extension Pointer: Gestures {}
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
             let frame = screen.frame, started = now(), requestLinks = phone?.device.links
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
+            var requestPrompt = prompt
+            // 上传的图可能已缩小或旋转，每次按实际发送的图片重新说明坐标换算。
+            if role == "actor", let sent, let size = UIImage(data: sent)?.size {
+                let width = Int(size.width), height = Int(size.height)
+                requestPrompt += "\n\nThe attached screenshot is \(width)×\(height) pixels. "
+                    + "Return integer coordinates from 0-1000: x = round(1000 * pixel_x / \(width)), "
+                    + "y = round(1000 * pixel_y / \(height)), measured from the top left."
+            }
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in
@@ -226,7 +235,7 @@ extension Pointer: Gestures {}
             let maxTokens = Self.maxTokens[role] ?? 1000
             do {
                 DebugLog.write("model request starting (\(role)): \(llm.model), maxTokens \(maxTokens), image \((sent?.count ?? 0) / 1024) KB")
-                reply = try await llm.chat(system: system, text: prompt, image: sent,
+                reply = try await llm.chat(system: system, text: requestPrompt, image: sent,
                                            maxTokens: maxTokens, temperature: temperature)
             } catch {
                 if !Task.isCancelled {
@@ -250,7 +259,7 @@ extension Pointer: Gestures {}
             let seconds = ((now() - started) * 100).rounded() / 100
             metrics?.llm(first: reply.firstToken, total: reply.total)
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
-            var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(prompt),
+            var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(requestPrompt),
                                 "reply": .str(reply.text), "seconds": .num(seconds)]
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
             if lastActed > 0 { rec["frame_after_action_s"] = .num(((screen.capturedAt - lastActed) * 100).rounded() / 100) }
