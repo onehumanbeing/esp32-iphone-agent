@@ -291,6 +291,8 @@ extension ScreenSource {
                 if await newer(than: since, timeout: 1.5) { return }
                 if frozen { return DebugLog.write("frame: none after the action; the board's video is frozen (no keyframe)") }
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
+                // the next IDR (~2 s) mends the stream; a snap meanwhile took 12–30 s and gave the board's old GOP
+                if streamOn, await newer(than: since, timeout: 4) { return DebugLog.write("frame: stream mended by the next keyframe") }
                 DebugLog.write("frame: stream stale (waiting for an IDR); snapping")
                 snapped = true
                 try await snap()
