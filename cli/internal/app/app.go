@@ -42,6 +42,11 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   net join SSID [PASSWORD]         the same, non-interactive
   net hotspot                      the board opens its own hotspot again
   calibrate                        measure the pointer (automatic on the first tap)
+  listen                           what the iPhone played in the last 30 s, as words (or why it can't be heard)
+  listen on|off                    hear the phone's sound while it mirrors (off by default)
+  listen mode phone|local          phone: the ESP32 Agent app's words (default); local: whisper.cpp on this
+                                   computer, over Wi-Fi (brew install whisper-cpp, plus a model)
+  listen lang CODE|none            local: the language besides English (e.g. zh); default this computer's
   history list | show RUN | new    what was done on the phone (runs; a new one after 10 min idle)
   intent list | show NAME          saved intents (the app's format)
   intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]
@@ -180,6 +185,12 @@ func (a *App) Run(args []string) int {
 			text = "join " + pos[1] + "\x00" + strings.Join(pos[2:], " ")
 		}
 		return a.call(daemon.Request{Cmd: "net", Device: *dev, Text: text})
+	case "listen":
+		pos, err := parse(fs, rest)
+		if err != nil {
+			return a.fail(err)
+		}
+		return a.call(daemon.Request{Cmd: "listen", Device: *dev, Text: strings.Join(pos, " ")})
 	case "screenshot":
 		return a.screenshot(fs, dev, rest)
 	case "screencapture":

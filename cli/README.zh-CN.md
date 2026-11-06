@@ -41,6 +41,10 @@ npm：`npm install -g esp32agent`。安装脚本读取 `https://handsy.tech/cli/
 | `net join` | 询问 Wi-Fi 名称和密码（密码不回显），通过蓝牙会话发给板子，并等到通道切到 Wi-Fi。`net join SSID [PASSWORD]` 不询问直接设置。iPhone 也通过这个 Wi-Fi 镜像 |
 | `net hotspot` | 让板子重新打开自己的热点 |
 | `net via auto\|ble` | `ble` 让会话保持走蓝牙（也可以设 `ESP32AGENT_TRANSPORT=ble`） |
+| `listen` | 手机最近 30 秒播放的声音（视频、通话、App 语音）转成的文字；听不到时说明原因 |
+| `listen on\|off` | 投屏时收听手机声音（默认关，设置会保存） |
+| `listen mode phone\|local` | `phone`（默认）：用 ESP32 Agent App 在手机上转好的文字（在 App 里打开 设置 › 收听手机声音 和 分享给电脑）。`local`：通过 Wi-Fi 拿原始音频，在这台电脑上用 whisper.cpp 转文字 |
+| `listen lang CODE\|none` | `local` 模式：英语以外的第二语言，如 `zh`（默认跟随这台电脑的语言） |
 | `history list`、`history show RUN\|latest`、`history new` | 在手机上做过什么：运行记录（最新的在前，30 条）、某次运行的步骤；开始新的运行 |
 | `intent list`、`intent show NAME\|ID` | 保存的意图 |
 | `intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]` | 保存意图；步骤取自某次运行中可以重放的操作（全部，或 `history show` 里的编号） |
@@ -83,6 +87,9 @@ daemon 会像 iOS App 记录运行一样，记下每个操作和截图：配置�
 - 走蓝牙时，截图可能比实际画面慢约一秒，动画不连贯；走 Wi-Fi 时几乎实时。
 - 点按是相对鼠标移动，从左上角推算位置，每 10 次手势重新归位一次；准确度取决于校准（`calibrate`、`io tap --aim`）。
 - 输入仅支持 ASCII（每个字符一次按键）；没有剪贴板，没有音量/电源键，不能安装或直接打开 App。
+- 手机声音：只有文字，可能听错。`listen mode local` 需要 Wi-Fi（蓝牙不行）、`brew install whisper-cpp`
+  （或 PATH 里有 whisper.cpp 的 `whisper-cli`），以及配置目录 `whisper/` 下的模型 `ggml-base.bin`；
+  缺什么 `listen mode local` 会提示。
 
 ## 开发
 

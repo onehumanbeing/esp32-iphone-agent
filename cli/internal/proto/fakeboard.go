@@ -36,7 +36,7 @@ type fakeConn struct {
 	c2b, b2c   *AEAD
 	authed     bool
 	ctrC       uint32
-	ctrB, ctrV uint32
+	ctrB, ctrV, ctrA uint32
 	Sent       [][]byte
 }
 
@@ -118,7 +118,7 @@ func (c *fakeConn) Write(f []byte) error {
 		c2b, b2c := SessionKeys(k, cNonce, bNonce)
 		c.c2b, _ = NewAEAD(c2b)
 		c.b2c, _ = NewAEAD(b2c)
-		c.authed, c.ctrC, c.ctrB, c.ctrV = false, 0, 0, 0
+		c.authed, c.ctrC, c.ctrB, c.ctrV, c.ctrA = false, 0, 0, 0, 0
 		c.send(append(append(append([]byte{TWelcome}, bNonce...), b.ID...), HelloMAC(k, cNonce, bNonce)...))
 	case TData:
 		if c.c2b == nil {
@@ -178,6 +178,16 @@ func (b *FakeBoard) Video(seq uint16, flags byte, payload []byte) {
 	chunk[2] = flags
 	c.ctrV++
 	c.send(c.b2c.Seal(StreamV, TVideo, c.ctrV, append(chunk, payload...)))
+}
+
+// Audio sends one phone audio record (stream A) to the authenticated client.
+func (b *FakeBoard) Audio(rec []byte) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if c := b.conn; c != nil && c.authed {
+		c.ctrA++
+		c.send(c.b2c.Seal(StreamA, TAudio, c.ctrA, rec))
+	}
 }
 
 // Inject delivers a raw frame to the client (replays, forgeries).

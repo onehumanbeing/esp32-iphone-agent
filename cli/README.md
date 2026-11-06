@@ -48,6 +48,10 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `net join` | asks for your Wi-Fi's name and password (not echoed), sends them to the board over the Bluetooth session, and waits until the link moves to Wi-Fi. `net join SSID [PASSWORD]` does it without asking. The iPhone mirrors over that Wi-Fi too |
 | `net hotspot` | the board opens its own hotspot again |
 | `net via auto\|ble` | `ble` keeps the session on BLE (also `ESP32AGENT_TRANSPORT=ble`) |
+| `listen` | what the iPhone played in the last 30 s (a video, a call, an app's voice) as words, or why it can't be heard |
+| `listen on\|off` | hear the phone's sound while it mirrors (off by default; kept in the config) |
+| `listen mode phone\|local` | `phone` (default): the words the ESP32 Agent app transcribed on the iPhone (turn on Settings › Listen to phone audio and Share with the computer there). `local`: the raw audio over Wi-Fi, transcribed here by whisper.cpp |
+| `listen lang CODE\|none` | `local`: the language besides English, e.g. `zh` (default: this computer's language) |
 | `history list`, `history show RUN\|latest`, `history new` | what was done on the phone: runs (newest first, 30), one run's steps; start a new run |
 | `intent list`, `intent show NAME\|ID` | saved intents |
 | `intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]` | save an intent; steps are the run's replayable moves (all, or the numbers from `history show`) |
@@ -109,6 +113,9 @@ it yourself; esp32agent never sends anything.
 - Taps are relative mouse moves, dead-reckoned from the top-left corner and re-homed every 10 gestures; accuracy
   depends on calibration (`calibrate`, `io tap --aim`).
 - Typing is ASCII only (one key per character); no clipboard, no volume/power buttons, no app install or launch.
+- Phone audio: words only, and they can be misheard. `listen mode local` needs Wi-Fi (not Bluetooth),
+  `brew install whisper-cpp` (or a build of whisper.cpp's `whisper-cli` on PATH) and the model
+  `ggml-base.bin` in the config dir's `whisper/` folder; `listen mode local` says what is missing.
 
 ## Development
 
