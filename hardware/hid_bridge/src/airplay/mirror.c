@@ -58,6 +58,8 @@ static struct {
   ap_audio_gate gate;
   uint8_t *buf;              // one packet (PSRAM)
   uint32_t packets;
+  uint32_t s_packets, s_frames, s_bad;  // this audio stream: packets, sounding frames, unparsed
+  int ct;
   volatile float volume;
 } a;
 
@@ -264,12 +266,15 @@ static void audio_packet(void) {
   uint8_t drop[16];
   int n = recv(m.afd[0], a.buf ? a.buf : drop, a.buf ? AUDIO_PACKET_MAX : sizeof drop, 0);
   ap_rtp rtp;
-  if (n <= 0 || !a.buf || !ap_rtp_parse(a.buf, (size_t)n, &rtp)) return;
+  if (n <= 0 || !a.buf) return;
+  a.s_packets++;
+  if (!ap_rtp_parse(a.buf, (size_t)n, &rtp)) { a.s_bad++; return; }
   a.packets++;
   if (!a.on) return;
   bool none = ap_audio_no_data(rtp.payload, rtp.len);
   int ev = ap_audio_gate_packet(&a.gate, now_ms(), none);
   if (ev == AP_GATE_SKIP || !ap_cfg.on_audio) return;
+  a.s_frames++;
   uint8_t *frame = (uint8_t *)rtp.payload;
   ap_audio_decrypt(a.key, a.iv, frame, rtp.len, frame);
   ap_cfg.on_audio(ev == AP_GATE_START ? AIRPLAY_AUDIO_START : AIRPLAY_AUDIO_FRAME, frame, rtp.len, rtp.ts);
@@ -436,7 +441,16 @@ void ap_mirror_audio(const uint8_t aeskey[16], const uint8_t eiv[16], int ct) {
   a.on = false;
   memcpy(a.key, aeskey, 16);
   memcpy(a.iv, eiv, 16);
+  a.ct = ct;
+  a.s_packets = a.s_frames = a.s_bad = 0;
   a.on = ct == AP_AUDIO_CT_AAC_ELD;
+  if (!m.run) ap_log("audio: stream set up with no mirror session (dropped)");
+}
+
+void ap_mirror_audio_end(void) {
+  ap_log("audio: stream ended, %u packets (%u unparsed), %u sounding frames, %u segments since boot, ct=%d%s",
+         (unsigned)a.s_packets, (unsigned)a.s_bad, (unsigned)a.s_frames, (unsigned)a.gate.segments, a.ct,
+         a.buf ? "" : ", no buffer");
 }
 
 void ap_mirror_set_volume(float db) { a.volume = db; }

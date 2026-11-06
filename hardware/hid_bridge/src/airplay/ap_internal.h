@@ -56,6 +56,7 @@ bool ap_mirror_streaming(void);
 // (AP_AUDIO_CT_AAC_ELD) is decrypted and forwarded, other packets are only counted.
 void ap_mirror_audio(const uint8_t aeskey[16], const uint8_t eiv[16], int ct);
 void ap_mirror_set_volume(float db);
+void ap_mirror_audio_end(void);  // TEARDOWN of the audio stream: logs what it carried
 
 // ---- mdns.c ----
 bool ap_mdns_start(void);

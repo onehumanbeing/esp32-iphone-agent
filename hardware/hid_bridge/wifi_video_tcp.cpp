@@ -76,6 +76,7 @@ static void serve(int fd) {
   xSemaphoreTake(lock, portMAX_DELAY);
   client = fd;
   authed = false;
+  audioWanted = false;  // asked again on every connection; a resume hello on this one keeps it
   xSemaphoreGive(lock);
   char line[96];
   size_t used = 0;
@@ -92,7 +93,6 @@ static void serve(int fd) {
         if (strncmp(rest, token, tl) || (rest[tl] && strncmp(rest + tl, " at ", 4))) goto done;  // not our app
         xSemaphoreTake(lock, portMAX_DELAY);
         authed = true;
-        audioWanted = false;  // asked again on every session
         resync = true;  // a new session starts from the IDR, or from just after the app's last AU
         resumeAsked = rest[tl] != 0;
         resumeTs = resumeAsked ? strtoul(rest + tl + 4, NULL, 10) : 0;
@@ -230,6 +230,8 @@ void wv_audio(int event, const uint8_t *frame, size_t len, uint32_t ts) {
     n += 8 + len;
   }
   if (xMessageBufferSend(audioQ, rec, n, 0) != n) { audioDrops++; return; }
+  if (event == AIRPLAY_AUDIO_START) board_log("wv: audio segment to the app (seq %u)", (unsigned)seq);
+  if (event == AIRPLAY_AUDIO_END) board_log("wv: audio segment ended (seq %u, %lu dropped so far)", (unsigned)seq, (unsigned long)audioDrops);
   seq++;
   started = event != AIRPLAY_AUDIO_END;
 }

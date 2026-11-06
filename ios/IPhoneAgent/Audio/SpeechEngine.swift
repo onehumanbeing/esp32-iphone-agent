@@ -22,14 +22,86 @@ enum SpeechSetup {
         case ready, denied, unavailable(String)
     }
 
-    /// Asks for speech recognition (once) and returns an on-device engine for the phone's language, or why not.
-    static func engine(locale: Locale = .current) async -> (SpeechEngine?, State) {
+    /// Asks for speech recognition (once) and returns an on-device engine for the phone's first two languages
+    /// (Settings › Language & Region), or why not. Nothing says which language a segment is in, so each language
+    /// transcribes it and the model gets every reading, labelled.
+    static func engine(languages: [String] = Locale.preferredLanguages) async -> (SpeechEngine?, State) {
         let auth = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
         guard auth == .authorized else { return (nil, .denied) }
-        if #available(iOS 26, *), let engine = await AnalyzerEngine.make(locale: locale) { return (engine, .ready) }
-        guard let recognizer = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer(), recognizer.supportsOnDeviceRecognition
-        else { return (nil, .unavailable(String(localized: "On-device speech recognition isn't available for this language."))) }
-        return (RecognizerEngine(recognizer), .ready)
+        var engines: [(String, SpeechEngine)] = []
+        for id in languages {
+            let locale = Locale(identifier: id)
+            let tag = locale.language.languageCode?.identifier ?? id
+            guard engines.count < 2, !engines.contains(where: { $0.0 == tag }), let e = await single(locale) else { continue }
+            engines.append((tag, e))
+        }
+        DebugLog.write("audio: speech in \(engines.map(\.0)) (phone languages \(languages))")
+        guard let engine = MultiEngine(engines) else {
+            return (nil, .unavailable(String(localized: "On-device speech recognition isn't available for this language.")))
+        }
+        return (engine, .ready)
+    }
+
+    private static func single(_ locale: Locale) async -> SpeechEngine? {
+        if #available(iOS 26, *), let engine = await AnalyzerEngine.make(locale: locale) { return engine }
+        guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.supportsOnDeviceRecognition else { return nil }
+        return RecognizerEngine(recognizer)
+    }
+}
+
+// MARK: several languages over the same sound
+
+/// One session per language; the text is every non-empty reading, "[zh] … [en] …" (just the text for one language).
+final class MultiEngine: SpeechEngine {
+    let format: AVAudioFormat
+    let languages: [String]
+    private let engines: [SpeechEngine]
+
+    /// nil without engines; engines wanting another audio format than the first are left out.
+    init?(_ engines: [(String, SpeechEngine)]) {
+        guard let format = engines.first?.1.format else { return nil }
+        let same = engines.filter { $0.1.format == format }
+        (self.format, languages, self.engines) = (format, same.map(\.0), same.map(\.1))
+    }
+
+    static func label(_ languages: [String], _ texts: [String]) -> String {
+        guard languages.count > 1 else { return texts.first ?? "" }
+        return zip(languages, texts).filter { !$0.1.isEmpty }.map { "[\($0.0)] \($0.1)" }.joined(separator: " ")
+    }
+
+    func begin(onPartial: @escaping @Sendable (String) -> Void) async throws -> SpeechSession {
+        let parts = Parts(languages)
+        var sessions: [SpeechSession] = []
+        for (i, e) in engines.enumerated() {
+            sessions.append(try await e.begin { text in onPartial(parts.set(i, text)) })
+        }
+        return Session(languages: languages, sessions: sessions)
+    }
+
+    private final class Parts: @unchecked Sendable {
+        private let lock = NSLock()
+        private let languages: [String]
+        private var texts: [String]
+        init(_ languages: [String]) { (self.languages, texts) = (languages, languages.map { _ in "" }) }
+        func set(_ i: Int, _ text: String) -> String {
+            lock.lock(); defer { lock.unlock() }
+            texts[i] = text
+            return MultiEngine.label(languages, texts)
+        }
+    }
+
+    private final class Session: SpeechSession {
+        let languages: [String]
+        let sessions: [SpeechSession]
+        init(languages: [String], sessions: [SpeechSession]) { (self.languages, self.sessions) = (languages, sessions) }
+
+        func append(_ buffer: AVAudioPCMBuffer) { sessions.forEach { $0.append(buffer) } }
+
+        func finish() async -> String {
+            var texts: [String] = []
+            for s in sessions { texts.append(await s.finish()) }
+            return MultiEngine.label(languages, texts)
+        }
     }
 }
 

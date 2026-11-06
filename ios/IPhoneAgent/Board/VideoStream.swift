@@ -80,6 +80,7 @@ enum VideoTransport {
     /// waiting for a reconnect to send it left the screen frozen while the link itself was fine (2026-11-06).
     func resume() {
         guard acked, let token = target?.token else { return }
+        audioAsked = false  // older firmware forgets "audio" on any hello: ask again
         if send(hello(token)) { log("video: wifi stream lost its place; asked to go on" + (resumeAt().map { " after \($0)" } ?? " from the IDR")) }
     }
 

@@ -199,6 +199,12 @@ extension AppModel {
         }
         if args.contains("-bench") { debugCommand("bench", kb: Int(value(after: "-bench") ?? "") ?? 256) }
         if args.contains("-snap") { debugCommand("snap") }
+        if let v = value(after: "-listen") {  // harness: Settings › Listen to phone audio
+            UserDefaults.standard.set(v == "on", forKey: ListenSetting.key)
+            setListening(v == "on")
+            say("harness: listen \(v == "on" ? "on" : "off")")
+        }
+        if args.contains("-audio") { say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard())) }
     }
 
     private func debugCommand(_ name: String, task: String = "", kb: Int = 256) {

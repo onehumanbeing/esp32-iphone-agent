@@ -23,15 +23,18 @@ enum ListenSetting {
 
     @Published private(set) var segments: [Segment] = []
     @Published private(set) var state: SpeechSetup.State?  // nil until enabled once
-    private(set) var frames = 0, gaps = 0
+    private(set) var frames = 0, gaps = 0, undecoded = 0
 
     var enabled = false { didSet { if !enabled { endSegment() } } }
     var clock: () -> Double = { now() }
+    /// The board's Wi-Fi video link is up, the only way its audio reaches the app.
+    var linked: () -> Bool = { true }
     private var engine: SpeechEngine?
     private var decoder: AudioDecoder?
     private var session: SpeechSession?
     private var pending: [AVAudioPCMBuffer]?  // frames that came while the session was starting
     private var lastSeq: UInt16?
+    private var segmentFrom = (frames: 0, undecoded: 0)  // counters when the segment started
     private var preparing: Task<Void, Never>?
 
     /// Speech permission and engine; called when the setting is switched on (and at launch if it is on).
@@ -49,6 +52,7 @@ enum ListenSetting {
     /// Tests and later engines (RemoteTranscriber).
     func use(_ engine: SpeechEngine) {
         self.engine = engine
+        state = .ready
         decoder = AudioDecoder(output: engine.format)
         if decoder == nil { DebugLog.write("audio: no AAC-ELD decoder for \(engine.format)") }
     }
@@ -60,7 +64,7 @@ enum ListenSetting {
         lastSeq = r.seq
         if r.end { return endSegment() }
         if r.start || segments.last?.end != nil || segments.isEmpty { startSegment() }
-        guard let pcm = decoder?.decode(r.frame) else { return }
+        guard let pcm = decoder?.decode(r.frame) else { undecoded += 1; return }
         frames += 1
         if AudioDecoder.level(pcm) > Self.soundDB { segments[segments.count - 1].loud = true }
         if let session { session.append(pcm) } else { pending?.append(pcm) }
@@ -68,21 +72,37 @@ enum ListenSetting {
     }
 
     /// What the phone played lately, for the actor's prompt; "" when there was no sound.
+    /// The audio part of a step's prompt: what was heard, or why nothing can be, so the model knows how far to trust
+    /// it. "" when listening is off (the model then has no audio at all).
     func heard(within seconds: Double = 30) -> String {
+        guard enabled else { return "" }
         let t = clock()
         let lines = segments.filter { $0.loud && ($0.end ?? t) >= t - seconds }.map { s -> String in
             let length = Int(((s.end ?? t) - s.start).rounded())
             let when = s.end == nil ? "now, \(length) s so far" : "\(Int((t - s.end!).rounded())) s ago, \(length) s long"
             let words = s.text.isEmpty ? (s.final || engine == nil ? "(sound, no words recognized)" : "(sound, still transcribing)")
-                                       : "\"\(s.text.prefix(400))\""
+                                       : "\"\(s.text.prefix(400))\"" + (s.final ? "" : " (still transcribing)")
             return "- \(when): \(words)"
         }
-        return lines.isEmpty ? "" : "Heard (phone audio, last \(Int(seconds)) s):\n" + lines.joined(separator: "\n")
+        let words: String
+        switch state {
+        case .ready?: words = (engine as? MultiEngine).map { $0.languages.count > 1
+            ? "words transcribed on the phone once per language (\($0.languages.joined(separator: ", "))), each reading labelled; only one fits the sound"
+            : "words transcribed on the phone" } ?? "words transcribed on the phone"
+        case .denied?: words = "speech recognition is not allowed, so no words, only whether there was sound"
+        case .unavailable(let why)?: words = "no words (\(why)), only whether there was sound"
+        case nil: words = "speech recognition still starting, so no words yet"
+        }
+        if !lines.isEmpty { return "Heard (phone audio, last \(Int(seconds)) s; \(words)):\n" + lines.joined(separator: "\n") }
+        guard linked() else { return "Phone audio: not reaching the app right now (no Wi-Fi link to the board), so sound is not heard." }
+        return "Phone audio: listening; no sound in the last \(Int(seconds)) s."
     }
 
     private func startSegment() {
         endSegment()
         segments.append(Segment(start: clock()))
+        segmentFrom = (frames, undecoded)
+        DebugLog.write("audio: segment started (\(engine == nil ? "no speech engine" : "transcribing"))")
         segments.removeAll { ($0.end ?? clock()) < clock() - Self.keep }
         guard let engine else { return }
         let started = segments[segments.count - 1].start
@@ -109,6 +129,10 @@ enum ListenSetting {
         guard let i = segments.indices.last, segments[i].end == nil else { return }
         segments[i].end = clock()
         let started = segments[i].start
+        DebugLog.write(String(format: "audio: segment ended after %.1f s, %@, %d frames, %d undecoded, %d gaps since launch",
+                              clock() - started,
+                              segments[i].loud ? "loud" : "quiet", frames - segmentFrom.frames,
+                              undecoded - segmentFrom.undecoded, gaps))
         guard let s = session else {
             if pending == nil { segments[i].final = true }  // else the starting session finishes it
             return
@@ -120,7 +144,7 @@ enum ListenSetting {
     private func setText(_ text: String, started: Double, final: Bool) {
         guard let i = segments.firstIndex(where: { $0.start == started }) else { return }
         if !text.isEmpty { segments[i].text = text }
-        if final { segments[i].final = true }
+        if final { segments[i].final = true; DebugLog.write("audio: transcript \"\(segments[i].text.prefix(200))\"") }
     }
 
     var summary: String {
