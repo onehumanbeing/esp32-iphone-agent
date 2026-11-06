@@ -39,6 +39,11 @@ type Conn struct {
 
 	re        *video.Reassembler
 	dec       *video.Decoder
+	inStep    bool      // dec has every AU up to lastTS: a new session or a gap goes on from there (`stream on at`)
+	lastTS    uint32    // board ms of the last AU dec got
+	gaps      int       // re.Gaps when the stream was last in order
+	gapAt     time.Time // when units went missing and nothing went on from lastTS yet (zero: in order)
+	askedAt   time.Time // the last `stream on at` sent after a gap
 	ffmpeg    string
 	frame     image.Image
 	frameHash uint64
@@ -95,11 +100,9 @@ func (c *Conn) attach(s *proto.Session, via string, l proto.Link) error {
 		}
 		c.bleLink = l
 	}
-	c.re = video.NewReassembler()
-	if c.dec != nil { // the new stream starts over from the GOP
-		c.dec.Close()
-		c.dec = nil
-	}
+	// The decoder stays: start() asks the board to go on from its last AU, and whatever the board sends again
+	// (a firmware without `stream on at` starts over from the GOP) is dropped by timestamp in onVideo.
+	c.re, c.gaps, c.gapAt = video.NewReassembler(), 0, time.Time{}
 	c.mu.Unlock() // pending commands stay: the board sends their replies on the new session
 	if old != nil && oldVia == "wifi" {
 		old.Close()
@@ -110,11 +113,43 @@ func (c *Conn) attach(s *proto.Session, via string, l proto.Link) error {
 
 // start turns on the CLI's video stream on a fresh session; also the client's proof of K (the board sends
 // nothing before it), so the board moves the session to this link now.
+// It goes on from the decoder's last AU: after the GOP fills, starting over from its IDR is no longer possible.
 func (c *Conn) start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, err := c.Send(ctx, "stream on")
+	_, err := c.Send(ctx, "stream on at "+strconv.FormatUint(uint64(c.resumePoint()), 10))
+	if err != nil && strings.HasPrefix(err.Error(), "usage") { // a firmware without `stream on at`
+		_, err = c.Send(ctx, "stream on")
+	}
 	return err
+}
+
+// resumePoint is the board timestamp the decoder is in step up to, 0 if it has nothing to go on from.
+func (c *Conn) resumePoint() uint32 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.dec == nil || !c.inStep {
+		return 0
+	}
+	return c.lastTS
+}
+
+// askResume asks the board to go on from the decoder's last AU (or over from the IDR) after units went missing and
+// none of them came again: a board that retries a failed send by itself (VF_RESUME) needs no asking. Holds mu.
+func (c *Conn) askResume(now time.Time) {
+	if c.gapAt.IsZero() || now.Sub(c.gapAt) < time.Second || now.Sub(c.askedAt) < 2*time.Second {
+		return
+	}
+	c.askedAt = now
+	ts := uint32(0)
+	if c.dec != nil && c.inStep {
+		ts = c.lastTS
+	}
+	go func() { // after mu is released
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c.Send(ctx, "stream on at "+strconv.FormatUint(uint64(ts), 10))
+	}()
 }
 
 func (c *Conn) detach(s *proto.Session, why error) {
@@ -284,6 +319,9 @@ func (c *Conn) onStatus(b []byte) {
 	if up, ok := m["up"].(float64); ok {
 		c.learnClock(now, uint32(up))
 	}
+	if m["ap"] == "streaming" && m["owner"] != "app" {
+		c.askResume(now) // the board sends a status every second: units still missing since a gap
+	}
 }
 
 // learnClock must hold mu.
@@ -304,9 +342,17 @@ func (c *Conn) onVideo(chunk []byte, gap bool) {
 		c.learnClock(time.Now(), binary.LittleEndian.Uint32(chunk[3:]))
 	}
 	au := c.re.Feed(chunk)
+	if c.re.Gaps != c.gaps && c.gapAt.IsZero() {
+		c.gapAt = time.Now()
+	}
 	if au == nil {
 		return
 	}
+	c.gaps = c.re.Gaps
+	if c.dec != nil && c.inStep && int32(au.TS-c.lastTS) <= 0 {
+		return // the decoder has it: sent again after a reconnect or a retried send
+	}
+	c.gapAt = time.Time{}
 	switch {
 	case au.Flags&video.Config != 0:
 		c.config = au.Data
@@ -333,12 +379,18 @@ func (c *Conn) onVideo(chunk []byte, gap bool) {
 			d.Write(video.AU{Flags: video.Config, Data: c.config})
 		}
 	}
-	if c.dec != nil && !c.dec.Write(*au) {
+	if c.dec == nil {
+		return
+	}
+	if !c.dec.Write(*au) {
 		log.Printf("%s: decoder fell behind or stopped (%v); restarting at the next IDR", c.ID, c.dec.Err())
 		c.dec.Close()
-		c.dec = nil
+		c.dec, c.inStep = nil, false
 		c.re.Lost()
+		c.gaps, c.gapAt = c.re.Gaps, time.Now() // askResume asks for the IDR now
+		return
 	}
+	c.lastTS, c.inStep = au.TS, true
 }
 
 func hashImage(img image.Image) uint64 {

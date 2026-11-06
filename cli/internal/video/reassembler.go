@@ -11,6 +11,7 @@ const (
 	Config = 8
 	Bench  = 16
 	Snap   = 32
+	Resume = 64 // the board goes on from the stream's last unit (`stream on at`, a retried send): no gap for the decoder
 )
 
 // AU is one access unit, Annex-B.
@@ -20,7 +21,7 @@ type AU struct {
 	Data  []byte
 }
 
-// Reassembler rebuilds access units from chunks; after a gap it waits for the next CONFIG/IDR.
+// Reassembler rebuilds access units from chunks; after a gap it waits for the next CONFIG/IDR, or a RESUME unit.
 type Reassembler struct {
 	expect  int // next seq, -1 = unknown
 	cur     *AU
@@ -51,7 +52,7 @@ func (r *Reassembler) Feed(chunk []byte) *AU {
 		return nil
 	}
 	if flags&Start != 0 {
-		if r.waiting && flags&(Config|IDR) == 0 || len(payload) < 4 {
+		if r.waiting && flags&(Config|IDR|Resume) == 0 || len(payload) < 4 {
 			r.cur = nil
 			return nil
 		}

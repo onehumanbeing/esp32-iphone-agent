@@ -71,7 +71,7 @@ func TestPairInfoAndBusy(t *testing.T) {
 	b := fakeBoard()
 	busy := false
 	b.Handle = func(cmd string) string {
-		if busy && cmd != "stream on" {
+		if busy && !strings.HasPrefix(cmd, "stream on") {
 			return "err busy: the app is using the board"
 		}
 		return "ok"
@@ -117,7 +117,7 @@ func TestPairInfoAndBusy(t *testing.T) {
 	if r, _ := call(t, c, Request{Cmd: "screenshot"}); r.Status != "error" || !strings.Contains(r.Error, "restart Screen Mirroring") {
 		t.Fatalf("frozen: %+v", r)
 	}
-	if got := strings.Join(b.Commands, ","); got != "stream on,key enter,type hi" {
+	if got := strings.Join(b.Commands, ","); got != "stream on at 0,key enter,type hi" {
 		t.Fatalf("board got %s", got)
 	}
 	if r, _ := call(t, c, Request{Cmd: "button", Text: "VOLUME_UP"}); r.Status != "error" {
@@ -127,6 +127,25 @@ func TestPairInfoAndBusy(t *testing.T) {
 	r, _ = call(t, c, Request{Cmd: "unpair"})
 	if r.Status != "ok" || s.Config.Key(mustHex("246f28aa6ad5")) != nil {
 		t.Fatalf("unpair: %+v", r)
+	}
+}
+
+// A firmware without `stream on at` answers its usage: the CLI turns its video on the old way.
+func TestStreamOnFallsBackForOldFirmware(t *testing.T) {
+	b := fakeBoard()
+	b.Handle = func(cmd string) string {
+		if strings.HasPrefix(cmd, "stream on at ") {
+			return "err usage: stream on|off"
+		}
+		return "ok"
+	}
+	c, _ := start(t, fakeTransport{b})
+	call(t, c, Request{Cmd: "pair"})
+	if r, _ := call(t, c, Request{Cmd: "keys", Text: "esc"}); r.Status != "ok" {
+		t.Fatalf("keys: %+v", r)
+	}
+	if got := strings.Join(b.Commands, ","); got != "stream on at 0,stream on,key esc" {
+		t.Fatalf("board got %s", got)
 	}
 }
 
@@ -150,7 +169,7 @@ func TestReconnectsAfterTheLinkDrops(t *testing.T) {
 	if r, _ := call(t, c, Request{Cmd: "keys", Text: "esc"}); r.Status != "ok" {
 		t.Fatalf("after reconnect: %+v", r)
 	}
-	if got := strings.Join(b.Commands, ","); got != "stream on,stream on,key esc" {
+	if got := strings.Join(b.Commands, ","); got != "stream on at 0,stream on at 0,key esc" {
 		t.Fatalf("board got %s", got)
 	}
 }

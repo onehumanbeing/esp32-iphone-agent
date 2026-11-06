@@ -170,8 +170,12 @@ String board(const String &line, const String &id, char who) {
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
   if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_active()) && cmd != "crash") return APP_BUSY;
   if (cmd == "stream") {
-    if (arg != "on" && arg != "off") return "err usage: stream on|off";
-    video_stream(arg == "on", who);
+    unsigned long at = 0;
+    char extra;
+    bool resume = sscanf(arg.c_str(), "on at %lu %c", &at, &extra) == 1;
+    if (arg != "on" && arg != "off" && !resume) return "err usage: stream on [at MS]|off";
+    video_stream(arg != "off", who);
+    if (resume && who == FROM_CLI) video_cli_resume(at);
     return "ok";
   }
   // The CLI must not change what the app relies on: the mirroring format, the radio, the pairing.

@@ -54,7 +54,7 @@ func TestSessionMovesToWiFiAndBack(t *testing.T) {
 	if r, _ := call(t, c, Request{Cmd: "keys", Text: "esc"}); r.Status != "ok" {
 		t.Fatalf("keys after falling back: %+v", r)
 	}
-	if got := strings.Join(b.Commands, ","); got != "stream on,stream on,key esc,stream on,key esc" {
+	if got := strings.Join(b.Commands, ","); got != "stream on at 0,stream on at 0,key esc,stream on at 0,key esc" {
 		t.Fatalf("board got %s", got)
 	}
 	if r, data := call(t, c, Request{Cmd: "net", Text: "via ble"}); r.Status != "error" || data != nil {

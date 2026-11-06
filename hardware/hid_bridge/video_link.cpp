@@ -63,6 +63,27 @@ static volatile float statFps;
 
 static int sideOf(char who) { return who == FROM_CLI; }
 
+// The CLI's `stream on at <ts>` (video_cli_resume): where its decoder is in step, taken by the video task, and the
+// session that asked. That session takes VF_RESUME and drops AUs it already has (by timestamp), so its failed sends
+// are retried from the same AU instead of starting over from the IDR, which a full GOP can't do (the screen froze
+// until mirroring restarted, 2026-11-06).
+static volatile uint32_t cliResumeTs, cliResumeGen = UINT32_MAX;
+static volatile bool cliResumeAsked;
+
+static bool cliTakeResume(uint32_t *ts) {
+  if (!cliResumeAsked) return false;
+  *ts = cliResumeTs;
+  cliResumeAsked = false;
+  return true;
+}
+
+// A failed send to a CLI session that resumes: try the same AU again, flagged VF_RESUME. False: start over.
+static bool cliRetry(Sink &s) {
+  if (s.who != FROM_CLI || cliResumeGen != cli_gen()) return false;
+  s.resumed = true;
+  return true;
+}
+
 static void unfollow(Sink &s, char why);
 static uint8_t resumeFlag(Sink &s) {
   bool r = s.resumed;
@@ -263,6 +284,9 @@ static void streamStep(Sink &s) {
     s.cliGen = cli_gen();
     s.txGen = UINT32_MAX;
   }
+  uint32_t cliTs;
+  if (s.who == FROM_CLI && cliTakeResume(&cliTs) && !(cliTs && resumeAt(s, cliTs)))
+    s.txGen = UINT32_MAX;  // its decoder has nothing to go on from (or that AU is gone): the config and the IDR
   if (s.txGen == UINT32_MAX) unfollow(s, 'r');
   // Over Wi-Fi the app stays in step all the time, not only while it asked (`stream on`): turning the stream on
   // at a run start meant resending the whole GOP since mirroring began (a minute and more of P-frames), and the
@@ -285,11 +309,21 @@ static void streamStep(Sink &s) {
     s.followGen = gen;
   }
   for (gop_au au; s.next < n && copyAu(s, gen, s.next, &au); s.next++)
-    if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s, 'g'); return; }
+    if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) {
+      if (cliRetry(s)) return;  // s.next stays on this AU
+      s.txGen = UINT32_MAX;
+      unfollow(s, 'g');
+      return;
+    }
   if (s.next < n) return;
   s.catchingUp = false;
   for (gop_au au; copyTail(s, gen, s.tailNext, &au); s.tailNext++)
-    if (!sendAu(s, s.scratch, au.len, resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s, 't'); return; }
+    if (!sendAu(s, s.scratch, au.len, resumeFlag(s), au.ts)) {
+      if (cliRetry(s)) return;  // s.tailNext stays on this AU
+      s.txGen = UINT32_MAX;
+      unfollow(s, 't');
+      return;
+    }
 }
 
 static void videoTask(void *arg) {
@@ -370,6 +404,13 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
 }
 
 void video_stream(bool on, char who) { sink.streaming[sideOf(who)] = on; }
+
+void video_cli_resume(uint32_t ts) {
+  cliResumeTs = ts;
+  cliResumeGen = cli_gen();
+  cliResumeAsked = true;  // last: the video task reads the timestamp after it sees this
+  if (sink.task) xTaskNotifyGive(sink.task);
+}
 
 static void request(const String &id, bool bench, uint32_t kb, char who) {
   Req r = {{0}, kb, bench, who};
