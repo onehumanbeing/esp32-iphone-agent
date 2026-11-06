@@ -318,6 +318,49 @@ import XCTest
         XCTAssertEqual(attempts, 0)
     }
 
+    func testCalibrationModelMeasuresTheRestingPointerDuringSetupAndVerification() async throws {
+        let device = FakeDevice(), screen = FakeScreen()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file, screen: screen)
+        var x = 0, y = 0
+        var positions: [Data: CGPoint] = [:]
+        device.onSend = { command in
+            let parts = command.split(separator: " ")
+            if command == "home" { x = 0; y = 0 }
+            guard parts.first == "move" else { return }
+            let dx = Int(parts[1])!, dy = Int(parts[2])!
+            x += dx
+            y += dy
+            let position = CGPoint(x: Double(x) / 400, y: Double(y) / 800)
+            // 微移时切换底色，模拟背景动画使像素差分无法定位指针。
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 200)).image { context in
+                (dx == Pointer.nudge ? UIColor.black : .white).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 100, height: 200))
+                UIColor.red.setFill()
+                context.fill(CGRect(x: position.x * 100, y: position.y * 200, width: 3, height: 3))
+            }.jpegData(compressionQuality: 0.9)!
+            positions[image] = position
+            screen.frame = image
+            screen.updated = now()
+        }
+        var readings: [CGPoint] = []
+        pointer.locate = { image in
+            guard let position = positions[image] else { return nil }
+            readings.append(position)
+            return position
+        }
+
+        let calibrated = try await pointer.startCalibration()
+        XCTAssertTrue(calibrated)
+        XCTAssertEqual(readings, [CGPoint(x: 0.375, y: 0.1875), CGPoint(x: 0.875, y: 0.4375)])
+        // 单独载入已知正确的标定参数，避免首次标定的偏移与复验的偏移相互抵消。
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        let error = try await pointer.verify()
+        XCTAssertEqual(error, 0)
+        XCTAssertEqual(readings.last, CGPoint(x: 0.5, y: 0.62))
+    }
+
     func testDeleteKeyIsSentAsBackspace() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
