@@ -117,8 +117,7 @@ extension BoardTransport {
         }
     }
 
-    /// Called once when a command times out (e.g. video starving control traffic): the app turns the
-    /// stream off, then the command is retried once.
+    /// 回执超时先降低视频负载，只有可重复执行的命令才重试。
     var onTimeout: ((String) async -> Void)?
 
     /// Send one command; returns the text after "ok" (e.g. bench's ms). Throws DeviceError on err/timeout.
@@ -129,6 +128,12 @@ extension BoardTransport {
         } catch let e as BoardTimeout {
             guard command != "ping", !command.hasPrefix("stream"), let onTimeout else { throw e }
             await onTimeout(command)
+            // 回执可能丢在执行后。仅重试能查询或设定同一状态的命令，避免重复操作手机。
+            let name = command.split(separator: " ", maxSplits: 1).first
+            switch name {
+            case "home", "pace", "release", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
+            default: throw e
+            }
             DebugLog.write("cmd retry after timeout: \(command.prefix(40))")
             return try await send(command, timeout: nil)
         }
