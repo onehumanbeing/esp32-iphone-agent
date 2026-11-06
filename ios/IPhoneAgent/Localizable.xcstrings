@@ -2556,6 +2556,16 @@
         }
       }
     },
+    "In Extra body JSON, use one positive integer for max_tokens or max_completion_tokens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在额外请求 JSON 中只填写 max_tokens 或 max_completion_tokens 其中一项，值须为正整数。"
+          }
+        }
+      }
+    },
     "Extra body JSON" : {
       "localizations" : {
         "zh-Hans" : {

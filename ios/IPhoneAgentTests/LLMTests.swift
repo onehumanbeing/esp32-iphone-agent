@@ -502,6 +502,49 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(StubProtocol.seen.count, 1)
     }
 
+    func testCustomOutputBudgetSurvivesTokenParameterNegotiation() async throws {
+        let extra = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(#"{"max_tokens":4096}"#.utf8)) as? [String: Any])
+        let llm = client("custom", extra: extra)
+        fakeServer(wants: "max_completion_tokens")
+        _ = try await llm.chat(system: "sys", text: "first", maxTokens: 600)
+        _ = try await llm.chat(system: "sys", text: "next", maxTokens: 200)
+        XCTAssertEqual(StubProtocol.seen.map { $0["max_tokens"] as? Int }, [4096, nil, nil])
+        XCTAssertEqual(StubProtocol.seen.map { $0["max_completion_tokens"] as? Int }, [nil, 4096, 4096])
+    }
+
+    func testCustomCompletionBudgetUsesSelectedParameterName() async throws {
+        let extra = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(#"{"max_completion_tokens":1}"#.utf8)) as? [String: Any])
+        let llm = client("custom", extra: extra, tokenParam: "max_tokens")
+        fakeServer(wants: "max_tokens")
+        _ = try await llm.chat(system: "sys", text: "first", maxTokens: 600)
+        XCTAssertEqual(StubProtocol.seen.count, 1)
+        XCTAssertEqual(StubProtocol.seen.first?["max_tokens"] as? Int, 1)
+        XCTAssertNil(StubProtocol.seen.first?["max_completion_tokens"])
+    }
+
+    func testInvalidOrConflictingCustomBudgetsSendNoRequest() async throws {
+        let invalidBudgets: [[String: Any]] = [
+            ["max_tokens": 0], ["max_tokens": -1], ["max_tokens": true],
+            ["max_tokens": 1.5], ["max_tokens": "100"], ["max_tokens": NSNull()],
+            ["max_completion_tokens": false], ["max_completion_tokens": -1],
+            ["max_completion_tokens": []], ["max_completion_tokens": [:]],
+            ["max_tokens": 1024, "max_completion_tokens": 2048],
+        ]
+        for configured in invalidBudgets {
+            // 与设置页共用 JSON 解码形态，覆盖 NSNumber 与布尔值的桥接差异。
+            let data = try JSONSerialization.data(withJSONObject: configured)
+            let extra = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            fakeServer(wants: "max_tokens")
+            do {
+                _ = try await client("custom", extra: extra).chat(system: "sys", text: "first")
+                XCTFail("应拒绝无效的输出上限")
+            } catch {
+                XCTAssertTrue(error is LLMError)
+            }
+            XCTAssertTrue(StubProtocol.seen.isEmpty)
+        }
+    }
+
     func testExtraBodyAndImageAreSent() async throws {
         let llm = client("gpt", extra: ["reasoning_effort": "none"])
         fakeServer(wants: "max_tokens")
