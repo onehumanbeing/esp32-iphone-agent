@@ -54,6 +54,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
                 }
+                ListenSection(app: app, audio: app.audio)
                 Section {
                     NavigationLink { DiagnosticsView(app: app, metrics: app.metrics, board: board, feed: app.feed) } label: {
                         SettingsLabel(title: "Diagnostics", symbol: "waveform.path.ecg", color: .green)

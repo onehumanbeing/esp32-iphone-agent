@@ -93,13 +93,28 @@ above; a zero-length record answers hello and ka.
 - When the GOP fills, the board keeps a tail of later units for everyone; units the stream sent are dropped
   from it only once more than 64 are behind (kept for a resume: a dropped session loses what TCP buffered).
 
+## Wi-Fi audio (TCP)
+AirPlay audio rides the same TCP link, only after the app sends the line `audio` (on each new session, after the
+hello ack; older firmware ignores it). Records are chunks with flag `0x80` set (never set on video) and their own
+u16 seq: `[seq u16 LE][flags][payload]`, payload `[u32 LE board ms][u32 LE RTP ts][AAC-ELD frame]`.
+- The board decrypts the mirroring audio (SETUP type 96, `ct=8` AAC-ELD, 44.1 kHz stereo, 480 samples per frame,
+  AudioSpecificConfig `F8 E8 50 00`): AES-128-CBC with the session key and the SETUP `eiv`, afresh per packet,
+  whole blocks only. Other formats are only counted.
+- Only sound goes out: the sender's no-data packets (empty, or the marker `00 68 34 00`) start nothing. A segment
+  starts with the first sounding frame (`START`, 0x01) and ends 500 ms after the last one with an empty `END`
+  (0x02) record. An app that joins mid-segment gets `START` on its first frame.
+- Status `aud`: `pk` packets received, `seg` segments, `snd` 1 while one goes on, `vol` the sender's volume in dB
+  (-144 muted, from SET_PARAMETER), `drop` records lost (queue full or no app).
+- The app (Settings › Listen to phone audio, off by default) decodes them, ignores quiet segments (under -50 dBFS)
+  and transcribes on the phone; the agent's step prompt then has a `Heard` block.
+
 ## net (JSON)
 Read: `{"mode":"ap","ssid":"ESP32Agent-1A2B","pass":"<random 12 chars>","ip":"192.168.4.1","vtok":"<32 hex>"}`
 (SoftAP credentials are generated once at first boot and kept in NVS; `vtok` is new every boot).
 Write `{"mode":"ap"}` or `{"mode":"sta","ssid":"...","pass":"..."}` — stored in NVS, board restarts Wi-Fi.
 
 ## AirPlay
-Receiver name `ESP32 Agent`, mirroring only (no audio), H.264 only, resolution/fps from NVS.
+Receiver name `ESP32 Agent`, mirroring only, H.264 video plus AAC-ELD audio while there is sound (see Wi-Fi audio), resolution/fps from NVS.
 
 ## Deviations (firmware notes)
 - `status`: if the negotiated MTU is too small for the full JSON (MTU-3 < ~255 bytes), the notify carries a

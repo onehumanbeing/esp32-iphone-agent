@@ -3,6 +3,8 @@ import Foundation
 /// Video over the board's Wi-Fi, either transport (the firmware is built for one: WV_TCP in wifi_video.h).
 @MainActor protocol WifiVideoLink: AnyObject {
     var onChunk: ((Data) -> Void)? { get set }
+    var onAudio: ((Data) -> Void)? { get set }   // AirPlay audio records (TCP only, once wantsAudio asked for them)
+    var wantsAudio: () -> Bool { get set }
     var onActive: ((Bool) -> Void)? { get set }
     var resumeAt: () -> UInt32? { get set }  // TCP: the decoder's last unit, for `hello … at` (UDP ignores it)
     var active: Bool { get }
@@ -26,16 +28,21 @@ enum VideoTransport {
 /// TCP on port 7201: the app sends "hello <token>\n" (or "hello <token> at <ms>\n": its decoder is in step up to
 /// the unit stamped <ms>, so the board goes on from there instead of the IDR), then "ka\n" every second (and "resync\n" if the
 /// assembler lost its place); the board sends [u16 LE length][chunk] records, a zero-length one answering
-/// hello/ka. A plain BSD socket so the kernel routes 192.168.4.x to the hotspot (see VideoSocket).
+/// hello/ka. After the ack the app sends "audio\n" if it wants the AirPlay audio: records with flag 0x80
+/// (AudioRecord), split off here before the video assembler sees them.
+/// A plain BSD socket so the kernel routes 192.168.4.x to the hotspot (see VideoSocket).
 @MainActor final class VideoStream: WifiVideoLink {
     static let port: UInt16 = 7201
 
     var onChunk: ((Data) -> Void)?
+    var onAudio: ((Data) -> Void)?
+    var wantsAudio: () -> Bool = { false }
     var onActive: ((Bool) -> Void)?
     var resumeAt: () -> UInt32? = { nil }
     var log: (String) -> Void = { DebugLog.write($0) }
     private(set) var active = false
     private(set) var kbps = 0.0
+    private var audioAsked = false
     var nacks: Int { 0 }
     private(set) var lost = 0
 
@@ -89,6 +96,7 @@ enum VideoTransport {
         guard let target else { return }
         connected = false
         acked = false
+        audioAsked = false
         buffer = Data()
         openedAt = now()
         let fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
@@ -134,6 +142,7 @@ enum VideoTransport {
         fd = -1
         connected = false
         acked = false
+        audioAsked = false
     }
 
     private func reopen() {
@@ -149,7 +158,7 @@ enum VideoTransport {
         log(text)
     }
 
-    private func received(_ data: Data) {
+    func received(_ data: Data) {  // internal for the tests
         lastByte = now()
         windowBytes += data.count
         buffer.append(data)
@@ -162,7 +171,8 @@ enum VideoTransport {
                 acked = true
                 setActive(true)
             } else if acked {
-                onChunk?(buffer.subdata(in: (at + 2)..<(at + 2 + len)))
+                let chunk = buffer.subdata(in: (at + 2)..<(at + 2 + len))
+                if AudioRecord.isAudio(chunk) { onAudio?(chunk) } else { onChunk?(chunk) }
             }
             at += 2 + len
         }
@@ -189,6 +199,7 @@ enum VideoTransport {
             reopen()
             return
         }
+        if acked && !audioAsked && wantsAudio() { audioAsked = send("audio\n") }  // older firmware ignores it
         if t - lastSent >= 1 { _ = send(acked ? "ka\n" : hello(token)) }
     }
 

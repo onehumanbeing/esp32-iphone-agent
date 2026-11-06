@@ -89,7 +89,7 @@ extension AppModel {
     }
 
     /// A line from the Mac harness, relayed by the board: "run <task>", "calibrate", "stop", "bench <kb>",
-    /// "snap", "status", "log <n>", "mode <m>" or "ota [dir]".
+    /// "snap", "status", "log <n>", "mode <m>", "audio" or "ota [dir]".
     func handleAppCommand(_ line: String) {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
@@ -98,6 +98,7 @@ extension AppModel {
         case "calibrate", "stop", "snap": debugCommand(name)
         case "bench": debugCommand("bench", kb: Int(rest) ?? 256)
         case "status": say(statusSummary)
+        case "audio": say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard()))  // the phone audio the agent hears
         case "log": relayHistory(Int(rest) ?? 50)
         case "ota":  // a test build staged in Documents/<rest or firmware>, sent over Wi-Fi like Update Board does
             if !rest.isEmpty { Firmware.localDir = rest }

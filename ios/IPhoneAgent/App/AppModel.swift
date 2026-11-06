@@ -19,6 +19,7 @@ import UIKit
     private var lastVideoToken: String?
     private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
+    let audio = AudioFeed()  // AirPlay audio over that link, transcribed on the phone (Settings › Listen to phone audio)
     let metrics = Metrics()
     let traces = MockMode.on
         ? TraceStore(root: FileManager.default.temporaryDirectory.appendingPathComponent("demo-traces"))
@@ -109,6 +110,7 @@ import UIKit
                           screen: feed)
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
         agent.metrics = metrics
+        agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
         feed.metrics = metrics
 
@@ -146,6 +148,9 @@ import UIKit
         }
         board.onVideo = { [weak self] in self?.feed.receive($0) }
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
+        wifiVideo.onAudio = { [weak self] in self?.audio.receive($0) }
+        wifiVideo.wantsAudio = { ListenSetting.on }
+        setListening(ListenSetting.on)
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
         feed.onGap = { [weak self] in self?.wifiVideo.resume() }
@@ -472,5 +477,13 @@ import UIKit
         decodedBefore = metrics.decodeErrors - decodedBefore
         say("background test: LLM \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
             + "suspensions \(metrics.suspensions), background alive \(Int(metrics.backgroundAlive)) s")
+    }
+}
+
+extension AppModel {
+    /// Settings › Listen to phone audio. Asks for speech recognition the first time it is switched on.
+    func setListening(_ on: Bool) {
+        audio.enabled = on && !MockMode.on
+        if audio.enabled { audio.prepare() }
     }
 }
