@@ -250,9 +250,13 @@ extension AppModel {
         Task { [weak self] in
             guard let self else { return }
             guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String
-                if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
+                if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
+                    try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
+                    reply = "ok"
+                } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
@@ -273,13 +277,14 @@ extension AppModel {
                     reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
                 } else {
                     do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
-                    // a raw move or home leaves the pointer where the app doesn't think it is: the next run's home-bar
-                    // flick pressed mid-screen and never left the app (2026-11-06)
-                    if command == "home" || command.hasPrefix("move") { try? await pointer.reset() }
+                    if command == "home" || command.hasPrefix("move") { moved = true }
                 }
                 say("harness hid: \(command) → \(reply)")
                 try? await Task.sleep(nanoseconds: 400_000_000)
             }
+            // raw moves leave the pointer where the app doesn't think it is: the next run's home-bar flick pressed
+            // mid-screen and never left the app (2026-11-06). Once at the end, so "home; move …; move …" composes.
+            if moved { try? await pointer.reset() }
             say("harness hid: done")
         }
     }
