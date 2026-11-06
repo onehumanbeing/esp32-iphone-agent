@@ -74,16 +74,6 @@ struct ReviewView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
             }
-            if draft.runID == app.runID && app.canResume {  // the run that just stopped: go on from its screen
-                VStack(spacing: Space.xs) {
-                    Button { dismiss(); Task { await app.resumeRun() } } label: {
-                        Label("Continue from Here", systemImage: "play.fill").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-                    Text("Then switch back to the app it was in.").font(.footnote).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
-            }
             if outcome == .done, let result = draft.runID.flatMap({ runs.run($0) })?.result {
                 ResultCard(text: result)
             }
@@ -172,6 +162,9 @@ struct ReviewView: View {
                     }
                 }
                 Button { inserting = true; insertText = "" } label: { Label("Add a step at the end", systemImage: "plus") }
+                if resumable {
+                    Button(action: retryRun) { Label("Start Over", systemImage: "arrow.clockwise") }
+                }
             } label: {
                 Image(systemName: "ellipsis.circle").font(.title2)
             }
@@ -214,7 +207,6 @@ struct ReviewView: View {
                             .background(Capsule().fill(Color.yellow.opacity(0.35)))
                     }
                     Spacer()
-                    if !draft.readOnly { verdictButtons(step) }
                 }
                 if let thought = step.action["thought"]?.str ?? step.action["plan"]?.str ?? step.action["reason"]?.str {
                     Text(verbatim: thought).font(.subheadline).foregroundStyle(.secondary).lineLimit(expanded ? nil : 2)
@@ -235,47 +227,35 @@ struct ReviewView: View {
         }
     }
 
-    private func verdictButtons(_ step: DraftStep) -> some View {
-        HStack(spacing: Space.s) {
-            Button { draft.mark(step.id, true); Haptics.tick() } label: {
-                Image(systemName: step.verdict == true ? "checkmark.circle.fill" : "checkmark.circle")
-                    .foregroundStyle(step.verdict == true ? Palette.ok : .secondary)
-            }
-            .accessibilityLabel(Text("Correct"))
-            Button { draft.mark(step.id, false); Haptics.tick() } label: {
-                Image(systemName: step.verdict == false ? "xmark.circle.fill" : "xmark.circle")
-                    .foregroundStyle(step.verdict == false ? Palette.stop : .secondary)
-            }
-            .accessibilityLabel(Text("Wrong"))
-        }
-        .font(.title2)
-        .buttonStyle(.plain)
-    }
-
+    /// Was this step right? Wrong opens the fix at once: where it should have tapped, or what should have happened.
     private func stepActions(_ step: DraftStep) -> some View {
         HStack(spacing: Space.s) {
-            Button { fixing = step } label: { Label("Fix", systemImage: "scope") }
-            Button { inserting = true; insertText = "" } label: { Label("Insert", systemImage: "plus") }
+            VerdictChip(title: "Correct", symbol: "hand.thumbsup", on: step.verdict == true, tint: Palette.ok) {
+                draft.mark(step.id, true)
+            }
+            VerdictChip(title: "Wrong", symbol: "hand.thumbsdown", on: step.verdict == false, tint: Palette.stop) {
+                let fix = step.verdict != false
+                draft.mark(step.id, false)
+                if fix { fixing = step }
+            }
             Spacer()
             Menu {
+                Button { fixing = step } label: { Label("Correct This Step…", systemImage: "scope") }
+                Button { inserting = true; insertText = "" } label: { Label("Add a Step After", systemImage: "plus") }
                 if draft.source != .recording {
-                    Button { rerun(from: step) } label: { Label("Re-run from here", systemImage: "arrow.clockwise") }
+                    Button { rerun(from: step) } label: { Label("Re-run from Here", systemImage: "arrow.clockwise") }
                 }
                 Button(role: .destructive) {
                     draft.delete(step.id)
                     index = min(index, max(0, steps.count - 1))
-                } label: { Label("Delete step", systemImage: "trash") }
+                } label: { Label("Delete Step", systemImage: "trash") }
             } label: {
-                Image(systemName: "ellipsis").frame(width: 32, height: 28)
+                Image(systemName: "ellipsis").font(.subheadline.weight(.semibold)).frame(width: 36, height: 32)
+                    .background(Circle().fill(Color(uiColor: .tertiarySystemFill)))
             }
             .accessibilityLabel(Text("More"))
         }
-        .font(.subheadline.weight(.semibold))
-        .buttonStyle(.bordered)
-        .controlSize(.small)
     }
-
-    // MARK: - playback
 
     private var controls: some View {
         HStack {
@@ -361,10 +341,15 @@ struct ReviewView: View {
 
     // MARK: - bottom
 
+    /// One filled button: Continue when the run can go on from its screen, else Retry; the rest tinted.
     private var bottomBar: some View {
         BottomBar {
             VStack(spacing: Space.s) {
-                if draft.runID != nil, outcome == .failed || outcome == .stopped {
+                if resumable {
+                    Button("Continue from Here", systemImage: "play.fill") { dismiss(); Task { await app.resumeRun() } }
+                        .buttonStyle(BigButton())
+                    Text("Then switch back to the app it was in.").font(.footnote).foregroundStyle(.secondary)
+                } else if retryable {
                     Button("Retry", systemImage: "arrow.clockwise", action: retryRun)
                         .buttonStyle(BigButton())
                         .disabled(retrying || app.startingAgent || app.agent.running || app.recorder.busy)
@@ -372,15 +357,18 @@ struct ReviewView: View {
                 }
                 HStack(spacing: Space.m) {
                     Button { optimizing = true } label: { Label("Optimize with AI", systemImage: "sparkles") }
-                        .buttonStyle(BigButton(tint: Color(uiColor: .systemIndigo)))
                     Button { saving = true } label: {
-                        Label(draft.intentID == nil ? "Save as Intent" : "Save Intent", systemImage: "bookmark.fill")
+                        Label(draft.intentID == nil ? "Save as Intent" : "Save Intent", systemImage: "bookmark")
                     }
-                    .buttonStyle(BigButton())
                 }
+                .buttonStyle(BigButton.tinted)
             }
         }
     }
+
+    /// The run that just stopped: it can go on from its screen.
+    private var resumable: Bool { draft.runID == app.runID && app.canResume }
+    private var retryable: Bool { draft.runID != nil && (outcome == .failed || outcome == .stopped) }
 
     private func retryRun() {
         guard !retrying, !app.startingAgent, !app.agent.running, !app.recorder.busy,
@@ -445,6 +433,27 @@ struct StepDetails: View {
                 .frame(width: 58, alignment: .leading)
             Text(verbatim: value).font(.caption.monospaced()).textSelection(.enabled)
         }
+    }
+}
+
+/// A labeled yes/no answer for a step; filled with its color once chosen.
+struct VerdictChip: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    let on: Bool
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button { action(); Haptics.tick() } label: {
+            Label(title, systemImage: on ? symbol + ".fill" : symbol)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, Space.m).frame(height: 32)
+                .foregroundStyle(on ? tint : .secondary)
+                .background(Capsule().fill(on ? tint.opacity(0.15) : Color(uiColor: .tertiarySystemFill)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 

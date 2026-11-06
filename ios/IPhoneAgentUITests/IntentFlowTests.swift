@@ -73,7 +73,7 @@ final class IntentFlowTests: XCTestCase {
         // a tap while the last swipe is still settling can miss (CI, 2026-11-05): tap again once if still there
         if !unsure.waitForExistence(timeout: 15), review.exists, review.isHittable { review.tap() }
         XCTAssertTrue(unsure.waitForExistence(timeout: 30))
-        app.buttons["Fix"].tap()
+        app.buttons["Wrong"].tap()
         let note = app.descendants(matching: .any)["intent.step.note"].firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 15))
         note.tap()
