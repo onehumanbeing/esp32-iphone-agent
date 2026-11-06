@@ -174,6 +174,7 @@ import UIKit
             feed.resetStream()
             metrics.mtu = board.mtu
             updateWifiVideo()
+            readBoardPace()
             if agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
                 Task { [weak self] in
                     do { try await self?.feed.stream(true); DebugLog.write("recover: BLE back, stream on again") } catch {
@@ -184,6 +185,7 @@ import UIKit
             prewarmStream()
         }
         board.onLinkDown = { [weak self] in
+            self?.pointer.boardPace = nil
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)
@@ -301,6 +303,19 @@ import UIKit
         if mode == .stream && agent.running { Task { try? await feed.stream(true) } }
         if mode == .stream { prewarmStream() }
         if mode == .snap && feed.streamOn { Task { try? await feed.stream(false) } }
+    }
+
+    /// How the board paces moves; a calibration made under another pace is redone before the next run.
+    private func readBoardPace() {
+        guard !MockMode.on else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let pace: Int
+            do { pace = Int(try await board.commands.send("pace", timeout: 3).trimmingCharacters(in: .whitespaces)) ?? 1 }
+            catch is BoardTimeout { return } catch { pace = 1 }  // "err unknown command": firmware before pacing
+            pointer.boardPace = pace
+            DebugLog.write("pointer: board pace \(pace), calibrated under \(pointer.pace)\(pointer.calibrated ? "" : ": calibrate again")")
+        }
     }
 
     /// The run paused for the board (line) or goes on (nil).

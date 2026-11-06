@@ -37,6 +37,12 @@ struct IslandStatus: Equatable {
              look: nil, minimal: String(localized: "Wait"))
     }
 
+    static var switchBack: Self {
+        Self(short: String(localized: "Switch back"),
+             full: String(localized: "Switch back to the app you were in. I'll go on from there."),
+             look: nil, minimal: String(localized: "Back"))
+    }
+
     static var paused: Self {
         Self(short: String(localized: "Paused"), full: String(localized: "Paused. Tap Continue and I'll go on from here."),
              look: nil, minimal: String(localized: "Pause"))

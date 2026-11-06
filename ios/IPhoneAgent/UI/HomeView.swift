@@ -260,6 +260,10 @@ struct HomeView: View {
                     ProgressView(value: Double(min(card.moveCount, agent.maxSteps)), total: Double(agent.maxSteps))
                     Text("Step \(card.moveCount) of up to \(agent.maxSteps)")
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    if app.canResume && agent.task == card.task {  // stopped before done: go on from its screen
+                        Button { Task { await app.resumeRun() } } label: { Label("Continue", systemImage: "play.fill") }
+                            .buttonStyle(.borderedProminent).tint(Palette.ok).controlSize(.small)
+                    }
                 }
             }
             .padding(.vertical, Space.xs)

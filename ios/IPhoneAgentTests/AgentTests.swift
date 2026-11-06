@@ -382,9 +382,11 @@ import XCTest
     let device: HIDDevice = FakeDevice()
     var calls: [String] = []
     var taps: [CGPoint] = []
+    var aims: [Bool] = []
     var onTap: (() -> Void)?  // e.g. the screen shows the pointer where it landed
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws {
         calls.append("tap")
+        aims.append(aim)
         taps.append(CGPoint(x: x, y: y))
         onTap?()
     }

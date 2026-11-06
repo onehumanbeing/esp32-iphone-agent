@@ -108,8 +108,25 @@ import XCTest
         try Data(old.utf8).write(to: file)
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 0)
         XCTAssertTrue(Pointer(device: FakeDevice(), calibrationFile: file).calibrated)  // the calibration stays
-        try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":2}").utf8).write(to: file)
+        try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":3}").utf8).write(to: file)
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
+    }
+
+    func testACalibrationUnderAnotherBoardPaceIsDoneAgain() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data(#"{"w":400,"h":800,"v":3}"#.utf8).write(to: file)  // saved before the firmware answered "pace"
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        XCTAssertTrue(pointer.calibrated)  // no board yet
+        pointer.boardPace = 1
+        XCTAssertTrue(pointer.calibrated)  // old firmware: same moves
+        pointer.boardPace = 2
+        XCTAssertFalse(pointer.calibrated)  // one-speed moves go other distances
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        XCTAssertTrue(pointer.calibrated)
+        let again = Pointer(device: FakeDevice(), calibrationFile: file)
+        again.boardPace = 2
+        XCTAssertTrue(again.calibrated)
     }
 
     func testPointerRehomesEveryTenGestures() async throws {

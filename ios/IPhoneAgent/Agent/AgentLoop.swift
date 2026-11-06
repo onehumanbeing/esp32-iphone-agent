@@ -112,11 +112,15 @@ extension Gestures {
     }
 
     /// traceStarted: the caller already opened the run's trace folder (so a failed start is logged too).
-    func start(_ task: String, traceStarted: Bool = false) throws {
+    /// resume: go on with the stopped run of this task (its plan, steps and notes) from the screen in front now.
+    func start(_ task: String, traceStarted: Bool = false, resume: Bool = false) throws {
         if running { throw DeviceError(message: "agent already running") }
         guard screen?.live == true else { throw DeviceError(message: "no phone screen: start Screen Mirroring first") }
-        self.task = task; plan = ""; steps = []; shots = [:]
-        notebook = Notebook(); learned = []
+        let resuming = resume && task == self.task && !steps.isEmpty
+        if !resuming {
+            self.task = task; plan = ""; steps = []; shots = [:]
+            notebook = Notebook(); learned = []
+        }
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
         lastActed = 0
@@ -124,6 +128,7 @@ extension Gestures {
         acceptedLookLinks = nil
         replay.restart()
         if !traceStarted { trace?.start(task: task) }
+        if resuming { record(nil, ["action": .str("resumed"), "reason": .str("the run had stopped; it goes on from the screen in front now")]) }
         running = true
         job = Task { [weak self] in
             await self?.run()
@@ -439,7 +444,9 @@ extension Gestures {
                 }
                 onDoing?(.acting(act))  // the thought (on the first act) names the target
                 let started = now()
-                try await perform(act)
+                // after a tap in the same round the pointer moved again unseen: find it before pressing
+                let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
+                try await perform(act, aim: earlierTap)
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
@@ -550,11 +557,11 @@ extension Gestures {
         return out
     }
 
-    func perform(_ a: JObject) async throws {
+    func perform(_ a: JObject, aim: Bool = false) async throws {
         guard let phone else { throw DeviceError(message: "no phone") }
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
-        case "tap": try await phone.tap(p("x"), p("y"), aim: a["precise"]?.bool ?? false || missed)
+        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed)
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)

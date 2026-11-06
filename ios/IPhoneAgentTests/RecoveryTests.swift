@@ -120,6 +120,42 @@ import XCTest
         XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["reconnected", "done"])
     }
 
+    func testTapsAfterTheFirstInARoundFindThePointerBeforePressing() async {
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        var round = 0
+        let model = FakeModel { _ in
+            round += 1
+            return round == 1 ? "THINK: pairs\nDO: tap 189 705\nDO: tap 484 705\nDO: tap 499 921" : "THINK: there\nDO: done ok"
+        }
+        let phone = FakeGestures()
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        await agent.run()
+        XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+    }
+
+    func testAResumedRunKeepsItsPlanAndStepsAndSaysItGoesOn() async throws {
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        let model = FakeModel { _ in "THINK: lesson\nPLAN:\n1. Answer each exercise\nDO: fail stopped here" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        try agent.start("Duolingo lesson")
+        while agent.running { try await Task.sleep(nanoseconds: 20_000_000) }
+        let before = agent.steps.count
+        XCTAssertEqual(agent.plan, "1. Answer each exercise")
+        try agent.start("Duolingo lesson", resume: true)
+        agent.stop()
+        XCTAssertEqual(agent.plan, "1. Answer each exercise")
+        XCTAssertEqual(agent.steps.count, before + 1)
+        XCTAssertEqual(agent.steps.last?["action"], .str("resumed"))
+        while agent.running { try await Task.sleep(nanoseconds: 20_000_000) }
+        try agent.start("Another task", resume: true)  // not this run's task: a fresh start
+        agent.stop()
+        XCTAssertFalse(agent.steps.contains { $0["action"] == .str("resumed") })
+    }
+
     func testRunEndsWithAClearReasonWhenTheScreenNeverComesBack() async {
         let screen = FakeScreen()
         screen.live = false
