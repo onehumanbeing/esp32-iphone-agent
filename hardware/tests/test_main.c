@@ -1,5 +1,5 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring, mouse move pacing.
+// mirroring keystream, the AirPlay audio packets and sound gate, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring, mouse move pacing.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +7,8 @@
 #include "../hid_bridge/src/bplist/bplist.h"
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
+#include "../hid_bridge/src/airplay/audio.h"
+#include "mbedtls/aes.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
 #include "../hid_bridge/src/hid/pace.h"
@@ -434,7 +436,59 @@ static void test_mdns(void) {
   CHECK(cut <= 40 && cut == 1u + rec[0]);  // only the first entry (28 bytes) fits
 }
 
+// Encrypt like the sender (CBC over the whole blocks, fresh IV per packet, tail in the clear) and decrypt back.
+static void test_audio_packets(void) {
+  uint8_t key[16], iv[16], plain[45], pkt[12 + 45];
+  for (int i = 0; i < 16; i++) key[i] = (uint8_t)(i * 7), iv[i] = (uint8_t)(0xa0 + i);
+  for (int i = 0; i < 45; i++) plain[i] = (uint8_t)(i * 3 + 1);
+  pkt[0] = 0x80, pkt[1] = 0x60, pkt[2] = 0x12, pkt[3] = 0x34;
+  pkt[4] = 0x00, pkt[5] = 0x01, pkt[6] = 0xe2, pkt[7] = 0x40;
+  memset(pkt + 8, 0, 4);
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_enc(&aes, key, 128);
+  uint8_t v[16];
+  for (int round = 0; round < 2; round++) {  // the same IV again: nothing carries over between packets
+    memcpy(v, iv, 16);
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 32, v, plain, pkt + 12);
+    memcpy(pkt + 12 + 32, plain + 32, 13);
+    ap_rtp r;
+    CHECK(ap_rtp_parse(pkt, sizeof pkt, &r));
+    CHECK(r.seq == 0x1234 && r.ts == 123456 && r.len == 45 && r.payload == pkt + 12);
+    CHECK(!ap_audio_no_data(r.payload, r.len));
+    uint8_t out[45];
+    ap_audio_decrypt(key, iv, r.payload, r.len, out);
+    CHECK(!memcmp(out, plain, 45));
+    ap_audio_decrypt(key, iv, pkt + 12, 45, pkt + 12);  // in place
+    CHECK(!memcmp(pkt + 12, plain, 45));
+  }
+  mbedtls_aes_free(&aes);
+  ap_rtp r;
+  CHECK(!ap_rtp_parse(pkt, 11, &r));
+  pkt[0] = 0x40;
+  CHECK(!ap_rtp_parse(pkt, sizeof pkt, &r));  // RTP version 1
+  const uint8_t marker[4] = {0x00, 0x68, 0x34, 0x00};
+  CHECK(ap_audio_no_data(marker, 4) && ap_audio_no_data(NULL, 0) && !ap_audio_no_data(plain, 4));
+  uint8_t short_tail[7] = {1, 2, 3, 4, 5, 6, 7}, out[7];
+  ap_audio_decrypt(key, iv, short_tail, 7, out);  // under one block: all clear
+  CHECK(!memcmp(out, short_tail, 7));
+}
+
+static void test_audio_gate(void) {
+  ap_audio_gate g = {0};
+  CHECK(ap_audio_gate_packet(&g, 0, true) == AP_GATE_SKIP && !g.active);   // no-data packets start nothing
+  CHECK(ap_audio_gate_packet(&g, 10, false) == AP_GATE_START && g.active && g.segments == 1);
+  CHECK(ap_audio_gate_packet(&g, 20, false) == AP_GATE_FRAME);
+  CHECK(ap_audio_gate_packet(&g, 30, true) == AP_GATE_SKIP);               // silence inside a segment
+  CHECK(!ap_audio_gate_idle(&g, 20 + AP_AUDIO_IDLE_MS - 1));
+  CHECK(ap_audio_gate_idle(&g, 20 + AP_AUDIO_IDLE_MS) && !g.active);      // ends once, timed from the last sound
+  CHECK(!ap_audio_gate_idle(&g, 5000));
+  CHECK(ap_audio_gate_packet(&g, 6000, false) == AP_GATE_START && g.segments == 2 && g.frames == 3);
+}
+
 int main(void) {
+  test_audio_packets();
+  test_audio_gate();
   test_mdns();
   test_logring();
   test_bplist_roundtrip();

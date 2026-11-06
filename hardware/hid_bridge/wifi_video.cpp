@@ -150,5 +150,7 @@ bool wv_take_resync() {
 uint32_t wv_kbps() { return millis() - winStart < 3000 ? kbps : 0; }
 uint32_t wv_nacks() { return nacks; }
 uint32_t wv_drops() { return drops; }
+void wv_audio(int, const uint8_t *, size_t, uint32_t) {}  // audio needs the TCP link
+uint32_t wv_audio_drops() { return 0; }
 
 #endif  // !WV_TCP

@@ -12,6 +12,7 @@
 #include <string.h>
 #include "../bplist/bplist.h"
 #include "ap_internal.h"
+#include "audio.h"
 
 ap_conn *ap_mirror_owner;
 
@@ -178,7 +179,7 @@ static void setup_session(ap_conn *c, bp_reader *r, int top, bp_writer *w, int r
   size_t ekey_len, eiv_len;
   uint64_t port = 0;
   if (!bp_get_data(r, bp_dict_get(r, top, "ekey"), &ekey, &ekey_len) || ekey_len < 72 ||
-      !bp_get_data(r, bp_dict_get(r, top, "eiv"), &eiv, &eiv_len)) return;
+      !bp_get_data(r, bp_dict_get(r, top, "eiv"), &eiv, &eiv_len) || eiv_len < 16) return;
   if (!c->have_keymsg) { ap_log("setup: no FairPlay handshake"); return; }
   fairplay_decrypt(c->keymsg, ekey, c->aeskey);
   if (c->pair.status != PAIR_INITIAL) {
@@ -186,6 +187,7 @@ static void setup_session(ap_conn *c, bp_reader *r, int top, bp_writer *w, int r
     ap_sha512(c->aeskey, 16, c->pair.secret, 32, h);
     memcpy(c->aeskey, h, 16);
   }
+  memcpy(c->eiv, eiv, 16);
   c->have_aes = true;
   bp_get_uint(r, bp_dict_get(r, top, "timingPort"), &port);
   c->timing_rport = (uint16_t)port;
@@ -223,10 +225,16 @@ static void handle_setup(ap_conn *c, const ap_req *req, ap_resp *res) {
           ap_log("setup: mirror stream on port %d", AP_MIRROR_PORT);
         }
         bp_w_set(&w, d, "dataPort", bp_w_uint(&w, AP_MIRROR_PORT));
-      } else if (type == 96) {  // audio: accepted but discarded (video only)
+      } else if (type == 96) {  // audio, sent while the phone plays sound
+        uint64_t ct = 0, spf = 0, sr = 0;
+        bp_get_uint(&r, bp_dict_get(&r, s, "ct"), &ct);
+        bp_get_uint(&r, bp_dict_get(&r, s, "spf"), &spf);
+        bp_get_uint(&r, bp_dict_get(&r, s, "sr"), &sr);
+        if (c->have_aes) ap_mirror_audio(c->aeskey, c->eiv, (int)ct);
         bp_w_set(&w, d, "dataPort", bp_w_uint(&w, AP_AUDIO_DATA_PORT));
         bp_w_set(&w, d, "controlPort", bp_w_uint(&w, AP_AUDIO_CTRL_PORT));
-        ap_log("setup: audio stream ignored");
+        ap_log("setup: audio stream ct=%u spf=%u sr=%u%s", (unsigned)ct, (unsigned)spf, (unsigned)sr,
+               ct == AP_AUDIO_CT_AAC_ELD ? "" : " (not AAC-ELD: counted, not forwarded)");
       } else {
         ap_log("setup: unknown stream type %u", (unsigned)type);
         res->close = true;
@@ -249,7 +257,17 @@ static void handle_get_parameter(ap_conn *c, const ap_req *req, ap_resp *res) {
 }
 
 static void handle_set_parameter(ap_conn *c, const ap_req *req, ap_resp *res) {
-  if (!ap_header(req, "Content-Type")) { res->code = 451; res->reason = "Parameter not understood"; }
+  const char *t = ap_header(req, "Content-Type");
+  if (!t) { res->code = 451; res->reason = "Parameter not understood"; return; }
+  // "volume: -NN.NNNNNN" in dB, -144 when muted
+  char v[32];
+  if (!strcmp(t, "text/parameters") && req->body_len > 7 && req->body_len < sizeof v && !memcmp(req->body, "volume:", 7)) {
+    memcpy(v, req->body + 7, req->body_len - 7);
+    v[req->body_len - 7] = 0;
+    float db = strtof(v, NULL);
+    ap_mirror_set_volume(db);
+    ap_log("set_parameter: volume %.1f dB%s", db, db <= -144 ? " (muted)" : "");
+  }
 }
 
 static void handle_options(ap_conn *c, const ap_req *req, ap_resp *res) {
