@@ -125,6 +125,18 @@ static void test_gop(void) {
   gop_drop_front(&t, 5);
   CHECK(t.n == 0 && t.used == 0);
 
+  // the tail past a frozen GOP is a ring: full drops the oldest, never refuses (2026-11-06: it broke instead,
+  // and the screen stayed frozen until mirroring restarted)
+  static uint8_t rarena[40];
+  static gop_au raus[8];
+  gop_buf r;
+  gop_init(&r, rarena, sizeof rarena, raus, 8);
+  for (uint32_t ts = 1; ts <= 8; ts++) CHECK(gop_append_ring(&r, au, 5, ts) == 0);
+  CHECK(r.n == 8 && gop_append_ring(&r, au, 5, 9) == 2);  // a quarter of 8 dropped
+  CHECK(r.n == 7 && r.aus[0].ts == 3 && gop_find(&r, 9) == 6 && gop_find(&r, 2) == -1);
+  CHECK(gop_append_ring(&r, au, 30, 10) == 7 && r.n == 1 && r.used == 30);  // bytes, not count, made it full
+  CHECK(gop_append_ring(&r, au, 41, 11) == -1 && r.n == 1);  // larger than the whole ring: refused, nothing lost
+
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));
   CHECK(!annexb_has_idr(idr, 6));
