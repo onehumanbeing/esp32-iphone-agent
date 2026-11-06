@@ -112,6 +112,22 @@ import XCTest
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
     }
 
+    func testHomesOffsetFromTheCornerIsPartOfTheCalibration() async throws {
+        // the probe fit of 2026-11-06: home left the pointer at x 0.142 (the rounded corner); the check missed by 14%
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        let x = ProbeFit.Line(a: 0.00148, b: 0.142, rms: 0.0057), y = ProbeFit.Line(a: 0.00071, b: -0.009, rms: 0.0087)
+        let samples = [150.0, 350, 77, 418, 248].map { u in (ux: u, uy: u, fx: 0.00148 * u + 0.142, fy: 0.00071 * u - 0.009) }
+        pointer.applyProbe(x: x, y: y, samples: samples)
+        try await pointer.point(0.5, 0.62)
+        let move = try XCTUnwrap(device.sent.last).split(separator: " ").compactMap { Double($0) }
+        XCTAssertEqual(0.00148 * move[0] + 0.142, 0.5, accuracy: 0.005)
+        XCTAssertEqual(0.00071 * move[1] - 0.009, 0.62, accuracy: 0.005)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).origin.x, 0.142, accuracy: 1e-9)  // kept
+    }
+
     func testACalibrationUnderAnotherBoardPaceIsDoneAgain() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: file) }

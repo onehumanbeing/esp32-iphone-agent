@@ -74,6 +74,16 @@ struct ReviewView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
             }
+            if draft.runID == app.runID && app.canResume {  // the run that just stopped: go on from its screen
+                VStack(spacing: Space.xs) {
+                    Button { dismiss(); Task { await app.resumeRun() } } label: {
+                        Label("Continue from Here", systemImage: "play.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    Text("Then switch back to the app it was in.").font(.footnote).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
+            }
             if outcome == .done, let result = draft.runID.flatMap({ runs.run($0) })?.result {
                 ResultCard(text: result)
             }

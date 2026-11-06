@@ -21,12 +21,17 @@ import UIKit
     static let agree = 0.02                 // a far reading is taken again; both must agree this closely
 
     struct Span: Codable, Equatable { var w: Int, h: Int }
-    private struct Saved: Codable { var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int? }
+    private struct Saved: Codable {
+        var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?
+    }
 
     let device: HIDDevice
     weak var screen: ScreenSource?
     private let file: URL
     @Published private(set) var span: Span?  // mouse units needed to cross the full screen width / height
+    /// Where home really leaves the pointer (screen fraction). Going left, then up the left edge, the rounded corner
+    /// pushes it in to about x 0.14 (2026-11-06): steady, so it is part of the calibration, not learned drift.
+    private(set) var origin = CGPoint.zero
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
     private var link = 0  // device.links when the pointer was last homed
@@ -51,6 +56,7 @@ import UIKit
         if let data = try? Data(contentsOf: calibrationFile), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             span = Span(w: saved.w, h: saved.h)
             (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
+            origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
             for axis in ["x", "y"] where saved.v == Self.samplesVersion {
                 seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
             }
@@ -123,22 +129,23 @@ import UIKit
 
     /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
     func finishCalibration(x: Double, y: Double) {
-        (quality, aspect, pace) = (nil, screenAspect(), boardPace ?? pace)
+        (quality, aspect, pace, origin) = (nil, screenAspect(), boardPace ?? pace, .zero)
         span = Span(w: Int((Double(Self.calibrationMove) / x).rounded(.toNearestOrEven)), h: Int((Double(Self.calibrationMove) / y).rounded(.toNearestOrEven)))
         seen = ["x": [], "y": []]
         save()
     }
 
     /// Touch-probe result: per-axis lines landed = a * units + b fitted from taps the app caught itself.
-    /// The span is 1/a; every probe becomes a landing sample, so `fix` also corrects the offset b.
+    /// The span is 1/a and the origin b; every probe becomes a landing sample, so `fix` corrects what is left.
     func applyProbe(x: ProbeFit.Line, y: ProbeFit.Line, samples: [(ux: Double, uy: Double, fx: Double, fy: Double)]) {
         let s = Span(w: Int((1 / x.a).rounded()), h: Int((1 / y.a).rounded()))
         span = s
         (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
+        origin = CGPoint(x: x.b, y: y.b)
         seen = ["x": [], "y": []]
         for p in samples {
-            remember("x", (p.ux / Double(s.w), p.fx))
-            remember("y", (p.uy / Double(s.h), p.fy))
+            remember("x", (p.ux / Double(s.w) + x.b, p.fx))
+            remember("y", (p.uy / Double(s.h) + y.b, p.fy))
         }
         pos = nil
         save()
@@ -156,7 +163,7 @@ import UIKit
     private func save() {
         guard let span else { return }
         let saved = Saved(w: span.w, h: span.h, seen: seen.mapValues { $0.map { [$0.0, $0.1] } }, quality: quality,
-                          aspect: aspect, v: Self.samplesVersion, pace: pace)
+                          aspect: aspect, v: Self.samplesVersion, pace: pace, ox: origin.x, oy: origin.y)
         try? JSONEncoder().encode(saved).write(to: file)
     }
 
@@ -438,6 +445,6 @@ import UIKit
         pos = nil
     }
 
-    private func dx(_ x: Double) -> Int { Int((min(max(fix(x, "x"), 0), 1) * Double(span!.w)).rounded(.toNearestOrEven)) }
-    private func dy(_ y: Double) -> Int { Int((min(max(fix(y, "y"), 0), 1) * Double(span!.h)).rounded(.toNearestOrEven)) }
+    private func dx(_ x: Double) -> Int { Int(((min(max(fix(x, "x"), 0), 1) - origin.x) * Double(span!.w)).rounded(.toNearestOrEven)) }
+    private func dy(_ y: Double) -> Int { Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven)) }
 }
