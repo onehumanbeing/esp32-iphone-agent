@@ -42,7 +42,7 @@ struct Sink {
   uint16_t seq[2];             // each side's chunk numbers
   uint32_t txGen = UINT32_MAX;
   int next, tailNext;
-  bool catchingUp, lastWifi;
+  bool catchingUp;
   volatile uint32_t followGen = UINT32_MAX;  // the generation it sends in order, AU after AU
   volatile bool onTail;                      // it goes on from the tail past a frozen GOP
   bool resumed;                              // the next AU goes on from the app's last one: VF_RESUME
@@ -252,11 +252,10 @@ static void streamStep(Sink &s) {
   bool resyncAsked = s.who == FROM_APP && wv_take_resync();
   uint32_t resumeTs;
   bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
-  // On the tail the GOP can't be resent, so a new transport goes on in place: the app's one assembler takes both
-  // links, and chunks lost on the old one end in a reconnect that resumes (`hello … at`).
-  bool switched = wifi != s.lastWifi && !s.onTail;
-  if (!resume && (switched || (resyncAsked && !s.catchingUp))) s.txGen = UINT32_MAX;
-  s.lastWifi = wifi;
+  // A new transport goes on in place: the app's one assembler takes both links, a new app session asks for the IDR
+  // itself (`hello`), and chunks lost on the old link end in a resume (`hello … at`). Resending the GOP at every
+  // Wi-Fi/BLE flip replayed minutes of old screens into the decoder, 18 times in 11 min (2026-11-06).
+  if (!resume && resyncAsked && !s.catchingUp) s.txGen = UINT32_MAX;
   if (s.who == FROM_CLI && s.cliGen != cli_gen()) {  // a new session (or the same one moved to Wi-Fi / BLE)
     s.cliGen = cli_gen();
     s.txGen = UINT32_MAX;

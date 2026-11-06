@@ -120,6 +120,25 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(feed.frame, Data([3]))
     }
 
+    func testAReplayedOlderFrameIsNotShown() async throws {
+        let decoder = H264Decoder(), feed = VideoFeed(decoder: decoder)
+        func frame(_ b: UInt8, ms: UInt32, snap: Bool = false) -> H264Decoder.Frame {
+            H264Decoder.Frame(jpeg: Data([b]), width: 10, height: 20, decodeMs: 1,
+                              unit: AccessUnit(data: Data(repeating: 0, count: 500), idr: false, config: false, snap: snap, boardMs: ms))
+        }
+        for f in [frame(1, ms: 5000), frame(2, ms: 1000), frame(3, ms: 5000), frame(4, ms: 2000, snap: true), frame(5, ms: 6000)] {
+            decoder.onFrame?(f)
+            try await Task.sleep(for: .milliseconds(15))
+            if f.jpeg == Data([2]) { XCTAssertEqual(feed.frame, Data([1])) }  // the replay from the IDR stays hidden
+            if f.jpeg == Data([4]) { XCTAssertEqual(feed.frame, Data([4])) }  // a snap still shows
+        }
+        XCTAssertEqual(feed.frame, Data([5]))
+        feed.resetStream()
+        decoder.onFrame?(frame(6, ms: 100))  // a rebooted board starts its clock over
+        try await Task.sleep(for: .milliseconds(15))
+        XCTAssertEqual(feed.frame, Data([6]))
+    }
+
     func testLateDecodedImageFromDisconnectedLinkCannotReplaceTheScreen() async throws {
         let decoder = H264Decoder(), feed = VideoFeed(decoder: decoder)
         feed.show(Data([1]), width: 10, height: 20)

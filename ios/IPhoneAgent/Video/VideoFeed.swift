@@ -169,7 +169,7 @@ extension ScreenSource {
     func forgetResume() { resumeMs = nil }
 
     /// The link (re)connected: chunk numbering starts over.
-    func resetStream() { assembler.reset(); clockOffset = nil }  // the board may have rebooted: its clock too
+    func resetStream() { assembler.reset(); clockOffset = nil; shownMs = nil }  // the board may have rebooted: its clock too
 
     /// A board timestamp (status `up`, or a streamed unit) just arrived: keep the smallest offset.
     func boardClock(ms: Int) {
@@ -183,8 +183,16 @@ extension ScreenSource {
                                   unit: AccessUnit(data: Data(), idr: false, config: false, snap: false, boardMs: 0, generation: generation)))
     }
 
+    /// Board time of the shown frame. A replay (the board resending its GOP from the IDR after a link switch, or
+    /// the decoder's own after a lost session) is decoded to catch up but never shown: 2026-11-06 the model was
+    /// handed the Screen Mirroring panel, Spotlight and a Home folder from minutes before, mid-lesson, and tapped
+    /// Stop Mirroring. Snaps are exempt: the model only looks once the whole snap is decoded.
+    private var shownMs: UInt32?
+
     private func publish(_ f: H264Decoder.Frame) {
         guard f.unit.generation == generation else { return }
+        if let shownMs, f.unit.boardMs > 0, !f.unit.snap, f.unit.boardMs < shownMs { return }
+        if f.unit.boardMs > 0 { shownMs = f.unit.boardMs }
         // A repeat of a still screen: a tiny P-frame (skipped blocks only) or the very same image.
         let tiny = !f.unit.data.isEmpty && !f.unit.idr && !f.unit.config && f.unit.data.count < Self.repeatBytes
         let repeated = tiny || f.jpeg == frame
@@ -329,6 +337,7 @@ extension ScreenSource {
     func linkLost() {
         streamOn = false
         broken = true
+        shownMs = nil  // a new link may be a rebooted board, its clock started over
         generation += 1  // a late decode from the old link must not make its stale image healthy again
     }
 }
