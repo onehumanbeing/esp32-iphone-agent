@@ -51,7 +51,7 @@ const uint32_t ADV_CYCLE_MS = 1000, ADV_CLI_MS = 250;
 enum { CH_REPLY, CH_STATUS, CH_VIDEO, CH_CLI, CH_COUNT };
 
 struct Command {
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   uint32_t hidSession;
 #endif
   char origin;
@@ -74,7 +74,7 @@ static volatile uint32_t connAt[MAX_PEERS];
 static std::atomic<int> ctrlPending;  // replies queued or sending + a status waiting; video yields to them
 static volatile int peers[MAX_PEERS] = {-1, -1};
 static volatile bool subscribed[MAX_PEERS][CH_COUNT];
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
 static std::atomic<int> trustedPhone[MAX_PEERS] = {-1, -1};
 static bool hidSubscribed[MAX_PEERS];  // 只在 NimBLE 的订阅、认证和断开回调内读写。
 #endif
@@ -121,7 +121,7 @@ static bool encrypted(int h) {
 }
 
 static bool appLink(int handle) {
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   return ble_hid_allows(handle);
 #else
   return encrypted(handle);
@@ -145,8 +145,8 @@ static int slotFor(int h) {
   return i;
 }
 
-#ifdef ZECTRIX_NOTE4
-bool ble_note4_trusted(int handle) {
+#ifdef HID_TRANSPORT_BLE
+bool ble_hid_trusted(int handle) {
   ble_gap_conn_desc link;
   if (handle < 0 || ble_gap_conn_find(handle, &link) != 0 || link.our_ota_addr.type != BLE_ADDR_PUBLIC ||
       !link.sec_state.bonded || !link.sec_state.encrypted) return false;
@@ -154,7 +154,7 @@ bool ble_note4_trusted(int handle) {
   return false;
 }
 
-void ble_note4_subscribe(uint16_t handle, bool on) {
+void ble_hid_subscribe(uint16_t handle, bool on) {
   int slot = on ? slotFor(handle) : slotOf(handle);
   if (slot < 0) return;
   hidSubscribed[slot] = on;
@@ -208,7 +208,7 @@ class ServerCb : public NimBLEServerCallbacks {
   void onDisconnect(NimBLEServer *s, NimBLEConnInfo &ci, int reason) override {
     int i = slotOf(ci.getConnHandle());
     if (i >= 0) {
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
       trustedPhone[i] = -1;
       hidSubscribed[i] = false;
       ble_hid_disconnected(ci.getConnHandle());
@@ -238,7 +238,7 @@ class ServerCb : public NimBLEServerCallbacks {
       }
       known[knownCount++] = a;
     }
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
     // 恢复订阅可早于加密回调，两者到达后才绑定到允许名单里的手机。
     int slot = slotFor(ci.getConnHandle());
     if (slot >= 0) {
@@ -255,7 +255,7 @@ class CharCb : public NimBLECharacteristicCallbacks {
     if (c == cliIn || c == cliInNR) { cli_on_frame(slotFor(ci.getConnHandle()), raw.data(), raw.length()); return; }
     String v(raw.c_str(), raw.length());
     if (!ci.isEncrypted()) return;
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
     if (!ble_hid_allows(ci.getConnHandle())) return;
 #endif
     if (c == netChar) { net_request(v); return; }
@@ -264,7 +264,7 @@ class CharCb : public NimBLECharacteristicCallbacks {
     ble_push_cmd(FROM_APP, v.c_str(), v.length());
   }
   void onRead(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
     if (!ble_hid_allows(ci.getConnHandle())) {
       c->setValue("{}");
       return;
@@ -446,7 +446,7 @@ static void advertise() {
 static void setUpAdvertising(const std::string &name) {
   for (auto *d : {&appAdv, &cliAdv}) d->setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
   appAdv.setCompleteServices(NimBLEUUID(UUID("0000")));
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   // 手机通过固定的 App 身份发现 HID；CLI 继续使用独立的临时地址。
   appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x1812)));
   appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x180f)));
@@ -512,7 +512,7 @@ void ble_begin(const String &name) {
   cmd->setCallbacks(&charCb);
   netChar->setCallbacks(&charCb);
   for (auto *c : chars) c->setCallbacks(&charCb);
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   ble_hid_begin(server);
 #endif
   server->start();
@@ -541,7 +541,7 @@ bool ble_app_active() { return appSeenMs && millis() - appSeenMs < APP_IDLE_MS &
 void ble_push_cmd(char origin, const char *line, size_t n) {
   Command cmd{};
   cmd.origin = origin;
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   cmd.hidSession = ble_hid_session();
 #endif
   if (!n) return;
@@ -553,7 +553,7 @@ void ble_push_cmd(char origin, const char *line, size_t n) {
 bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms) {
   Command cmd;
   if (xQueueReceive(cmdQueue, &cmd, pdMS_TO_TICKS(wait_ms)) != pdTRUE) return false;
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   if (!ble_hid_command_begin(cmd.hidSession)) return false;
 #endif
   origin = cmd.origin;
@@ -585,7 +585,7 @@ void ble_cli_status(const String &full, const String &compact) {
 }
 
 void ble_status(const String &json) {
-#ifndef ZECTRIX_NOTE4
+#ifndef HID_TRANSPORT_BLE
   chars[CH_STATUS]->setValue((const uint8_t *)json.c_str(), json.length());  // also served on read
 #endif
   xSemaphoreTake(statusLock, portMAX_DELAY);
@@ -637,7 +637,7 @@ uint8_t ble_phy() {
 
 void ble_unpair() {
   for (int i = 0; i < 100 && ctrlPending > 0; i++) vTaskDelay(pdMS_TO_TICKS(10));  // let the `ok` go out
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   for (auto &phone : trustedPhone) phone = -1;
 #endif
   NimBLEDevice::deleteAllBonds();  // unpairs each bond (also drops it from the controller's resolving list)

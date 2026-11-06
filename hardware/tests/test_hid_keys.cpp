@@ -1,6 +1,5 @@
 #include "../hid_bridge/hid_keys.h"
-#include "../hid_bridge/note4_battery.h"
-#include "../hid_bridge/note4_hid_target.h"
+#include "../hid_bridge/ble_hid_target.h"
 #include "../hid_bridge/ota_image.h"
 #include <cassert>
 #include <cstring>
@@ -27,13 +26,7 @@ int main() {
   assert(!hid_key_press(report, 0xc2, layout));
   assert(memcmp(before, report, sizeof report) == 0);
   puts("蓝牙 HID 键码、修饰键、六键容量及错误状态检查通过");
-  assert(note4_battery_percent(0) == 0);
-  assert(note4_battery_percent(3300) == 0);
-  assert(note4_battery_percent(3700) == 48);
-  assert(note4_battery_percent(4200) == 100);
-  assert(note4_battery_percent(65535) == 100);
-  puts("电池电压估算范围检查通过");
-  Note4HidTarget target;
+  BleHidTarget target;
   assert(!target.allows(1, false));
   assert(!target.subscribe(2, false, true));  // 未获认证的订阅者不能占用目标。
   assert(!target.subscribe(1, true, false));  // 已认证但尚未订阅也不能收取 HID。
@@ -46,13 +39,24 @@ int main() {
   target.disconnect(2);
   assert(target.session() == first);
   target.disconnect(1);
-  assert(Note4HidTarget::peer(target.session()) == -1);
+  assert(BleHidTarget::peer(target.session()) == -1);
   assert(target.subscribe(1, true, true) && target.session() != first);  // 重连后丢弃旧队列命令。
   puts("蓝牙输入目标、其他写入者拒绝和断线重连检查通过");
   uint8_t header[USB_APP_PREFIX_SIZE] = {0xe9, 6, 2, 0x3f};
   header[12] = 9;
   memcpy(header + 32, "\x32\x54\xcd\xab", 4);
+  memcpy(header + 80, "arduino-lib-builder", 19);
   assert(usb_ota_app(header, sizeof header));
+  memcpy(header + 288, "ESPA:usb-8m", 12);
+  assert(usb_ota_app(header, sizeof header));
+  memcpy(header + 288, "ESPA:ble-8m", 12);
+  assert(!usb_ota_app(header, sizeof header));
+  memcpy(header + 288, "ESPA:unknown", 13);
+  assert(!usb_ota_app(header, sizeof header));
+  memset(header + 288, 0, 16);
+  header[80] = 'X';
+  assert(!usb_ota_app(header, sizeof header));
+  header[80] = 'a';
   assert(!usb_ota_app(header, sizeof header - 1));
   header[3] = 0x4f;
   assert(!usb_ota_app(header, sizeof header));  // 拒绝 16 MiB Note 4 镜像。

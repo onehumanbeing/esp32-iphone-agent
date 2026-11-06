@@ -30,9 +30,9 @@
 #include "src/heard/heard.h"
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
-#ifdef ZECTRIX_NOTE4
+#include "board_support.h"
+#ifdef HID_TRANSPORT_BLE
 #include "ble_hid.h"
-#include <driver/gpio.h>
 #endif
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
@@ -44,7 +44,7 @@ const int HOME_REPORTS = 25;  // per axis
 
 const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the board instead of staying offline
 
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
 BleHidMouse mouse;
 BleHidKeyboard keyboard;
 BleHidConsumer consumer;
@@ -64,7 +64,7 @@ void movePaced(long dx, long dy, int step = STEP) {
   int sx, sy;
   while (pace_next(&p, &sx, &sy)) {
     mouse.move(sx, sy);
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
     if (!ble_hid_command_ok()) return;
 #endif
     delay(STEP_MS);
@@ -119,7 +119,7 @@ String run(const String &line) {
 
   if (cmd == "ping") return "ok";
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   if (!ble_hid_ready()) return "err Bluetooth HID not paired";
 #else
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
@@ -138,7 +138,7 @@ String run(const String &line) {
   if (cmd == "type") { keyboard.print(arg); return "ok"; }
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") {
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
     // 辅助触控将按钮 2 映射到主屏幕。
     mouse.press(MOUSE_RIGHT); delay(60); mouse.release(MOUSE_RIGHT);
 #else
@@ -157,7 +157,7 @@ String drive(const String &line, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String reply = run(line);
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   if (!ble_hid_command_ok()) reply = "err Bluetooth HID report failed";
 #endif
   arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");
@@ -321,8 +321,10 @@ String statusJson(bool full, char who) {
   }
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
-#ifdef ZECTRIX_NOTE4
-  snprintf(s + len - 1, sizeof s - len + 1, ",\"board\":\"note4\",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
+  snprintf(s + len - 1, sizeof s - len + 1, "%s}", board_status_fields());
+  len = strlen(s);
+#ifdef HID_TRANSPORT_BLE
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
   len = strlen(s);
 #endif
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
@@ -340,9 +342,10 @@ String statusJson(bool full, char who) {
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
   snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
-#ifdef ZECTRIX_NOTE4
-  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"board\":\"note4\",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
+#ifdef HID_TRANSPORT_BLE
+  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
 #endif
+  snprintf(s + strlen(s), sizeof s - strlen(s), "%s", board_status_fields());
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
   if (who == FROM_CLI)
     snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\",\"link\":{\"via\":\"%s\",\"mtu\":%u}", app,
@@ -406,22 +409,9 @@ void startAirplay() {
 }
 
 void setup() {
-#ifdef ZECTRIX_NOTE4
-  // 电池供电需要先锁存电源；闲置外设关闭，避免音频噪声和额外耗电。
-  gpio_hold_dis(GPIO_NUM_17);
-  gpio_set_level(GPIO_NUM_17, 1);
-  gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
-  gpio_hold_en(GPIO_NUM_17);
-  for (int pin : {6, 42, 46}) {
-    gpio_hold_dis(static_cast<gpio_num_t>(pin));
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
-  }
-  gpio_hold_dis(GPIO_NUM_3);
-  pinMode(3, OUTPUT);
-  digitalWrite(3, HIGH);
-#endif
+  board_begin();
   Serial.begin(115200);
+  board_log("firmware target: %s", firmware_target);
 #if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, to check the rollback after an update
   delay(3000);
   abort();
@@ -442,9 +432,9 @@ void setup() {
   net_begin();
   if (!video_begin()) board_log("video: no PSRAM for the GOP buffer");
   if (!wv_begin()) board_log("video: Wi-Fi video channel failed to start");
-#ifndef ZECTRIX_NOTE4
-  // 现有 OTA 清单只发行 USB 板镜像；Note 4 须先有可验证板型的更新协议。
-  if (!ota_begin()) board_log("ota: failed to start");
+#ifndef HID_TRANSPORT_BLE
+  // 现有签名清单只发行标准 USB 镜像；蓝牙输入目标须走对应的发布通道。
+  if (board_supports_usb_release() && !ota_begin()) board_log("ota: failed to start");
 #endif
   arb_init(&arb);
   cli_begin();
@@ -461,7 +451,7 @@ void setup() {
 void loop() {
   static bool linked = false, cliLinked = false;
   esp_task_wdt_reset();
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
   ble_hid_command_begin(ble_hid_session());
   ble_hid_poll();
 #endif

@@ -1,9 +1,9 @@
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
 #include "ble_hid.h"
 #include "ble_link.h"
 #include "hid_keys.h"
-#include "note4_battery.h"
-#include "note4_hid_target.h"
+#include "board_support.h"
+#include "ble_hid_target.h"
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include "nimble/nimble/host/include/host/ble_hs.h"
@@ -12,7 +12,7 @@
 
 static NimBLEHIDDevice *hidDevice;
 static NimBLECharacteristic *inputs[3];
-static Note4HidTarget target;
+static BleHidTarget target;
 static unsigned lastGeneration;
 static bool failed, releasePending;
 static uint8_t mouseButtons, keys[8];
@@ -25,15 +25,9 @@ static void resetReports() {
   inputs[2]->setValue(zero, 2);
 }
 
-static uint8_t batteryPercent() {
-  uint32_t total = 0;
-  for (int i = 0; i < 10; i++) total += 2 * analogReadMilliVolts(4);
-  return note4_battery_percent(total / 10);
-}
-
 class HidSubscription : public NimBLECharacteristicCallbacks {
   void onSubscribe(NimBLECharacteristic *, NimBLEConnInfo &info, uint16_t sub) override {
-    ble_note4_subscribe(info.getConnHandle(), sub & 1);
+    ble_hid_subscribe(info.getConnHandle(), sub & 1);
   }
 };
 static HidSubscription hidSubscription;
@@ -47,16 +41,15 @@ void ble_hid_begin(NimBLEServer *server) {
     TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(3))
   };
   hid->setReportMap(map, sizeof map);
-  hid->setManufacturer("Zectrix Note 4 / ESP32 iPhone Agent");
+  hid->setManufacturer("ESP32 iPhone Agent");
   hid->setPnp(2, 0x303a, 0x1001, 0x0101);
   hid->setHidInfo(0, 3);
   for (int i = 0; i < 3; i++) inputs[i] = hid->getInputReport(i + 1);
   resetReports();
   inputs[0]->setCallbacks(&hidSubscription);
   hid->getOutputReport(2)->setValue(uint8_t(0));
-  // HOGP 要求电池服务；使用校准后的 ADC 电压与官方参考曲线估算电量。
-  analogSetPinAttenuation(4, ADC_11db);
-  hid->setBatteryLevel(batteryPercent());
+  // 电池来源由板层决定；无电池时按 BAS 规范报告 0，不读取其他板型的引脚。
+  hid->setBatteryLevel(board_battery_percent());
   batteryAt = millis();
 }
 
@@ -67,15 +60,15 @@ void ble_hid_disconnected(uint16_t handle) {
 uint32_t ble_hid_session() { return target.session(); }
 
 void ble_hid_claim(uint16_t handle, bool subscribed) {
-  if (target.subscribe(handle, ble_note4_trusted(handle), subscribed)) resetReports();
+  if (target.subscribe(handle, ble_hid_trusted(handle), subscribed)) resetReports();
 }
 
 bool ble_hid_allows(int handle) {
-  return handle >= 0 && target.allows(handle, ble_note4_trusted(handle));
+  return handle >= 0 && target.allows(handle, ble_hid_trusted(handle));
 }
 
 bool ble_hid_ready() {
-  return ble_note4_trusted(Note4HidTarget::peer(target.session()));
+  return ble_hid_trusted(BleHidTarget::peer(target.session()));
 }
 
 bool ble_hid_command_begin(uint32_t session) {
@@ -98,7 +91,7 @@ bool ble_hid_command_ok() {
 
 static void send(int input, const void *data, size_t size) {
   if (failed) return;
-  int handle = Note4HidTarget::peer(lastGeneration);
+  int handle = BleHidTarget::peer(lastGeneration);
   uint32_t start = millis();
   for (;;) {
     if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) { failed = true; return; }
@@ -120,7 +113,7 @@ static void send(int input, const void *data, size_t size) {
 void ble_hid_poll() {
   uint32_t now = millis();
   if (hidDevice && now - batteryAt >= 30000) {
-    hidDevice->setBatteryLevel(batteryPercent(), true);
+    hidDevice->setBatteryLevel(board_battery_percent(), true);
     batteryAt = now;
   }
   // shortcut: 静态按住超过五秒会释放，需要更长按住动作时延长租约。

@@ -3,7 +3,7 @@
 #include <cstdint>
 
 // 低 16 位保存连接句柄加一。取消订阅或断开时推进代数，避免复用句柄后执行旧指令。
-class Note4HidTarget {
+class BleHidTarget {
   std::atomic<uint32_t> state{0};
 public:
   uint32_t session() const { return state.load(); }

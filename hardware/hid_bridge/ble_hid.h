@@ -1,5 +1,5 @@
 #pragma once
-#ifdef ZECTRIX_NOTE4
+#ifdef HID_TRANSPORT_BLE
 #include <Arduino.h>
 class NimBLEServer;
 

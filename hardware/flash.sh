@@ -5,7 +5,8 @@
 #   --sta         test build: join the Wi-Fi in hid_bridge/secrets.h instead of opening a hotspot
 #   --build-only  compile only (prints flash/RAM usage)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
-#   --note4       仅构建 Note 4 的蓝牙 HID 固件；刷写前须单独确认板型、备份与分区布局。
+#   --note4       选择 Note 4 板型并启用蓝牙 HID，仅支持构建。
+#   --ble-hid     标准 8 MB 板启用通用蓝牙键鼠，仅支持构建。
 # BLE host: h2zero NimBLE-Arduino (arduino-cli lib install "NimBLE-Arduino"); its buffer sizes live in
 # hid_bridge/nimble_cfg.h, force-included into every C/C++ file below.
 # A running bridge is a TinyUSB device, so it is first kicked into the ROM
@@ -14,11 +15,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB"
 ports() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && echo "$p"; done; return 0; }
-PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build
+PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build NOTE4=0 BLE_HID=0
 for a in "$@"; do
   case $a in
-    --note4) FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
-             DEFS+=" -DZECTRIX_NOTE4=1"; OUTPUT=build/note4 ;;
+    --note4) NOTE4=1; BLE_HID=1 ;;
+    --ble-hid) BLE_HID=1 ;;
     --debug) DEFS+=" -DDEBUG_SERIAL=1" ;;
     --sta) [[ -f hid_bridge/secrets.h ]] || { echo "--sta needs hid_bridge/secrets.h (see secrets.example.h)"; exit 1; }
            DEFS+=" -DSTA_FROM_SECRETS=1" ;;
@@ -30,8 +31,15 @@ for a in "$@"; do
     *) PORT=$a ;;
   esac
 done
-if [[ $OUTPUT == build/note4 && $BUILD_ONLY == 0 ]]; then
-  echo "Note 4 仅支持 --note4 --build-only；刷写前须单独核对备份和目标分区。" >&2
+if (( NOTE4 )); then
+  FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
+  DEFS+=" -DZECTRIX_NOTE4=1"; OUTPUT=build/note4
+elif (( BLE_HID )); then
+  OUTPUT=build/ble-hid
+fi
+if (( BLE_HID )); then DEFS+=" -DHID_TRANSPORT_BLE=1"; fi
+if (( BLE_HID && !BUILD_ONLY )); then
+  echo "蓝牙 HID 目标仅支持 --build-only；刷写前须单独核对备份和目标分区。" >&2
   exit 1
 fi
 [[ $PWD != *" "* ]] || { echo "the -include path below cannot contain spaces: $PWD"; exit 1; }

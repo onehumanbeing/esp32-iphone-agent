@@ -68,8 +68,8 @@ def main() -> None:
         ap.error("此 OTA 工具仅接受 8 MiB USB 板的 ESP32-S3 应用镜像。")
     port = serial.Serial(a.serial, 115200, timeout=0.3)
     before = status(port)
-    if before.get("board") == "note4":
-        ap.error("Note 4 不支持此 OTA 通道。")
+    if before.get("board") is not None or before.get("hid") is not None or before.get("usb") is None:
+        ap.error("此 OTA 通道仅适用于已识别的标准 USB 板。")
     net = json.loads(ask(port, "0 netinfo"))
     print(f"board fw {before.get('fw', 1)}, net {net.get('mode')} {net.get('ssid')} {net.get('ip')}")
     if a.join:
