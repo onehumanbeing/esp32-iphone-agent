@@ -3,7 +3,7 @@
 // iOS app on the same phone. It holds no logic; the app decides. Protocol: docs/ble-protocol.md.
 //
 // HID commands (unchanged from the old TCP protocol, the board answers "ok" or "err <why>"):
-//   ping | pace | home | move <dx> <dy> | press | release | click
+//   ping | pace | home | move <dx> <dy> [speed] | press | release | click
 //   scroll <v> <h> | type <ascii text> | key <combo, e.g. cmd+h, enter>
 //   homescreen (the consumer-control Home key, "AC Home": iOS goes to the Home Screen, like a keyboard's home key)
 
@@ -44,9 +44,9 @@ USBHIDConsumerControl consumer;
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
 static String receiverName = "ESP32 Agent";
 
-void movePaced(long dx, long dy) {
+void movePaced(long dx, long dy, int step = STEP) {
   pace_t p;
-  pace_start(&p, dx, dy, STEP);
+  pace_start(&p, dx, dy, step);
   int sx, sy;
   while (pace_next(&p, &sx, &sy)) {
     mouse.move(sx, sy);
@@ -97,8 +97,8 @@ String run(const String &line) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String arg = sp < 0 ? "" : line.substring(sp + 1);
-  long a = 0, b = 0;
-  sscanf(arg.c_str(), "%ld %ld", &a, &b);
+  long a = 0, b = 0, c = STEP;
+  sscanf(arg.c_str(), "%ld %ld %ld", &a, &b, &c);
 
   if (cmd == "ping") return "ok";
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
@@ -109,7 +109,7 @@ String run(const String &line) {
     for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(2); }
     return "ok";
   }
-  if (cmd == "move") { movePaced(a, b); return "ok"; }
+  if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
   if (cmd == "press") { mouse.press(MOUSE_LEFT); return "ok"; }
   if (cmd == "release") { mouse.release(MOUSE_LEFT); return "ok"; }
   if (cmd == "click") { mouse.press(MOUSE_LEFT); delay(60); mouse.release(MOUSE_LEFT); return "ok"; }
