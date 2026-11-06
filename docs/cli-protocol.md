@@ -48,6 +48,7 @@ cannot sit on one of the board's connection slots.
 | `0x82` WELCOME | ← | `b_nonce[16] board_id[6] mac[16]` |
 | `0x10` DATA (control) | ↔ | `ctr u32 LE, ciphertext, tag[12]` |
 | `0x11` DATA (video) | ← | `ctr u32 LE, ciphertext, tag[12]` |
+| `0x12` DATA (audio) | ← | `ctr u32 LE, ciphertext, tag[12]` (Wi-Fi only, after `listen raw on`) |
 | `0xE0` ERROR | ← | UTF-8 reason, plain (only before a session exists) |
 
 ### Pairing (only within 3 min of board power-on, like the app's)
@@ -70,12 +71,12 @@ the board sends it nothing else.
 
 ### DATA
 ```
-nonce = stream u8 || 7 zero bytes || ctr u32 LE      # stream: 'C' client→board, 'B' board control, 'V' board video
+nonce = stream u8 || 7 zero bytes || ctr u32 LE      # stream: 'C' client→board, 'B' board control, 'V' board video, 'A' board audio
 aad   = the 5 header bytes (type, ctr)
-key   = k_c2b for 'C', k_b2c for 'B' and 'V'
+key   = k_c2b for 'C', k_b2c for 'B', 'V' and 'A'
 ```
 Each stream's `ctr` starts at 1 and must grow by exactly 1; anything else is dropped (replay or loss). A gap in `V` is
-handled like a video seq gap (wait for the next IDR/CONFIG); a gap in `C` or `B` ends the session (reconnect).
+handled like a video seq gap (wait for the next IDR/CONFIG), one in `A` loses that much sound; a gap in `C` or `B` ends the session (reconnect).
 
 Plaintext:
 - `C`: `'c'` + one command line `<id> <command>`, exactly the app's command set (docs/ble-protocol.md). `stream on|off`
@@ -84,6 +85,18 @@ Plaintext:
   (once a second; the compact form when the full one does not fit). Both statuses carry `owner`
   (`app`, `cli` or `none`: who drives the phone); the CLI's has `busy` too (1 while the app's link is up).
 - `V`: one video chunk exactly as on the app's `video` characteristic: `[seq u16 LE][flags u8][payload]`.
+- `A`: one phone audio record as on the app's Wi-Fi link (docs/ble-protocol.md, "Wi-Fi audio"), its own seq.
+
+## Phone audio
+What the iPhone plays while it mirrors (AirPlay audio), two ways; the CLI's `listen` picks one.
+- **Words from the app** (default). The app transcribes the audio on the phone and, when it listens and shares,
+  sends the board `hear on|off` and one `heard <text>` per segment (`[en] …` / `[zh] …`, at most 400 bytes). These
+  don't count as the app using the phone. The CLI's `heard` answers
+  `ok {"app":0|1,"lines":[{"ago":ms,"t":"…"},…]}`: newest first, the last 60 s, as many as fit its link's reply.
+  `app` 0: the app doesn't share (not running, listening off, or sharing off).
+- **Raw audio** (`listen raw on|off`, CLI only, Wi-Fi link only: `err …` over BLE). The board also sends the CLI
+  the audio records (stream `A`, frame `0x12`), and the CLI transcribes them. Off with every new session.
+- Status `aud`: `hear` (1: the app shares), `raw` (1: records go to this CLI), with the packet and segment counts.
 
 ## Wi-Fi link
 When this computer can reach the board's IP (both on the same Wi-Fi, or the computer joined the board's hotspot),

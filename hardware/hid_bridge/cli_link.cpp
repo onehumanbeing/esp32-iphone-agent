@@ -21,7 +21,7 @@ struct Session {
   volatile bool welcomed, authed;
   int client;
   uint8_t c2b[16], b2c[16];
-  uint32_t rx, txCtrl, txVideo;
+  uint32_t rx, txCtrl, txVideo, txAudio;
 };
 
 static Preferences prefs;
@@ -32,9 +32,11 @@ static uint8_t boardId[6];
 static volatile uint32_t gen;  // sessions authenticated since boot
 // Frame buffers in PSRAM (~3.5 KB): one for frames from the computer per receiving task (NimBLE host, cli_tcp),
 // one per sending task.
-static uint8_t *rxText[2], *ctrlBuf, *ctrlOut, *videoOut;
+static uint8_t *rxText[2], *ctrlBuf, *ctrlOut, *videoOut, *audioOut;
+static volatile bool audioOn;
 const size_t TEXT_CAP = 520, OUT_CAP = 520 + CLI_OVERHEAD, VIDEO_CAP = CLI_TCP_MTU;
-const size_t BUF_SIZE = TEXT_CAP * 3 + OUT_CAP + VIDEO_CAP;
+const size_t AUDIO_CAP = 1400 + CLI_OVERHEAD;  // one record: header, times, an AAC-ELD frame
+const size_t BUF_SIZE = TEXT_CAP * 3 + OUT_CAP + VIDEO_CAP + AUDIO_CAP;
 
 extern "C" void cli_random(uint8_t *p, size_t n) { esp_fill_random(p, n); }
 
@@ -66,6 +68,7 @@ void cli_begin() {
   ctrlBuf = p + TEXT_CAP * 2;
   ctrlOut = p + TEXT_CAP * 3;
   videoOut = p + TEXT_CAP * 3 + OUT_CAP;
+  audioOut = videoOut + VIDEO_CAP;
   esp_read_mac(boardId, ESP_MAC_BT);
   prefs.begin("cli", true);
   clientCount = prefs.getUChar("n", 0);
@@ -134,7 +137,7 @@ static void hello(int slot, const uint8_t *p, size_t n) {
   s.authed = false;
   if (!cli_session(clients[c].key, p + CLI_ID_LEN, bn, s.c2b, s.b2c)) return error(slot, "session failed");
   s.client = c;
-  s.rx = s.txCtrl = s.txVideo = 0;
+  s.rx = s.txCtrl = s.txVideo = s.txAudio = 0;
   s.welcomed = true;
   memcpy(out, bn, CLI_NONCE_LEN);
   memcpy(out + CLI_NONCE_LEN, boardId, 6);
@@ -158,6 +161,7 @@ static void data(int slot, const uint8_t *p, size_t n) {
     if (old >= 0 && sessions[old].client != s.client) { drop(slot); return; }
     if (old >= 0) sessions[old].authed = false;
     s.authed = true;
+    audioOn = false;  // asked again by every session
     gen++;
     board_log(slot == CLI_TCP_SLOT ? "cli: session up (wifi)" : "cli: session up");
   }
@@ -231,4 +235,16 @@ bool cli_send_video(const uint8_t *chunk, size_t n) {
   size_t len = cli_seal(s.b2c, CLI_VIDEO, 'V', s.txVideo + 1, chunk, n, out);
   s.txVideo++;  // a chunk that fails is a gap the CLI handles like a seq gap
   return len && notify(slot, out, len, true, VIDEO_TIMEOUT_MS);
+}
+
+void cli_audio(bool on) { audioOn = on; }
+bool cli_audio_wanted() { return audioOn && cli_slot() == CLI_TCP_SLOT; }
+
+bool cli_send_audio(const uint8_t *rec, size_t n) {
+  int slot = cli_slot();
+  if (slot != CLI_TCP_SLOT || !audioOut || n + CLI_OVERHEAD > AUDIO_CAP) return false;
+  Session &s = sessions[slot];
+  size_t len = cli_seal(s.b2c, CLI_AUDIO, 'A', s.txAudio + 1, rec, n, audioOut);
+  s.txAudio++;  // a record that fails is a seq gap for the CLI
+  return len && notify(slot, audioOut, len, true, VIDEO_TIMEOUT_MS);
 }

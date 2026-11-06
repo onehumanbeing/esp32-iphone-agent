@@ -8,6 +8,7 @@
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
 #include "../hid_bridge/src/airplay/audio.h"
+#include "../hid_bridge/src/heard/heard.h"
 #include "mbedtls/aes.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
@@ -486,7 +487,29 @@ static void test_audio_gate(void) {
   CHECK(ap_audio_gate_packet(&g, 6000, false) == AP_GATE_START && g.segments == 2 && g.frames == 3);
 }
 
+static void test_heard(void) {
+  static heard_ring r;
+  char out[600];
+  heard_clear(&r);
+  CHECK(heard_json(&r, 1000, false, out, sizeof out) && !strcmp(out, "{\"app\":0,\"lines\":[]}"));
+  heard_add(&r, 1000, "[en] code \"5813\"", 17);
+  heard_add(&r, 3000, "[zh] 验证码", strlen("[zh] 验证码"));
+  heard_json(&r, 4000, true, out, sizeof out);
+  CHECK(!strcmp(out, "{\"app\":1,\"lines\":[{\"ago\":1000,\"t\":\"[zh] 验证码\"},{\"ago\":3000,\"t\":\"[en] code \\\"5813\\\"\"}]}"));
+  heard_json(&r, 62000, true, out, sizeof out);  // the first is over 60 s old
+  CHECK(strstr(out, "验证码") && !strstr(out, "5813"));
+  CHECK(heard_json(&r, 4000, true, out, 40) && !strcmp(out, "{\"app\":1,\"lines\":[]}"));  // only what fits
+  for (int i = 0; i < HEARD_LINES + 3; i++) heard_add(&r, 5000 + i, "x", 1);
+  CHECK(r.count == HEARD_LINES);
+  char big[500];
+  memset(big, 'a', sizeof big);
+  memcpy(big + HEARD_TEXT - 1, "中", 3);  // split by the cut
+  heard_add(&r, 6000, big, sizeof big);
+  CHECK(strlen(r.text[(r.next + HEARD_LINES - 1) % HEARD_LINES]) == HEARD_TEXT - 1);
+}
+
 int main(void) {
+  test_heard();
   test_audio_packets();
   test_audio_gate();
   test_mdns();
