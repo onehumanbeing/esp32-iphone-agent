@@ -33,7 +33,8 @@ import Foundation
                     if error is CancellationError { throw error }
                     failed(method, error)
                     if !isConnected() { continue }  // reconnect, then retry this same method
-                    break
+                    // 回执丢失时手势可能已生效，先等系统切到后台再决定是否更换手势。
+                    if !(error is BoardTimeout) { break }
                 }
                 try Task.checkCancellation()
                 if try await waitForBackground(2) {

@@ -8,12 +8,24 @@ import XCTest
     var lines: [String] = []
     var drops = 0
     var silent = false
+    var timeoutOnceOn: String?
+    var dropReplyOnceOn: String?
+    var onCommand: ((String) -> Void)?
     weak var channel: CommandChannel?
 
     func write(_ line: String) throws {
         lines.append(line)
         guard !silent else { return }
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+        onCommand?(parts[1])
+        if parts[1] == dropReplyOnceOn {
+            dropReplyOnceOn = nil
+            return
+        }
+        if parts[1] == timeoutOnceOn {
+            timeoutOnceOn = nil
+            throw DeviceError(message: "timeout")
+        }
         let reply = parts[1] == "bad" ? "\(parts[0]) err unknown command" : "\(parts[0]) ok"
         Task { @MainActor in self.channel?.handleReply(reply) }
     }
@@ -68,6 +80,142 @@ import XCTest
         async let b: String = channel.send("move -1 0")
         _ = try await (a, b)
         XCTAssertEqual(board.lines.count, 2)
+    }
+
+    func testLostReplyDoesNotRepeatInputButRetriesSafeCommands() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        var recovered: [String] = []
+        channel.onTimeout = { recovered.append($0) }
+        for command in ["click", "type abc", "move 9 0", "scroll 1 0", "press", "key enter", "homescreen"] {
+            board.timeoutOnceOn = command
+            board.lines = []
+            do {
+                try await channel.send(command)
+                XCTFail("回执丢失后应将输入结果报告为未知")
+            } catch { XCTAssertTrue(error is BoardTimeout) }
+            XCTAssertEqual(board.lines.count, 1, command)
+            XCTAssertEqual(recovered.last, command)
+        }
+        for command in ["home", "release", "snap", "logs 0 5"] {
+            board.timeoutOnceOn = command
+            board.lines = []
+            try await channel.send(command)
+            XCTAssertEqual(board.lines.count, 2, command)
+        }
+    }
+
+    func testActualReplyDeadlineDoesNotRepeatClickAndStillRetriesRelease() async throws {
+        // 真正丢弃回执并等待通道计时器，覆盖已写入后超时而非写入直接抛错。
+        for command in ["click", "release"] {
+            let board = FakeBoard(), channel = CommandChannel(transport: board)
+            board.channel = channel
+            board.dropReplyOnceOn = command
+            var recoveries = 0
+            channel.onTimeout = { _ in
+                recoveries += 1
+                let id = board.lines[0].split(separator: " ")[0]
+                channel.handleReply("\(id) ok")  // 已超时的回执不得完成后续请求。
+            }
+            do {
+                try await channel.send(command)
+                XCTAssertEqual(command, "release")
+            } catch {
+                XCTAssertEqual(command, "click")
+                XCTAssertTrue(error is BoardTimeout)
+            }
+            XCTAssertEqual(recoveries, 1)
+            XCTAssertEqual(board.lines.count, command == "click" ? 1 : 2)
+            XCTAssertEqual(Set(board.lines.map { $0.split(separator: " ")[0] }).count, board.lines.count)
+        }
+    }
+
+    func testLostPressReplyReleasesButtonBeforeEndingGesture() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: channel, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        for homeSwipe in [false, true] {
+            board.lines = []
+            board.timeoutOnceOn = "press"
+            do {
+                if homeSwipe { try await pointer.homeSwipe() }
+                else { try await pointer.swipe(0.2, 0.2, 0.5, 0.5) }
+                XCTFail("丢失按下回执后应终止手势")
+            } catch { XCTAssertTrue(error is BoardTimeout) }
+            XCTAssertEqual(board.lines.suffix(2).map { $0.split(separator: " ")[1] }, ["press", "release"])
+        }
+    }
+
+    func testUnacknowledgedAimMovesForceRehomingButSuccessfulAimKeepsPosition() async throws {
+        let images = VisionTests()
+        let before = images.screen(pointer: (274, 540)), after = images.screen(pointer: (289, 540))
+        for failure in ["move 12 0", "move -12 0", "correction", "none"] {
+            let board = FakeBoard(), channel = CommandChannel(transport: board), screen = FakeScreen()
+            board.channel = channel
+            board.timeoutOnceOn = failure
+            screen.frame = before
+            var correction: [Int]?
+            // 用真实像素差分进入 aim 纠偏；屏幕先反映移动，再模拟回执丢失。
+            board.onCommand = { [weak board] command in
+                if command == "move 12 0" { screen.frame = after; screen.updated = now() }
+                if command == "move -12 0" { screen.frame = before; screen.updated = now() }
+                if command.hasPrefix("move "),
+                   !["move 200 400", "move 12 0", "move -12 0"].contains(command) {
+                    correction = command.split(separator: " ").dropFirst().compactMap { Int($0) }
+                    if failure == "correction" { board?.timeoutOnceOn = command }
+                }
+            }
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+            defer { try? FileManager.default.removeItem(at: file) }
+            let pointer = Pointer(device: channel, calibrationFile: file, screen: screen)
+            pointer.finishCalibration(x: 0.5, y: 0.25)
+            do {
+                try await pointer.point(0.5, 0.5, aim: true)
+                XCTAssertEqual(failure, "none")
+            } catch {
+                XCTAssertNotEqual(failure, "none")
+                XCTAssertTrue(error is BoardTimeout)
+            }
+            if failure == "correction" || failure == "none" { XCTAssertNotNil(correction) }
+            let previousCorrection = correction
+            let count = board.lines.count
+            board.onCommand = nil
+            try await pointer.point(0.5, 0.5)
+            let subsequent = board.lines.dropFirst(count).map { String($0.split(separator: " ", maxSplits: 1)[1]) }
+            if failure == "none" {
+                let delta = try XCTUnwrap(previousCorrection)
+                XCTAssertEqual(subsequent, ["move \(-delta[0]) \(-delta[1])"])
+            } else {
+                XCTAssertEqual(subsequent, ["home", "move 200 400"], failure)
+            }
+        }
+    }
+
+    func testLostHomeKeyReplyDoesNotTriggerAnotherHomeGesture() async {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        board.timeoutOnceOn = "homescreen"
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let pointer = Pointer(device: channel, calibrationFile: file)
+        do {
+            try await pointer.goHome()
+            XCTFail("丢失主屏键回执后应报告超时")
+        } catch { XCTAssertTrue(error is BoardTimeout) }
+        XCTAssertEqual(board.lines.map { $0.split(separator: " ")[1] }, ["homescreen"])
+    }
+
+    func testDepartureChecksForBackgroundAfterLostSwipeReply() async throws {
+        var attempts: [AppDeparture.Method] = []
+        let departure = AppDeparture(isBackground: { false }, isConnected: { true }, attempt: { method in
+            attempts.append(method)
+            throw BoardTimeout(command: "move", seconds: 5)
+        }, waitForBackground: { _ in true })
+        let left = try await departure.leave()
+        XCTAssertTrue(left)
+        XCTAssertEqual(attempts, [.swipe])
     }
 
     func testLinkDownFailsCommandsInFlight() async {
@@ -144,6 +292,17 @@ import XCTest
         XCTAssertEqual(pointer.drift, 0)
         let again = Pointer(device: FakeDevice(), calibrationFile: file)
         XCTAssertEqual(again.span, Pointer.Span(w: 400, h: 800))
+    }
+
+    func testUnusableSpanLeavesThePointerUncalibrated() {  // TestFlight 1.0.1 (9) crashed converting inf to Int
+        XCTAssertNil(Pointer.Span(w: 200 / 0.0, h: 400))
+        XCTAssertNil(Pointer.Span(w: .nan, h: 400))
+        XCTAssertNil(Pointer.Span(w: -300.0, h: 400))
+        XCTAssertEqual(Pointer.Span(w: 399.6, h: 800.2), Pointer.Span(w: 400, h: 800))
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".json"))
+        pointer.finishCalibration(x: 0, y: 0.25)
+        XCTAssertFalse(pointer.calibrated)
     }
 
     func testModelSettingsNeedOnlyAnEndpoint() {
@@ -257,6 +416,49 @@ import XCTest
             XCTFail("Expected board failure")
         } catch { XCTAssertTrue(error.localizedDescription.contains("board disconnected")) }
         XCTAssertEqual(attempts, 0)
+    }
+
+    func testCalibrationModelMeasuresTheRestingPointerDuringSetupAndVerification() async throws {
+        let device = FakeDevice(), screen = FakeScreen()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file, screen: screen)
+        var x = 0, y = 0
+        var positions: [Data: CGPoint] = [:]
+        device.onSend = { command in
+            let parts = command.split(separator: " ")
+            if command == "home" { x = 0; y = 0 }
+            guard parts.first == "move" else { return }
+            let dx = Int(parts[1])!, dy = Int(parts[2])!
+            x += dx
+            y += dy
+            let position = CGPoint(x: Double(x) / 400, y: Double(y) / 800)
+            // 微移时切换底色，模拟背景动画使像素差分无法定位指针。
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 200)).image { context in
+                (dx == Pointer.nudge ? UIColor.black : .white).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 100, height: 200))
+                UIColor.red.setFill()
+                context.fill(CGRect(x: position.x * 100, y: position.y * 200, width: 3, height: 3))
+            }.jpegData(compressionQuality: 0.9)!
+            positions[image] = position
+            screen.frame = image
+            screen.updated = now()
+        }
+        var readings: [CGPoint] = []
+        pointer.locate = { image in
+            guard let position = positions[image] else { return nil }
+            readings.append(position)
+            return position
+        }
+
+        let calibrated = try await pointer.startCalibration()
+        XCTAssertTrue(calibrated)
+        XCTAssertEqual(readings, [CGPoint(x: 0.375, y: 0.1875), CGPoint(x: 0.875, y: 0.4375)])
+        // 单独载入已知正确的标定参数，避免首次标定的偏移与复验的偏移相互抵消。
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        let error = try await pointer.verify()
+        XCTAssertEqual(error, 0)
+        XCTAssertEqual(readings.last, CGPoint(x: 0.5, y: 0.62))
     }
 
     func testDeleteKeyIsSentAsBackspace() async throws {
