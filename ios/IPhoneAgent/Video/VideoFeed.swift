@@ -277,6 +277,7 @@ extension ScreenSource {
     /// the screen did not change, but a broken stream (waiting for an IDR) needs a snap. Snap: give the UI a moment,
     /// snap, and snap once more if the GOP still ends before the action.
     func afterAction(since: Double, ignoring spots: [CGPoint]) async {
+        var snapped = false
         do {
             if FrameMode.current == .snap {
                 try await Task.sleep(nanoseconds: 700_000_000)
@@ -291,6 +292,7 @@ extension ScreenSource {
                 if frozen { return DebugLog.write("frame: none after the action; the board's video is frozen (no keyframe)") }
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
                 DebugLog.write("frame: stream stale (waiting for an IDR); snapping")
+                snapped = true
                 try await snap()
             }
         } catch {
@@ -298,8 +300,10 @@ extension ScreenSource {
         }
         guard capturedAt < since else { return }
         DebugLog.write(String(format: "frame: still %.1f s older than the action", since - capturedAt))
-        // a healthy stream sends nothing for a still screen: only a broken one (or a snap) proves the frame stale
-        if FrameMode.current == .snap || broken || frozen { staleBefore = since }
+        // a healthy stream sends nothing for a still screen: only a broken one (or a snap) proves the frame stale.
+        // The snap clears `broken` but can still hand back the board's old GOP: 196 s old, a Screen Mirroring menu
+        // long closed, was sent and tapped on (2026-11-06)
+        if FrameMode.current == .snap || snapped || broken || frozen { staleBefore = since }
     }
 
     /// Waits until the shown frame was captured after `t`; false on timeout.
