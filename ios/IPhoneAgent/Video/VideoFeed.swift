@@ -188,10 +188,12 @@ extension ScreenSource {
     /// handed the Screen Mirroring panel, Spotlight and a Home folder from minutes before, mid-lesson, and tapped
     /// Stop Mirroring. Snaps are exempt: the model only looks once the whole snap is decoded.
     private var shownMs: UInt32?
+    /// When a replayed (hidden) frame last decoded: the board is resending its GOP and the stream is catching up.
+    private var replayingAt = 0.0
 
     private func publish(_ f: H264Decoder.Frame) {
         guard f.unit.generation == generation else { return }
-        if let shownMs, f.unit.boardMs > 0, !f.unit.snap, f.unit.boardMs < shownMs { return }
+        if let shownMs, f.unit.boardMs > 0, !f.unit.snap, f.unit.boardMs < shownMs { replayingAt = now(); return }
         if f.unit.boardMs > 0 { shownMs = f.unit.boardMs }
         // A repeat of a still screen: a tiny P-frame (skipped blocks only) or the very same image.
         let tiny = !f.unit.data.isEmpty && !f.unit.idr && !f.unit.config && f.unit.data.count < Self.repeatBytes
@@ -308,6 +310,9 @@ extension ScreenSource {
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
                 // the next IDR (~2 s) mends the stream; a snap meanwhile took 12–30 s and gave the board's old GOP
                 if streamOn, await newer(than: since, timeout: 4) { return DebugLog.write("frame: stream mended by the next keyframe") }
+                // a resend already under way: a snap would send the same GOP again, behind it (run 8, 2026-11-06:
+                // snaps of 12-42 s while the stream replayed the GOP at 1.3 Mbps)
+                if await caughtUp(since) { return DebugLog.write("frame: the board's resend caught up; no snap") }
                 DebugLog.write("frame: stream stale (waiting for an IDR); snapping")
                 snapped = !inStep  // a stream in step skips the snap: a still screen sends no new frame (2026-11-06:
                 try await snap()   // marked stale anyway, recovery re-homed the pointer every 0.7 s for 4 minutes)
@@ -321,6 +326,14 @@ extension ScreenSource {
         // The snap clears `broken` but can still hand back the board's old GOP: 196 s old, a Screen Mirroring menu
         // long closed, was sent and tapped on (2026-11-06)
         if FrameMode.current == .snap || snapped || broken || frozen { staleBefore = since }
+    }
+
+    /// While the board's resend goes on (hidden frames still decoding): true once a frame from after `t` shows.
+    private func caughtUp(_ t: Double) async -> Bool {
+        while now() - replayingAt < 2 && !Task.isCancelled {
+            if await newer(than: t, timeout: 1) { return true }
+        }
+        return false
     }
 
     /// Waits until the shown frame was captured after `t`; false on timeout.
