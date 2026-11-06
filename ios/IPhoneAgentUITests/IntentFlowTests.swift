@@ -67,7 +67,9 @@ final class IntentFlowTests: XCTestCase {
         alarm.tap()
         let review = app.buttons["Review Demonstration"]
         XCTAssertTrue(app.buttons["Run"].waitForExistence(timeout: 10))
-        for _ in 0..<6 where !review.isHittable { app.swipeUp(velocity: .slow) }  // below the script's steps
+        // below the script's steps, and clear of the floating Run bar: "hittable" under it still taps Run (2026-11-06)
+        let run = app.buttons["Run"]
+        for _ in 0..<6 where !review.isHittable || review.frame.maxY > run.frame.minY { app.swipeUp(velocity: .slow) }
         review.tap()
         let unsure = app.staticTexts["Unsure"].firstMatch
         // a tap while the last swipe is still settling can miss (CI, 2026-11-05): tap again once if still there
