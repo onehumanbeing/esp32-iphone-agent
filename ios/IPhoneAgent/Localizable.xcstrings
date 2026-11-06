@@ -9342,6 +9342,16 @@
           }
         }
       }
+    },
+    "Share with the computer (CLI)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享给电脑（CLI）"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -6,6 +6,7 @@ struct ListenSection: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(ListenSetting.key) private var listen = false
+    @AppStorage(ListenSetting.shareKey) private var share = true
     @State private var second = SpeechLanguages.second
     @State private var choices: [String] = []
 
@@ -24,6 +25,8 @@ struct ListenSection: View {
                     UserDefaults.standard.set(id, forKey: SpeechLanguages.key)
                     app.audio.reset()
                 }
+                Toggle("Share with the computer (CLI)", isOn: $share)
+                    .onChange(of: share) { _, _ in app.shareHearing() }
             }
         } footer: {
             footer

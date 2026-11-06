@@ -20,6 +20,7 @@ import UIKit
     private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
     let audio = AudioFeed()  // AirPlay audio over that link, transcribed on the phone (Settings › Listen to phone audio)
+    private var hearSent: Bool?  // last `hear on|off` the board got on this link
     let metrics = Metrics()
     let traces = MockMode.on
         ? TraceStore(root: FileManager.default.temporaryDirectory.appendingPathComponent("demo-traces"))
@@ -150,6 +151,7 @@ import UIKit
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
         wifiVideo.onAudio = { [weak self] in self?.audio.receive($0) }
         wifiVideo.wantsAudio = { ListenSetting.on }
+        audio.onFinal = { [weak self] text in self?.shareHeard(text) }
         audio.linked = { [weak self] in self.map { $0.wifiVideo.active && $0.feed.mirroring } ?? false }
         setListening(ListenSetting.on)
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
@@ -269,6 +271,7 @@ import UIKit
         readHarnessInbox()
         #endif
         if board.connected && !MockMode.on { updateWifiVideo() }
+        shareHearing()
         // Wi-Fi video not up on the idle home screen: maybe the Local Network permission was never given
         if !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
             LocalNetworkPermission.askIfNeeded()
@@ -486,5 +489,25 @@ extension AppModel {
     func setListening(_ on: Bool) {
         audio.enabled = on && !MockMode.on
         if audio.enabled { audio.prepare() }
+        shareHearing()
+    }
+
+    /// Tells the board whether the app shares what it hears with the CLI (docs/cli-protocol.md, "Phone audio").
+    func shareHearing() {
+        guard board.connected else { hearSent = nil; return }
+        let on = audio.enabled && ListenSetting.share
+        guard on != hearSent else { return }
+        hearSent = on
+        Task { [weak self] in
+            if (try? await self?.board.commands.send(on ? "hear on" : "hear off")) == nil { self?.hearSent = nil }
+        }
+    }
+
+    /// One final transcript for the CLI. Not while the app runs a task: the CLI can't use the board then anyway.
+    private func shareHeard(_ text: String) {
+        guard hearSent == true, !agent.running, board.connected else { return }
+        var line = ""
+        for c in text.replacingOccurrences(of: "\n", with: " ") where line.utf8.count + String(c).utf8.count <= 400 { line.append(c) }
+        Task { [weak self] in _ = try? await self?.board.commands.send("heard " + line) }
     }
 }

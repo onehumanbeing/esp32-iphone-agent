@@ -3,7 +3,10 @@ import AVFoundation
 /// "Listen to phone audio" (Settings › Runs), off by default.
 enum ListenSetting {
     static let key = "listenAudio"
+    static let shareKey = "listenShareCLI"
     static var on: Bool { UserDefaults.standard.bool(forKey: key) }
+    /// Share what the app hears with a computer's esp32agent CLI (through the board); on unless switched off.
+    static var share: Bool { UserDefaults.standard.object(forKey: shareKey) as? Bool ?? true }
 }
 
 /// AirPlay audio from the board, one segment per stretch of sound (the board starts one with the first sounding
@@ -27,6 +30,8 @@ enum ListenSetting {
 
     var enabled = false { didSet { if !enabled { endSegment() } } }
     var clock: () -> Double = { now() }
+    /// Each segment's final text, when there is some (shared with the CLI).
+    var onFinal: ((String) -> Void)?
     /// The phone mirrors and the board's Wi-Fi video link is up: the only way its audio reaches the app.
     var linked: () -> Bool = { true }
     private var engine: SpeechEngine?
@@ -153,7 +158,11 @@ enum ListenSetting {
     private func setText(_ text: String, started: Double, final: Bool) {
         guard let i = segments.firstIndex(where: { $0.start == started }) else { return }
         if !text.isEmpty { segments[i].text = text }
-        if final { segments[i].final = true; DebugLog.write("audio: transcript \"\(segments[i].text.prefix(200))\"") }
+        if final {
+            segments[i].final = true
+            DebugLog.write("audio: transcript \"\(segments[i].text.prefix(200))\"")
+            if !segments[i].text.isEmpty { onFinal?(segments[i].text) }
+        }
     }
 
     var summary: String {
