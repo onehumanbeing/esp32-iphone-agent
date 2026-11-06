@@ -271,7 +271,10 @@ import UIKit
         }
         try await device.send("move \(-nudge) 0")
         let shift = Double(nudge) / Double(span.w)
-        guard let before, let after else { return nil }
+        guard let before, let after else {
+            log(after == nil ? "pointer: no new frame after the nudge" : "pointer: no frame before the nudge")
+            return nil
+        }
         if let p = Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
             ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5)) {
             return p
