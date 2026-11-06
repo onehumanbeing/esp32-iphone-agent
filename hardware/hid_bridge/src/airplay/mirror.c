@@ -1,8 +1,8 @@
 /*
  * AirPlay mirror data channel: TCP stream of 128-byte headers + payloads, AES-128-CTR
  * decryption of the H.264 access units, AVCC -> Annex-B, SPS/PPS extraction; plus the
- * minimal NTP timing client and a drain for the (unused) audio ports.
- * Ported from UxPlay lib/raop_rtp_mirror.c, lib/mirror_buffer.c and lib/raop_ntp.c.
+ * minimal NTP timing client; and the audio data port, whose AAC-ELD frames go to on_audio while there is sound.
+ * Ported from UxPlay lib/raop_rtp_mirror.c, lib/mirror_buffer.c, lib/raop_rtp.c and lib/raop_ntp.c.
  * Copyright (C) 2019 dsafa22, (C) 2018 Juho Vähä-Herttua, (C) 2021-2025 F. Duncanh; ESP32 port 2026.
  *
  * This program is free software: you can redistribute it and/or modify it under the
@@ -20,12 +20,14 @@
 #include "mbedtls/aes.h"
 #include "../video/gop.h"
 #include "keystream.h"
+#include "audio.h"
 #include "ap_internal.h"
 
 #define MAX_PAYLOAD (2 * 1024 * 1024)
 #define NTP_INTERVAL_MS 3000
 
 #define KS_MAX 4
+#define AUDIO_PACKET_MAX 2048  // AAC-ELD frames are a few hundred bytes
 
 static uint8_t key_copy[16], iv0_copy[16];  // kept apart from m: tells a corrupted context from a re-keyed sender  // keystreams kept at once (see decrypt())
 
@@ -48,6 +50,16 @@ static struct {
   uint16_t timing_rport;
   int lfd, sfd, tfd, afd[2];
 } m = {.lfd = -1, .sfd = -1, .tfd = -1, .afd = {-1, -1}};
+
+// The audio stream; set by SETUP type 96 after the mirror session started. Stats outlive sessions.
+static struct {
+  volatile bool on;          // AAC-ELD with a key: decrypt and forward
+  uint8_t key[16], iv[16];
+  ap_audio_gate gate;
+  uint8_t *buf;              // one packet (PSRAM)
+  uint32_t packets;
+  volatile float volume;
+} a;
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 static uint32_t le32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
@@ -248,6 +260,21 @@ static void send_ntp(uint8_t req[32]) {
   sendto(m.tfd, req, 32, 0, (struct sockaddr *)&to, sizeof to);
 }
 
+static void audio_packet(void) {
+  uint8_t drop[16];
+  int n = recv(m.afd[0], a.buf ? a.buf : drop, a.buf ? AUDIO_PACKET_MAX : sizeof drop, 0);
+  ap_rtp rtp;
+  if (n <= 0 || !a.buf || !ap_rtp_parse(a.buf, (size_t)n, &rtp)) return;
+  a.packets++;
+  if (!a.on) return;
+  bool none = ap_audio_no_data(rtp.payload, rtp.len);
+  int ev = ap_audio_gate_packet(&a.gate, now_ms(), none);
+  if (ev == AP_GATE_SKIP || !ap_cfg.on_audio) return;
+  uint8_t *frame = (uint8_t *)rtp.payload;
+  ap_audio_decrypt(a.key, a.iv, frame, rtp.len, frame);
+  ap_cfg.on_audio(ev == AP_GATE_START ? AIRPLAY_AUDIO_START : AIRPLAY_AUDIO_FRAME, frame, rtp.len, rtp.ts);
+}
+
 static void mirror_task(void *arg) {
   uint8_t hdr[128], ntp[32] = {0x80, 0xd2, 0x00, 0x07}, scratch[128];
   uint8_t *payload = NULL;
@@ -260,6 +287,7 @@ static void mirror_task(void *arg) {
       ap_log("mirror: session alive, no video for 10 s");
       m.quiet_logged = true;
     }
+    if (ap_audio_gate_idle(&a.gate, now_ms()) && ap_cfg.on_audio) ap_cfg.on_audio(AIRPLAY_AUDIO_END, NULL, 0, 0);
     if (m.timing_rport && now_ms() >= next_ntp) {
       send_ntp(ntp);
       next_ntp = now_ms() + NTP_INTERVAL_MS;
@@ -281,8 +309,8 @@ static void mirror_task(void *arg) {
       int k = recv(m.tfd, scratch, sizeof scratch, 0);
       if (k >= 32) memcpy(ntp + 8, scratch + 24, 8);  // echo the client's transmit time as reference
     }
-    for (int i = 0; i < 2; i++)
-      if (m.afd[i] >= 0 && FD_ISSET(m.afd[i], &rf)) recv(m.afd[i], scratch, sizeof scratch, 0);
+    if (m.afd[0] >= 0 && FD_ISSET(m.afd[0], &rf)) audio_packet();
+    if (m.afd[1] >= 0 && FD_ISSET(m.afd[1], &rf)) recv(m.afd[1], scratch, sizeof scratch, 0);  // sync, resends
     if (m.sfd < 0) {
       if (!FD_ISSET(m.lfd, &rf)) continue;
       m.sfd = accept(m.lfd, NULL, NULL);
@@ -323,6 +351,11 @@ static void mirror_task(void *arg) {
   close_fd(&m.tfd);
   close_fd(&m.afd[0]);
   close_fd(&m.afd[1]);
+  if (a.gate.active && ap_cfg.on_audio) ap_cfg.on_audio(AIRPLAY_AUDIO_END, NULL, 0, 0);
+  a.gate.active = false;
+  a.on = false;
+  heap_caps_free(a.buf);
+  a.buf = NULL;
   heap_caps_free(payload);
   heap_caps_free(m.copy);
   m.copy = NULL;
@@ -368,6 +401,8 @@ bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remo
   m.tfd = bind_sock(SOCK_DGRAM, AP_TIMING_PORT);
   m.afd[0] = bind_sock(SOCK_DGRAM, AP_AUDIO_DATA_PORT);
   m.afd[1] = bind_sock(SOCK_DGRAM, AP_AUDIO_CTRL_PORT);
+  a.on = false;
+  a.buf = heap_caps_malloc(AUDIO_PACKET_MAX, MALLOC_CAP_SPIRAM);  // NULL: packets are drained, not forwarded
   m.run = true;
   m.done = false;
   if (m.lfd < 0 || xTaskCreatePinnedToCore(mirror_task, "mirror", 8 * 1024, NULL, 6, NULL, 0) != pdPASS) {
@@ -377,6 +412,8 @@ bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remo
     close_fd(&m.tfd);
     close_fd(&m.afd[0]);
     close_fd(&m.afd[1]);
+    heap_caps_free(a.buf);
+    a.buf = NULL;
     mbedtls_aes_free(&m.aes);
     return false;
   }
@@ -393,4 +430,18 @@ bool ap_mirror_running(void) { return m.run; }
 
 bool ap_mirror_streaming(void) {
   return m.run && m.last_data_us && esp_timer_get_time() - m.last_data_us < 3000000;
+}
+
+void ap_mirror_audio(const uint8_t aeskey[16], const uint8_t eiv[16], int ct) {
+  a.on = false;
+  memcpy(a.key, aeskey, 16);
+  memcpy(a.iv, eiv, 16);
+  a.on = ct == AP_AUDIO_CT_AAC_ELD;
+}
+
+void ap_mirror_set_volume(float db) { a.volume = db; }
+
+airplay_audio_stats airplay_audio(void) {
+  airplay_audio_stats s = {a.packets, a.gate.segments, a.gate.frames, a.gate.active, a.volume};
+  return s;
 }

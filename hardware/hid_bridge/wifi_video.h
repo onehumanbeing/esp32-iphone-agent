@@ -22,3 +22,11 @@ bool wv_take_resume(uint32_t *ts);  // the new session's app is in step up to th
 uint32_t wv_kbps();               // bytes out, last second (resends included)
 uint32_t wv_nacks();              // resend requests since boot (UDP only)
 uint32_t wv_drops();              // UDP: datagrams the driver had no room for; TCP: sessions dropped on a stalled send
+
+// AirPlay audio to the app (TCP only, and only after the app sent "audio"): records like video chunks,
+// [seq u16 LE][flags][payload] with WV_AUDIO set in flags and their own seq. Payload: [u32 LE board ms]
+// [u32 LE RTP ts][AAC-ELD frame]; the first frame of a segment carries VF_START, the segment's end is an
+// empty VF_END record. See docs/ble-protocol.md, "Wi-Fi audio".
+const uint8_t WV_AUDIO = 0x80;
+void wv_audio(int event, const uint8_t *frame, size_t len, uint32_t ts);  // airplay_cfg.on_audio; never blocks
+uint32_t wv_audio_drops();        // audio records lost because the queue was full or no app wanted them

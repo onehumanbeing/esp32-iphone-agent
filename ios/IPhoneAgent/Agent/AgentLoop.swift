@@ -62,6 +62,8 @@ extension Gestures {
     /// Recovery from a lost link: the link state (from the app), each stage as it changes (nil = live again),
     /// and what to redo once live (stream on, fresh frame, release, re-home).
     var link: (() -> Recovery.Link)?
+    /// What the phone played lately (AudioFeed.heard), "" when silent: one more observation in each step's prompt.
+    var heard: (() -> String)?
     var onRecover: ((Recovery.Stage?) -> Void)?
     var restore: (() async throws -> Void)?
     var recoveryLimit = Recovery.limit
@@ -556,8 +558,9 @@ extension Gestures {
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
+        let sound = heard?() ?? ""
         let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
-            + (history.isEmpty ? "(none)" : history) + collected + "\n\nNext action?"
+            + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
         var reply = ""
         for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically
             let (text, seconds, frame) = try await ask("actor", actor, actorPrompt, prompt, temperature: 0.4 * Double(attempt))
