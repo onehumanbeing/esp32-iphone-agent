@@ -49,6 +49,19 @@ enum VideoTransport {
     private var timer: Task<Void, Never>?
     private var windowBytes = 0, windowStart = now()
     private let queue = DispatchQueue(label: "video-stream")
+    /// The keepalive and the last byte's time live on `queue`, not the main thread: the agent's pixel work after
+    /// a tap held the main thread 2-4 s (Debug build), "ka" went out late, and the board moved the video to BLE
+    /// and back, 41 times in 19 minutes (run 8, 2026-11-06); the app's own 3 s silence check misfired 15 times.
+    private final class Beat: @unchecked Sendable {
+        private let lock = NSLock()
+        private var at = 0.0
+        var byte: Double {
+            get { lock.lock(); defer { lock.unlock() }; return at }
+            set { lock.lock(); at = newValue; lock.unlock() }
+        }
+    }
+    private let beat = Beat()
+    private var keepalive: DispatchSourceTimer?
 
     func update(ip: String?, token: String?) {
         guard let ip, let token, !ip.isEmpty, !token.isEmpty, ip != "0.0.0.0" else { return stop() }
@@ -106,6 +119,7 @@ enum VideoTransport {
         }
         if rc != 0 && errno != EINPROGRESS { note("connect", errno); close(fd); return }
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+        let beat = beat
         source.setEventHandler { [weak self] in
             var batch = Data()
             var buf = [UInt8](repeating: 0, count: 16384)
@@ -116,6 +130,7 @@ enum VideoTransport {
                 closed = n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)
                 break
             }
+            if !batch.isEmpty { beat.byte = now() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.fd == fd else { return }
                 if !batch.isEmpty { self.received(batch) }
@@ -124,11 +139,19 @@ enum VideoTransport {
         }
         source.setCancelHandler { close(fd) }
         source.resume()
+        // "ka" every second from here (before the hello it fails or is ignored; lines are whole small writes)
+        let keepalive = DispatchSource.makeTimerSource(queue: queue)
+        keepalive.schedule(deadline: .now() + 1, repeating: 1)
+        keepalive.setEventHandler { _ = Darwin.send(fd, "ka\n", 3, 0) }
+        keepalive.resume()
         self.fd = fd
         self.source = source
+        self.keepalive = keepalive
     }
 
     private func closeSocket() {
+        keepalive?.cancel()  // first: same queue, so it never writes to the closed descriptor's number
+        keepalive = nil
         source?.cancel()  // closes the descriptor
         source = nil
         fd = -1
@@ -183,13 +206,13 @@ enum VideoTransport {
             if t - openedAt > 5 { reopen() }
             return
         }
-        if t - lastByte > 3 {
+        if t - max(lastByte, beat.byte) > 3 {
             lost += 1
             log(acked ? "video: wifi silent for 3 s, back to BLE" : "video: wifi no answer to hello; reconnecting")
             reopen()
             return
         }
-        if t - lastSent >= 1 { _ = send(acked ? "ka\n" : hello(token)) }
+        if !acked && t - lastSent >= 1 { _ = send(hello(token)) }  // the keepalive goes from `queue`
     }
 
     private func hello(_ token: String) -> String {

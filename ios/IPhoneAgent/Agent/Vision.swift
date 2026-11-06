@@ -7,6 +7,12 @@ enum Vision {
     /// Top share of the frame never compared: the status bar, where the Dynamic Island shows our Live Activity.
     static let topMask = 0.06
 
+    /// Run pixel work off the main thread. Full-frame checks there held it 2-4 s per tap in a Debug build, so the
+    /// Wi-Fi video's keepalive went out late and the board fell back to BLE (2026-11-06).
+    static func off<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await Task.detached(priority: .userInitiated, operation: work).value
+    }
+
     /// A grayscale bitmap (PIL "L" weights), row-major.
     struct Gray {
         let w: Int, h: Int

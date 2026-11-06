@@ -125,7 +125,7 @@ import UIKit
         }
         try await device.send("move -\(Self.nudge) 0")
         guard let before, let after else { return nil }
-        let pixel = Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: 0.025, reach: CGPoint(x: 0.5, y: 0.5))
+        let pixel = await Vision.off { Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: 0.025, reach: CGPoint(x: 0.5, y: 0.5)) }
         var found = pixel
         // 与像素差分一致，模型测量微移前的位置。
         if found == nil { found = await locate?(before) }
@@ -282,8 +282,10 @@ import UIKit
             log(after == nil ? "pointer: no new frame after the nudge" : "pointer: no frame before the nudge")
             return nil
         }
-        if let p = Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
-            ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5)) {
+        if let p = await Vision.off({
+            Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
+                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
+        }) {
             return p
         }
         return model ? await locate?(before) : nil
@@ -444,7 +446,8 @@ import UIKit
         }
         guard let screen, let before else { return }
         await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
-        if Vision.changed(before, screen.frame) { return }
+        let after = screen.frame
+        if await Vision.off({ Vision.changed(before, after) }) { return }
         log("home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
     }
