@@ -121,6 +121,7 @@ extension Gestures {
         if running { throw DeviceError(message: "agent already running") }
         guard screen?.live == true else { throw DeviceError(message: "no phone screen: start Screen Mirroring first") }
         let resuming = resume && task == self.task && !steps.isEmpty
+        JevGate.hold = false
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
             notebook = Notebook(); learned = []
@@ -433,6 +434,7 @@ extension Gestures {
     func step() async throws -> Bool {
         var timing = Metrics.Step()
         let acts = try await nextActions()
+        JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
@@ -463,9 +465,12 @@ extension Gestures {
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
                 if earlierTap, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                    let checked = now()
                     timing.frameMs += await settle(ignoring: spots)
-                    let (now, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
-                    if await Vision.off({ Vision.changed(seen, now, at: at, ignore: mask) }) {
+                    let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
+                    let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask) }
+                    DebugLog.write(String(format: "step: target check before tap %d took %.1f s", i + 1, now() - checked))
+                    if moved {
                         DebugLog.write("step: the target of tap \(i + 1) changed since the model looked; looking again")
                         verdict(true)
                         return false

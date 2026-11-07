@@ -284,6 +284,7 @@ import UIKit
     private func measure(_ x: Double, _ y: Double, model: Bool = true) async throws -> CGPoint? {
         guard let screen, let span else { return nil }
         let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
+        let started = now()
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
         let before = screen.frame, sent = now()
         // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
@@ -302,12 +303,15 @@ import UIKit
             log(after == nil ? "pointer: no new frame after the nudge" : "pointer: no frame before the nudge")
             return nil
         }
-        if let p = await Vision.off({
+        let looked = now()
+        let p = await Vision.off {
             Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
                 ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
-        }) {
-            return p
         }
+        // where a slow search spends its time (2026-11-07: taps took 9-26 s with seconds between commands)
+        log(String(format: "pointer: measure %.1f s (settle %.1f, frames %.1f, search %.1f)%@", now() - started,
+                   sent - started, looked - sent, now() - looked, p == nil ? ", not found" : ""))
+        if let p { return p }
         return model ? await locate?(before) : nil
     }
 

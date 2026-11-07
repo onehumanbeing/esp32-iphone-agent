@@ -96,6 +96,17 @@ import XCTest
         XCTAssertEqual(model.calls, 0)
     }
 
+    func testAfterARoundOfSeveralGesturesTheModelTakesTheStep() async throws {
+        let model = SlowModel(), jev = FakeJev()
+        jev.answers = [.success(sure)]
+        JevGate.hold = true
+        defer { JevGate.hold = false }
+        let reply = try await ask(decider(.jevFirst, model: model, jev: jev))
+        XCTAssertEqual(model.calls, 1)
+        XCTAssertNil(reply.servedModel)
+        XCTAssertEqual(Deciders.standard(freeLine: true).freeLineHeader(race: true), [:])  // the free line too
+    }
+
     func testJevFirstLeavesUnsureStepsToTheModel() async throws {
         let model = SlowModel(), jev = FakeJev()
         jev.answers = [.success(unsure)]
