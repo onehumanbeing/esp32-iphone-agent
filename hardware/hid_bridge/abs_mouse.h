@@ -23,13 +23,17 @@ public:
   }
   // Paced, for a drag: a jump is a flick to iOS, and the list flies. At a relative mouse's speed it scrolls as far
   // as it is dragged.
-  // The target is clamped to the screen first, so a glide takes at most FULL / step reports (~1.1 s at 245 / 8 ms),
-  // whatever the coordinates: an out-of-range drag must not hold the loop into the watchdog.
+  // Bounded for the 8 s watchdog whatever the caller sends: the target is clamped to the screen, the step has a
+  // floor (MIN_STEP: at most FULL / MIN_STEP + 1 = 513 reports, ~4.1 s at 8 ms) and the reports a cap (MAX_REPORTS:
+  // a longer glide takes bigger steps). The default step (245) crosses the screen in 134 reports, ~1.1 s.
+  static const int MIN_STEP = 64;
+  static const long MAX_REPORTS = 250;  // ~2 s at 8 ms
   void glideTo(long x, long y, int step, int ms) {
+    step = max(step, MIN_STEP);
     x = constrain(x, 0, FULL);
     y = constrain(y, 0, FULL);
     long x0 = x_, y0 = y_;
-    long n = max(labs(x - x0), labs(y - y0)) / step + 1;
+    long n = min(max(labs(x - x0), labs(y - y0)) / step + 1, MAX_REPORTS);
     for (long i = 1; i <= n; i++) {
       moveTo(x0 + (x - x0) * i / n, y0 + (y - y0) * i / n);
       delay(ms);

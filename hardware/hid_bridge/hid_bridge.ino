@@ -131,7 +131,7 @@ String run(const String &line) {
     if (mouse.held()) {
       // Lists need the glide (a jump is a flick, and they fly); system gestures need a flick: a glided home swipe
       // took ~1 s and opened the app switcher instead (2026-11-07). The app sends a big step for those.
-      long step = sscanf(arg.c_str(), "%*ld %*ld %ld", &c) == 1 ? constrain(c, 1, AbsMouse::FULL) : ABS_STEP;
+      long step = sscanf(arg.c_str(), "%*ld %*ld %ld", &c) == 1 ? constrain(c, AbsMouse::MIN_STEP, AbsMouse::FULL) : ABS_STEP;
       mouse.glideTo(a, b, step, STEP_MS);
     } else {
       mouse.moveTo(a, b);
