@@ -118,6 +118,7 @@ struct JevAnswer: Decodable, Equatable {
         case .jevOnly:  // no fallback to skip to, so no breaker either
             return jevReply(await askJev(input, breaker: false), since: started)
         case .jevFirst:
+            if JevGate.hold { return try await model() }
             if race, !jevBreaker.isOpen { return try await raced(input, model, since: started) }
             if let answer = await askJev(input) { return jevReply(answer, since: started) }
             return try await model()

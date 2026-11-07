@@ -108,4 +108,15 @@ final class VisionTests: XCTestCase {
         let moved = screen(pointer: (100, 900))
         XCTAssertFalse(Vision.changed(before, moved, at: CGPoint(x: 100 / W, y: 900 / H), ignore: [CGPoint(x: 100 / W, y: 900 / H)]))
     }
+
+    /// Issue #111: Vision's completion handler and a throwing `perform` both try to resume; only one may.
+    func testOnceLetsExactlyOneCallerThrough() {
+        let once = Vision.Once(), lock = NSLock()
+        var wins = 0
+        DispatchQueue.concurrentPerform(iterations: 64) { _ in
+            if once.take() { lock.lock(); wins += 1; lock.unlock() }
+        }
+        XCTAssertEqual(wins, 1)
+        XCTAssertFalse(once.take())
+    }
 }

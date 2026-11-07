@@ -135,6 +135,25 @@ import XCTest
         XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
     }
 
+    func testARoundOfSeveralTapsLeavesTheNextStepToTheModel() async {
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        var round = 0, held: [Bool] = []
+        let model = FakeModel { _ in
+            round += 1
+            held.append(JevGate.hold)
+            switch round {
+            case 1: return "THINK: words\nPLAN:\n1. Tap Rice\n2. Tap and\nDO: tap 821 655\nDO: tap 175 655"
+            case 2: return "THINK: check\nDO: tap 500 915"
+            default: return "THINK: there\nDO: done ok"
+            }
+        }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        await agent.run()
+        XCTAssertEqual(held, [false, true, false])  // after the two-tap round only (Duolingo, 2026-11-07)
+    }
+
     func testATapWhereTheLastOneWentFindsThePointerFirst() {
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
         agent.steps = [["action": .str("tap"), "x": .int(789), "y": .int(705), "changed": .bool(true)], ["action": .str("plan")]]

@@ -349,12 +349,10 @@ final class VideoReorderTests: XCTestCase {
     func testSettledIgnoresThePointerButNotContent() async {
         let v = VisionTests(), spot = v.p(260, 856)
         func feeding(_ screen: FakeStillScreen, _ frames: [Data]) -> Task<Void, Never> {
-            Task {
-                var i = 0
+            screen.frames = frames
+            return Task {
                 while !Task.isCancelled {
-                    screen.frame = frames[i % frames.count]
                     screen.changed = now()
-                    i += 1
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
             }
@@ -377,7 +375,19 @@ final class VideoReorderTests: XCTestCase {
 
 @MainActor private final class FakeStillScreen: ScreenSource {
     var live = true
-    var frame: Data? = Data([0xff, 0xd8])
+    /// When set, every read shows the next of these: a check never sees the frame it saw last. (Fed on a timer, a
+    /// slow CI runner checked in step with the feed, always saw the same frame and called changing content still.)
+    var frames: [Data] = []
+    private var reads = 0
+    private var shown: Data? = Data([0xff, 0xd8])
+    var frame: Data? {
+        get {
+            guard !frames.isEmpty else { return shown }
+            reads += 1
+            return frames[(reads - 1) % frames.count]
+        }
+        set { shown = newValue }
+    }
     var updated = 0.0
     var changed = now() - 10
     var capturedAt = 0.0

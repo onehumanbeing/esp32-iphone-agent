@@ -24,6 +24,12 @@
 
 ## Unreleased (main)
 
+- App: typing Chinese no longer crashes (a Vision text request could resume its continuation twice, #111); the
+  app builds with Xcode 26.3 / 27 (ambiguous `cos` / `.pi`, #112).
+- App: after a round of several gestures the next step goes to the model, not Jev, so a plan whose first items were
+  just done is not redone (Duolingo: a tapped word was taken back out of the answer). Pointer searches log where
+  their time goes; the step timing line counts past 40.
+- Harness: following the log survives a line cut mid-character. CI: the settle test no longer fails on slow runners.
 - Board firmware v0.2.3 (TestFlight channel): CLI link over Wi-Fi (TCP 7202) next to BLE, `net` command for
   the CLI, BLE write-without-response characteristic `cli_in_nr`.
 - CLI v0.1.2 (npm `esp32agent` 0.1.3, dsh plugin 0.1.1) — CLI over Wi-Fi: with the computer on the board's network (same Wi-Fi, or its hotspot) the CLI's session moves

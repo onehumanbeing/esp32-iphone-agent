@@ -179,7 +179,7 @@ private struct Trail: View {
                     Image(systemName: "arrowtriangle.up.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(ink)
-                        .rotationEffect(.radians(atan2(last.y - prev.y, last.x - prev.x) + .pi / 2))
+                        .rotationEffect(.radians(Double(atan2(last.y - prev.y, last.x - prev.x)) + .pi / 2))
                         .position(last)
                         .opacity(Double(t))
                     Hand()

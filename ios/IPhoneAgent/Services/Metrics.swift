@@ -20,7 +20,8 @@ import Foundation
     @Published var decodeErrors = 0
     @Published var backgroundDecodeErrors = 0
     // agent
-    @Published var steps: [Step] = []
+    @Published var steps: [Step] = []  // the last 40
+    private var stepCount = 0
     @Published var llmFirstMs: Double?
     @Published var llmTotalMs: Double?
     @Published var llmPingMs: Double?
@@ -61,9 +62,11 @@ import Foundation
         llmFirstMs = first.map { $0 * 1000 }
         llmTotalMs = total * 1000
     }
+    func runStarted() { stepCount = 0 }
     func step(_ s: Step) {
         steps = Array((steps + [s]).suffix(40))
-        DebugLog.write(String(format: "step %d timing: frame %.0f ms, LLM %.0f ms, HID %.0f ms", steps.count, s.frameMs,
+        stepCount += 1
+        DebugLog.write(String(format: "step %d timing: frame %.0f ms, LLM %.0f ms, HID %.0f ms", stepCount, s.frameMs,
                               s.llmMs, s.hidMs))
     }
 
