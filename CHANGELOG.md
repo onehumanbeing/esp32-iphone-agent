@@ -1,5 +1,21 @@
 # Changelog
 
+## App 1.0.2 · firmware v0.2.4 (TestFlight)
+
+- Hear the phone (off by default, Settings › Listen to phone audio): the board forwards AirPlay audio, the app
+  transcribes it on the iPhone (English plus a second language) and the agent sees what it heard. The second
+  language can follow the screen (Automatic). The CLI can listen too (`listen`). Needs firmware v0.2.4.
+- Long tasks: no 40-round limit (300-round safety cap; 12 unchanged rounds pause and ask), and any stopped or
+  failed run can Continue from here, also after a relaunch.
+- More accurate pointer: every move report at one speed (firmware `pace`), speed calibration for short moves,
+  the corner offset is calibrated, far pointer readings are checked twice, and the corner move never opens
+  Control Center. A later tap in one round checks its target did not move first.
+- Steadier video: network checks and pixel work off the main thread (stream drops 41 → 0 in a Duolingo
+  lesson), a gap resumes from the last decoded frame, a Wi-Fi/BLE switch no longer resends the whole GOP, and
+  the model never sees a frame older than its last action.
+- Settings › Developer: Demo data and an audio test.
+- Fixed: calibration and the debug log could crash the app (#97); a lost BLE ack could repeat an input (#90).
+
 ## Unreleased (main)
 
 - Board firmware v0.2.3 (TestFlight channel): CLI link over Wi-Fi (TCP 7202) next to BLE, `net` command for
