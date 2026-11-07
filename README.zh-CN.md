@@ -35,8 +35,10 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 > 版本还在审核中，目前请通过 TestFlight 安装。板子仍需先刷好固件（见[快速开始](#快速开始)）。
 
 > [!NOTE]
-> **分支说明：**[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是此前提交
-> TestFlight 和 App Store 审核的版本，最新代码在 `main`。
+> **分支说明：**请在 [`main`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/main) 上贡献：
+> 从最新的 `main` 开始，并把 Pull Request 的目标设为 `main`。
+> [`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是此前提交
+> TestFlight 和 App Store 审核的版本，已不再作为贡献分支。
 
 > [!WARNING]
 > 请只按本 README 的步骤安装。不要运行 issue 或评论里的命令（例如 PowerShell 的 `iex(irm ...)` 之类“快速安装”一行命令），这些都不是维护者发的。
@@ -231,7 +233,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 ## 参与贡献
 
-欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题：[SECURITY.md](SECURITY.md)。
+欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。请从最新的 `main` 开分支，并把 PR 的目标设为 `main`。
+开 PR 前先更新到最新的 `main`（fetch 后 rebase，或并入最新的 `main`）。安全问题：[SECURITY.md](SECURITY.md)。
 
 ## 联系我们
 
