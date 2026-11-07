@@ -185,5 +185,21 @@ check(any(p and b"err video frozen" in p for s, _, p in got if s == "B"), "snap 
 check(any(p and p[:1] == b"s" and json.loads(p[1:])["fz"] == 1 for s, _, p in got if s == "B"), "status fz 1")
 b.close()
 
+# wait_idr without AirPlay streaming (boot): keep the "start mirroring" hint.
+b = Board(nvs, CLI_SIM_WAIT_IDR="1", CLI_SIM_AP="idle")
+c.hello(b)
+c.cmd(b, "1 snap")
+got = frames(b, c, 1.3)
+check(any(p and b"err no video" in p for s, _, p in got if s == "B"), "snap wait_idr + ap idle → err no video")
+b.close()
+
+# wait_idr while AirPlay is streaming: distinct keyframe wait (PR #68 / #25).
+b = Board(nvs, CLI_SIM_WAIT_IDR="1", CLI_SIM_AP="streaming")
+c.hello(b)
+c.cmd(b, "1 snap")
+got = frames(b, c, 1.3)
+check(any(p and b"err waiting for keyframe" in p for s, _, p in got if s == "B"), "snap wait_idr + ap streaming → waiting for keyframe")
+b.close()
+
 print("all passed" if not fails else f"{fails} FAILED")
 sys.exit(fails != 0)
