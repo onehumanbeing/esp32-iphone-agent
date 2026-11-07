@@ -221,6 +221,9 @@ extension AppModel {
             setListening(v == "on")
             say("harness: listen \(v == "on" ? "on" : "off")")
         }
+        #if DEBUG
+        if let host = value(after: "-harness-host") { HarnessLink.shared.use(host: host) }  // harness/live.py's address
+        #endif
         if let lang = value(after: "-audiotest") { handleAppCommand("audiotest " + lang) }  // harness: Settings › Developer › Audio test
         if args.contains("-audio") { say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard())) }
     }
@@ -270,6 +273,15 @@ extension AppModel {
         }
     }
 
+    /// harness/live.py on the Mac: the same commands as the inbox, over the network (HarnessLink).
+    func startHarnessLink() {
+        HarnessLink.shared.onCommand = { [weak self] args in
+            self?.say("harness: live \(args.first ?? "")")
+            self?.handleLaunchArguments(["harness"] + args)
+        }
+        HarnessLink.shared.start()
+    }
+
     /// Raw board commands ("key ctrl+space; type abc"), one after another, each reply logged: harness experiments.
     private func harnessHID(_ commands: String) {
         Task { [weak self] in
@@ -300,6 +312,7 @@ extension AppModel {
                     let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
                     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                     reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
+                    if let jpeg = feed.frame { HarnessLink.shared.sendFile(name, jpeg) }  // harness/live.py saves it
                 } else {
                     do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
                     if command == "home" || command.hasPrefix("move") { moved = true }

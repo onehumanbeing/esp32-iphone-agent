@@ -11,7 +11,7 @@ seen=$(log_lines) rows=0 run="" first=1
 while true; do
   sleep "${WATCH_EVERY:-4}"
   f=$(mktemp -u /tmp/harness-log.XXXXXX) s=$(mktemp -u /tmp/harness-steps.XXXXXX)
-  dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
+  if live; then cp "$LIVE/debug.log" "$f"; else dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue; fi
   n=$(wc -l <"$f" | tr -d ' ')
   (( n < seen )) && seen=0  # the log rolled over
   tail -n +$((seen + 1)) "$f" | grep -E "$SHOW" | grep -v 'BLE signal' | cut -c1-220 || true

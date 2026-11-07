@@ -50,7 +50,7 @@ targets:
         NSBluetoothAlwaysUsageDescription: ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.
         NSLocalNetworkUsageDescription: ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
         NSSpeechRecognitionUsageDescription: With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
-        NSBonjourServices: [_esp32agent._tcp]
+        NSBonjourServices: [_esp32agent._tcp, _handsy-harness._tcp]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UIBackgroundModes: [bluetooth-central]

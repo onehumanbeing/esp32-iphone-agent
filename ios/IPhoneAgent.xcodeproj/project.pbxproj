@@ -130,6 +130,7 @@
 		A0DECAC4E4DBADB432942A83 /* IntentBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5538B879586D04FB7F15C7E5 /* IntentBridge.swift */; };
 		A177729443FE818CD754FD64 /* StepFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E64CF4B18DBAB014C7E9314 /* StepFrame.swift */; };
 		A271DC80F0EB0BA42FD7D022 /* PokeableFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A409B3696F547E712B4D4D14 /* PokeableFace.swift */; };
+		A37B04CB8C5B3778BBDDB66B /* HarnessLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */; };
 		A42DB537742861FF668DB34A /* JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7FAA4989F36E7F9B4C021 /* JSON.swift */; };
 		A5A1640A615256B576F9A055 /* RunSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB6FEBD55DCBE8EED6834C /* RunSession.swift */; };
 		A5A78F1B4D15D843B8932932 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A02583BE955659071F3172 /* ModelProvider.swift */; };
@@ -359,6 +360,7 @@
 		9924DF8869348C0458073E8B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		99381FBF82EA7EB76556866E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		9E49E4897714D436F985C230 /* UITreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeTests.swift; sourceTree = "<group>"; };
+		9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessLink.swift; sourceTree = "<group>"; };
 		A11E0FF01881451EBB3D18FF /* AgentActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AgentActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2A0229ED6EF9D83865BC9D6 /* ThreadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadStore.swift; sourceTree = "<group>"; };
 		A3F73FBA51B3C953AECABE20 /* Firmware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Firmware.swift; sourceTree = "<group>"; };
@@ -656,6 +658,7 @@
 				41B8435B1585E5ECE113AC49 /* DebugEntry.swift */,
 				5962900FEB08728899160DD1 /* DemoRecorder.swift */,
 				C7B2BB17E154CD835C045D9E /* FirmwareUpdater.swift */,
+				9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */,
 				7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */,
 				C12C6B350F7AFD555CE0B8EA /* HotspotJoin.swift */,
 				5538B879586D04FB7F15C7E5 /* IntentBridge.swift */,
@@ -1040,6 +1043,7 @@
 				1A7D2489492CA4E34CC124AE /* FirmwareUpdater.swift in Sources */,
 				3B6ACDC5C9313208B71B3DBF /* FirmwareViews.swift in Sources */,
 				4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */,
+				A37B04CB8C5B3778BBDDB66B /* HarnessLink.swift in Sources */,
 				EF40598A5376153FF906E570 /* HarnessOTA.swift in Sources */,
 				041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */,
 				948C0D1F80207A8E5874D943 /* HomeView.swift in Sources */,

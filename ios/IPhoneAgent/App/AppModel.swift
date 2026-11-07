@@ -140,6 +140,9 @@ import UIKit
         }
         DebugLog.write("app launched \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "")"
                        + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))")
+        #if DEBUG
+        startHarnessLink()
+        #endif
         settingsSink = settings.$configurationRevision.dropFirst().sink { [weak self] _ in
             self?.modelOK = nil
             self?.modelError = nil

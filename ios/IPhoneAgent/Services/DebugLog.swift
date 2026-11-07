@@ -17,6 +17,8 @@ enum DebugLog {
     private static let lock = NSLock()
     /// Each (redacted) line also goes here, on the caller's thread (the app relays it to the Mac harness).
     nonisolated(unsafe) static var relay: ((String) -> Void)?
+    /// Each stamped line, on the log queue (Debug builds: the harness link to the Mac, HarnessLink).
+    nonisolated(unsafe) static var live: ((String) -> Void)?
     private static let stamp: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -54,7 +56,9 @@ enum DebugLog {
         for s in hidden { line = line.replacingOccurrences(of: s, with: "‹redacted›") }
         relay?(line)
         queue.async {
-            let data = Data("\(stamp.string(from: time)) \(line)\n".utf8)
+            let stamped = "\(stamp.string(from: time)) \(line)"
+            live?(stamped)
+            let data = Data((stamped + "\n").utf8)
             let fm = FileManager.default
             if let size = (try? fm.attributesOfItem(atPath: url.path)[.size]) as? Int, size > limit {
                 try? fm.removeItem(at: old)
