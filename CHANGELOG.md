@@ -16,6 +16,13 @@
 - Settings › Developer: Demo data and an audio test.
 - Fixed: calibration and the debug log could crash the app (#97); a lost BLE ack could repeat an input (#90).
 
+## CLI 0.1.3 (npm `esp32agent` 0.1.4, dsh plugin 0.1.2)
+
+- `listen`: what the iPhone played in the last 30 s as words. `mode phone` (default) reads what the ESP32 Agent
+  app transcribed (App 1.0.2, firmware v0.2.4, Share with the computer on); `mode local` transcribes the raw
+  audio here with whisper.cpp. MCP tool `phone_audio`.
+- The CLI's video resumes from its last unit after a reconnect instead of resending the GOP.
+
 ## Unreleased (main)
 
 - Board firmware v0.2.3 (TestFlight channel): CLI link over Wi-Fi (TCP 7202) next to BLE, `net` command for

@@ -1,6 +1,6 @@
 {
   "name": "dsh-esp32agent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DeepSeek Harness plugin: see and drive a real iPhone through an ESP32 Agent (Handsy) board. Adds the esp32agent MCP server and the handsy skill.",
   "type": "module",
   "main": "index.js",
