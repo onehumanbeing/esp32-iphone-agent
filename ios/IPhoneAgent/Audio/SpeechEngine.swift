@@ -33,6 +33,8 @@ enum SpeechLanguages {
     static let automatic = "auto"
     /// Automatic: the language last seen on the screen while sound played (AudioFeed sets it).
     static var seen: String?
+    /// Languages the screen showed whose on-device model is missing: never switched to again this launch.
+    static var unavailable: Set<String> = []
 
     /// The chosen second language. Automatic (the default) follows the screen, the phone's own language until one is
     /// seen: 2026-11-07 a Japanese Duolingo lesson was transcribed as Chinese ("お汉です" for ごはんです).
@@ -43,20 +45,28 @@ enum SpeechLanguages {
     }
     static var isAutomatic: Bool { (UserDefaults.standard.string(forKey: key) ?? automatic) == automatic }
 
-    /// The non-English language of the screen's text, among `choices` (nil: none worth switching to). A line counts
-    /// when it has non-Latin letters or 3+ words: single English words read as Dutch or Spanish ("rice", "General").
-    static func language(of lines: [String], among choices: [String]) -> String? {
-        var chars: [String: Int] = [:]
+    /// The non-English language of the screen's text, among `choices` (nil: none worth switching to), and the line
+    /// that weighed most. A line counts with 3+ non-Latin letters (read with 70%+ certainty) or 3+ words (90%+): single
+    /// English words read as Dutch or Spanish ("rice", "General"), and a misread icon as Arabic (2026-11-07, a home screen).
+    static func language(of lines: [String], among choices: [String]) -> (id: String, line: String)? {
+        var chars: [String: Int] = [:], best: [String: (Int, String)] = [:]
         for line in lines {
-            let latin = line.unicodeScalars.allSatisfy { $0.value < 0x250 }
-            guard !latin || line.split(separator: " ").count >= 3 else { continue }
+            let letters = line.unicodeScalars.filter { CharacterSet.letters.contains($0) }
+            let foreign = letters.filter { $0.value >= 0x250 }.count
+            guard foreign >= 3 || (foreign == 0 && line.split(separator: " ").count >= 3) else { continue }
             let r = NLLanguageRecognizer()
             r.processString(line)
-            guard let l = r.dominantLanguage, l != .english, l != .undetermined else { continue }
-            chars[tag(l.rawValue), default: 0] += line.count
+            // Latin lines need 90%: English UI reads as another language at up to 76% ("Duolingo daily streak": id),
+            // real sentences at 95-100% (es, fr, de)
+            guard let (l, p) = r.languageHypotheses(withMaximum: 1).first, p >= (foreign == 0 ? 0.9 : 0.7),
+                  l != .english else { continue }
+            let code = tag(l.rawValue)
+            chars[code, default: 0] += letters.count
+            if letters.count > best[code]?.0 ?? 0 { best[code] = (letters.count, line) }
         }
-        guard let (code, n) = chars.max(by: { $0.value < $1.value }), n >= 2 else { return nil }
-        return choices.first { tag($0) == code }
+        guard let (code, n) = chars.max(by: { $0.value < $1.value }), n >= 2,
+              let id = choices.first(where: { tag($0) == code && !unavailable.contains($0) }) else { return nil }
+        return (id, best[code]?.1 ?? "")
     }
 
     static var all: [String] { second.isEmpty ? [first] : [first, second] }
@@ -100,6 +110,11 @@ enum SpeechSetup {
             if let e = await single(Locale(identifier: id)) { engines.append((SpeechLanguages.tag(id), e)) }
         }
         DebugLog.write("audio: speech in \(engines.map(\.0)) (asked for \(languages))")
+        if let seen = SpeechLanguages.seen, languages.contains(seen), !engines.contains(where: { $0.0 == SpeechLanguages.tag(seen) }) {
+            SpeechLanguages.unavailable.insert(seen)  // the screen's language has no model here: back to the default
+            SpeechLanguages.seen = nil
+            return await engine()
+        }
         guard let engine = MultiEngine(engines) else {
             return (nil, .unavailable(String(localized: "On-device speech recognition isn't available for this language.")))
         }

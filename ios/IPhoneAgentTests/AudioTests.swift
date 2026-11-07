@@ -169,15 +169,42 @@ import XCTest
         return frames
     }
 
+    /// The screen's language engine arrives after the first sound: that sound is transcribed again with it.
+    func testLateLanguageEngineRedoesTheLastSound() async throws {
+        let feed = AudioFeed()
+        feed.use(FakeSpeech(text: "Go hand"))
+        feed.enabled = true
+        let tone = try Self.encodeELD(seconds: 0.3, tone: true)
+        feed.receive(record(seq: 0, flags: AudioRecord.startFlag, frame: tone[0]))
+        await Task.yield()
+        for (i, f) in tone.dropFirst().enumerated() { feed.receive(record(seq: UInt16(i + 1), flags: 0, frame: f)) }
+        feed.receive(record(seq: UInt16(tone.count), flags: AudioRecord.endFlag))
+        for _ in 0..<50 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(feed.segments.last?.text, "Go hand")
+        feed.adopt(FakeSpeech(text: "ゴハン", confidence: 0.2))  // a fallback reading less surely: the first one stays
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(feed.segments.last?.text, "Go hand")
+        let ja = FakeSpeech(text: "ごはんをください", confidence: 0.9)
+        feed.adopt(ja)
+        for _ in 0..<50 where feed.segments.last?.redone != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(feed.segments.last?.text, "ごはんをください")
+        XCTAssertGreaterThan(ja.appended, 0)
+    }
+
     /// Automatic second language: the language on the screen, ignoring single English words read as other languages.
     func testScreenLanguageFollowsTheLessonNotStrayWords() {
         let choices = ["zh-CN", "ja-JP", "es-ES", "ko-KR"]
-        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "ごはん", "みず", "おちゃ", "CHECK"], among: choices), "ja-JP")
-        XCTAssertEqual(SpeechLanguages.language(of: ["Translate this sentence", "ごはんです", "rice", "is", "water"], among: choices), "ja-JP")
-        XCTAssertEqual(SpeechLanguages.language(of: ["Select the correct meaning", "El niño come pan", "The boy eats bread"], among: choices), "es-ES")
-        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "我喜欢喝茶", "米饭"], among: choices), "zh-CN")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "ごはん", "みず", "おちゃ", "CHECK"], among: choices)?.id, "ja-JP")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Translate this sentence", "ごはんです", "rice", "is", "water"], among: choices)?.id, "ja-JP")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Select the correct meaning", "Quiero un vaso de agua, por favor.", "The boy eats bread"], among: choices)?.id, "es-ES")
+        XCTAssertEqual(SpeechLanguages.language(of: ["Tap what you hear", "我喜欢喝茶", "米饭"], among: choices)?.id, "zh-CN")
         XCTAssertNil(SpeechLanguages.language(of: ["Settings", "Wi-Fi", "Bluetooth", "General", "rice", "water"], among: choices))
-        XCTAssertNil(SpeechLanguages.language(of: ["ごはん"], among: ["zh-CN"]))  // not recognizable here: keep what we have
+        XCTAssertNil(SpeechLanguages.language(of: ["ごはん"], among: ["zh-CN"]))
+        XCTAssertNil(SpeechLanguages.language(of: ["Hi, I'm ESP32 Agent. Tell me what to do on", "this iPhone.", "Reply, or give a new task",
+                                                   "Duolingo daily streak", "7 AM daily alarm", "Open Duolingo and complete one lesson..."], among: choices + ["id-ID", "de-DE"]))
+        XCTAssertEqual(SpeechLanguages.language(of: ["Hi, I'm ESP32 Agent. Tell me what to do on", "this iPhone.", "Reply, or give a new task",
+                                                     "Duolingo daily streak", "ごはんとおちゃをください。"], among: choices + ["id-ID"])?.id, "ja-JP")
+        XCTAssertNil(SpeechLanguages.language(of: ["13:41", "·•◉", "Hi, I'm ESP32 Agent.", ".lاه"], among: choices + ["ar-SA"]))  // not recognizable here: keep what we have
     }
 }
 
@@ -185,9 +212,10 @@ import XCTest
 final class FakeSpeech: SpeechEngine {
     let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
     let text: String
+    let confidence: Double
     private(set) var appended = 0
 
-    init(text: String) { self.text = text }
+    init(text: String, confidence: Double = 0.5) { (self.text, self.confidence) = (text, confidence) }
 
     func begin(onPartial: @escaping @Sendable (String) -> Void) async throws -> SpeechSession { Session(self) }
 
@@ -195,6 +223,6 @@ final class FakeSpeech: SpeechEngine {
         let owner: FakeSpeech
         init(_ owner: FakeSpeech) { self.owner = owner }
         func append(_ buffer: AVAudioPCMBuffer) { owner.appended += 1 }
-        func finish() async -> Reading { Reading(text: owner.text, confidence: 0.5) }
+        func finish() async -> Reading { Reading(text: owner.text, confidence: owner.confidence) }
     }
 }

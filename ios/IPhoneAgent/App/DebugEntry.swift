@@ -103,7 +103,14 @@ extension AppModel {
             let language = AudioTest.phrases[rest] != nil ? rest : "en-US"
             homeHint = AudioTest.phrases[language]  // on screen, for Second language › Automatic
             Task { [weak self] in
+                let streaming = self?.feed.streamOn ?? false  // idle on Home, no frames come: the screen can't be read
+                if !streaming { try? await self?.feed.stream(true) }
+                for _ in 0..<3 where SpeechLanguages.second != language {  // a frame showing the phrase (the first may be old)
+                    _ = await self?.feed.fresh(since: now() + 0.5, timeout: 2)
+                    await self?.audio.followScreen(verbose: true)
+                }
                 await AudioTest.run(language)
+                if !streaming { try? await self?.feed.stream(false) }
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard let self else { return }
                 self.homeHint = nil
@@ -214,6 +221,7 @@ extension AppModel {
             setListening(v == "on")
             say("harness: listen \(v == "on" ? "on" : "off")")
         }
+        if let lang = value(after: "-audiotest") { handleAppCommand("audiotest " + lang) }  // harness: Settings › Developer › Audio test
         if args.contains("-audio") { say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard())) }
     }
 

@@ -18,6 +18,8 @@ enum ListenSetting {
         var text = ""
         var loud = false                  // some frame above `soundDB`
         var final = false                 // the engine is done with it
+        var confidence = 0.0              // of the final reading (0…1)
+        var redone = false                // transcribed again in the screen's language: later text from the old engine is stale
     }
 
     static let soundDB = -50.0       // quieter frames count as silence
@@ -28,7 +30,7 @@ enum ListenSetting {
     @Published private(set) var state: SpeechSetup.State?  // nil until enabled once
     private(set) var frames = 0, gaps = 0, undecoded = 0
 
-    var enabled = false { didSet { if !enabled { endSegment() } } }
+    var enabled = false { didSet { if !enabled { endSegment() }; watchScreen() } }
     var clock: () -> Double = { now() }
     /// Each segment's final text, when there is some (shared with the CLI).
     var onFinal: ((String) -> Void)?
@@ -43,7 +45,6 @@ enum ListenSetting {
     private var preparing: Task<Void, Never>?
     /// The screen's text lines (OCR of the shown frame), for Second language › Automatic. Set by the app.
     var screenLines: () async -> [String] = { [] }
-    private var relanguage = false  // the screen showed another language: new engine once this segment ends
 
     /// Speech permission and engine; called when the setting is switched on (and at launch if it is on).
     func prepare() {
@@ -85,6 +86,7 @@ enum ListenSetting {
         frames += 1
         if AudioDecoder.level(pcm) > Self.soundDB { segments[segments.count - 1].loud = true }
         if let session { session.append(pcm) } else { pending?.append(pcm) }
+        if heardPCM.count < Int(Self.maxSegment * 50) { heardPCM.append(pcm) }  // ~20 ms frames
         if let s = segments.last, clock() - s.start >= Self.maxSegment { endSegment() }
     }
 
@@ -118,10 +120,11 @@ enum ListenSetting {
     private func startSegment() {
         endSegment()
         segments.append(Segment(start: clock()))
+        heardPCM = []
         segmentFrom = (frames, undecoded)
         DebugLog.write("audio: segment started (\(engine == nil ? "no speech engine" : "transcribing"))")
         segments.removeAll { ($0.end ?? clock()) < clock() - Self.keep }
-        followScreen()
+        Task { await followScreen() }
         guard let engine else { return }
         let started = segments[segments.count - 1].start
         pending = []
@@ -138,26 +141,88 @@ enum ListenSetting {
             if current && segments.last?.end == nil {
                 session = s
             } else {
-                setText(await s.finish().text, started: started, final: true)
+                let r = await s.finish()
+                setText(r.text, started: started, final: true, confidence: r.confidence)
             }
         }
     }
 
-    /// Second language › Automatic: sound plays, so read the screen; another language there means a new engine.
-    private func followScreen() {
-        guard SpeechLanguages.isAutomatic, engine != nil else { return }
+    /// Second language › Automatic: read the screen every few seconds while listening (and when sound starts), so the
+    /// engine is in the lesson's language before its first word: checked only at sound, the first phrase was lost.
+    private var watcher: Task<Void, Never>?
+    private func watchScreen() {
+        watcher?.cancel()
+        guard enabled else { return }
+        watcher = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.followScreen()
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+            }
+        }
+    }
+
+    /// Another language on the screen than the engine's: a new engine (once the current segment ends).
+    func followScreen(verbose: Bool = false) async {
+        guard SpeechLanguages.isAutomatic, engine != nil, !switching, linked() else {
+            if verbose { DebugLog.write("audio: screen not read (automatic \(SpeechLanguages.isAutomatic), engine \(engine != nil), busy \(switching), linked \(linked()))") }
+            return
+        }
+        switching = true
+        defer { switching = false }
+        let t0 = now()
+        let lines = await screenLines()
+        let t1 = now(), choices = SpeechLanguages.choices(), t2 = now()
+        if verbose { DebugLog.write(String(format: "audio: screen text (OCR %.0f ms, choices %.0f ms) ", (t1 - t0) * 1000, (t2 - t1) * 1000) + "\(lines.prefix(12))") }
+        guard let (id, line) = SpeechLanguages.language(of: lines, among: choices),
+              id != SpeechLanguages.second else { return }
+        DebugLog.write("audio: the screen is in \(id) (\"\(line.prefix(40))\"); transcribing that from the next sound")
+        SpeechLanguages.seen = id
+        seenAt = clock()
+        // build the new engine first and swap it in between sounds: reset() left sound without an engine meanwhile
+        let t3 = now()
+        let (next, state) = await SpeechSetup.engine()
+        DebugLog.write(String(format: "audio: %@ engine built in %.0f ms (OCR %.0f ms)", id, (now() - t3) * 1000, (t1 - t0) * 1000))
+        guard let next, state == .ready else { return }
+        adopt(next)
+    }
+
+    /// The screen's language engine: from the next sound on (now, between sounds), and the last sound again.
+    func adopt(_ next: SpeechEngine) {
+        let current = (engine as? MultiEngine)?.languages
+        if let a = (next as? MultiEngine)?.languages, a == current { return }  // the same languages (a fallback): nothing to redo
+        if segments.last?.end == nil { nextEngine = next } else { use(next); redoLast() }
+    }
+    private var nextEngine: SpeechEngine?
+    private var seenAt = 0.0  // when the screen's language was last read: only sound from shortly before is redone
+    /// The current (or last) segment's sound, to transcribe it again once the screen's language engine is ready:
+    /// the first phrase of a lesson starts before the screen has been read.
+    private var heardPCM: [AVAudioPCMBuffer] = []
+    private var switching = false  // one look at the screen at a time (the 4 s watch and sound starting)
+
+    /// The last segment again with the new engine, if it ended within 10 s (same audio format only).
+    private func redoLast() {
+        guard let engine, let i = segments.indices.last, let end = segments[i].end, clock() - end < 10,
+              segments[i].start >= seenAt - 5,  // the lesson's sound, not the one before the screen changed
+              segments[i].loud, let first = heardPCM.first, first.format == engine.format else { return }
+        let started = segments[i].start, buffers = heardPCM
         Task {
-            let lines = await screenLines()
-            guard let id = SpeechLanguages.language(of: lines, among: SpeechLanguages.choices()),
-                  id != SpeechLanguages.second else { return }
-            DebugLog.write("audio: the screen is in \(id); transcribing that from the next sound")
-            SpeechLanguages.seen = id
-            if segments.last?.end == nil { relanguage = true } else { reset() }
+            guard let s = try? await engine.begin(onPartial: { _ in }) else { return }
+            buffers.forEach { s.append($0) }
+            let r = await s.finish(), text = r.text
+            // a surer reading only: a fallback engine (the screen's language had no model) read worse than the first
+            guard !text.isEmpty, let j = segments.firstIndex(where: { $0.start == started }),
+                  !segments[j].final || r.confidence > segments[j].confidence else { return }
+            DebugLog.write("audio: retranscribed in the screen's language: \"\(text.prefix(200))\" (was \"\(segments[j].text.prefix(80))\")")
+            segments[j].text = text
+            segments[j].redone = true
+            segments[j].confidence = r.confidence
+            segments[j].final = true
+            onFinal?(text)
         }
     }
 
     private func endSegment() {
-        defer { if relanguage { relanguage = false; reset() } }
+        defer { if let next = nextEngine { nextEngine = nil; use(next); redoLast() } }
         guard let i = segments.indices.last, segments[i].end == nil else { return }
         segments[i].end = clock()
         let started = segments[i].start
@@ -170,14 +235,18 @@ enum ListenSetting {
             return
         }
         session = nil
-        Task { setText(await s.finish().text, started: started, final: true) }
+        Task {
+            let r = await s.finish()
+            setText(r.text, started: started, final: true, confidence: r.confidence)
+        }
     }
 
-    private func setText(_ text: String, started: Double, final: Bool) {
-        guard let i = segments.firstIndex(where: { $0.start == started }) else { return }
+    private func setText(_ text: String, started: Double, final: Bool, confidence: Double = 0) {
+        guard let i = segments.firstIndex(where: { $0.start == started }), !segments[i].redone else { return }
         if !text.isEmpty { segments[i].text = text }
         if final {
             segments[i].final = true
+            segments[i].confidence = confidence
             DebugLog.write("audio: transcript \"\(segments[i].text.prefix(200))\"")
             if !segments[i].text.isEmpty { onFinal?(segments[i].text) }
         }
@@ -205,6 +274,7 @@ enum ListenSetting {
         let text = phrases[language] ?? phrases["en-US"]!
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)  // the phrase is on screen (and mirrored) before it sounds
         for _ in 0..<times {
             let u = AVSpeechUtterance(string: text)
             u.voice = AVSpeechSynthesisVoice(language: language)

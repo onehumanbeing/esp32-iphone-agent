@@ -110,7 +110,13 @@ struct DeveloperView: View {
                 if testing, let phrase = AudioTest.phrases[language] { Text(verbatim: phrase).font(.title3) }
                 Button(testing ? "Listening…" : "Play and transcribe") {
                     testing = true
-                    Task { await AudioTest.run(language); testing = false }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)  // the phrase is mirrored
+                        await audio.followScreen()
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        await AudioTest.run(language)
+                        testing = false
+                    }
                 }
                 .disabled(testing)
                 ForEach(Array(audio.segments.suffix(3).enumerated()), id: \.offset) { _, s in
