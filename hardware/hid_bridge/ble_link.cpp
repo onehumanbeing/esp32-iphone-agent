@@ -10,6 +10,7 @@
 #include "ble_link.h"
 #include "ble_hid.h"
 #include <atomic>
+#include <utility>
 #include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <NimBLEDevice.h>
@@ -68,7 +69,8 @@ static NimBLEServer *server;
 static NimBLECharacteristic *chars[CH_COUNT], *netChar, *cliIn, *cliInNR;
 static QueueHandle_t cmdQueue, replyQueue;
 static SemaphoreHandle_t statusLock;
-static Text statusText, cliStatus;
+static Text statusText;
+static String cliStatus;
 static bool statusDirty, cliStatusDirty;
 static volatile uint32_t connAt[MAX_PEERS];
 static std::atomic<int> ctrlPending;  // replies queued or sending + a status waiting; video yields to them
@@ -350,6 +352,7 @@ static bool notifyRaw(int ch, const uint8_t *p, size_t n, uint32_t timeout_ms) {
 
 static void sendText(int ch, const Text &t, uint32_t timeout_ms) {
   size_t room = ble_mtu() - 3;
+  if (ch == CH_STATUS && t.len > room) return;  // 重新协商 MTU 时等待下一条完整状态。
   if (!notifyRaw(ch, (const uint8_t *)t.s, t.len < room ? t.len : room, timeout_ms) && ch == CH_REPLY &&
       anySubscribed(CH_REPLY)) {
     replyDrops++;
@@ -390,10 +393,10 @@ static void txTask(void *) {
     }
     if (cliDue) {
       xSemaphoreTake(statusLock, portMAX_DELAY);
-      t = cliStatus;
+      String sending(std::move(cliStatus));
       cliStatusDirty = false;
       xSemaphoreGive(statusLock);
-      cli_send_ctrl('s', t.s, t.len, STATUS_TIMEOUT_MS);
+      cli_send_ctrl('s', sending.c_str(), sending.length(), STATUS_TIMEOUT_MS);
       ctrlPending--;
     }
     dropIdlePlainLinks();
@@ -573,12 +576,14 @@ void ble_reply(const String &line, char dest) {
   }
 }
 
-void ble_cli_status(const String &full, const String &compact) {
+void ble_cli_status(String full, String compact) {
   int slot = cli_slot();
   if (slot < 0) return;
-  const String &s = full.length() + 1 + CLI_OVERHEAD + 3 <= cli_mtu() ? full : compact;
+  const size_t room = cli_ctrl_room(cli_mtu());
+  String &s = full.length() <= room ? full : compact;
+  if (!s.length() || s.length() > room) return;
   xSemaphoreTake(statusLock, portMAX_DELAY);
-  toText(cliStatus, s);
+  cliStatus = std::move(s);
   if (!cliStatusDirty) ctrlPending++;
   cliStatusDirty = true;
   xSemaphoreGive(statusLock);
