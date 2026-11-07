@@ -42,6 +42,9 @@ extension AppModel {
         if try await leaveApp() { return true }
         guard startupBoardIssue || !board.connected else {
             DebugLog.write("leave app: the board took every gesture, the app stayed in front; not plugged into this iPhone")
+            if board.status?.isWirelessHID == true {
+                throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
+            }
             throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
         }
         return try await askUserToLeave()
@@ -80,11 +83,12 @@ extension AppModel {
         let began = now()
         var waited = false
         while true {
-            while !board.connected {
+            while !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
                 try Task.checkCancellation()
-                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.board)) }
+                let part: Recovery.Part = board.connected && board.status?.isWirelessHID == true ? .pointer : .board
+                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(part)) }
                 waited = true
-                let stage = Recovery.Stage(part: .board, ask: now() - began >= Recovery.quiet[.board]!)
+                let stage = Recovery.Stage(part: part, ask: now() - began >= Recovery.quiet[part]!)
                 if stage != recovering { recover(stage) }
                 homeHint = stage.line
                 try await Task.sleep(nanoseconds: 300_000_000)
@@ -166,10 +170,10 @@ extension AppModel {
             guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.frames)) }
             try Task.checkCancellation()
             guard appIsBackgrounded else { throw onScreenError() }
-            if hasFrame(), board.connected, !snapMode || receivedSnapshot {
+            if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, !snapMode || receivedSnapshot {
                 await feed.settled(most: 1.5)  // the nudged cursor keeps fading for seconds; the Home Screen is still
                 try Task.checkCancellation()
-                if hasFrame(), board.connected, appIsBackgrounded {
+                if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, appIsBackgrounded {
                     if recovering != nil { recover(nil) }
                     return source
                 }
@@ -179,8 +183,8 @@ extension AppModel {
                 stallLogged = true
                 DebugLog.write("startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
-            let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                                     frameAt: hasFrame() ? now() : 0, stalled: stalled)
+            let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
+                                     frameAt: hasFrame() ? now() : 0, stalled: stalled, needsPointer: board.status?.needsWirelessPointer == true)
             switch recovery.next(link, at: now()) {
             case .live: break
             case .wait(let stage):
@@ -188,7 +192,10 @@ extension AppModel {
                 homeHint = stage.line
             case .giveUp(let reason): throw DeviceError(message: reason)
             }
-            if !board.connected { try await waitForStartupBoard(); continue }
+            if !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
+                try await waitForStartupBoard()
+                continue
+            }
             if now() < streamDeadline {
                 try await Task.sleep(nanoseconds: 100_000_000)
                 continue

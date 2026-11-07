@@ -323,9 +323,14 @@ import Foundation
         onLinkUp?()
     }
 
-    func mockStatus(_ s: BoardStatus) {
-        status = s
-        onStatus?(s)
+    func updateStatus(_ s: BoardStatus) {
+        let merged = status?.merged(with: s) ?? s
+        if status?.isWirelessHID == true && status?.inputReady == true && merged.needsWirelessPointer {
+            commands.inputLinkLost()
+        }
+        statusRevision += 1
+        status = merged
+        onStatus?(merged)
     }
 
     private func mockReply(_ line: String) {
@@ -363,6 +368,7 @@ import Foundation
         connectionDeadline?.cancel()
         connecting = false
         net = nil
+        status = nil
         let was = connected
         connected = false
         linking = false
@@ -537,12 +543,7 @@ extension BoardLink: CBPeripheralDelegate {
             case BoardUUID.video: onVideo?(v)
             case BoardUUID.reply: commands.handleReply(String(decoding: v, as: UTF8.self))
             case BoardUUID.status:
-                if let s = BoardStatus.decode(v) {
-                    let merged = status?.merged(with: s) ?? s
-                    statusRevision += 1
-                    status = merged
-                    onStatus?(merged)
-                }
+                if let s = BoardStatus.decode(v) { updateStatus(s) }
             default: break
             }
         }

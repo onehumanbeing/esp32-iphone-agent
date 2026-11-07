@@ -223,7 +223,7 @@ struct HomeView: View {
         case .failure: return "That did not work out. The replay shows where I got stuck."
         default: break
         }
-        if !board.connected { return "Plug me into the USB-C port to wake me up." }
+        if !board.connected { return "Plug in the USB board or power on the Bluetooth board." }
         if blocker != nil { return "Almost there. Tap an orange item to finish setup." }
         return "Hi, I'm \(settings.agentName). Tell me what to do on this iPhone."
     }
@@ -422,6 +422,8 @@ struct HomeView: View {
     /// The first thing missing before a run, and the setup page that fixes it.
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
+        if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
+        if board.status?.inputState == nil { return ("Waiting for the mouse…", .act) }
         if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }

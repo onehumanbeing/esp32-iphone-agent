@@ -102,11 +102,15 @@ jobs:
           arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli lib install "NimBLE-Arduino@2.5.1"
       - name: Build
-        run: hardware/flash.sh --build-only
+        run: |
+          hardware/flash.sh --build-only
+          hardware/flash.sh --ble-hid --build-only
+          hardware/flash.sh --note4 --build-only
+          python3 hardware/tests/test_build_targets.py --built-images
       - name: Host tests (bplist, GOP buffer, CLI protocol, Bonjour TXT, …)
         run: |
           sudo apt-get install -y libmbedtls-dev
-          make -C hardware/tests
+          make -C hardware/tests test check-hid
 
   server:  # legacy v0.1.0 architecture, kept working
     needs: changes

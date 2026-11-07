@@ -74,6 +74,14 @@ extension AppModel {
             aiConsentRun = task
             return
         }
+        if board.connected && board.status?.inputState == nil {
+            blocked(String(localized: "Waiting for the mouse…"))
+            return
+        }
+        if board.status?.needsWirelessPointer == true {
+            blocked(String(localized: "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings."))
+            return
+        }
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
             blocked(String(localized: "The pointer isn't calibrated yet."))

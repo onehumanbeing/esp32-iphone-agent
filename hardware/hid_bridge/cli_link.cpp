@@ -34,9 +34,9 @@ static volatile uint32_t gen;  // sessions authenticated since boot
 // one per sending task.
 static uint8_t *rxText[2], *ctrlBuf, *ctrlOut, *videoOut, *audioOut;
 static volatile bool audioOn;
-const size_t TEXT_CAP = 520, OUT_CAP = 520 + CLI_OVERHEAD, VIDEO_CAP = CLI_TCP_MTU;
+const size_t RX_CAP = 520, CTRL_CAP = BOARD_STATUS_CAP, OUT_CAP = CTRL_CAP + CLI_OVERHEAD, VIDEO_CAP = CLI_TCP_MTU;
 const size_t AUDIO_CAP = 1400 + CLI_OVERHEAD;  // one record: header, times, an AAC-ELD frame
-const size_t BUF_SIZE = TEXT_CAP * 3 + OUT_CAP + VIDEO_CAP + AUDIO_CAP;
+const size_t BUF_SIZE = RX_CAP * 2 + CTRL_CAP + OUT_CAP + VIDEO_CAP + AUDIO_CAP;
 
 extern "C" void cli_random(uint8_t *p, size_t n) { esp_fill_random(p, n); }
 
@@ -64,10 +64,10 @@ void cli_begin() {
   if (!p) p = (uint8_t *)malloc(BUF_SIZE);
   if (!p) return;
   rxText[0] = p;
-  rxText[1] = p + TEXT_CAP;
-  ctrlBuf = p + TEXT_CAP * 2;
-  ctrlOut = p + TEXT_CAP * 3;
-  videoOut = p + TEXT_CAP * 3 + OUT_CAP;
+  rxText[1] = p + RX_CAP;
+  ctrlBuf = p + RX_CAP * 2;
+  ctrlOut = ctrlBuf + CTRL_CAP;
+  videoOut = ctrlOut + OUT_CAP;
   audioOut = videoOut + VIDEO_CAP;
   esp_read_mac(boardId, ESP_MAC_BT);
   prefs.begin("cli", true);
@@ -149,7 +149,7 @@ static void data(int slot, const uint8_t *p, size_t n) {
   Session &s = sessions[slot];
   uint8_t *text = rxText[slot == CLI_TCP_SLOT];
   uint32_t ctr;
-  if (!s.welcomed || !text || n > TEXT_CAP + CLI_OVERHEAD) return;
+  if (!s.welcomed || !text || n > RX_CAP + CLI_OVERHEAD) return;
   int len = cli_open(s.c2b, 'C', p, n, &ctr, text);
   if (len < 0) return;  // forged or for another session: ignore
   if (ctr != s.rx + 1) { drop(slot); return; }  // a replay, or a lost frame: start over
@@ -206,8 +206,8 @@ bool cli_send_ctrl(char kind, const char *text, size_t n, uint32_t timeout_ms) {
   if (slot < 0) return false;
   Session &s = sessions[slot];
   uint8_t *buf = ctrlBuf, *out = ctrlOut;
-  size_t room = mtu(slot) - 3 - CLI_OVERHEAD - 1;
-  if (room > TEXT_CAP - 1) room = TEXT_CAP - 1;
+  size_t room = cli_ctrl_room(mtu(slot));
+  if (kind == 's' && n > room) return false;  // 传输途中换链路时，下一次再发完整 JSON。
   if (n > room) n = room;
   buf[0] = (uint8_t)kind;
   memcpy(buf + 1, text, n);

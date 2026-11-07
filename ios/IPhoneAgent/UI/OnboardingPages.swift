@@ -9,7 +9,7 @@ struct WelcomePage: View {
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm ESP32 Agent",
-                       message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
+                       message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer.")
             Panel {
                 DisclosureGroup {
                     Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
@@ -40,8 +40,8 @@ struct ConnectPage: View {
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: board.connected ? .success : board.scanning ? .listening : .sleeping,
-                       title: "Plug Me In",
-                       message: "Connect the board to the USB-C port. I'll find it over Bluetooth; tap Pair when iOS asks.")
+                       title: "Connect the Board",
+                       message: "Plug in the USB board or power on the Bluetooth board. Select the board over Bluetooth and tap Pair when asked.")
             if !board.connected { MiniPhoneDemo(kind: .plugIn) }
             Panel {
                 switch board.state {
@@ -118,7 +118,7 @@ struct FirmwareLinks: View {
     /// One line, so both links stay above the bottom button on every iPhone.
     var body: some View {
         HStack(spacing: Space.m) {
-            Text("New board?").foregroundStyle(.secondary)
+            Text("New USB board?").foregroundStyle(.secondary)
             Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
             Link(destination: AboutView.repo) {
                 Label { Text(verbatim: "GitHub") } icon: {
@@ -237,14 +237,19 @@ struct ActPage: View {
     @ObservedObject var calibrator: AutoCalibrator
     @ObservedObject var pointer: Pointer
 
-    private var mouse: Bool { MockMode.on || board.status?.usb == "ok" }
+    private var mouse: Bool { MockMode.on || board.status?.inputReady == true }
     private var mirroring: Bool { MockMode.on || board.status?.ap == "streaming" }
 
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: pointer.calibrated ? .success : calibrator.busy ? .acting : .idle,
                        title: "Let Me Use the Pointer",
-                       message: "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed.")
+                       message: "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid.")
+            if board.status?.isWirelessHID == true {
+                let deviceName = board.name.isEmpty ? String(localized: "the board connected in this app") : board.name
+                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName).")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             if !pointer.calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
             Panel {
                 CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)

@@ -242,6 +242,58 @@ import XCTest
         XCTAssertNil(BoardReply.parse("ok"))
     }
 
+    func testWirelessPairingIsSeparateFromTheControlConnection() throws {
+        let board = BoardLink(mock: true)
+        let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"esp32s3","usb":"ok","hid":"off","ap":"streaming"}"#.utf8)))
+        board.updateStatus(full)
+        XCTAssertTrue(full.needsWirelessPointer)
+        XCTAssertFalse(full.inputReady)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.inputReady, true)
+        XCTAssertEqual(board.status?.ap, "streaming")
+        let paired = board.commands.links
+        board.updateStatus(BoardStatus(up: 200))
+        XCTAssertEqual(board.status?.hid, "ok")
+        board.updateStatus(BoardStatus(hid: "off"))
+        XCTAssertNotEqual(board.commands.links, paired, "指针与 GATT 可独立断开，应废弃断线前的动作")
+        XCTAssertEqual(board.status?.needsWirelessPointer, true)
+        XCTAssertEqual(board.status?.usb, "ok")
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.needsWirelessPointer, false)
+    }
+
+    func testHIDCapabilityDoesNotDependOnBoardName() throws {
+        for model in ["note4", "esp32s3"] {
+            let status = try XCTUnwrap(BoardStatus.decode(Data("{\"board\":\"\(model)\",\"usb\":\"ok\"}".utf8)))
+            XCTAssertFalse(status.isWirelessHID, "板型身份不能代替输入能力")
+            XCTAssertNil(status.inputState, "未报告输入能力的板型不能借用 USB 状态")
+            XCTAssertFalse(status.inputReady)
+            XCTAssertFalse(status.acceptsUSBRelease)
+            let paired = status.merged(with: BoardStatus(hid: "ok"))
+            XCTAssertTrue(paired.isWirelessHID)
+            XCTAssertTrue(paired.inputReady)
+            XCTAssertFalse(paired.acceptsUSBRelease)
+            XCTAssertEqual(paired.board, model)
+        }
+        let unnamedHID = BoardStatus(usb: "ok", hid: "off")
+        XCTAssertTrue(unnamedHID.isWirelessHID)
+        XCTAssertTrue(unnamedHID.needsWirelessPointer)
+        XCTAssertFalse(unnamedHID.inputReady)
+    }
+
+    func testUSBUpdateRequiresAnIdentifiedUSBBoard() {
+        XCTAssertFalse(BoardStatus().acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(fw: .init([0, 2, 2]), usb: "off", board: "note4").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", hid: "off").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", board: "another-board").acceptsUSBRelease)
+        let usb = BoardStatus(usb: "ok")
+        XCTAssertTrue(usb.acceptsUSBRelease)
+        XCTAssertTrue(usb.inputReady)
+        XCTAssertFalse(usb.needsWirelessPointer)
+        XCTAssertFalse(BoardStatus(usb: "asleep").inputReady)
+        XCTAssertTrue(BoardStatus(usb: "asleep").acceptsUSBRelease)
+    }
+
     func testStatusDecoding() throws {
         let json = #"{"up":123456,"rst":"power-on","heap":81234,"psram":6200000,"usb":"ok","net":"ap","ip":"192.168.4.1","sta":1,"ap":"streaming","w":480,"h":1040,"kbps":180,"fps":4.8,"idr":2000,"gop":42000,"ble":{"mtu":247,"phy":2,"kbps":350,"drop":0}}"#
         let s = try XCTUnwrap(BoardStatus.decode(Data(json.utf8)))
