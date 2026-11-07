@@ -29,7 +29,9 @@ enum KeyboardLayout: Equatable {
 
     private static func text(in image: CGImage) async -> [String] {
         await withCheckedContinuation { done in
+            let once = Vision.Once()
             let request = VNRecognizeTextRequest { request, _ in
+                guard once.take() else { return }
                 done.resume(returning: (request.results as? [VNRecognizedTextObservation] ?? [])
                     .compactMap { $0.topCandidates(1).first?.string })
             }
@@ -37,7 +39,7 @@ enum KeyboardLayout: Equatable {
             request.recognitionLanguages = ["zh-Hans", "en-US"]
             request.usesLanguageCorrection = false
             DispatchQueue.global(qos: .userInitiated).async {
-                do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { done.resume(returning: []) }
+                do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { if once.take() { done.resume(returning: []) } }
             }
         }
     }

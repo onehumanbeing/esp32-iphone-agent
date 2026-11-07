@@ -13,6 +13,21 @@ enum Vision {
         await Task.detached(priority: .userInitiated, operation: work).value
     }
 
+    /// Lets exactly one caller through: a Vision request can run its completion handler and still make `perform`
+    /// throw, and a continuation resumed twice traps (SIGTRAP typing Chinese, issue #111).
+    final class Once: @unchecked Sendable {
+        private let lock = NSLock()
+        private var taken = false
+
+        func take() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if taken { return false }
+            taken = true
+            return true
+        }
+    }
+
     /// A grayscale bitmap (PIL "L" weights), row-major.
     struct Gray {
         let w: Int, h: Int
