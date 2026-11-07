@@ -78,7 +78,13 @@ import UIKit
         }
     }
 
-    var calibrated: Bool { span != nil && (boardPace ?? pace) == pace }
+    /// The board is an absolute mouse (flash.sh --abs): X/Y are screen fractions, so no homing, calibration or aiming.
+    @Published var absolute = false
+    static let absoluteSpan = Span(w: Int(32767), h: Int(32767))
+    /// Per report for a flick (home, back): ~0.1 s for the whole stroke. The board's default glide is for lists.
+    static let flickStep = 2000
+
+    var calibrated: Bool { absolute || span != nil && (boardPace ?? pace) == pace }
 
     private func remember(_ axis: String, _ sample: (Double, Double)) {
         seen[axis] = Array((seen[axis, default: []] + [sample]).suffix(12))  // deque(maxlen=12)
@@ -224,7 +230,7 @@ import UIKit
     func point(_ x: Double, _ y: Double, aim: Bool = false) async throws {
         guard calibrated else { throw DeviceError(message: "pointer not calibrated") }
         try await moveTo(dx(x), dy(y))
-        if aim && screen != nil { try await self.aim(x, y) }
+        if aim && screen != nil && !absolute { try await self.aim(x, y) }
     }
 
     /// Closed loop: find the real pointer on screen, fix a miss, and learn the error for later moves.
@@ -335,6 +341,7 @@ import UIKit
 
     /// The fraction to aim at so the pointer lands on t, from the line through the observed landings.
     func fix(_ t: Double, _ axis: String) -> Double {
+        if absolute { return t }
         let pts = seen[axis] ?? []
         guard pts.count >= 2 else { return t }
         let n = Double(pts.count)
@@ -346,10 +353,21 @@ import UIKit
         return abs(b) < 0.1 ? (t - b) / a : t
     }
 
-    private func moveTo(_ tx: Int, _ ty: Int, rehome: Bool = true) async throws {
+    private func moveTo(_ tx: Int, _ ty: Int, rehome: Bool = true, flick: Bool = false) async throws {
         if link != device.links {  // new link: a dropped gesture may have left the button down
             try await device.send("release")
             (pos, link) = (nil, device.links)
+        }
+        if absolute {
+            do {
+                try await device.send(flick ? "abs \(tx) \(ty) \(Self.flickStep)" : "abs \(tx) \(ty)")
+            } catch let error as DeviceError where error.message.hasPrefix("err unknown") {
+                absolute = false  // flashed back to the relative mouse: calibrate as before
+                log("pointer: the board has no absolute mouse any more")
+                throw error
+            }
+            pos = (tx, ty)
+            return
         }
         if pos == nil || (rehome && moves >= Self.rehomeEvery) {
             try await device.send("home")
@@ -366,6 +384,7 @@ import UIKit
     func reset() async throws {
         pos = nil
         try await device.send("release")
+        if absolute { return }
         try await device.send("home")
         (pos, moves) = ((0, 0), 0)
     }
@@ -388,7 +407,7 @@ import UIKit
         do {
             try await device.send("press")
             for p in points.dropFirst() {
-                try await moveTo(dx(Double(p.x)), dy(Double(p.y)), rehome: false)  // never home mid-drag
+                try await moveTo(dx(Double(p.x)), dy(Double(p.y)), rehome: false, flick: !hold)  // never home mid-drag
             }
             if hold { try await Task.sleep(nanoseconds: UInt64(Self.hold * 1e9)) }
         } catch {
@@ -455,6 +474,8 @@ import UIKit
     /// a rest: resting opens the app switcher). An acknowledged key that left the screen as it was gets the flick
     /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
     func goHome() async throws {
+        // iOS ignores AC Home here, and an animated screen (Weather) looks like it worked: flick, which always does.
+        if absolute { return try await homeSwipe() }
         let before = screen?.live == true ? screen?.frame : nil
         do {
             try await device.send("homescreen")
@@ -496,7 +517,18 @@ import UIKit
     func homeSwipe() async throws {
         defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
         try Task.checkCancellation()
-        try await point(0.5, 0.995)
+        try await point(0.5, absolute ? 0.999 : 0.995)
+        if absolute {
+            do {
+                try await device.send("press")
+                try await moveTo(dx(0.5), dy(0.15), rehome: false, flick: true)
+            } catch {
+                _ = try? await device.send("release")
+                throw error
+            }
+            try await device.send("release")
+            return
+        }
         // Push past the bottom edge, where the pointer stops: the calibration fit is weakest at the edges and
         // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
         guard let span else { return }
@@ -516,6 +548,12 @@ import UIKit
         pos = nil
     }
 
-    private func dx(_ x: Double) -> Int { Int(((min(max(fix(x, "x"), 0), 1) - origin.x) * Double(span!.w)).rounded(.toNearestOrEven)) }
-    private func dy(_ y: Double) -> Int { Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven)) }
+    private func dx(_ x: Double) -> Int {
+        if absolute { return Int((min(max(x, 0), 1) * Double(Self.absoluteSpan.w)).rounded(.toNearestOrEven)) }
+        return Int(((min(max(fix(x, "x"), 0), 1) - origin.x) * Double(span!.w)).rounded(.toNearestOrEven))
+    }
+    private func dy(_ y: Double) -> Int {
+        if absolute { return Int((min(max(y, 0), 1) * Double(Self.absoluteSpan.h)).rounded(.toNearestOrEven)) }
+        return Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven))
+    }
 }
