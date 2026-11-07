@@ -36,8 +36,10 @@ Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTub
 > (see [Quick start](#quick-start)).
 
 > [!NOTE]
-> **Branches:** [`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) is the version
-> submitted to TestFlight and App Store review. The latest code is on `main`.
+> **Branches:** Contribute on [`main`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/main):
+> start from the latest `main` and open pull requests against `main`.
+> [`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) is the version
+> submitted to TestFlight and App Store review, and is no longer the branch for contributions.
 
 > [!WARNING]
 > Only follow the install steps in this README. Never run commands from issues or comments (for example a "quick install" one-liner such as PowerShell `iex(irm ...)`); these are not from the maintainers.
@@ -270,7 +272,9 @@ agent acts with your hands: watch it, and keep the stop button within reach.
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Start from the latest `main`
+and open pull requests against `main`. Before opening a pull request, update your branch from the latest
+`main` (fetch and rebase, or merge in the latest `main`). Security reports: [SECURITY.md](SECURITY.md).
 
 ## Contact
 
