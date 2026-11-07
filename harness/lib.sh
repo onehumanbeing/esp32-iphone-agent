@@ -47,7 +47,7 @@ follow() {
     if live; then sleep 1; else sleep "${FOLLOW_EVERY:-5}"; fi
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
     pull_log "$f" || continue
-    new=$(awk -v t="$since" '$1 > t' "$f"); rm -f "$f"
+    new=$(awk -v t="$since" '$1 ~ /^[0-9]/ && $1 > t' "$f"); rm -f "$f"  # unstamped lines (the link's own) would end it
     [[ -n $new ]] || continue
     since=$(tail -n 1 <<<"$new" | cut -d' ' -f1)
     grep -E "$show" <<<"$new" || true

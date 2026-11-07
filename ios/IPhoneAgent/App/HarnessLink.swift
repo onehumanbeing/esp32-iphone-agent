@@ -32,7 +32,7 @@ final class HarnessLink: @unchecked Sendable {
             b.stateUpdateHandler = { state in DebugLog.write("harness link: browse \(state)") }
             b.start(queue: queue)
             browser = b
-            DebugLog.live = { [weak self] line in self?.send("L " + line) }  // already on its own queue
+            DebugLog.live = { [weak self] line in self?.queue.async { self?.send("L " + line) } }
             connect()
         }
     }
@@ -58,12 +58,15 @@ final class HarnessLink: @unchecked Sendable {
 
     private func connect() {
         guard connection == nil, let endpoint = endpoint ?? saved else { return }
-        let c = NWConnection(to: endpoint, using: .tcp)
+        let tcp = NWProtocolTCP.Options()
+        tcp.enableKeepalive = true  // a Wi-Fi blip can leave the socket dead without a close
+        tcp.keepaliveIdle = 5
+        let c = NWConnection(to: endpoint, using: NWParameters(tls: nil, tcp: tcp))
         c.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
             switch state {
             case .ready:
-                send("L harness link: connected")
+                DebugLog.write("harness link: connected to \(endpoint)")
                 receive(c)
             case .waiting(let e):
                 DebugLog.write("harness link: waiting (\(e))")
