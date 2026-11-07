@@ -56,6 +56,8 @@ opens Clock, types the time into the wheel, ticks the days and saves. (Photo fro
 
 *Left: the real phone. Right: what the agent sees through the board's AirPlay mirror. The second shot is the pointer calibration.*
 
+If you're wondering how an AI can control an iPhone at all, start with [AI control for iPhone](https://handsy.tech/ai-control-iphone).
+
 ## Contents
 
 - [How it works](#how-it-works)
@@ -103,6 +105,7 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
 ## Hardware
 
 Supported boards and setup details: [hardware guide](https://handsy.tech/docs/hardware).
+Picking a board, cables and adapters, or stuck during setup: [setup guide](https://handsy.tech/esp32-iphone-agent-setup).
 
 | Part | Notes |
 |---|---|
@@ -163,8 +166,8 @@ or come back to the app. Siri, Shortcuts, widgets and Control Center can run sav
 ## Use from a coding agent
 
 The `esp32agent` CLI (npm, `npx -y esp32agent mcp`) is an MCP server, so a coding agent on your computer can see
-and drive the iPhone through the board (board firmware v0.2.2 or later). This repository is also a plugin with that
-MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md)). In Claude Code:
+and drive the iPhone through the board (board firmware v0.2.2 or later); see [iPhone as an MCP server](https://handsy.tech/iphone-mcp). This repository is also a plugin with that
+MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md)). In Claude Code ([walkthrough](https://handsy.tech/claude-code-iphone)):
 
 ```bash
 /plugin marketplace add onehumanbeing/esp32-iphone-agent
