@@ -9352,6 +9352,86 @@
           }
         }
       }
+    },
+    "Audio test" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音频测试"
+          }
+        }
+      }
+    },
+    "Automatic (from the screen)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动（按屏幕判断）"
+          }
+        }
+      }
+    },
+    "Developer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发者"
+          }
+        }
+      }
+    },
+    "Keep Going" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续执行"
+          }
+        }
+      }
+    },
+    "Phrase" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "短句"
+          }
+        }
+      }
+    },
+    "Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPhone transcribes it. Needs Listen to phone audio on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过屏幕镜像把短句播放两遍，板子把声音传回来，由这台 iPhone 转成文字。需要先打开「收听手机声音」。"
+          }
+        }
+      }
+    },
+    "That's %lld steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已经 %lld 步了"
+          }
+        }
+      }
+    },
+    "The screen hasn't changed in a while" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面已经有一阵没变化了"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
