@@ -7,6 +7,12 @@ enum Vision {
     /// Top share of the frame never compared: the status bar, where the Dynamic Island shows our Live Activity.
     static let topMask = 0.06
 
+    /// Run pixel work off the main thread. Full-frame checks there held it 2-4 s per tap in a Debug build, so the
+    /// Wi-Fi video's keepalive went out late and the board fell back to BLE (2026-11-06).
+    static func off<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await Task.detached(priority: .userInitiated, operation: work).value
+    }
+
     /// A grayscale bitmap (PIL "L" weights), row-major.
     struct Gray {
         let w: Int, h: Int
@@ -43,21 +49,53 @@ enum Vision {
     static func changed(_ before: Data?, _ after: Data?, ignore: [CGPoint] = [], threshold: Double = 1.0) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }
-        let sa = gray(a, 32, 64), sb = gray(b, 32, 64)
-        let total = zip(sa.px, sb.px).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
-        if Double(total) / Double(sa.px.count) > threshold { return true }  // a big change: new screen, scrolled list
+        // Our own marks never count: the status bar (the run's Live Activity label in the Dynamic Island) and
+        // the pointer, in both passes (2026-11-06: a missed tap read as "changed" from those alone).
+        let counts = kept(ignore)
+        if coarse(a, b, counts, threshold) { return true }  // a big change: new screen, scrolled list
         let w = a.width / 2, h = a.height / 2  // fine pass for small changes, at half resolution
         let fa = gray(a, w, h), fb = gray(b, w, h)
-        let masks = ignore.map { (Double($0.x) * Double(w), Double($0.y) * Double(h)) }
-        let r2 = pow(0.05 * Double(w), 2)
         var hits = 0
-        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 {
-            let x = Double(i % w), y = Double(i / w)
-            if y > topMask * Double(h) && masks.allSatisfy({ pow(x - $0.0, 2) + pow(y - $0.1, 2) > r2 }) {
-                hits += 1
-            }
+        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 && counts(i, w, h) { hits += 1 }
+        return hits >= 6
+    }
+
+    /// True when the area around `at` (fractions; about a word tile) changed, the pointer spots aside.
+    static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = []) -> Bool {
+        guard let before, let after, let a = image(before), let b = image(after) else { return true }
+        if a.width != b.width || a.height != b.height { return true }
+        let w = a.width / 2, h = a.height / 2, fa = gray(a, w, h), fb = gray(b, w, h), counts = kept(ignore)
+        let x0 = max(0, Int((p.x - 0.06) * Double(w))), x1 = min(w - 1, Int((p.x + 0.06) * Double(w)))
+        let y0 = max(0, Int((p.y - 0.02) * Double(h))), y1 = min(h - 1, Int((p.y + 0.02) * Double(h)))
+        guard x0 <= x1, y0 <= y1 else { return false }
+        var hits = 0
+        for y in y0...y1 {
+            for x in x0...x1 where abs(Int(fa.px[y * w + x]) - Int(fb.px[y * w + x])) > 25 && counts(y * w + x, w, h) { hits += 1 }
         }
         return hits >= 6
+    }
+
+    /// True when the screen changed a lot (new screen, scrolled list): more than a pointer or a checkmark.
+    static func bigChange(_ before: Data?, _ after: Data?, ignore: [CGPoint] = []) -> Bool {
+        guard let before, let after, let a = image(before), let b = image(after) else { return true }
+        if a.width != b.width || a.height != b.height { return true }
+        return coarse(a, b, kept(ignore), 1.0)
+    }
+
+    /// Pixel i of a w x h bitmap counts: below the status bar and away from every `ignore` point.
+    private static func kept(_ ignore: [CGPoint]) -> (Int, Int, Int) -> Bool {
+        { i, w, h in
+            let x = Double(i % w), y = Double(i / w), r2 = pow(0.05 * Double(w), 2)
+            return y > topMask * Double(h)
+                && ignore.allSatisfy { pow(x - $0.x * Double(w), 2) + pow(y - $0.y * Double(h), 2) > r2 }
+        }
+    }
+
+    private static func coarse(_ a: CGImage, _ b: CGImage, _ counts: (Int, Int, Int) -> Bool, _ threshold: Double) -> Bool {
+        let sa = gray(a, 32, 64), sb = gray(b, 32, 64)
+        let kept = (0..<sa.px.count).filter { counts($0, 32, 64) }
+        let total = kept.reduce(0) { $0 + abs(Int(sa.px[$1]) - Int(sb.px[$1])) }
+        return Double(total) / Double(max(kept.count, 1)) > threshold
     }
 
     /// True when two frames show the same screen, loosely: size-independent (a reference from another decode or

@@ -1,16 +1,15 @@
 import Foundation
 
 /// The model prompts, kept as plain text in the repository's `prompts/` folder (bundled with the app) so they
-/// can be read and tuned without touching Swift. actor/planner = the shared rules + the app-only rules.
+/// can be read and tuned without touching Swift. actor = the step rules + the app-only rules (one model, one loop:
+/// it keeps its own plan; the Python server in server/hidagent still has the older planner + actor copies).
 enum Prompts {
-    static let planner = load("planner")
     static let actorServer = load("actor")
     static let appRules = load("app-rules")
     /// Copies items off one screen for the notebook (the `read` action).
     static let reader = load("reader")
 
     static let actor = actorServer + "\n" + appRules + language
-    static let plannerApp = planner + "\n" + appRules + language
 
     /// The plan and notes show up in the app: write them in the app's language. Actions and JSON keys stay as specified.
     static let language = Bundle.main.preferredLocalizations.first?.hasPrefix("zh") == true

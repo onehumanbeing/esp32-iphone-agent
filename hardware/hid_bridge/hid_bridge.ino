@@ -3,7 +3,7 @@
 // iOS app on the same phone. It holds no logic; the app decides. Protocol: docs/ble-protocol.md.
 //
 // HID commands (unchanged from the old TCP protocol, the board answers "ok" or "err <why>"):
-//   ping | home | move <dx> <dy> | press | release | click
+//   ping | pace | home | move <dx> <dy> [speed] | press | release | click
 //   scroll <v> <h> | type <ascii text> | key <combo, e.g. cmd+h, enter>
 //   homescreen (the consumer-control Home key, "AC Home": iOS goes to the Home Screen, like a keyboard's home key)
 
@@ -26,11 +26,14 @@
 #include "version.h"
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
+#include "src/hid/pace.h"
+#include "src/heard/heard.h"
+#include "src/cli/cli_proto.h"
 #include "logbuf.h"
 
-const int STEP = 10;      // max pointer delta per report while moving
+const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
-const int HOME_REPORTS = 50;
+const int HOME_REPORTS = 25;  // per axis
 #ifndef DEBUG_SERIAL
 #define DEBUG_SERIAL 0  // 1: echo commands and the AirPlay handshake over USB serial
 #endif
@@ -43,12 +46,12 @@ USBHIDConsumerControl consumer;
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
 static String receiverName = "ESP32 Agent";
 
-void movePaced(long dx, long dy) {
-  while (dx || dy) {
-    int sx = constrain(dx, -STEP, STEP), sy = constrain(dy, -STEP, STEP);
+void movePaced(long dx, long dy, int step = STEP) {
+  pace_t p;
+  pace_start(&p, dx, dy, step);
+  int sx, sy;
+  while (pace_next(&p, &sx, &sy)) {
     mouse.move(sx, sy);
-    dx -= sx;
-    dy -= sy;
     delay(STEP_MS);
   }
 }
@@ -96,16 +99,19 @@ String run(const String &line) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
   String arg = sp < 0 ? "" : line.substring(sp + 1);
-  long a = 0, b = 0;
-  sscanf(arg.c_str(), "%ld %ld", &a, &b);
+  long a = 0, b = 0, c = STEP;
+  sscanf(arg.c_str(), "%ld %ld %ld", &a, &b, &c);
 
   if (cmd == "ping") return "ok";
+  if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
-  if (cmd == "home") {  // slam the pointer into the top-left corner
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, -127); delay(2); }
+  if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
+    // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(2); }
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(2); }
     return "ok";
   }
-  if (cmd == "move") { movePaced(a, b); return "ok"; }
+  if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
   if (cmd == "press") { mouse.press(MOUSE_LEFT); return "ok"; }
   if (cmd == "release") { mouse.release(MOUSE_LEFT); return "ok"; }
   if (cmd == "click") { mouse.press(MOUSE_LEFT); delay(60); mouse.release(MOUSE_LEFT); return "ok"; }
@@ -162,6 +168,15 @@ void readCrash() {
 }
 
 // Board-level commands from the app or the CLI (who); everything else is an HID command for run().
+static bool appHears;  // the app listens and shares what it heard
+
+// The app's transcripts for the CLI, ~3 KB in PSRAM once the app shares any.
+static heard_ring *heardRing() {
+  static heard_ring *r;
+  if (!r && (r = (heard_ring *)heap_caps_calloc(1, sizeof *r, MALLOC_CAP_SPIRAM))) heard_clear(r);
+  return r;
+}
+
 String board(const String &line, const String &id, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
@@ -189,6 +204,30 @@ String board(const String &line, const String &id, char who) {
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
+    return "ok";
+  }
+  // Phone audio for the CLI (docs/cli-protocol.md, "Phone audio"): the app shares what it heard, the CLI reads it
+  // (`heard`) or asks for the raw audio to transcribe itself (`listen raw on`, Wi-Fi only).
+  if (cmd == "hear" && who == FROM_APP) {
+    appHears = arg == "on";
+    if (!appHears && heardRing()) heard_clear(heardRing());
+    return "ok";
+  }
+  if (cmd == "heard" && who == FROM_APP) {
+    if (heardRing()) heard_add(heardRing(), millis(), arg.c_str(), arg.length());
+    return "ok";
+  }
+  if (cmd == "heard") {
+    static char out[HEARD_LINES * 64 + 64];
+    int room = (int)cli_mtu() - 3 - CLI_OVERHEAD - 1 - 16;  // ATT, seal, kind byte, "<id> ok "
+    static const heard_ring none = {};
+    heard_json(heardRing() ? heardRing() : &none, millis(), appHears, out, room > 0 && room < (int)sizeof out ? room : sizeof out);
+    return String("ok ") + out;
+  }
+  if (cmd == "listen" && who == FROM_CLI) {
+    if (arg != "raw on" && arg != "raw off") return "err usage: listen raw on|off";
+    if (arg == "raw on" && !cli_wifi()) return "err raw audio needs the Wi-Fi link (esp32agent net)";
+    cli_audio(arg == "raw on");
     return "ok";
   }
   if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
@@ -231,7 +270,7 @@ String board(const String &line, const String &id, char who) {
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
-  char s[560];
+  char s[704];
   snprintf(s, sizeof s,
            "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
@@ -253,6 +292,12 @@ String statusJson(bool full, char who) {
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
+  // AirPlay audio: packets, sound segments, a segment going on, sender volume (dB), records lost to the app
+  airplay_audio_stats au = airplay_audio();
+  len = strlen(s);
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"aud\":{\"pk\":%lu,\"seg\":%lu,\"snd\":%d,\"vol\":%.0f,\"drop\":%lu,\"hear\":%d,\"raw\":%d}}",
+           (unsigned long)au.packets, (unsigned long)au.segments, au.sound, au.volume, (unsigned long)wv_audio_drops(),
+           appHears, cli_audio_wanted());
   if (who == FROM_CLI) {
     len = strlen(s);
     snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
@@ -280,12 +325,10 @@ void statusTask(void *) {
   }
 }
 
-// AirPlay log lines: to USB serial, and to the app ("blog ...", into its debug.log) so a stall on a board
-// plugged into the phone leaves evidence, and into the RAM log. At most 16 a second; the rest are counted and reported later.
-void logLine(const char *msg) {
-#if DEBUG_SERIAL
-  Serial.printf("[%lu] %s\n", millis(), msg);
-#endif
+// Board log lines to the app ("blog ...", into its debug.log) so a stall on a board plugged into the phone leaves
+// evidence: the AirPlay log, and board_log (the video link's switches and resumes, which stayed in the 8 KB RAM log
+// and were gone before anyone looked, 2026-11-06). At most 16 a second; the rest are counted and reported later.
+void relayLine(const char *msg) {
   static uint32_t windowStart, sent, skipped;
   static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
   uint32_t now = millis();
@@ -295,12 +338,19 @@ void logLine(const char *msg) {
   if (now - windowStart >= 1000) { windowStart = now; sent = 0; }
   if (sent < 16) { sent++; send = true; dropped = skipped; skipped = 0; } else skipped++;
   portEXIT_CRITICAL(&mux);
-  if (!send) return;
-  board_log_keep(msg);
-  if (!ble_connected()) return;
+  if (!send || !ble_connected()) return;
   String line = String("blog ") + now + " " + msg;
   if (dropped) line += String(" (+") + dropped + " skipped)";
   ble_reply(line);
+}
+
+// AirPlay log lines: to USB serial, the RAM log and the app.
+void logLine(const char *msg) {
+#if DEBUG_SERIAL
+  Serial.printf("[%lu] %s\n", millis(), msg);
+#endif
+  board_log_keep(msg);
+  relayLine(msg);
 }
 
 void startAirplay() {
@@ -313,6 +363,7 @@ void startAirplay() {
   cfg.max_fps = cfg_fps();
   cfg.on_config = video_on_config;
   cfg.on_au = video_on_au;
+  cfg.on_audio = wv_audio;
   cfg.log = logLine;
   if (!airplay_start(&cfg)) board_log("airplay: start failed");
 }
@@ -363,6 +414,7 @@ void loop() {
     if (arb_gone(&arb, ARB_APP)) mouse.release(MOUSE_LEFT);
     keyboard.releaseAll();
     video_stream(false, FROM_APP);
+    appHears = false;  // until the app says so again
   }
   if (cliLinked && !cli) {
     if (arb_gone(&arb, ARB_CLI)) mouse.release(MOUSE_LEFT);

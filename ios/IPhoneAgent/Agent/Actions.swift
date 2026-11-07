@@ -8,13 +8,14 @@ enum Actions {
     }
 
     /// Bookkeeping keys that are not part of the action itself.
-    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay"]
+    static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay", "jev",
+                                     "landed"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
-        "home": [], "back": [], "wait": [], "replan": [], "open": ["app"],
+        "home": [], "back": [], "wait": [], "open": ["app"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
@@ -94,6 +95,16 @@ enum Actions {
             return (trim(ns.substring(with: m.range(at: 1))), trim(ns.substring(with: m.range(at: 2))))
         }
         return (trim(text), trim(text))
+    }
+
+    /// The reply's PLAN: block (a numbered list, up to the DO lines), or nil when the model kept its plan.
+    static func planBlock(_ text: String) -> String? {
+        let re = try! NSRegularExpression(pattern: #"^\s*PLAN\s*[:：][ \t]*(.*?)(?=^\s*(?:DO|THINK)\s*[:：]|\z)"#,
+                                          options: [.anchorsMatchLines, .dotMatchesLineSeparators, .caseInsensitive])
+        let ns = text as NSString
+        guard let m = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        let plan = trim(ns.substring(with: m.range(at: 1)))
+        return plan.isEmpty ? nil : plan
     }
 
     /// The action itself, without thoughts, timings and other bookkeeping.

@@ -8,11 +8,17 @@ enum DebugLog {
         .appendingPathComponent("debug.log")
     private static let old = url.deletingLastPathComponent().appendingPathComponent("debug.1.log")
     private static let limit = 2_000_000
+    /// The last lines only, for the harness: copying the whole 2 MB log every 20 s over Wi-Fi, beside mirroring and a
+    /// run, timed out for 11 minutes and the run went unwatched (2026-11-06).
+    static let recent = url.deletingLastPathComponent().appendingPathComponent("debug.recent.log")
+    private static let recentLimit = 256_000, recentKeep = 64_000
     private static let queue = DispatchQueue(label: "debug-log")
     nonisolated(unsafe) private static var secrets: [String] = []
     private static let lock = NSLock()
     /// Each (redacted) line also goes here, on the caller's thread (the app relays it to the Mac harness).
     nonisolated(unsafe) static var relay: ((String) -> Void)?
+    /// Each stamped line, on the log queue (Debug builds: the harness link to the Mac, HarnessLink).
+    nonisolated(unsafe) static var live: ((String) -> Void)?
     private static let stamp: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -33,6 +39,18 @@ enum DebugLog {
         }
     }
 
+    private static func append(_ data: Data, to file: URL) {
+        if let h = try? FileHandle(forWritingTo: file) {
+            // The throwing calls: the old seekToEndOfFile()/write(_:) raise an ObjC exception on an I/O
+            // error, which aborted the app (TestFlight 1.0.1 (9), C3). A lost log line is fine.
+            _ = try? h.seekToEnd()
+            try? h.write(contentsOf: data)
+            try? h.close()
+        } else {
+            try? data.write(to: file)
+        }
+    }
+
     static func write(_ text: String) {
         let time = Date()
         lock.lock(); let hidden = secrets; lock.unlock()
@@ -40,21 +58,20 @@ enum DebugLog {
         for s in hidden { line = line.replacingOccurrences(of: s, with: "‹redacted›") }
         relay?(line)
         queue.async {
-            let data = Data("\(stamp.string(from: time)) \(line)\n".utf8)
+            let stamped = "\(stamp.string(from: time)) \(line)"
+            live?(stamped)
+            let data = Data((stamped + "\n").utf8)
             let fm = FileManager.default
             if let size = (try? fm.attributesOfItem(atPath: url.path)[.size]) as? Int, size > limit {
                 try? fm.removeItem(at: old)
                 try? fm.moveItem(at: url, to: old)
             }
-            if let h = try? FileHandle(forWritingTo: url) {
-                // The throwing calls: the old seekToEndOfFile()/write(_:) raise an ObjC exception on an I/O
-                // error, which aborted the app (TestFlight 1.0.1 (9), C3). A lost log line is fine.
-                _ = try? h.seekToEnd()
-                try? h.write(contentsOf: data)
-                try? h.close()
-            } else {
-                try? data.write(to: url)
+            append(data, to: url)
+            if let size = (try? fm.attributesOfItem(atPath: recent.path)[.size]) as? Int, size > recentLimit,
+               let all = try? Data(contentsOf: recent), let cut = all.dropFirst(all.count - recentKeep).firstIndex(of: 10) {
+                try? all[(cut + 1)...].write(to: recent)
             }
+            append(data, to: recent)
         }
     }
 }

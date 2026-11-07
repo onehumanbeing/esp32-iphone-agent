@@ -12,23 +12,11 @@ struct TrialSection: View {
                 settings.selectedProvider = .handsyTrial
                 dismiss()
             } label: {
-                HStack(spacing: Space.m) {
-                    ProviderLogoView(provider: .handsyTrial, size: 34)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Text(verbatim: ModelProvider.handsyTrial.title).font(.body.weight(.medium)).lineLimit(1)
-                            Spacer(minLength: Space.s)
-                            if settings.provider == .handsyTrial {
-                                StatusBadge(text: "In Use", color: .blue, symbol: "checkmark.circle.fill")
-                            }
-                            TrialBadge(status: trial.status)
-                        }
-                        Text("Private model, no API key. Limited capacity.")
-                            .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                    }
+                ProviderRow(logo: .handsyTrial, title: ModelProvider.handsyTrial.title,
+                            subtitle: String(localized: "Private model, no API key. Limited capacity."),
+                            selected: settings.provider == .handsyTrial, wraps: true) {
+                    TrialBadge(status: trial.status)
                 }
-                .padding(.vertical, 4)
-                .contentShape(.rect)
             }
             .buttonStyle(.plain)
         } header: {
@@ -65,11 +53,11 @@ struct TrialBadge: View {
 
     var body: some View {
         switch status {
-        case .free: StatusBadge(text: "Free", color: .green, symbol: "circle.fill")
-        case .waiting: StatusBadge(text: "Queue", color: .orange, symbol: "hourglass")
-        case .busy: StatusBadge(text: "Busy", color: .orange, symbol: "hourglass")
-        case .usedUp: StatusBadge(text: "Used Up", color: .gray, symbol: "checkmark.circle")
-        case .unavailable: StatusBadge(text: "Unavailable", color: .gray, symbol: "nosign")
+        case .free: StatusBadge(text: "Free", symbol: "circle.fill", emphasized: true)
+        case .waiting: StatusBadge(text: "Queue", symbol: "hourglass")
+        case .busy: StatusBadge(text: "Busy", symbol: "hourglass")
+        case .usedUp: StatusBadge(text: "Used Up")
+        case .unavailable: StatusBadge(text: "Unavailable")
         case .unknown: ProgressView().controlSize(.mini)
         }
     }
@@ -79,13 +67,13 @@ struct TrialBadge: View {
 struct TrialConsentSections: View {
     var body: some View {
         Section("Recorded") {
-            Label("Each run on the free line (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
+            Label("Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
             Label("Requests pass through Cloudflare and Hong Kong; the model and the records are on the developer's own servers in mainland China", systemImage: "globe.asia.australia")
         }
         Section {
-            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on the free line. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
+            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
                 .font(.footnote).foregroundStyle(.secondary)
-            if let url = Trial.privacyURL { Link("Free line privacy notice", destination: url).font(.footnote) }
+            if let url = Trial.privacyURL { Link("Handsy Free privacy notice", destination: url).font(.footnote) }
         }
     }
 }

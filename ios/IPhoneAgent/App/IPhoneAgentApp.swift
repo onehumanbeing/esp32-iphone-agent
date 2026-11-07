@@ -84,8 +84,7 @@ struct RootView: View {
         }
         .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet() } }
         .sheet(item: Binding(get: { app.aiConsentRun.map(PendingRun.init) }, set: { app.aiConsentRun = $0?.task })) { pending in
-            AIConsentSheet(baseURL: settings.baseURL) {
-                settings.consentChanged()
+            SendConsentSheet(settings: settings, model: settings.pendingConsent.model, jev: settings.pendingConsent.jev) {
                 Task { await app.startAgent(pending.task) }
             }
         }

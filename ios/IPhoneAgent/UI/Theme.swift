@@ -72,6 +72,8 @@ struct BottomBar<Content: View>: View {
 struct BigButton: ButtonStyle {
     var tint: Color = .accentColor
     var ink: Color = .white
+    /// The secondary actions next to a screen's one filled button: the same hue, tinted (HIG: one prominent action).
+    static let tinted = BigButton(tint: .accentColor.opacity(0.15), ink: .accentColor)
     @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {

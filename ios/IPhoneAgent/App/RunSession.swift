@@ -15,20 +15,22 @@ extension AppModel {
         guard !startingAgent, !agent.running, !recorder.busy else { return }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
         currentIntent = intent
-        var task = task
+        var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped
             task = last.ask
+            resume = canResume && agent.task == task  // its plan and steps are still here: go on from its screen
         }
         lastTask = task
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
         if !agent.replay.steps.isEmpty { DebugLog.write("replay: \(agent.replay.steps.count) recorded steps") }
-        await startAgent(task)
+        await startAgent(task, resume: resume)
     }
 
     /// Own the startup task for every entry point, including shortcuts and consent/recovery retries.
-    func startAgent(_ task: String) async {
+    /// resume: the stopped run goes on (see RunResume.swift).
+    func startAgent(_ task: String, resume: Bool = false) async {
         guard !startingAgent, !agent.running else { return }
         startingAgent = true
         tab = .agent
@@ -46,7 +48,7 @@ extension AppModel {
                 notifier.clearLinkAsks()
             }
         }
-        let job = Task { await self.prepareAgent(task) }
+        let job = Task { await self.prepareAgent(task, resume: resume) }
         startupTask = job
         await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
     }
@@ -58,7 +60,7 @@ extension AppModel {
         toast = Toast(text: text)
     }
 
-    private func prepareAgent(_ task: String) async {
+    private func prepareAgent(_ task: String, resume: Bool) async {
         if MockMode.on { return mockRun(task) }
         guard !Task.isCancelled else { return }
         guard settings.isConfigured else {
@@ -66,7 +68,8 @@ extension AppModel {
             blocked(String(localized: "Set up the model in Settings first."))
             return
         }
-        guard AIConsent.granted(settings.baseURL) else {
+        let pending = settings.pendingConsent
+        guard !pending.model, !pending.jev else {
             Analytics.capture("run_blocked", ["reason": "ai_consent"])
             aiConsentRun = task
             return
@@ -79,8 +82,13 @@ extension AppModel {
         guard !Task.isCancelled else { return }
         do {
             if settings.provider == .handsyTrial { try await Trial.shared.begin() }  // free line: take it before leaving
-            agent.actor = try await settings.client("actor")
+            let actor = try await settings.client("actor")
+            let jev = settings.jevActor(around: actor)  // Jev on, asked from the app
+            if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
+            agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
+            agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
+            agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
         } catch is CancellationError {
             return  // Cancel while waiting for the free line
         } catch {
@@ -88,7 +96,7 @@ extension AppModel {
             say("LLM: \(error.localizedDescription)")
             if case TrialError.usedUp = error { blocked(error.localizedDescription) }
             else if settings.provider == .handsyTrial {
-                blocked(String(localized: "The free line is busy. Try again in a minute, or switch to your own model."))
+                blocked(String(localized: "Handsy Free is busy. Try again in a minute, or switch to your own model."))
             } else { blocked(error.localizedDescription) }
             return
         }
@@ -132,7 +140,7 @@ extension AppModel {
             live.show(.leavingApp, mood: .acting)
             let requestedAt = appIsBackgrounded && backgroundEnteredAt > 0 ? backgroundEnteredAt : now()
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
-            let away = try await leaveForRun()
+            let away = try await (resume ? waitForSwitchBack() : leaveForRun())
             try Task.checkCancellation()
             guard away else {  // never let the agent start on its own app
                 throw DeviceError(message: String(localized: "ESP32 Agent is still on screen"))
@@ -149,7 +157,7 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
-            try agent.start(task, traceStarted: true)
+            try agent.start(task, traceStarted: true, resume: resume)
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)

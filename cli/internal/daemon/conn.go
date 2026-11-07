@@ -61,6 +61,9 @@ type Conn struct {
 	lastKey time.Time  // when the board acknowledged the last one
 
 	wifi *wifiLink // moves the session to the board's Wi-Fi and back (wifi.go); nil: BLE only
+
+	hear      *hearing    // phone audio transcribed here (listen.go); nil: never
+	rawWanted func() bool // ask each session for the raw audio
 }
 
 // KeyGap separates key and type commands: sent back to back, iOS dropped a backspace (2026-10-21).
@@ -114,6 +117,9 @@ func (c *Conn) start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, err := c.Send(ctx, "stream on")
+	if err == nil && c.rawWanted != nil && c.rawWanted() && c.Via() == "wifi" {
+		c.Send(ctx, "listen raw on") // the board forgets it with every session
+	}
 	return err
 }
 
@@ -200,6 +206,8 @@ func (c *Conn) read(s *proto.Session, quit chan struct{}) {
 			c.onStatus(m.Data)
 		case 'v':
 			c.onVideo(m.Data, m.Gap)
+		case 'a':
+			c.onAudio(m.Data, m.Gap)
 		}
 	}
 	c.detach(s, proto.ErrSession)

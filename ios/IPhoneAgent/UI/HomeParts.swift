@@ -46,36 +46,57 @@ struct DepartureOverlay: View {
     }
 }
 
-/// "Needs your help": why, and Take over / Continue / Skip / Stop (the same as the Live Activity).
+/// "Needs your help": why, in words, and two actions, the likely one filled (HIG: one prominent action). Stop is the
+/// run bar's below. The run's own limits read as sentences, not reasons ("step limit reached", 2026-11-06).
 struct HelpPanel: View {
     @ObservedObject var app: AppModel
 
+    private var reason: String { app.help ?? "" }
+    private var limit: Bool { reason == AgentLoop.stepLimitReason }
+    private var stalled: Bool { reason.hasPrefix(AgentLoop.stallReason) }
+
     var body: some View {
         Section {
-            Label { Text(verbatim: app.help ?? "") } icon: {
-                Image(systemName: "hand.raised.fill").foregroundStyle(Palette.warning)
-            }
-            .font(.body.weight(.semibold))
-            if app.takingOver {
-                Text("Do the step yourself, then tap Continue.").font(.subheadline).foregroundStyle(.secondary)
-            }
-            HStack(spacing: Space.s) {
-                if app.takingOver {
-                    Button { app.answerHelp(.resume) } label: { Label("Continue", systemImage: "play.fill") }
-                        .buttonStyle(.borderedProminent).tint(Palette.ok)
-                } else {
-                    Button { app.takeOver() } label: { Label("Take Over", systemImage: "hand.point.up.left.fill") }
-                        .buttonStyle(.borderedProminent)
+            VStack(alignment: .leading, spacing: Space.m) {
+                Label { title } icon: { Image(systemName: "hand.raised.fill").foregroundStyle(Palette.warning) }
+                    .font(.headline)
+                if let detail {
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Button { app.answerHelp(.skip) } label: { Text("Skip Step") }.buttonStyle(.bordered)
-                Spacer()
-                Button(role: .destructive) { Task { await app.stopAgent() } } label: { Image(systemName: "stop.fill") }
-                    .buttonStyle(.bordered).accessibilityLabel(Text("Stop"))
+                HStack(spacing: Space.s) {
+                    if app.takingOver {
+                        Button { app.answerHelp(.resume) } label: { Label("Continue", systemImage: "play.fill") }
+                            .buttonStyle(BigButton())
+                        Button("Skip Step") { app.answerHelp(.skip) }.buttonStyle(BigButton.tinted)
+                    } else if limit {
+                        Button { app.answerHelp(.resume) } label: { Label("Keep Going", systemImage: "play.fill") }
+                            .buttonStyle(BigButton())
+                        Button("Take Over") { app.takeOver() }.buttonStyle(BigButton.tinted)
+                    } else {
+                        Button { app.takeOver() } label: { Label("Take Over", systemImage: "hand.point.up.left.fill") }
+                            .buttonStyle(BigButton())
+                        Button(stalled ? "Keep Going" : "Skip Step") { app.answerHelp(stalled ? .resume : .skip) }
+                            .buttonStyle(BigButton.tinted)
+                    }
+                }
             }
-            .controlSize(.regular)
+            .padding(.vertical, Space.xs)
         } header: {
             Text("Needs your help")
         }
+    }
+
+    private var title: Text {
+        if limit { return Text("That's \(app.agent.maxSteps) steps") }
+        if stalled { return Text("The screen hasn't changed in a while") }
+        return Text(verbatim: reason)
+    }
+
+    private var detail: LocalizedStringKey? {
+        if app.takingOver { return "Do the step yourself, then tap Continue." }
+        if limit { return "A safety limit. If the run is still getting somewhere, keep going." }
+        if stalled { return "My taps may be missing. Do this step yourself, or let me try again." }
+        return nil
     }
 }
 

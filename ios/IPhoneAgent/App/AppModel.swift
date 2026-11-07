@@ -17,7 +17,10 @@ import UIKit
     let board = BoardLink(mock: MockMode.on)
     let feed = VideoFeed()
     private var lastVideoToken: String?
+    private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
+    let audio = AudioFeed()  // AirPlay audio over that link, transcribed on the phone (Settings › Listen to phone audio)
+    private var hearSent: Bool?  // last `hear on|off` the board got on this link
     let metrics = Metrics()
     let traces = MockMode.on
         ? TraceStore(root: FileManager.default.temporaryDirectory.appendingPathComponent("demo-traces"))
@@ -108,6 +111,7 @@ import UIKit
                           screen: feed)
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
         agent.metrics = metrics
+        agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
         feed.metrics = metrics
 
@@ -136,6 +140,9 @@ import UIKit
         }
         DebugLog.write("app launched \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "")"
                        + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))")
+        #if DEBUG
+        startHarnessLink()
+        #endif
         settingsSink = settings.$configurationRevision.dropFirst().sink { [weak self] _ in
             self?.modelOK = nil
             self?.modelError = nil
@@ -144,9 +151,15 @@ import UIKit
             self?.modelResponseSeconds = nil
         }
         board.onVideo = { [weak self] in self?.feed.receive($0) }
-        wifiVideo.onChunk = { [weak self] in self?.feed.receive($0) }
+        wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
+        wifiVideo.onAudio = { [weak self] in self?.audio.receive($0) }
+        wifiVideo.wantsAudio = { ListenSetting.on }
+        audio.onFinal = { [weak self] text in self?.shareHeard(text) }
+        audio.linked = { [weak self] in self.map { $0.wifiVideo.active && $0.feed.mirroring } ?? false }
+        setListening(ListenSetting.on)
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
+        feed.onGap = { [weak self] in self?.wifiVideo.resume() }
         wifiVideo.onActive = { [weak self] on in
             self?.feed.resetStream()  // the board resends from the IDR on the new path
             if on { LocalNetworkPermission.granted = true }
@@ -174,6 +187,7 @@ import UIKit
             feed.resetStream()
             metrics.mtu = board.mtu
             updateWifiVideo()
+            readBoardPace()
             if agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
                 Task { [weak self] in
                     do { try await self?.feed.stream(true); DebugLog.write("recover: BLE back, stream on again") } catch {
@@ -184,6 +198,7 @@ import UIKit
             prewarmStream()
         }
         board.onLinkDown = { [weak self] in
+            self?.pointer.boardPace = nil
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)
@@ -236,6 +251,12 @@ import UIKit
 
     /// A new per-boot video token: the board rebooted, its GOP and timestamps are new, so no resume.
     private func updateWifiVideo() {
+        // Read at connect while the board was still joining Wi-Fi after power-on, the address stays empty and the
+        // video goes over BLE only (2026-11-06): read it again every 5 s until there is one.
+        if [nil, "", "0.0.0.0"].contains(board.net?.ip), now() - lastNetRead > 5 {
+            lastNetRead = now()
+            Task { _ = try? await board.readNet(fresh: true) }
+        }
         let token = board.net?.vtok
         if token != nil && token != lastVideoToken { feed.forgetResume() }
         lastVideoToken = token ?? lastVideoToken
@@ -253,6 +274,7 @@ import UIKit
         readHarnessInbox()
         #endif
         if board.connected && !MockMode.on { updateWifiVideo() }
+        shareHearing()
         // Wi-Fi video not up on the idle home screen: maybe the Local Network permission was never given
         if !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
             LocalNetworkPermission.askIfNeeded()
@@ -301,6 +323,19 @@ import UIKit
         if mode == .stream && agent.running { Task { try? await feed.stream(true) } }
         if mode == .stream { prewarmStream() }
         if mode == .snap && feed.streamOn { Task { try? await feed.stream(false) } }
+    }
+
+    /// How the board paces moves; a calibration made under another pace is redone before the next run.
+    private func readBoardPace() {
+        guard !MockMode.on else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let pace: Int
+            do { pace = Int(try await board.commands.send("pace", timeout: 3).trimmingCharacters(in: .whitespaces)) ?? 1 }
+            catch is BoardTimeout { return } catch { pace = 1 }  // "err unknown command": firmware before pacing
+            pointer.boardPace = pace
+            DebugLog.write("pointer: board pace \(pace), calibrated under \(pointer.pace)\(pointer.calibrated ? "" : ": calibrate again")")
+        }
     }
 
     /// The run paused for the board (line) or goes on (nil).
@@ -449,5 +484,37 @@ import UIKit
         decodedBefore = metrics.decodeErrors - decodedBefore
         say("background test: LLM \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
             + "suspensions \(metrics.suspensions), background alive \(Int(metrics.backgroundAlive)) s")
+    }
+}
+
+extension AppModel {
+    /// Settings › Listen to phone audio. Asks for speech recognition the first time it is switched on.
+    func setListening(_ on: Bool) {
+        audio.enabled = on && !MockMode.on
+        audio.screenLines = { [weak self] in
+            guard let jpeg = self?.feed.frame, let image = Vision.image(jpeg) else { return [] }
+            return await UITreeOCR.lines(image, languages: nil).map(\.text)
+        }
+        if audio.enabled { audio.prepare() }
+        shareHearing()
+    }
+
+    /// Tells the board whether the app shares what it hears with the CLI (docs/cli-protocol.md, "Phone audio").
+    func shareHearing() {
+        guard board.connected else { hearSent = nil; return }
+        let on = audio.enabled && ListenSetting.share
+        guard on != hearSent else { return }
+        hearSent = on
+        Task { [weak self] in
+            if (try? await self?.board.commands.send(on ? "hear on" : "hear off")) == nil { self?.hearSent = nil }
+        }
+    }
+
+    /// One final transcript for the CLI. Not while the app runs a task: the CLI can't use the board then anyway.
+    private func shareHeard(_ text: String) {
+        guard hearSent == true, !agent.running, board.connected else { return }
+        var line = ""
+        for c in text.replacingOccurrences(of: "\n", with: " ") where line.utf8.count + String(c).utf8.count <= 400 { line.append(c) }
+        Task { [weak self] in _ = try? await self?.board.commands.send("heard " + line) }
     }
 }

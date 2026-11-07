@@ -34,10 +34,40 @@ type Board struct {
 	Name string `json:"name,omitempty"`
 }
 
+// Listen is `esp32agent listen`: hearing what the phone plays while it mirrors (docs/cli-protocol.md, "Phone audio").
+type Listen struct {
+	On     bool   `json:"on"`
+	Mode   string `json:"mode,omitempty"`   // "phone" (the app's words, default) or "local" (whisper.cpp here)
+	Second string `json:"second,omitempty"` // local: the language besides English ("zh"); "" for this computer's
+}
+
+// ListenMode is Mode with its default.
+func (l Listen) ListenMode() string {
+	if l.Mode == "local" {
+		return "local"
+	}
+	return "phone"
+}
+
+// GetListen and SetListen guard Listen while the daemon uses it.
+func (c *Config) GetListen() Listen {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Listen
+}
+
+func (c *Config) SetListen(l Listen) error {
+	c.mu.Lock()
+	c.Listen = l
+	c.mu.Unlock()
+	return c.Save()
+}
+
 // Config is config.json. It holds the pairing keys: mode 0600, dir 0700.
 type Config struct {
 	ClientID string           `json:"client_id"`
 	Boards   map[string]Board `json:"boards"` // board id (12 hex) → key
+	Listen   Listen           `json:"listen"`
 	path     string
 	mu       sync.Mutex
 }

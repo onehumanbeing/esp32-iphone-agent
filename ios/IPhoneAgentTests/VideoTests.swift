@@ -38,6 +38,18 @@ final class VideoTests: XCTestCase {
         XCTAssertNotNil(a.add(chunk(16, [.start, .end], p, ms: 5)))
     }
 
+    func testALateChunkFromTheOtherLinkIsStaleNotAGap() {
+        var a = VideoAssembler()
+        _ = a.add(chunk(100, [.start, .end, .idr], idr, ms: 1))
+        XCTAssertNotNil(a.add(chunk(101, [.start, .end], p, ms: 2)))
+        XCTAssertNil(a.add(chunk(99, [.start, .end], p, ms: 0)))   // BLE, after newer Wi-Fi chunks
+        XCTAssertNil(a.add(chunk(101, [.start, .end], p, ms: 2)))  // a duplicate
+        XCTAssertEqual(a.drops, 0)
+        XCTAssertNotNil(a.add(chunk(102, [.start, .end], p, ms: 3)))  // still in step
+        XCTAssertNil(a.add(chunk(40000, [.start, .end], p, ms: 4)))  // far off: a real gap
+        XCTAssertGreaterThan(a.drops, 0)
+    }
+
     func testRecoversOnIDRAndWrapsSeq() {
         var a = VideoAssembler()
         _ = a.add(chunk(65534, [.start, .end, .idr], idr, ms: 1))
@@ -106,6 +118,25 @@ final class VideoTests: XCTestCase {
         }
         _ = try await feed.snap(decodeWait: 0.05)
         XCTAssertEqual(feed.frame, Data([3]))
+    }
+
+    func testAReplayedOlderFrameIsNotShown() async throws {
+        let decoder = H264Decoder(), feed = VideoFeed(decoder: decoder)
+        func frame(_ b: UInt8, ms: UInt32, snap: Bool = false) -> H264Decoder.Frame {
+            H264Decoder.Frame(jpeg: Data([b]), width: 10, height: 20, decodeMs: 1,
+                              unit: AccessUnit(data: Data(repeating: 0, count: 500), idr: false, config: false, snap: snap, boardMs: ms))
+        }
+        for f in [frame(1, ms: 5000), frame(2, ms: 1000), frame(3, ms: 5000), frame(4, ms: 2000, snap: true), frame(5, ms: 6000)] {
+            decoder.onFrame?(f)
+            try await Task.sleep(for: .milliseconds(15))
+            if f.jpeg == Data([2]) { XCTAssertEqual(feed.frame, Data([1])) }  // the replay from the IDR stays hidden
+            if f.jpeg == Data([4]) { XCTAssertEqual(feed.frame, Data([4])) }  // a snap still shows
+        }
+        XCTAssertEqual(feed.frame, Data([5]))
+        feed.resetStream()
+        decoder.onFrame?(frame(6, ms: 100))  // a rebooted board starts its clock over
+        try await Task.sleep(for: .milliseconds(15))
+        XCTAssertEqual(feed.frame, Data([6]))
     }
 
     func testLateDecodedImageFromDisconnectedLinkCannotReplaceTheScreen() async throws {
@@ -312,6 +343,35 @@ final class VideoReorderTests: XCTestCase {
         await screen.settled(quiet: 0.5, least: 0.3, most: 4)
         feeding.cancel()
         XCTAssertLessThan(now() - start, 1.5)
+    }
+
+    /// Frames that differ only at the pointer (it fades for seconds after a tap) are still; new content is not.
+    func testSettledIgnoresThePointerButNotContent() async {
+        let v = VisionTests(), spot = v.p(260, 856)
+        func feeding(_ screen: FakeStillScreen, _ frames: [Data]) -> Task<Void, Never> {
+            Task {
+                var i = 0
+                while !Task.isCancelled {
+                    screen.frame = frames[i % frames.count]
+                    screen.changed = now()
+                    i += 1
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+        }
+        func took(_ frames: [Data], ignoring: [CGPoint]) async -> Double {
+            let screen = FakeStillScreen(), start = now(), feed = feeding(screen, frames)
+            await screen.settled(quiet: 0.5, least: 0.3, most: 2, ignoring: ignoring)
+            feed.cancel()
+            return now() - start
+        }
+        let fading = [v.screen(pointer: (260, 856)), v.screen()]
+        let x = await took(fading, ignoring: [spot])
+        XCTAssertLessThan(x, 1.2)
+        let y = await took(fading, ignoring: [])
+        XCTAssertGreaterThan(y, 1.9)  // without spots: as before, any new frame
+        let z = await took([v.screen(), v.screen(button: true)], ignoring: [spot])
+        XCTAssertGreaterThan(z, 1.9)
     }
 }
 

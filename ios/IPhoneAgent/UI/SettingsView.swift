@@ -6,7 +6,6 @@ struct SettingsView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var settings: Settings
     @ObservedObject var board: BoardLink
-    @AppStorage(MockMode.key) private var demoData = false
     @AppStorage(AskMode.key) private var askMode = AskMode.current
 
     var body: some View {
@@ -54,17 +53,18 @@ struct SettingsView: View {
                 } footer: {
                     Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
                 }
+                ListenSection(app: app, audio: app.audio)
                 Section {
                     NavigationLink { DiagnosticsView(app: app, metrics: app.metrics, board: board, feed: app.feed) } label: {
                         SettingsLabel(title: "Diagnostics", symbol: "waveform.path.ecg", color: .green)
                     }
-                    Toggle(isOn: $demoData) { SettingsLabel(title: "Demo data", symbol: "theatermasks", color: .purple) }
+                    NavigationLink { DeveloperView(app: app, audio: app.audio) } label: {
+                        SettingsLabel(title: "Developer", symbol: "hammer.fill", color: .purple)
+                    }
                     Button { settings.onboarded = false; app.setupPage = .welcome } label: {
                         SettingsLabel(title: "Run setup again", symbol: "arrow.counterclockwise", color: .gray)
                     }
                     .tint(.primary)
-                } footer: {
-                    Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
                 }
                 Section {
                     NavigationLink { PrivacySettingsView(app: app, runs: app.runs) } label: {
@@ -85,6 +85,50 @@ struct SettingsView: View {
             Spacer()
             Text(verbatim: value ?? String(localized: "Not set up")).foregroundStyle(.secondary).lineLimit(1)
         }
+    }
+}
+
+/// Settings › Developer: demo data, and checks that need no other app (the phone audio round trip).
+struct DeveloperView: View {
+    @ObservedObject var app: AppModel
+    @ObservedObject var audio: AudioFeed
+    @AppStorage(MockMode.key) private var demoData = false
+    @State private var language = "ja-JP"
+    @State private var testing = false
+
+    var body: some View {
+        List {
+            Section {
+                Toggle(isOn: $demoData) { SettingsLabel(title: "Demo data", symbol: "theatermasks", color: .purple) }
+            } footer: {
+                Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
+            }
+            Section {
+                Picker("Phrase", selection: $language) {
+                    ForEach(AudioTest.phrases.keys.sorted(), id: \.self) { Text(verbatim: SpeechLanguages.name($0)).tag($0) }
+                }
+                if testing, let phrase = AudioTest.phrases[language] { Text(verbatim: phrase).font(.title3) }
+                Button(testing ? "Listening…" : "Play and transcribe") {
+                    testing = true
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)  // the phrase is mirrored
+                        await audio.followScreen()
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        await AudioTest.run(language)
+                        testing = false
+                    }
+                }
+                .disabled(testing)
+                ForEach(Array(audio.segments.suffix(3).enumerated()), id: \.offset) { _, s in
+                    Text(verbatim: s.text.isEmpty ? "…" : s.text).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Audio test")
+            } footer: {
+                Text("Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPhone transcribes it. Needs Listen to phone audio on.")
+            }
+        }
+        .navigationTitle("Developer")
     }
 }
 

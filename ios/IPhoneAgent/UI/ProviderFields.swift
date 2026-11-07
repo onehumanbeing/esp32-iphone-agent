@@ -9,22 +9,20 @@ struct ProviderFields: View {
             ProviderPicker(settings: settings)
             Divider()
             if settings.provider == .others {
-                LabeledContent("Base URL") {
-                    TextField("Base URL", text: $settings.baseURL, prompt: Text(verbatim: "https://…/v1"))
-                        .keyboardType(.URL).multilineTextAlignment(.trailing).labelsHidden()
+                FieldRow(title: "Base URL") {
+                    TextField("Base URL", text: $settings.baseURL, prompt: Text(verbatim: "https://…/v1")).keyboardType(.URL)
                 }
-                .frame(minHeight: 44).padding(.vertical, Space.xs)
+                .padding(.vertical, Space.xs)
                 Divider()
             }
             if settings.provider == .handsyTrial {  // free line: no key, one fixed model
                 TrialPanel()
             } else {
-                LabeledContent("API key") {
+                FieldRow(title: "API key") {
                     SecureField("API key", text: $settings.apiKey,
                                 prompt: Text(settings.provider == .others ? "Optional" : "Required"))
-                        .multilineTextAlignment(.trailing).labelsHidden()
                 }
-                .frame(minHeight: 44).padding(.vertical, Space.xs)
+                .padding(.vertical, Space.xs)
                 Divider()
                 ModelPicker(settings: settings, title: "Model", selection: $settings.model,
                             automatic: String(localized: "Choose a model"), allowsDefault: false,
@@ -41,8 +39,10 @@ struct ProviderFields: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, Space.s)
             }
             if let error = settings.modelsError {
-                Text(verbatim: error).font(.footnote).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                Label { Text(verbatim: Self.short(error)).lineLimit(2) } icon: { Image(systemName: "exclamationmark.circle") }
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             }
         }
         .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -51,5 +51,14 @@ struct ProviderFields: View {
                   (try? await Task.sleep(for: .milliseconds(700))) != nil else { return }
             await settings.loadModels()
         }
+    }
+
+    /// A provider's error, readable: its JSON "message" when there is one, else the first line.
+    static func short(_ error: String) -> String {
+        if let r = error.range(of: #""message"\s*:\s*"([^"]+)""#, options: .regularExpression) {
+            let m = error[r]
+            if let q = m.dropLast().lastIndex(of: "\"") { return String(m[m.index(after: q)..<m.index(before: m.endIndex)]) }
+        }
+        return String(error.split(separator: "\n").first ?? "").replacingOccurrences(of: " {", with: "")
     }
 }

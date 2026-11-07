@@ -8,12 +8,17 @@ import UIKit
 @MainActor final class Pointer: ObservableObject {
     static let calibrationMove = 200        // mouse units moved diagonally for a manual (one point) calibration
     static let calibrationStops = [150, 350]  // automatic calibration finds the pointer at these distances
-    static let rehomeEvery = 10             // gestures between re-homing
+    /// Gestures between re-homing. Not every one: each home pushes the pointer into the top corner, and doing it
+    /// before every tap opened Control Center and the Screen Mirroring panel 4 times in one run (2026-11-06).
+    /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
+    static let rehomeEvery = 10
+    static let samplesVersion = 3  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently
     static let hold = 0.25                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
     static let aimTolerance = 0.008         // screen fraction; a bigger miss is corrected before pressing
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
+    static let agree = 0.02                 // a far reading is taken again; both must agree this closely
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -25,12 +30,22 @@ import UIKit
             self.init(w: Int(w.rounded(.toNearestOrEven)), h: Int(h.rounded(.toNearestOrEven)))
         }
     }
-    private struct Saved: Codable { var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double? }
+    private struct Saved: Codable {
+        var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?,
+            gain: [[Double]]?
+    }
+    static let speed = 10.0  // the board's speed per report (STEP), the probes' and every long move's
 
     let device: HIDDevice
     weak var screen: ScreenSource?
     private let file: URL
     @Published private(set) var span: Span?  // mouse units needed to cross the full screen width / height
+    /// Where home really leaves the pointer (screen fraction). Going left, then up the left edge, the rounded corner
+    /// pushes it in to about x 0.14 (2026-11-06): steady, so it is part of the calibration, not learned drift.
+    private(set) var origin = CGPoint.zero
+    /// How far a move goes at a slower speed per report, relative to `speed`: (speed, ratio), measured at calibration.
+    /// iOS accelerates the pointer by speed, so a short move or a correction (under one full report) falls short.
+    private(set) var gain: [(Double, Double)] = []
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
     private var link = 0  // device.links when the pointer was last homed
@@ -39,6 +54,9 @@ import UIKit
     private(set) var seen: [String: [(Double, Double)]] = ["x": [], "y": []]
     @Published private(set) var quality: Double?  // pointer error at the last check, fraction of the screen
     private(set) var aspect: Double?  // frame width / height when calibrated
+    private(set) var pace = 1  // the board's move pacing ("pace") when calibrated; 1 = firmware before it answered
+    /// The connected board's pacing; a calibration made under another one no longer fits (iOS accelerates by speed).
+    @Published var boardPace: Int?
     var log: (String) -> Void = { print($0) }
     /// The device screen's width / height (iPhone or iPad), stored with a calibration.
     var screenAspect: () -> Double = { 9 / 19.5 }
@@ -51,14 +69,16 @@ import UIKit
         self.screen = screen
         if let data = try? Data(contentsOf: calibrationFile), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             span = Span(w: saved.w, h: saved.h)
-            (quality, aspect) = (saved.quality, saved.aspect)
-            for axis in ["x", "y"] {
+            (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
+            origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
+            gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
+            for axis in ["x", "y"] where saved.v == Self.samplesVersion {
                 seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
             }
         }
     }
 
-    var calibrated: Bool { span != nil }
+    var calibrated: Bool { span != nil && (boardPace ?? pace) == pace }
 
     private func remember(_ axis: String, _ sample: (Double, Double)) {
         seen[axis] = Array((seen[axis, default: []] + [sample]).suffix(12))  // deque(maxlen=12)
@@ -118,7 +138,7 @@ import UIKit
         }
         try await device.send("move -\(Self.nudge) 0")
         guard let before, let after else { return nil }
-        let pixel = Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: 0.025, reach: CGPoint(x: 0.5, y: 0.5))
+        let pixel = await Vision.off { Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: 0.025, reach: CGPoint(x: 0.5, y: 0.5)) }
         var found = pixel
         // 与像素差分一致，模型测量微移前的位置。
         if found == nil { found = await locate?(before) }
@@ -129,7 +149,7 @@ import UIKit
 
     /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
     func finishCalibration(x: Double, y: Double) {
-        (quality, aspect) = (nil, screenAspect())
+        (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
         guard let s = Span(w: Double(Self.calibrationMove) / x, h: Double(Self.calibrationMove) / y) else {
             log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
             return
@@ -140,23 +160,50 @@ import UIKit
     }
 
     /// Touch-probe result: per-axis lines landed = a * units + b fitted from taps the app caught itself.
-    /// The span is 1/a; every probe becomes a landing sample, so `fix` also corrects the offset b.
+    /// The span is 1/a and the origin b; every probe becomes a landing sample, so `fix` corrects what is left.
     func applyProbe(x: ProbeFit.Line, y: ProbeFit.Line, samples: [(ux: Double, uy: Double, fx: Double, fy: Double)]) {
         guard let s = Span(w: 1 / x.a, h: 1 / y.a) else {
             log(String(format: "calibration: touch probe slopes %.5f / %.5f give no usable span", x.a, y.a))
             return
         }
         span = s
-        (quality, aspect) = (max(x.rms, y.rms), screenAspect())
+        (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
+        (origin, gain) = (CGPoint(x: x.b, y: y.b), [])
         seen = ["x": [], "y": []]
         for p in samples {
-            remember("x", (p.ux / Double(s.w), p.fx))
-            remember("y", (p.uy / Double(s.h), p.fy))
+            remember("x", (p.ux / Double(s.w) + x.b, p.fx))
+            remember("y", (p.uy / Double(s.h) + y.b, p.fy))
         }
         pos = nil
         save()
         log(String(format: "calibration: touch probe span %d x %d, offset %.3f / %.3f, residual %.2f%%",
                    s.w, s.h, x.b, y.b, max(x.rms, y.rms) * 100))
+    }
+
+    /// The speed calibration: ratios of a move's distance at a slower speed to the same move at `speed`.
+    func applySpeeds(_ measured: [(Double, Double)]) {
+        gain = measured.filter { $0.0 < Self.speed && $0.1 > 0.2 && $0.1 < 3 }.sorted { $0.0 < $1.0 }
+        save()
+        log("calibration: speed gain " + gain.map { String(format: "%.0f→%.2f", $0.0, $0.1) }.joined(separator: " "))
+    }
+
+    /// The distance ratio at a speed per report, interpolated between the measured speeds (1 at `speed`).
+    func ratio(atSpeed v: Double) -> Double {
+        let pts = (gain + [(Self.speed, 1.0)]).sorted { $0.0 < $1.0 }
+        if v <= pts[0].0 { return pts[0].1 }
+        for (a, b) in zip(pts, pts.dropFirst()) where v <= b.0 { return a.1 + (b.1 - a.1) * (v - a.0) / (b.0 - a.0) }
+        return 1
+    }
+
+    /// The units to send for a move meant to go (mx, my) at full speed: the board paces a move of length L at
+    /// L / ceil(L / speed) per report, so a short one is slower and goes ratio(v) as far.
+    func paced(_ mx: Int, _ my: Int) -> (Int, Int) {
+        let d = hypot(Double(mx), Double(my))
+        guard d > 0, !gain.isEmpty else { return (mx, my) }
+        var l = d
+        for _ in 0..<4 { l = d / ratio(atSpeed: l / max(ceil(l / Self.speed), 1)) }
+        let k = l / d
+        return (Int((Double(mx) * k).rounded()), Int((Double(my) * k).rounded()))
     }
 
     /// A measured check (e.g. a probe tap) as the current accuracy.
@@ -169,7 +216,8 @@ import UIKit
     private func save() {
         guard let span else { return }
         let saved = Saved(w: span.w, h: span.h, seen: seen.mapValues { $0.map { [$0.0, $0.1] } }, quality: quality,
-                          aspect: aspect)
+                          aspect: aspect, v: Self.samplesVersion, pace: pace, ox: origin.x, oy: origin.y,
+                          gain: gain.map { [$0.0, $0.1] })
         try? JSONEncoder().encode(saved).write(to: file)
     }
 
@@ -181,22 +229,54 @@ import UIKit
 
     /// Closed loop: find the real pointer on screen, fix a miss, and learn the error for later moves.
     private func aim(_ x: Double, _ y: Double) async throws {
-        guard let span, let found = try await measure(x, y, model: false) else {
+        guard let span, let found = try await measureSure(x, y) else {
             log(String(format: "aim (%.3f, %.3f): pointer not found", x, y))
             return
         }
         let fx = Double(found.x), fy = Double(found.y)
-        if max(abs(fx - x), abs(fy - y)) <= Self.maxMiss {  // learn from normal drift only, never a stray reading
-            remember("x", (fix(x, "x"), fx))
-            remember("y", (fix(y, "y"), fy))
-            save()
-        }
+        learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
+        let (sx, sy) = paced(mx, my)
         let previousPosition = pos
         pos = nil
-        try await device.send("move \(mx) \(my)")  // fix this miss right away
+        try await device.send("move \(sx) \(sy)")  // fix this miss right away
         if let p = previousPosition { pos = (p.0 + mx, p.1 + my) }
+    }
+
+    /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
+    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) {
+        guard max(abs(Double(found.x) - x), abs(Double(found.y) - y)) <= Self.maxMiss else { return }
+        remember("x", (fix(x, "x"), Double(found.x)))
+        remember("y", (fix(y, "y"), Double(found.y)))
+        save()
+    }
+
+    /// After a tap at (x, y) that changed nothing: where the pointer really is (pixels only, no model), learned
+    /// like an aim so the next taps are corrected. nil = not found.
+    func landing(_ x: Double, _ y: Double) async -> CGPoint? {
+        guard let found = try? await measureSure(x, y) else { return nil }
+        learn(x, y, found)
+        // A big miss: the tracked position drifted (relative moves between taps: a +256 x move went 75% of the
+        // way, 2026-11-06), so the next gesture starts from the corner again.
+        if max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss { pos = nil }
+        log(String(format: "landing (%.3f, %.3f): pointer at (%.3f, %.3f)", x, y, found.x, found.y))
+        return found
+    }
+
+    /// measure (pixels only), with a reading far from the target taken again: a word tile flying into Duolingo's
+    /// answer row once read as the pointer 60% away (2026-11-06). nil when not found; when the two readings
+    /// disagree the position is unknown too, so the next gesture starts from the corner.
+    private func measureSure(_ x: Double, _ y: Double) async throws -> CGPoint? {
+        func off(_ p: CGPoint, _ x: Double, _ y: Double) -> Double { max(abs(Double(p.x) - x), abs(Double(p.y) - y)) }
+        guard let first = try await measure(x, y, model: false) else { return nil }
+        guard off(first, x, y) > Self.maxMiss else { return first }
+        guard let again = try await measure(x, y, model: false), off(again, Double(first.x), Double(first.y)) <= Self.agree else {
+            log(String(format: "pointer: far reading (%.3f, %.3f) not seen again; position unknown", first.x, first.y))
+            pos = nil
+            return nil
+        }
+        return again
     }
 
     /// Wiggle the pointer and find it on screen, near the target first, then anywhere. model: ask the vision
@@ -218,9 +298,14 @@ import UIKit
         try await device.send("move \(-nudge) 0")
         pos = previousPosition
         let shift = Double(nudge) / Double(span.w)
-        guard let before, let after else { return nil }
-        if let p = Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
-            ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5)) {
+        guard let before, let after else {
+            log(after == nil ? "pointer: no new frame after the nudge" : "pointer: no frame before the nudge")
+            return nil
+        }
+        if let p = await Vision.off({
+            Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
+                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
+        }) {
             return p
         }
         return model ? await locate?(before) : nil
@@ -272,7 +357,8 @@ import UIKit
         }
         let (x, y) = pos!
         pos = nil  // unknown until the move succeeds
-        try await device.send("move \(tx - x) \(ty - y)")
+        let (mx, my) = paced(tx - x, ty - y)
+        try await device.send("move \(mx) \(my)")
         (pos, moves) = ((tx, ty), moves + 1)
     }
 
@@ -380,7 +466,8 @@ import UIKit
         }
         guard let screen, let before else { return }
         await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
-        if Vision.changed(before, screen.frame) { return }
+        let after = screen.frame
+        if await Vision.off({ Vision.changed(before, after) }) { return }
         log("home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
     }
@@ -388,12 +475,18 @@ import UIKit
     /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
     /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
     /// hit, which was a text message mentioning the app.
+    /// Only the Home key first, never goHome's flick: on the Home Screen the key changes nothing, and the flick
+    /// then opened the App Switcher (2026-11-06). Spotlight opens from any app anyway.
+    /// The results show up a moment after the name: wait for them, or the model sees the screen from before
+    /// and sends home + open again (2026-11-06, Brain task #885).
     func openApp(_ name: String) async throws {
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
-        try await goHome()
+        if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+        try await Task.sleep(nanoseconds: 400_000_000)
         try await key("cmd+space")
         try await Task.sleep(nanoseconds: 700_000_000)
         try await type(name)
+        await screen?.settled(quiet: 0.5, least: 1.0, most: 3.0)
     }
 
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
@@ -423,6 +516,6 @@ import UIKit
         pos = nil
     }
 
-    private func dx(_ x: Double) -> Int { Int((min(max(fix(x, "x"), 0), 1) * Double(span!.w)).rounded(.toNearestOrEven)) }
-    private func dy(_ y: Double) -> Int { Int((min(max(fix(y, "y"), 0), 1) * Double(span!.h)).rounded(.toNearestOrEven)) }
+    private func dx(_ x: Double) -> Int { Int(((min(max(fix(x, "x"), 0), 1) - origin.x) * Double(span!.w)).rounded(.toNearestOrEven)) }
+    private func dy(_ y: Double) -> Int { Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven)) }
 }
