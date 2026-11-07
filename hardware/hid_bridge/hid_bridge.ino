@@ -300,7 +300,7 @@ String board(const String &line, const String &id, char who) {
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
-  char s[704];
+  char s[BOARD_STATUS_CAP];
   snprintf(s, sizeof s,
            "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
@@ -338,18 +338,21 @@ String statusJson(bool full, char who) {
     len = strlen(s);
     snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
   }
-  if (full) return s;
-  // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
-           FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
+  if (full && strlen(s) < sizeof s - 1) return s;
+  // 小 MTU 先保留控制与重连所需字段，剩余空间可以容纳时再附上诊断数据。
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"owner\":\"%s\"%s",
+           FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, owner, board_status_fields());
 #ifdef HID_TRANSPORT_BLE
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
 #endif
-  snprintf(s + strlen(s), sizeof s - strlen(s), "%s", board_status_fields());
-  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\"", owner);
   if (who == FROM_CLI)
-    snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\",\"link\":{\"via\":\"%s\",\"mtu\":%u}", app,
-             net_ip().c_str(), cli_wifi() ? "wifi" : "ble", cli_mtu());
+    snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\"", app, net_ip().c_str());
+  const size_t required = strlen(s);
+  snprintf(s + required, sizeof s - required, ",\"rst\":\"%s\",\"ble\":{\"mtu\":%u}", resetReason(), ble_mtu());
+  if (who == FROM_CLI)
+    snprintf(s + strlen(s), sizeof s - strlen(s), ",\"link\":{\"via\":\"%s\",\"mtu\":%u}", cli_wifi() ? "wifi" : "ble", cli_mtu());
+  const size_t room = who == FROM_CLI ? cli_ctrl_room(cli_mtu()) : ble_mtu() - 3u;
+  if (strlen(s) + 1 > room) s[required] = 0;
   strlcat(s, "}", sizeof s);
   return s;
 }
