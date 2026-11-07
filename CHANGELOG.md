@@ -1,5 +1,14 @@
 # Changelog
 
+Full changelog with board firmware and every channel: [handsy.tech/docs/changelog](https://handsy.tech/docs/changelog).
+
+## Unreleased (main)
+
+- Models that refuse a `temperature` setting get none (#45).
+- Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
+  task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
+  `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+
 ## App 1.0.2 · firmware v0.2.4 (TestFlight)
 
 - Hear the phone (off by default, Settings › Listen to phone audio): the board forwards AirPlay audio, the app
@@ -22,14 +31,8 @@
   app transcribed (App 1.0.2, firmware v0.2.4, Share with the computer on); `mode local` transcribes the raw
   audio here with whisper.cpp. MCP tool `phone_audio`.
 
-## Unreleased (main)
+## Firmware v0.2.3 · CLI 0.1.2 (2026-11-05)
 
-- App: typing Chinese no longer crashes (a Vision text request could resume its continuation twice, #111); the
-  app builds with Xcode 26.3 / 27 (ambiguous `cos` / `.pi`, #112).
-- App: after a round of several gestures the next step goes to the model, not Jev, so a plan whose first items were
-  just done is not redone (Duolingo: a tapped word was taken back out of the answer). Pointer searches log where
-  their time goes; the step timing line counts past 40.
-- Harness: following the log survives a line cut mid-character. CI: the settle test no longer fails on slow runners.
 - Board firmware v0.2.3 (TestFlight channel): CLI link over Wi-Fi (TCP 7202) next to BLE, `net` command for
   the CLI, BLE write-without-response characteristic `cli_in_nr`.
 - CLI v0.1.2 (npm `esp32agent` 0.1.3, dsh plugin 0.1.1) — CLI over Wi-Fi: with the computer on the board's network (same Wi-Fi, or its hotspot) the CLI's session moves
@@ -39,9 +42,15 @@
   the pointer one axis at a time (old calibrations are redone) and ignores moving clock hands.
 - DeepSeek Harness plugin (`integrations/dsh`, npm `dsh-esp32agent`): the esp32agent MCP server plus the
   handsy skill as a dsh bundle. Uses esp32agent 0.1.2 (CLI binary v0.1.1: empty `required` arrays, #77).
-- Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
-  task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
-  `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+
+## App 1.0 · 1.0.1 (App Store review 2026-10-19, TestFlight 2026-11-02)
+
+- App: typing Chinese no longer crashes (a Vision text request could resume its continuation twice, #111); the
+  app builds with Xcode 26.3 / 27 (ambiguous `cos` / `.pi`, #112).
+- App: after a round of several gestures the next step goes to the model, not Jev, so a plan whose first items were
+  just done is not redone (Duolingo: a tapped word was taken back out of the answer). Pointer searches log where
+  their time goes; the step timing line counts past 40.
+- Harness: following the log survives a line cut mid-character. CI: the settle test no longer fails on slow runners.
 - No computer: the ESP32 is the AirPlay receiver (ported from UxPlay) with its own hotspot, and talks to a new
   iPhone app over BLE. The app is the agent: planner/actor loop, pointer calibration, run replay, Live Activity,
   widgets, Siri and Shortcuts, self-healing when the board, hotspot or mirroring drops.
