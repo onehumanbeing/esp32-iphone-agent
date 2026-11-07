@@ -90,7 +90,7 @@ extension AppModel {
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
             try Task.checkCancellation()
-            if waited && FrameMode.current == .stream {
+            if !onDeviceCapture && waited && FrameMode.current == .stream {
                 do { try await feed.stream(true) }
                 catch {
                     try Task.checkCancellation()
@@ -131,6 +131,28 @@ extension AppModel {
 
     /// Try a short stream wait, then explicitly snap; a static Home Screen must not stall startup.
     func waitForStartupFrame(boundary: StartupFrameBoundary, snapMode: Bool) async throws -> String {
+        if onDeviceCapture {
+            let nudgeAfter = now() + 0.5
+            var nudged = false
+            while true {
+                try Task.checkCancellation()
+                try screen.checkAvailability()
+                guard appIsBackgrounded else { throw onScreenError() }
+                if screen.live, boundary.accepts(capturedAt: screen.capturedAt, backgroundEnteredAt: backgroundEnteredAt) {
+                    await screen.settled(most: 1.5)
+                    try screen.checkAvailability()
+                    return "on-device"
+                }
+                if !nudged, now() >= nudgeAfter {
+                    try await startupBoardCommand { try await nudgeStartupPointer() }
+                    nudged = true
+                }
+                guard now() < startupDeadline else {
+                    throw ScreenCaptureError(message: String(localized: "No screen image arrived. Stop sharing and try again."))
+                }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
         let began = now()
         var recovery = Recovery(at: began, limit: max(0, startupDeadline - began))
         // A still Home Screen sends no new frame on its own: nudge the cursor almost at once instead of waiting 3 s
@@ -197,10 +219,7 @@ extension AppModel {
                 if !requestedMotion {
                     // A static Home frame may predate its notification. Move only the cursor to request
                     // a genuinely newer image; no tap, model call, or timestamp tolerance is involved.
-                    try await pointer.point(0.5, 0.5, aim: false)
-                    try Task.checkCancellation()
-                    guard appIsBackgrounded else { throw onScreenError() }
-                    try await pointer.point(0.55, 0.5, aim: false)
+                    try await nudgeStartupPointer()
                     requestedMotion = true
                     motionAt = now()
                     // The cursor change is streamed within a second; snapping the whole GOP over BLE
@@ -239,6 +258,15 @@ extension AppModel {
         }
     }
 
+    /// Request a genuinely new image of a static Home Screen without tapping anything.
+    private func nudgeStartupPointer() async throws {
+        guard appIsBackgrounded else { throw onScreenError() }
+        try await pointer.point(0.5, 0.5, aim: false)
+        try Task.checkCancellation()
+        guard appIsBackgrounded else { throw onScreenError() }
+        try await pointer.point(0.55, 0.5, aim: false)
+    }
+
     /// Before each look and gesture of a run. If the agent itself brought the app to the front (it tapped our
     /// Live Activity, a notification or an intent), or Continue was just tapped here, send the app away at once;
     /// if the user opened it, wait until they leave. The model never sees or taps this app's own screens.
@@ -261,15 +289,15 @@ extension AppModel {
             defer { homeHint = nil }
             while !appIsBackgrounded {
                 try Task.checkCancellation()
-                if !feed.live {
+                if !screen.live {
                     _ = try await agent.waitForScreen()
                     live.show(.pausedInApp, mood: .thinking)
                 }
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
         }
-        _ = await feed.fresh(since: since, timeout: 3)  // a frame of the screen that is in front now
-        await feed.settled()
+        _ = await screen.fresh(since: since, timeout: 3)  // a frame of the screen that is in front now
+        await screen.settled()
         DebugLog.write("run: app in background again, going on")
     }
 

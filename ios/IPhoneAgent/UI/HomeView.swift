@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
-    @ObservedObject var feed: VideoFeed
+    @ObservedObject var feed: TaskScreen
     @ObservedObject var agent: AgentLoop
     @ObservedObject var settings: Settings
     @ObservedObject var intents: IntentStore
@@ -197,7 +197,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, Space.xl)
-            StatusChips(app: app, board: board, pointer: app.pointer, calibrator: app.calibrator)
+            StatusChips(app: app, board: board, screen: feed, pointer: app.pointer, calibrator: app.calibrator)
             if !app.refreshingStatus, let error = app.statusRefreshError {
                 Text(verbatim: error).font(.footnote).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).padding(.horizontal, Space.l)
@@ -418,7 +418,7 @@ struct HomeView: View {
     /// The first thing missing before a run, and the setup page that fixes it.
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
-        if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
+        if !app.onDeviceCapture && board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil

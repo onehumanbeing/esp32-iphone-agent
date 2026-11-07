@@ -238,7 +238,7 @@ struct ActPage: View {
     @ObservedObject var pointer: Pointer
 
     private var mouse: Bool { MockMode.on || board.status?.usb == "ok" }
-    private var mirroring: Bool { MockMode.on || board.status?.ap == "streaming" }
+    private var mirroring: Bool { MockMode.on || app.onDeviceCapture || board.status?.ap == "streaming" }
 
     var body: some View {
         VStack(spacing: Space.xl) {
@@ -249,8 +249,10 @@ struct ActPage: View {
             Panel {
                 CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)
                 Divider().padding(.vertical, Space.s)
-                CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
-                Divider().padding(.vertical, Space.s)
+                if !app.onDeviceCapture {
+                    CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
+                    Divider().padding(.vertical, Space.s)
+                }
                 CheckRow(title: "Pointer calibrated", done: pointer.calibrated, active: mouse && mirroring && !pointer.calibrated,
                          waiting: calibrator.busy,
                          detail: pointer.quality.map { "Accuracy \(CalibrationText.percent($0))" })

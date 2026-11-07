@@ -1,6 +1,130 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Screen recording is unavailable on this device. Use AirPlay instead." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen recording is unavailable on this device. Use AirPlay instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持录屏，请使用 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消屏幕共享。请重新开始并允许共享，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing stopped. Start the task again to allow sharing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing stopped. Start the task again to allow sharing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享已停止。请重新开始任务并允许共享。"
+          }
+        }
+      }
+    },
+    "Screen capture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen capture"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕采集方式"
+          }
+        }
+      }
+    },
+    "On-device capture" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录屏"
+          }
+        }
+      }
+    },
+    "Waiting for a screen image…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待屏幕画面…"
+          }
+        }
+      }
+    },
+    "No screen image arrived. Stop sharing and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未收到屏幕画面，请停止共享后重试。"
+          }
+        }
+      }
+    },
+    "Screen capture requires a physical iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕采集需要在真实 iPhone 上运行。"
+          }
+        }
+      }
+    },
+    "Screen sharing is already starting." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享正在启动。"
+          }
+        }
+      }
+    },
+    "Open the app to allow screen sharing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请打开 App 以授权屏幕共享。"
+          }
+        }
+      }
+    },
     "Collapses the result" : {
       "localizations" : {
         "zh-Hans" : {
@@ -8979,6 +9103,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 %@"
+          }
+        }
+      }
+    },
+    "Connect the USB mouse" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 USB 鼠标"
+          }
+        }
+      }
+    },
+    "Screen sharing is requested when a task or recording starts, or when calibration needs it. The board still controls the phone through USB." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动任务、录制演示或校准需要截图时，会请求屏幕共享授权。开发板仍通过 USB 控制手机。"
+          }
+        }
+      }
+    },
+    "Use Screen Mirroring to send the screen to the board over Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过屏幕镜像，经 Wi-Fi 将画面传给开发板。"
           }
         }
       }
