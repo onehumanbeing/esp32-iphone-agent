@@ -21,7 +21,6 @@
 - `listen`: what the iPhone played in the last 30 s as words. `mode phone` (default) reads what the ESP32 Agent
   app transcribed (App 1.0.2, firmware v0.2.4, Share with the computer on); `mode local` transcribes the raw
   audio here with whisper.cpp. MCP tool `phone_audio`.
-- The CLI's video resumes from its last unit after a reconnect instead of resending the GOP.
 
 ## Unreleased (main)
 
