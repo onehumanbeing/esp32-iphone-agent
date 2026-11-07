@@ -18,7 +18,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .hCompany: return "H Company"
         case .zhipu: return "Zhipu GLM"
         case .others: return "Others"
-        case .handsyTrial: return "Handsy Free Line"
+        case .handsyTrial: return "Handsy Free"
         }
     }
     var baseURL: String {
@@ -69,22 +69,6 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .zhipu: return .asset("ZhipuLogo")
         case .others: return .symbol("server.rack")
         case .handsyTrial: return .symbol("gift")
-        }
-    }
-    /// Brand color for the logo tile (approximate, readable in light and dark mode).
-    var brandColor: (red: Double, green: Double, blue: Double) {
-        switch self {
-        case .openAI: return (0.06, 0.64, 0.50)
-        case .gemini: return (0.26, 0.52, 0.96)
-        case .qwen, .qwenInternational: return (0.38, 0.36, 0.93)
-        case .deepSeek: return (0.30, 0.42, 1.00)
-        case .openRouter: return (0.39, 0.40, 0.95)
-        case .nvidia: return (0.46, 0.73, 0.00)
-        case .nebius: return (0.55, 0.62, 0.10)
-        case .hCompany: return (1.00, 0.42, 0.20)
-        case .zhipu: return (0.22, 0.35, 1.00)
-        case .others: return (0.50, 0.50, 0.55)
-        case .handsyTrial: return (0.10, 0.65, 0.45)
         }
     }
     /// Shown first in the provider list (their tested model is preselected).

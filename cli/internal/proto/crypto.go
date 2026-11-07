@@ -19,6 +19,7 @@ const (
 	TWelcome = 0x82
 	TData    = 0x10
 	TVideo   = 0x11
+	TAudio   = 0x12 // phone audio records, Wi-Fi only (docs/cli-protocol.md, "Phone audio")
 	TError   = 0xE0
 )
 
@@ -27,6 +28,7 @@ const (
 	StreamC = 'C' // client → board
 	StreamB = 'B' // board control
 	StreamV = 'V' // board video
+	StreamA = 'A' // board audio
 )
 
 const (

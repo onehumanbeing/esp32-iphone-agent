@@ -100,11 +100,79 @@ import XCTest
             }
         }
         await agent.run()
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "home", "reconnected", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["home", "reconnected", "done"])
         XCTAssertEqual(stages, [Recovery.Stage(part: .mirroring, ask: false), nil])
         XCTAssertEqual(restored, 1)
         XCTAssertTrue(model.prompts[2].contains("the connection was lost and restored; re-check the screen"))
         XCTAssertFalse(model.prompts[1].contains("connection was lost"))
+    }
+
+    func testAStaleFrameIsFetchedAgainBeforeTheModelSeesIt() async {
+        let screen = FakeScreen()
+        screen.stale = true  // the stream broke after the last action; the shown frame is minutes old
+        let model = FakeModel { _ in "THINK: there\nDO: done ok" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        var restoredBeforeAsking: Bool?
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        agent.restore = { restoredBeforeAsking = model.prompts.isEmpty; screen.stale = false }
+        await agent.run()
+        XCTAssertEqual(restoredBeforeAsking, true)
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["reconnected", "done"])
+    }
+
+    func testTapsAfterTheFirstInARoundFindThePointerBeforePressing() async {
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        var round = 0
+        let model = FakeModel { _ in
+            round += 1
+            return round == 1 ? "THINK: pairs\nDO: tap 189 705\nDO: tap 484 705\nDO: tap 499 921" : "THINK: there\nDO: done ok"
+        }
+        let phone = FakeGestures()
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        await agent.run()
+        XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+    }
+
+    func testATapWhereTheLastOneWentFindsThePointerFirst() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        agent.steps = [["action": .str("tap"), "x": .int(789), "y": .int(705), "changed": .bool(true)], ["action": .str("plan")]]
+        XCTAssertTrue(agent.retaps(["action": .str("tap"), "x": .int(790), "y": .int(704)]))  // a miss the mascot hid
+        XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(499), "y": .int(921)]))
+        agent.steps.append(["action": .str("type"), "text": .str("water")])
+        XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(789), "y": .int(705)]))
+    }
+
+    func testARunFromRunsIsRestoredWithItsLastPlan() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        agent.restore(task: "Duolingo lesson", steps: [["action": .str("plan"), "plan": .str("1. Open it")],
+                                                       ["action": .str("tap"), "x": .int(500), "y": .int(255)],
+                                                       ["action": .str("plan"), "plan": .str("1. Tap START")]])
+        XCTAssertEqual(agent.task, "Duolingo lesson")
+        XCTAssertEqual(agent.steps.count, 3)
+        XCTAssertEqual(agent.plan, "1. Tap START")
+    }
+
+    func testAResumedRunKeepsItsPlanAndStepsAndSaysItGoesOn() async throws {
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        let model = FakeModel { _ in "THINK: lesson\nPLAN:\n1. Answer each exercise\nDO: fail stopped here" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil)
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
+        try agent.start("Duolingo lesson")
+        while agent.running { try await Task.sleep(nanoseconds: 20_000_000) }
+        let before = agent.steps.count
+        XCTAssertEqual(agent.plan, "1. Answer each exercise")
+        try agent.start("Duolingo lesson", resume: true)
+        agent.stop()
+        XCTAssertEqual(agent.plan, "1. Answer each exercise")
+        XCTAssertEqual(agent.steps.count, before + 1)
+        XCTAssertEqual(agent.steps.last?["action"], .str("resumed"))
+        while agent.running { try await Task.sleep(nanoseconds: 20_000_000) }
+        try agent.start("Another task", resume: true)  // not this run's task: a fresh start
+        agent.stop()
+        XCTAssertFalse(agent.steps.contains { $0["action"] == .str("resumed") })
     }
 
     func testRunEndsWithAClearReasonWhenTheScreenNeverComesBack() async {

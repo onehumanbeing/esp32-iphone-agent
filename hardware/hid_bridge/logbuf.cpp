@@ -27,6 +27,7 @@ void board_log(const char *fmt, ...) {
   if (n && line[n - 1] == '\n') line[--n] = 0;
   Serial.println(line);
   board_log_keep(line);
+  relayLine(line);
 }
 
 String board_log_page(const String &arg) {

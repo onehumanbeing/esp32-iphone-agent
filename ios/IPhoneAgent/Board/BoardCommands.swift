@@ -131,7 +131,7 @@ extension BoardTransport {
             // 回执可能丢在执行后。仅重试能查询或设定同一状态的命令，避免重复操作手机。
             let name = command.split(separator: " ", maxSplits: 1).first
             switch name {
-            case "home", "release", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
+            case "home", "pace", "release", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
             default: throw e
             }
             DebugLog.write("cmd retry after timeout: \(command.prefix(40))")

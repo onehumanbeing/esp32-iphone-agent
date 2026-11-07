@@ -1,11 +1,16 @@
 // TCP video link, see wifi_video.h. One app at a time on port 7201. The app sends text lines: "hello <token>"
-// (or "hello <token> at <ts>": its decoder is still in step up to the AU with that timestamp), then "ka" every second and "resync" if its assembler lost its place. The board sends records
+// (or "hello <token> at <ts>": its decoder is still in step up to the AU with that timestamp), then "ka" every second and "resync" if its assembler lost its place,
+// and "audio" if it wants the AirPlay audio too (older firmware ignores the line). The board sends records
 // [u16 LE length][chunk]; a zero-length record answers hello and ka. TCP keeps chunks whole and in order,
 // so there are no nacks: a send that stalls for SEND_TIMEOUT_MS drops the session and the app reconnects.
 #include "wifi_video.h"
+#include "cli_link.h"
+#include "logbuf.h"
 #if WV_TCP
 #include <esp_random.h>
+#include "freertos/message_buffer.h"
 #include "lwip/sockets.h"
+#include "src/airplay/airplay.h"
 #include "src/video/gop.h"
 
 const uint16_t PORT = 7201;
@@ -16,7 +21,7 @@ const int RECV_TIMEOUT_MS = 5000;
 static int listener = -1, client = -1;
 static SemaphoreHandle_t lock;              // client + writes (a record goes out whole)
 static volatile uint32_t lastSeen;
-static volatile bool authed, resync, resumeAsked;
+static volatile bool authed, resync, resumeAsked, audioWanted;
 static volatile uint32_t resumeTs;
 static char token[33];
 static uint32_t winStart, winBytes;
@@ -72,6 +77,7 @@ static void serve(int fd) {
   xSemaphoreTake(lock, portMAX_DELAY);
   client = fd;
   authed = false;
+  audioWanted = false;  // asked again on every connection; a resume hello on this one keeps it
   xSemaphoreGive(lock);
   char line[96];
   size_t used = 0;
@@ -99,6 +105,9 @@ static void serve(int fd) {
         xSemaphoreGive(lock);
       } else if (authed && !strcmp(line, "resync")) {
         resync = true;
+      } else if (authed && !strcmp(line, "audio")) {
+        audioWanted = true;
+        board_log("wv: app wants audio");
       }
       size_t rest = used - (nl + 1 - line);
       memmove(line, nl + 1, rest);
@@ -140,7 +149,15 @@ bool wv_begin() {
 
 String wv_token() { return token; }
 
-bool wv_active() { return authed && client >= 0 && millis() - lastSeen < PEER_TIMEOUT_MS; }
+bool wv_active() {
+  bool on = authed && client >= 0 && millis() - lastSeen < PEER_TIMEOUT_MS;
+  static bool was;  // log why the session stopped counting: a late "ka" sends the app's video over BLE
+  if (was && !on) board_log("wv: inactive (%s, last ka %lu ms ago)", client < 0 ? "closed" : !authed ? "not authed" : "ka late",
+                            (unsigned long)(millis() - lastSeen));
+  if (!was && on) board_log("wv: active");
+  was = on;
+  return on;
+}
 
 bool wv_send(const uint8_t *chunk, size_t n) {
   if (n > VCHUNK_HDR + WV_PAYLOAD || !wv_active()) return false;
@@ -164,6 +181,91 @@ bool wv_take_resync() {
   resync = false;
   return true;
 }
+
+// ---- audio: the mirror task queues frames, audioTask writes them as records to the app (TCP 7201) and to a CLI
+// that asked for them (cli_link, Wi-Fi only), each with its own seq and segment start: a stalled send must not
+// hold up AirPlay ----
+
+const size_t AUDIO_QUEUE = 16 * 1024;  // about 1 s of AAC-ELD
+static MessageBufferHandle_t audioQ;
+static volatile uint32_t audioDrops;
+
+struct AudioDest {
+  const char *name;
+  uint16_t seq;
+  bool started;  // it saw this segment's VF_START
+};
+
+// One queued frame ([event][u32 ms][u32 ts][frame]) as a record for d; false if it isn't one for d.
+static size_t audioRecord(AudioDest &d, const uint8_t *q, size_t n, uint8_t *rec) {
+  int event = q[0];
+  if (event == AIRPLAY_AUDIO_FRAME && !d.started) event = AIRPLAY_AUDIO_START;  // it joined mid-segment
+  if (event == AIRPLAY_AUDIO_END && !d.started) return 0;
+  rec[0] = (uint8_t)d.seq;
+  rec[1] = (uint8_t)(d.seq >> 8);
+  rec[2] = WV_AUDIO | (event == AIRPLAY_AUDIO_START ? VF_START : event == AIRPLAY_AUDIO_END ? VF_END : 0);
+  size_t len = VCHUNK_HDR;
+  if (event != AIRPLAY_AUDIO_END) {
+    memcpy(rec + len, q + 1, n - 1);
+    len += n - 1;
+  }
+  if (event == AIRPLAY_AUDIO_START) board_log("wv: audio segment to the %s (seq %u)", d.name, (unsigned)d.seq);
+  if (event == AIRPLAY_AUDIO_END)
+    board_log("wv: audio segment to the %s ended (seq %u, %lu dropped so far)", d.name, (unsigned)d.seq, (unsigned long)audioDrops);
+  d.seq++;
+  d.started = event != AIRPLAY_AUDIO_END;
+  return len;
+}
+
+static void audioTask(void *) {
+  static uint8_t q[1 + 8 + WV_PAYLOAD], rec[VCHUNK_HDR + 8 + WV_PAYLOAD];
+  static AudioDest app = {"app"}, cli = {"computer"};
+  for (;;) {
+    size_t n = xMessageBufferReceive(audioQ, q, sizeof q, portMAX_DELAY);
+    if (!n) continue;
+    bool toApp = wv_active() && audioWanted, toCli = cli_audio_wanted();
+    if (!toApp) app.started = false;
+    if (!toCli) cli.started = false;
+    if (!toApp && !toCli) { audioDrops++; continue; }
+    size_t len;
+    if (toApp && (len = audioRecord(app, q, n, rec))) {
+      xSemaphoreTake(lock, portMAX_DELAY);
+      if (!writeRecord(rec, len)) audioDrops++;
+      xSemaphoreGive(lock);
+    }
+    if (toCli && (len = audioRecord(cli, q, n, rec)) && !cli_send_audio(rec, len)) audioDrops++;
+  }
+}
+
+// Started with the first audio, so a board that never hears any keeps the internal RAM.
+static bool audioStart() {
+  static bool tried, ok;
+  if (tried) return ok;
+  tried = true;
+  static StaticMessageBuffer_t ctl;
+  uint8_t *store = (uint8_t *)heap_caps_malloc(AUDIO_QUEUE + 1, MALLOC_CAP_SPIRAM);
+  audioQ = store ? xMessageBufferCreateStatic(AUDIO_QUEUE, store, &ctl) : NULL;
+  ok = audioQ && xTaskCreatePinnedToCore(audioTask, "wv_audio", 3072, NULL, 2, NULL, 1) == pdPASS;
+  if (!ok) board_log("wv: audio task failed to start");
+  return ok;
+}
+
+void wv_audio(int event, const uint8_t *frame, size_t len, uint32_t ts) {
+  if (!(audioWanted && wv_active()) && !cli_audio_wanted()) return;
+  if (len > WV_PAYLOAD - 8 || !audioStart()) { audioDrops++; return; }  // a record must fit one TCP record
+  uint8_t q[1 + 8 + WV_PAYLOAD];
+  uint32_t ms = millis();
+  q[0] = (uint8_t)event;
+  for (int i = 0; i < 4; i++) q[1 + i] = (uint8_t)(ms >> (8 * i)), q[5 + i] = (uint8_t)(ts >> (8 * i));
+  size_t n = 1 + 8;
+  if (event != AIRPLAY_AUDIO_END) {
+    memcpy(q + n, frame, len);
+    n += len;
+  }
+  if (xMessageBufferSend(audioQ, q, n, 0) != n) audioDrops++;
+}
+
+uint32_t wv_audio_drops() { return audioDrops; }
 
 uint32_t wv_kbps() { return millis() - winStart < 3000 ? kbps : 0; }
 uint32_t wv_nacks() { return 0; }

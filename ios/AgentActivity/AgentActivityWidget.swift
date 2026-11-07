@@ -59,7 +59,7 @@ struct AgentLiveActivity: Widget {
                     Eyes(state: s).padding(3).frame(width: 24, height: 24)
                 }
             } compactTrailing: {
-                if (s.phase == .recording || s.phase == .countdown) && !s.finished {
+                if (s.phase == .recording || s.phase.countsDown) && !s.finished {
                     Counter(state: s).font(.caption).frame(maxWidth: 44)
                 } else {
                     Says(state: s, full: false).font(.caption.bold()).frame(width: 92, alignment: .trailing)
@@ -67,7 +67,7 @@ struct AgentLiveActivity: Widget {
             } minimal: {
                 if s.phase == .recording {
                     Image(systemName: "record.circle.fill").foregroundStyle(.red)
-                } else if s.phase == .countdown && !s.finished {
+                } else if s.phase.countsDown && !s.finished {
                     Counter(state: s).font(.caption2)
                 } else {
                     // Screen Mirroring shares the island during a run and leaves only this bubble: the face.
@@ -84,7 +84,7 @@ struct AgentLiveActivity: Widget {
 private struct Counter: View {
     let state: AgentActivityAttributes.ContentState
     var body: some View {
-        if state.phase == .countdown && !state.finished {
+        if state.phase.countsDown && !state.finished {
             // The system counts down on its own; the app switches to recording when it ends.
             Text(timerInterval: state.since.addingTimeInterval(-10)...state.since, countsDown: true)
                 .monospacedDigit().foregroundStyle(.white).multilineTextAlignment(.trailing)
@@ -126,6 +126,9 @@ private struct Buttons: View {
             case .running:
                 Button(intent: PauseAgentIntent()) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
                     .tint(.gray)
+                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                    .tint(.red)
+            case .resuming:
                 Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             case .paused:

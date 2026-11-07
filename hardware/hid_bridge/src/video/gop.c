@@ -32,6 +32,17 @@ int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t
   return g->n++;
 }
 
+int gop_append_ring(gop_buf *g, const uint8_t *annexb, size_t len, uint32_t ts) {
+  if (len > g->cap || g->max < 1) return -1;
+  int dropped = 0;
+  while (gop_append(g, annexb, len, false, ts) < 0) {
+    int k = g->n > 4 ? g->n / 4 : g->n;
+    gop_drop_front(g, k);
+    dropped += k;
+  }
+  return dropped;
+}
+
 void gop_clear(gop_buf *g) {
   g->used = 0;
   g->n = 0;

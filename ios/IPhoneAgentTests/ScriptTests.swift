@@ -71,7 +71,7 @@ import XCTest
         agent.replay = Replay(steps: [step(["action": .str("manual"), "reason": .str("Log in")])])
         await agent.run()
         XCTAssertEqual(asked, ["Log in"])
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["help", "takeover", "plan", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["help", "takeover", "done"])
     }
 
     func testOnlyNewStepKindsOrUntilMakeAScript() {

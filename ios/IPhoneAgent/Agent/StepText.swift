@@ -22,6 +22,7 @@ enum StepText {
         case "stopped": return String(localized: "Stopped")
         case "hiccup": return String(localized: "Hiccup, retrying")
         case "reconnected": return String(localized: "Reconnected")
+        case "resumed": return String(localized: "Going on")
         case "error": return String(localized: "Error")
         case "help": return String(localized: "Asked for your help")
         case "takeover": return String(localized: "You took over")
@@ -71,12 +72,13 @@ enum StepText {
         case "write": return "doc.on.clipboard"
         case "remember", "learn": return "brain.head.profile"
         case "reconnected": return "arrow.triangle.2.circlepath"
+        case "resumed": return "play.fill"
         default: return "exclamationmark.triangle"
         }
     }
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
-                                        "takeover", "skipped", "note", "reconnected", "confirm", "confirmed",
+                                        "takeover", "skipped", "note", "reconnected", "resumed", "confirm", "confirmed",
                                         "read", "progress", "remember", "learn", "ai done", "check"]
 }
 

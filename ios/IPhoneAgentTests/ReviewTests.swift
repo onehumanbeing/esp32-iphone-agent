@@ -18,7 +18,7 @@ import XCTest
         await agent.run()
         XCTAssertEqual(asked, ["login required"])
         XCTAssertEqual(agent.steps.map { $0["action"]?.str },
-                       ["plan", "fail", "help", "takeover", "replan (stuck)", "done"])
+                       ["fail", "help", "takeover", "done"])
     }
 
     func testRiskyStepWaitsForTheUsersOK() async {
@@ -35,7 +35,7 @@ import XCTest
         agent.onConfirm = { reason in asked.append(reason); return .resume }
         await agent.run()
         XCTAssertEqual(asked, ["send the message to Anna"])
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["confirm", "confirmed", "done"])
     }
 
     func testPaymentsOnlyLetsASendGoOnWithoutAsking() async {
@@ -46,7 +46,7 @@ import XCTest
         agent.onConfirm = { reason in asked.append(reason); return .resume }
         await agent.run()
         XCTAssertEqual(asked, [])
-        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "confirm", "confirmed", "done"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["confirm", "confirmed", "done"])
     }
 
     func testAskModesPickWhichConfirmsWait() {
@@ -74,14 +74,37 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("stopped"))
     }
 
+    func testRoundsThatChangeNothingAskTheUserInsteadOfRunningOn() async {
+        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }  // the fake screen never changes
+        let screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil,
+                              maxStalls: 3)
+        var asked: [String] = []
+        agent.onHelp = { reason in asked.append(reason); return .stop }
+        await agent.run()
+        XCTAssertEqual(asked, ["the screen did not change in 3 steps"])
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "tap" }.count, 3)
+    }
+
+    func testTheSafetyCapAsksTheUserAndCanGoOn() async {
+        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil,
+                              maxSteps: 2, maxStalls: 100)
+        var asked: [String] = []
+        agent.onHelp = { reason in asked.append(reason); return asked.count == 1 ? .resume : .stop }
+        await agent.run()
+        XCTAssertEqual(asked, ["step limit reached", "step limit reached"])
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "tap" }.count, 4)  // 2, the user said go on, 2 more
+    }
+
     func testIntentHintsAreAppendedToTheActorPromptOnly() async {
-        let model = SystemRecorder { n in n == 1 ? "1. go" : "THINK: there\nDO: done ok" }
+        let model = SystemRecorder { _ in "THINK: there\nDO: done ok" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
         agent.hints = ["Type the time instead of scrolling"]
         await agent.run()
         let rule = "\n" + AssistiveTouchSpots.rule
-        XCTAssertEqual(model.systems[0], Prompts.plannerApp + rule)
-        XCTAssertEqual(model.systems[1], Prompts.actor + rule + "\n\nHints for this task:\n- Type the time instead of scrolling")
+        XCTAssertEqual(model.systems, [Prompts.actor + rule + "\n\nHints for this task:\n- Type the time instead of scrolling"])
         agent.hints = []
         XCTAssertEqual(agent.actorPrompt, Prompts.actor + rule)
     }

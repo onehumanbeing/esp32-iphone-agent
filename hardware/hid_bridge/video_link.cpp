@@ -15,9 +15,8 @@
 #endif
 const size_t GOP_CAP = GOP_CAP_KB * 1024;
 const int MAX_AUS = 8192;
-const size_t TAIL_CAP = 512 * 1024;     // AUs after a frozen GOP, until the streams have sent them
+const size_t TAIL_CAP = 512 * 1024;     // the newest AUs after a frozen GOP (a ring), to go on from or resume in
 const int TAIL_AUS = 1024;
-const int TAIL_KEEP = 64;               // sent tail AUs kept for a resume: a dropped TCP session loses what it buffered
 const size_t SCRATCH_CAP = 512 * 1024;   // largest access unit we forward
 const size_t MAX_CHUNK = 512;
 
@@ -43,7 +42,7 @@ struct Sink {
   uint16_t seq[2];             // each side's chunk numbers
   uint32_t txGen = UINT32_MAX;
   int next, tailNext;
-  bool catchingUp, lastWifi;
+  bool catchingUp;
   volatile uint32_t followGen = UINT32_MAX;  // the generation it sends in order, AU after AU
   volatile bool onTail;                      // it goes on from the tail past a frozen GOP
   bool resumed;                              // the next AU goes on from the app's last one: VF_RESUME
@@ -100,6 +99,13 @@ static bool sendAu(Sink &s, const uint8_t *p, size_t n, uint8_t flags, uint32_t 
   vchunk c;
   vchunk_begin(&c, p, n, flags, ts);
   uint16_t &seq = s.seq[sideOf(s.who)];
+  // The app's chunks share one numbering over both links, and its one assembler takes both: a BLE chunk that
+  // lands after newer Wi-Fi ones reads as a ~65535 gap there (2026-11-06, fw 0.2.3). Log every switch.
+  static int8_t appLink = -1;  // -1 unknown, 0 BLE, 1 Wi-Fi
+  if (s.who == FROM_APP && appLink != (int8_t)wifi) {
+    if (appLink >= 0) board_log("video: app link %s -> %s at seq %u", appLink ? "wifi" : "ble", wifi ? "wifi" : "ble", seq);
+    appLink = wifi;
+  }
   for (size_t len; (len = vchunk_next(&c, chunk, room, seq)) > 0;) {
     bool ok = videoSend(s, wifi, chunk, len);
     seq++;
@@ -132,17 +138,6 @@ static bool copyTail(Sink &s, uint32_t gen, int i, gop_au *au) {
   return ok;
 }
 
-// The tail is full: drop what the stream on it sent long ago (TAIL_KEEP stay for a resume). False if it is that
-// far behind (or nobody is on it): the tail breaks, frozen until the next IDR. Under lock.
-static bool makeTailRoom() {
-  int drop = sink.onTail ? sink.tailNext - TAIL_KEEP : 0;
-  if (drop <= 0) return false;
-  gop_drop_front(&tail, drop);
-  sink.tailNext -= drop;
-  tailTrimmed = true;
-  return true;
-}
-
 static bool frozenNow() {
   xSemaphoreTake(lock, portMAX_DELAY);
   bool f = gop.frozen;
@@ -151,7 +146,7 @@ static bool frozenNow() {
 }
 
 // Why the sink last stopped following while it was in step, and when (vdbg): w new side, r resync, n not
-// streaming / no room, c/g/t a failed config / GOP / tail send.
+// streaming / no room, c/g/t a failed config / GOP / tail send, b fell a whole tail ring behind.
 static char lastWhy = '-';
 static uint32_t lastWhyAt, tailBreaks;
 
@@ -257,8 +252,10 @@ static void streamStep(Sink &s) {
   bool resyncAsked = s.who == FROM_APP && wv_take_resync();
   uint32_t resumeTs;
   bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
-  if (!resume && (wifi != s.lastWifi || (resyncAsked && !s.catchingUp))) s.txGen = UINT32_MAX;
-  s.lastWifi = wifi;
+  // A new transport goes on in place: the app's one assembler takes both links, a new app session asks for the IDR
+  // itself (`hello`), and chunks lost on the old link end in a resume (`hello … at`). Resending the GOP at every
+  // Wi-Fi/BLE flip replayed minutes of old screens into the decoder, 18 times in 11 min (2026-11-06).
+  if (!resume && resyncAsked && !s.catchingUp) s.txGen = UINT32_MAX;
   if (s.who == FROM_CLI && s.cliGen != cli_gen()) {  // a new session (or the same one moved to Wi-Fi / BLE)
     s.cliGen = cli_gen();
     s.txGen = UINT32_MAX;
@@ -355,9 +352,19 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
     tailLive = true;
     tailTrimmed = false;
   }
-  if (gop.frozen && tailLive && gop_append(&tail, au, len, false, now) < 0 &&
-      !(makeTailRoom() && gop_append(&tail, au, len, false, now) >= 0))
-    tailLive = false;  // a stream fell too far behind
+  // A ring: full drops the oldest. It used to break once full unless the stream was on it at that moment, and a
+  // stream off it for a second (a Wi-Fi hiccup) then found nothing to resume from: frozen until mirroring
+  // restarted (2026-11-06, three times in a day).
+  int dropped = gop.frozen && tailLive ? gop_append_ring(&tail, au, len, now) : 0;
+  if (dropped < 0) tailLive = false;  // one AU larger than the whole tail
+  if (dropped > 0) {
+    tailTrimmed = true;
+    if (sink.onTail && (sink.tailNext -= dropped) < 0) {  // it fell a whole ring behind: AUs it never sent are gone
+      sink.tailNext = 0;
+      sink.onTail = false;
+      lastWhy = 'b', lastWhyAt = now;
+    }
+  }
   bool tailBroke = gop.frozen && !froze && wasLive && !tailLive;
   int aus = gop.n;
   uint32_t kb = gop.used / 1024;

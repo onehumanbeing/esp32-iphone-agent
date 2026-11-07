@@ -5,7 +5,13 @@ import Foundation
 /// The Live Activity / Dynamic Island of a run or a demonstration recording: while the agent works the app
 /// is in the background, so this is the only thing the user sees.
 struct AgentActivityAttributes: ActivityAttributes {
-    enum Phase: String, Codable, Hashable { case running, help, countdown, recording, paused }
+    enum Phase: String, Codable, Hashable {
+        case running, help, countdown, recording, paused
+        case resuming  // a stopped run goes on: the user switches back to its app before `since`
+
+        /// A timer counting down to `since`.
+        var countsDown: Bool { self == .countdown || self == .resuming }
+    }
 
     struct ContentState: Codable, Hashable {
         var mood: Mood

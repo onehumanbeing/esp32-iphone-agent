@@ -11,5 +11,7 @@ OUT=$(follow "$FROM" '^[^ ]+ harness hid:' '^[^ ]+ harness hid: (done|board not 
 echo "$OUT"
 mkdir -p /tmp/harness-shots
 for shot in $(grep -oE 'saved harness-shots/[0-9]+\.jpg' <<<"$OUT" | cut -d' ' -f2); do
-  dc device copy from "${ON[@]}" --source "Documents/$shot" --destination "/tmp/$shot" >/dev/null && echo "/tmp/$shot"
+  for _ in 1 2 3 4 5; do [[ -s /tmp/$shot ]] || ! live || sleep 0.5; done  # live: the app sends it over the link
+  [[ -s /tmp/$shot ]] || dc device copy from "${ON[@]}" --source "Documents/$shot" --destination "/tmp/$shot" >/dev/null
+  [[ -s /tmp/$shot ]] && echo "/tmp/$shot"
 done

@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 enum { CLI_PAIR = 0x01, CLI_PAIRED = 0x81, CLI_HELLO = 0x02, CLI_WELCOME = 0x82, CLI_DATA = 0x10, CLI_VIDEO = 0x11,
-       CLI_ERROR = 0xE0 };
+       CLI_AUDIO = 0x12, CLI_ERROR = 0xE0 };
 #define CLI_ID_LEN 16
 #define CLI_KEY_LEN 32
 #define CLI_NONCE_LEN 16
@@ -29,7 +29,7 @@ bool cli_session(const uint8_t k[CLI_KEY_LEN], const uint8_t c_nonce[16], const 
 // HMAC-SHA256(key, a || b)[0:16].
 void cli_mac(const uint8_t k[CLI_KEY_LEN], const char *label, const uint8_t *a, size_t alen, const uint8_t *b,
              size_t blen, uint8_t out[CLI_MAC_LEN]);
-// Seals plain into out (room for n + CLI_OVERHEAD); stream is 'C', 'B' or 'V'. Returns the frame length.
+// Seals plain into out (room for n + CLI_OVERHEAD); stream is 'C', 'B', 'V' or 'A'. Returns the frame length.
 size_t cli_seal(const uint8_t key[16], uint8_t type, char stream, uint32_t ctr, const uint8_t *plain, size_t n,
                 uint8_t *out);
 // Opens a frame into plain (room for n - CLI_OVERHEAD). Returns the plain length, or -1 if it does not verify.

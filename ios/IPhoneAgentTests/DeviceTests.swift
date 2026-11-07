@@ -250,6 +250,65 @@ import XCTest
         XCTAssertEqual(s.fps, 4.8)
     }
 
+    func testLandingsSavedBeforeEveryGestureRehomedAreDropped() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let old = #"{"w":400,"h":800,"seen":{"x":[[0.5,0.52],[0.3,0.33]],"y":[]}}"#
+        try Data(old.utf8).write(to: file)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 0)
+        XCTAssertTrue(Pointer(device: FakeDevice(), calibrationFile: file).calibrated)  // the calibration stays
+        try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":3}").utf8).write(to: file)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
+    }
+
+    func testHomesOffsetFromTheCornerIsPartOfTheCalibration() async throws {
+        // the probe fit of 2026-11-06: home left the pointer at x 0.142 (the rounded corner); the check missed by 14%
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        let x = ProbeFit.Line(a: 0.00148, b: 0.142, rms: 0.0057), y = ProbeFit.Line(a: 0.00071, b: -0.009, rms: 0.0087)
+        let samples = [150.0, 350, 77, 418, 248].map { u in (ux: u, uy: u, fx: 0.00148 * u + 0.142, fy: 0.00071 * u - 0.009) }
+        pointer.applyProbe(x: x, y: y, samples: samples)
+        try await pointer.point(0.5, 0.62)
+        let move = try XCTUnwrap(device.sent.last).split(separator: " ").compactMap { Double($0) }
+        XCTAssertEqual(0.00148 * move[0] + 0.142, 0.5, accuracy: 0.005)
+        XCTAssertEqual(0.00071 * move[1] - 0.009, 0.62, accuracy: 0.005)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).origin.x, 0.142, accuracy: 1e-9)  // kept
+    }
+
+    func testShortMovesAreScaledUpByTheSpeedCalibration() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        XCTAssertTrue(pointer.paced(5, 0) == (5, 0))  // no speed calibration: as asked
+        pointer.applySpeeds([(2, 0.5), (6, 0.8), (10, 1.3)])  // full speed is the reference, never stored
+        XCTAssertEqual(pointer.ratio(atSpeed: 4), 0.65, accuracy: 1e-9)
+        XCTAssertEqual(pointer.ratio(atSpeed: 1), 0.5)
+        XCTAssertEqual(pointer.ratio(atSpeed: 10), 1)
+        let (x, _) = pointer.paced(4, 0)  // one slow report: sent longer so it goes 4 at full speed's scale
+        XCTAssertEqual(Double(x) * pointer.ratio(atSpeed: Double(x)), 4, accuracy: 0.6)
+        XCTAssertTrue(pointer.paced(300, 0) == (300, 0))  // a long move runs at full speed
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).gain.count, 2)  // saved
+    }
+
+    func testACalibrationUnderAnotherBoardPaceIsDoneAgain() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data(#"{"w":400,"h":800,"v":3}"#.utf8).write(to: file)  // saved before the firmware answered "pace"
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        XCTAssertTrue(pointer.calibrated)  // no board yet
+        pointer.boardPace = 1
+        XCTAssertTrue(pointer.calibrated)  // old firmware: same moves
+        pointer.boardPace = 2
+        XCTAssertFalse(pointer.calibrated)  // one-speed moves go other distances
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        XCTAssertTrue(pointer.calibrated)
+        let again = Pointer(device: FakeDevice(), calibrationFile: file)
+        again.boardPace = 2
+        XCTAssertTrue(again.calibrated)
+    }
+
     func testPointerRehomesEveryTenGestures() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")

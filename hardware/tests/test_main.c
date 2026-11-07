@@ -1,13 +1,18 @@
 // Host unit tests for the board's pure-C parts: bplist codec, the GOP buffer / video chunker, and the
-// mirroring keystream, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring.
+// mirroring keystream, the AirPlay audio packets and sound gate, the CLI link crypto, the app/CLI HID arbiter, the RAM log ring, mouse move pacing.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "../hid_bridge/src/bplist/bplist.h"
 #include "../hid_bridge/src/video/gop.h"
 #include "../hid_bridge/src/airplay/keystream.h"
+#include "../hid_bridge/src/airplay/audio.h"
+#include "../hid_bridge/src/heard/heard.h"
+#include "mbedtls/aes.h"
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
+#include "../hid_bridge/src/hid/pace.h"
 #include "../hid_bridge/src/log/logring.h"
 #include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
 #include "../hid_bridge/src/airplay/ap_internal.h"
@@ -122,6 +127,18 @@ static void test_gop(void) {
   CHECK(t.n == 1 && t.used == 5 && t.aus[0].off == 0 && t.aus[0].ts == 12 && t.arena[0] == 11 && gop_find(&t, 12) == 0);
   gop_drop_front(&t, 5);
   CHECK(t.n == 0 && t.used == 0);
+
+  // the tail past a frozen GOP is a ring: full drops the oldest, never refuses (2026-11-06: it broke instead,
+  // and the screen stayed frozen until mirroring restarted)
+  static uint8_t rarena[40];
+  static gop_au raus[8];
+  gop_buf r;
+  gop_init(&r, rarena, sizeof rarena, raus, 8);
+  for (uint32_t ts = 1; ts <= 8; ts++) CHECK(gop_append_ring(&r, au, 5, ts) == 0);
+  CHECK(r.n == 8 && gop_append_ring(&r, au, 5, 9) == 2);  // a quarter of 8 dropped
+  CHECK(r.n == 7 && r.aus[0].ts == 3 && gop_find(&r, 9) == 6 && gop_find(&r, 2) == -1);
+  CHECK(gop_append_ring(&r, au, 30, 10) == 7 && r.n == 1 && r.used == 30);  // bytes, not count, made it full
+  CHECK(gop_append_ring(&r, au, 41, 11) == -1 && r.n == 1);  // larger than the whole ring: refused, nothing lost
 
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));
@@ -316,6 +333,31 @@ static void test_arbiter(void) {
   CHECK(!arb_gone(&s, ARB_APP));
 }
 
+static void test_pace(void) {
+  // the move -158 -295 of 2026-11-06: every report the same speed, the sum exact, never above the step
+  long moves[][2] = {{-158, -295}, {150, 0}, {8, 295}, {12, 0}, {1, 0}, {-3, 7}, {466, 1316}};
+  for (unsigned m = 0; m < sizeof moves / sizeof moves[0]; m++) {
+    pace_t p;
+    pace_start(&p, moves[m][0], moves[m][1], 10);
+    long x = 0, y = 0, n = 0;
+    double lo = 1e9, hi = 0;
+    int sx, sy;
+    while (pace_next(&p, &sx, &sy)) {
+      double v = sqrt((double)sx * sx + (double)sy * sy);
+      lo = v < lo ? v : lo;
+      hi = v > hi ? v : hi;
+      x += sx, y += sy, n++;
+    }
+    CHECK(x == moves[m][0] && y == moves[m][1]);
+    CHECK(hi <= 11);  // each axis rounds on its own: at most a unit over
+    CHECK(n < 2 || hi - lo <= 1.5);  // one speed, give or take a unit of rounding
+  }
+  pace_t p;
+  pace_start(&p, 0, 0, 10);
+  int sx, sy;
+  CHECK(!pace_next(&p, &sx, &sy));
+}
+
 static void test_logring(void) {
   char buf[32], out[64];
   logring r;
@@ -395,7 +437,81 @@ static void test_mdns(void) {
   CHECK(cut <= 40 && cut == 1u + rec[0]);  // only the first entry (28 bytes) fits
 }
 
+// Encrypt like the sender (CBC over the whole blocks, fresh IV per packet, tail in the clear) and decrypt back.
+static void test_audio_packets(void) {
+  uint8_t key[16], iv[16], plain[45], pkt[12 + 45];
+  for (int i = 0; i < 16; i++) key[i] = (uint8_t)(i * 7), iv[i] = (uint8_t)(0xa0 + i);
+  for (int i = 0; i < 45; i++) plain[i] = (uint8_t)(i * 3 + 1);
+  pkt[0] = 0x80, pkt[1] = 0x60, pkt[2] = 0x12, pkt[3] = 0x34;
+  pkt[4] = 0x00, pkt[5] = 0x01, pkt[6] = 0xe2, pkt[7] = 0x40;
+  memset(pkt + 8, 0, 4);
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_enc(&aes, key, 128);
+  uint8_t v[16];
+  for (int round = 0; round < 2; round++) {  // the same IV again: nothing carries over between packets
+    memcpy(v, iv, 16);
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 32, v, plain, pkt + 12);
+    memcpy(pkt + 12 + 32, plain + 32, 13);
+    ap_rtp r;
+    CHECK(ap_rtp_parse(pkt, sizeof pkt, &r));
+    CHECK(r.seq == 0x1234 && r.ts == 123456 && r.len == 45 && r.payload == pkt + 12);
+    CHECK(!ap_audio_no_data(r.payload, r.len));
+    uint8_t out[45];
+    ap_audio_decrypt(key, iv, r.payload, r.len, out);
+    CHECK(!memcmp(out, plain, 45));
+    ap_audio_decrypt(key, iv, pkt + 12, 45, pkt + 12);  // in place
+    CHECK(!memcmp(pkt + 12, plain, 45));
+  }
+  mbedtls_aes_free(&aes);
+  ap_rtp r;
+  CHECK(!ap_rtp_parse(pkt, 11, &r));
+  pkt[0] = 0x40;
+  CHECK(!ap_rtp_parse(pkt, sizeof pkt, &r));  // RTP version 1
+  const uint8_t marker[4] = {0x00, 0x68, 0x34, 0x00};
+  CHECK(ap_audio_no_data(marker, 4) && ap_audio_no_data(NULL, 0) && !ap_audio_no_data(plain, 4));
+  uint8_t short_tail[7] = {1, 2, 3, 4, 5, 6, 7}, out[7];
+  ap_audio_decrypt(key, iv, short_tail, 7, out);  // under one block: all clear
+  CHECK(!memcmp(out, short_tail, 7));
+}
+
+static void test_audio_gate(void) {
+  ap_audio_gate g = {0};
+  CHECK(ap_audio_gate_packet(&g, 0, true) == AP_GATE_SKIP && !g.active);   // no-data packets start nothing
+  CHECK(ap_audio_gate_packet(&g, 10, false) == AP_GATE_START && g.active && g.segments == 1);
+  CHECK(ap_audio_gate_packet(&g, 20, false) == AP_GATE_FRAME);
+  CHECK(ap_audio_gate_packet(&g, 30, true) == AP_GATE_SKIP);               // silence inside a segment
+  CHECK(!ap_audio_gate_idle(&g, 20 + AP_AUDIO_IDLE_MS - 1));
+  CHECK(ap_audio_gate_idle(&g, 20 + AP_AUDIO_IDLE_MS) && !g.active);      // ends once, timed from the last sound
+  CHECK(!ap_audio_gate_idle(&g, 5000));
+  CHECK(ap_audio_gate_packet(&g, 6000, false) == AP_GATE_START && g.segments == 2 && g.frames == 3);
+}
+
+static void test_heard(void) {
+  static heard_ring r;
+  char out[600];
+  heard_clear(&r);
+  CHECK(heard_json(&r, 1000, false, out, sizeof out) && !strcmp(out, "{\"app\":0,\"lines\":[]}"));
+  heard_add(&r, 1000, "[en] code \"5813\"", 17);
+  heard_add(&r, 3000, "[zh] 验证码", strlen("[zh] 验证码"));
+  heard_json(&r, 4000, true, out, sizeof out);
+  CHECK(!strcmp(out, "{\"app\":1,\"lines\":[{\"ago\":1000,\"t\":\"[zh] 验证码\"},{\"ago\":3000,\"t\":\"[en] code \\\"5813\\\"\"}]}"));
+  heard_json(&r, 62000, true, out, sizeof out);  // the first is over 60 s old
+  CHECK(strstr(out, "验证码") && !strstr(out, "5813"));
+  CHECK(heard_json(&r, 4000, true, out, 40) && !strcmp(out, "{\"app\":1,\"lines\":[]}"));  // only what fits
+  for (int i = 0; i < HEARD_LINES + 3; i++) heard_add(&r, 5000 + i, "x", 1);
+  CHECK(r.count == HEARD_LINES);
+  char big[500];
+  memset(big, 'a', sizeof big);
+  memcpy(big + HEARD_TEXT - 1, "中", 3);  // split by the cut
+  heard_add(&r, 6000, big, sizeof big);
+  CHECK(strlen(r.text[(r.next + HEARD_LINES - 1) % HEARD_LINES]) == HEARD_TEXT - 1);
+}
+
 int main(void) {
+  test_heard();
+  test_audio_packets();
+  test_audio_gate();
   test_mdns();
   test_logring();
   test_bplist_roundtrip();
@@ -405,6 +521,7 @@ int main(void) {
   test_keystream_resync();
   test_cli_proto();
   test_arbiter();
+  test_pace();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

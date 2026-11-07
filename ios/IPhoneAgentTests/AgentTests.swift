@@ -1,3 +1,4 @@
+import ImageIO
 import XCTest
 @testable import IPhoneAgent
 
@@ -30,18 +31,18 @@ import XCTest
         XCTAssertTrue(calls.allSatisfy { $0.reply != nil })
     }
 
-    func testPlannerNetworkFailureAfterReconnectRestoresAndRetries() async throws {
+    func testNetworkFailureAfterReconnectRestoresAndRetries() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         let device = try XCTUnwrap(phone.device as? FakeDevice)
         let model = ConnectionFailureModel { device.links += 1 }
-        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
         var restored = 0, calls: [ModelCall] = []
         agent.restore = { restored += 1; screen.frame = Data([3]); screen.updated = now() }
         agent.onModelCall = { calls.append($0) }
-        try await agent.replan()
+        let acts = try await agent.nextActions()
         XCTAssertEqual(model.calls, 2)
         XCTAssertEqual(restored, 1)
-        XCTAssertEqual(agent.plan, "1. Observe the new screen")
+        XCTAssertEqual(acts.first?.act["action"], .str("wait"))
         XCTAssertEqual(calls.count, 2)
         XCTAssertNotNil(calls.first?.error)
         XCTAssertNotNil(calls.last?.reply)
@@ -54,12 +55,11 @@ import XCTest
             call == 1 ? "THINK: old screen\nDO: tap 900 900"
                 : call == 2 ? "THINK: fresh screen\nDO: tap 100 200" : "THINK: done\nDO: done ok"
         }
-        let planner = FakeModel { _ in "1. Tap the visible control" }
-        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: planner, trace: nil)
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
         var gates = 0, restored = 0
         agent.gate = {
             gates += 1
-            if gates == 3 { device.links += 1 }  // planner look, actor look, then its first action gate
+            if gates == 2 { device.links += 1 }  // the look, then its first action gate
         }
         agent.restore = { restored += 1; screen.frame = Data([4]); screen.updated = now() }
         await agent.run()
@@ -102,32 +102,32 @@ import XCTest
         XCTAssertTrue(phone.calls.isEmpty)
     }
 
-    func testPlannerTimeoutRetriesOnceAndChecksGateAgain() async throws {
+    func testTimeoutRetriesOnceAndChecksGateAgain() async throws {
         let model = TimeoutModel(failures: 1)
-        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
         var gates = 0
         var retryShown = false
         agent.gate = { gates += 1 }
         agent.onDoing = { if case .retrying = $0 { retryShown = true } }
-        try await agent.replan()
+        let acts = try await agent.nextActions()
         XCTAssertEqual(model.calls, 2)
         XCTAssertEqual(gates, 2)
         XCTAssertTrue(retryShown)
-        XCTAssertEqual(agent.plan, "1. Observe the screen")
+        XCTAssertEqual(acts.first?.act["action"], .str("wait"))
     }
 
-    func testPlannerTimeoutStopsAfterOneRetry() async {
+    func testTimeoutStopsAfterOneRetry() async {
         let model = TimeoutModel(failures: 10)
-        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: model, trace: nil)
-        do { try await agent.replan(); XCTFail("Expected timeout") }
+        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        do { _ = try await agent.nextActions(); XCTFail("Expected timeout") }
         catch { XCTAssertTrue(ModelRequestFailure.isTimeout(error)) }
         XCTAssertEqual(model.calls, 2)
         XCTAssertTrue(agent.steps.isEmpty)
     }
 
-    func testPlannerAndActorHaveDistinctPendingAndReceivingStates() async throws {
+    func testActorShowsPendingThenReceiving() async throws {
         let model = ProgressModel()
-        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
         var states: [String] = []
         agent.onDoing = {
             switch $0 {
@@ -137,11 +137,6 @@ import XCTest
             default: break
             }
         }
-        try await agent.replan()
-        XCTAssertEqual(states.last, "planning")
-        XCTAssertEqual(states.first, "waiting")
-        XCTAssertNil(model.onProgress)
-        states = []
         _ = try await agent.nextActions()
         XCTAssertEqual(states.first, "waiting")
         XCTAssertEqual(states.last, "thinking")
@@ -215,27 +210,6 @@ import XCTest
         }
     }
 
-    func testActorMayNotRepeatAMoveThatChangedNothing() async throws {
-        let actor = FakeModel { n in
-            n == 1 ? "THINK: again\nDO: swipe 382 253 382 150" : "THINK: other\nDO: tap 1 2"
-        }
-        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: actor, planner: actor, trace: nil)
-        agent.steps = [["action": .str("swipe"), "x1": .int(382), "y1": .int(253), "x2": .int(382), "y2": .int(150),
-                        "changed": .bool(false)]]
-        let acts = try await agent.nextActions()
-        XCTAssertEqual(acts[0].act["action"], .str("tap"))
-        XCTAssertTrue(actor.prompts[1].contains("changed nothing"))
-    }
-
-    func testRepeatingAMoveThatKeepsChangingTheScreenIsNotStuck() {
-        let agent = AgentLoop(phone: nil, screen: nil, actor: nil, planner: nil, trace: nil)
-        let swipe: JObject = ["action": .str("swipe"), "x1": .int(500), "y1": .int(800), "x2": .int(500), "y2": .int(400)]
-        agent.steps = [swipe.merging(["changed": .bool(true)]), swipe.merging(["changed": .bool(true)])]
-        XCTAssertFalse(agent.repeating(swipe))
-        agent.steps[1]["changed"] = .bool(false)  // reached the end of the list
-        XCTAssertTrue(agent.repeating(swipe))
-    }
-
     func testPreciseTapFlag() throws {
         XCTAssertEqual(try Actions.parseCommand("tap 120 640 precise"),
                        ["action": .str("tap"), "x": .int(120), "y": .int(640), "precise": .bool(true)])
@@ -259,18 +233,8 @@ import XCTest
             + "{\"action\": \"type\", \"text\": \"caf\\u00e9\"}\n\nNext action?"))
     }
 
-    func testPromptsAreVerbatimFromThePythonServer() throws {
-        let agentPy = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent("../../server/hidagent/agent.py").standardized
-        guard let source = try? String(contentsOf: agentPy, encoding: .utf8) else {
-            throw XCTSkip("server source not reachable from the test runner")
-        }
-        XCTAssertTrue(source.contains("PLANNER_PROMPT = \"\"\"" + Prompts.planner + "\"\"\""))
-        XCTAssertTrue(source.contains("ACTOR_PROMPT = \"\"\"" + Prompts.actorServer + "\"\"\""))
-    }
-
     func testRunStopsAfterThreeErrorsInARow() async {
-        let model = FakeModel { n in n == 1 ? "1. do it" : "no action here" }
+        let model = FakeModel { _ in "no action here" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
         await agent.run()
         XCTAssertEqual(agent.steps.last?["action"], .str("fail"))
@@ -278,13 +242,102 @@ import XCTest
     }
 
     func testRunFinishesOnDone() async {
-        let model = FakeModel { n in n == 1 ? "1. go home" : n == 2 ? "THINK: home\nDO: home" : "THINK: there\nDO: done ok" }
+        let model = FakeModel { n in n == 1 ? "THINK: home\nPLAN:\n1. Go home\nDO: home" : "THINK: there\nDO: done ok" }
         let phone = FakeGestures()
-        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
         await agent.run()
         XCTAssertEqual(phone.calls, ["home"])
         XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["plan", "home", "done"])
+        XCTAssertEqual(agent.plan, "1. Go home")
         XCTAssertEqual(agent.steps.last?["answer"], .str("ok"))
+        XCTAssertTrue(model.prompts[0].contains("Plan:\n(none yet: write one)"))  // one call plans and acts
+        XCTAssertTrue(model.prompts[1].contains("Plan:\n1. Go home\n\nRecent actions:"))  // the layout Jev reads
+    }
+
+    // MARK: - the model keeps its own plan
+
+    /// A plain grey JPEG (Vision.changed needs a decodable frame).
+    static func jpeg() -> Data {
+        let ctx = CGContext(data: nil, width: 60, height: 130, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        ctx.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: 60, height: 130))
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    func testPlanBlockParsing() {
+        XCTAssertEqual(Actions.planBlock("THINK: a\nPLAN:\n1. Open Duolingo\n2. Answer until the results\nDO: open Duolingo"),
+                       "1. Open Duolingo\n2. Answer until the results")
+        XCTAssertEqual(Actions.planBlock("THINK: a\nPLAN: 1. One line\nDO: wait"), "1. One line")
+        XCTAssertNil(Actions.planBlock("THINK: a\nDO: wait"))
+        XCTAssertNil(Actions.planBlock("THINK: a\nPLAN:\nDO: wait"))
+    }
+
+    func testAPlanUpdateReplacesThePlanOnlyWhenItChanges() async throws {
+        let model = FakeModel { n in
+            n == 1 ? "THINK: lesson\nPLAN:\n1. Answer until the results screen\nDO: tap 1 2"
+                : n == 2 ? "THINK: same\nPLAN:\n1. Answer until the results screen\nDO: tap 3 4" : "THINK: ok\nDO: wait"
+        }
+        let agent = AgentLoop(phone: nil, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        agent.plan = "1. Open Duolingo\n2. Do one exercise"
+        for _ in 0..<3 { _ = try await agent.nextActions() }
+        XCTAssertEqual(agent.plan, "1. Answer until the results screen")
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "plan" }.count, 1)
+    }
+
+    func testNoHarnessRuleOverridesTheModel() async throws {
+        // the same move again after it changed nothing goes through: the model sees the result and decides
+        let model = FakeModel { _ in "THINK: again, precisely\nDO: tap 500 921 precise" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        agent.steps = [["action": .str("tap"), "x": .int(500), "y": .int(921), "changed": .bool(false)],
+                       ["action": .str("tap"), "x": .int(500), "y": .int(921), "changed": .bool(false)]]
+        let acts = try await agent.nextActions()
+        XCTAssertEqual(acts[0].act["action"], .str("tap"))
+        XCTAssertEqual(model.prompts.count, 1)
+    }
+
+    /// 2026-11-06: the pointer landed 3% above the Search pill, outside the target's mask; the pointer alone
+    /// read as "changed". Found where it really is, the tap reads as a miss.
+    func testAPointerLandedOffTargetIsNotAScreenChange() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen(pointer: (249, 518))
+        phone.onTap = { screen.frame = v.screen(pointer: (232, 852)) }
+        phone.landed = v.p(232, 852)
+        let model = FakeModel { _ in "THINK: Search\nDO: tap 500 814" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.pointerAt = v.p(249, 518)
+        _ = try await agent.step()
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNotNil(agent.steps.last?["landed"])
+        XCTAssertEqual(agent.pointerAt, v.p(232, 852))
+        // new content still counts, with the pointer found
+        let other = FakeGestures(), shown = FakeScreen()
+        shown.frame = v.screen(pointer: (249, 518))
+        other.onTap = { shown.frame = v.screen(pointer: (232, 852), checked: true) }
+        other.landed = v.p(232, 852)
+        let again = AgentLoop(phone: other, screen: shown, actor: FakeModel { _ in "THINK: x\nDO: tap 500 814" },
+                              planner: nil, trace: nil)
+        again.pointerAt = v.p(249, 518)
+        _ = try await again.step()
+        XCTAssertEqual(again.steps.last?["changed"], .bool(true))
+    }
+
+    func testAMissedTapSaysWhereThePointerIs() async throws {
+        let phone = FakeGestures()
+        phone.landed = CGPoint(x: 0.5, y: 0.958)
+        let screen = FakeScreen()
+        screen.frame = Self.jpeg()  // a real picture, the same before and after the tap
+        let model = FakeModel { _ in "THINK: Check\nDO: tap 500 921" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        _ = try await agent.step()  // the fake screen never changes
+        XCTAssertEqual(agent.steps.last?["landed"], .arr([.int(500), .int(958)]))
+        XCTAssertEqual(AgentLoop.effect(agent.steps.last!),
+                       " -> screen did NOT change; the pointer is at 500 958 (37 below the target)")
+        XCTAssertNil(Actions.key(agent.steps.last!)["landed"])
     }
 }
 
@@ -295,13 +348,16 @@ import XCTest
     private(set) var prompts: [String] = []
     private(set) var images: [Data?] = []
     private let reply: (Int) -> String
+    var tree: Data?  // the free line's handsy.tree on every reply
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
-        return ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        var result = ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        result.tree = tree
+        return result
     }
 }
 
@@ -311,6 +367,7 @@ import XCTest
     var updated = 0.0
     var capturedAt = 0.0
     var aspect = 0.46
+    var stale = false
 }
 
 @MainActor final class FakeDevice: HIDDevice {
@@ -330,7 +387,14 @@ import XCTest
     let device: HIDDevice = FakeDevice()
     var calls: [String] = []
     var taps: [CGPoint] = []
-    func tap(_ x: Double, _ y: Double, aim: Bool) async throws { calls.append("tap"); taps.append(CGPoint(x: x, y: y)) }
+    var aims: [Bool] = []
+    var onTap: (() -> Void)?  // e.g. the screen shows the pointer where it landed
+    func tap(_ x: Double, _ y: Double, aim: Bool) async throws {
+        calls.append("tap")
+        aims.append(aim)
+        taps.append(CGPoint(x: x, y: y))
+        onTap?()
+    }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     func type(_ text: String) async throws { calls.append("type") }
@@ -339,6 +403,8 @@ import XCTest
     func openApp(_ name: String) async throws { calls.append("open \(name)") }
     func goBack() async throws { calls.append("back") }
     func reset() async throws { calls.append("reset") }
+    var landed: CGPoint?
+    func landing(_ x: Double, _ y: Double) async -> CGPoint? { landed }
 }
 
 @MainActor private final class ConnectionFailureModel: ChatModel {
@@ -352,7 +418,7 @@ import XCTest
             onFirst()
             throw URLError(.networkConnectionLost)
         }
-        return ChatResult(text: "1. Observe the new screen", total: 0)
+        return ChatResult(text: "THINK: new screen\nDO: wait", total: 0)
     }
 }
 
@@ -364,7 +430,7 @@ import XCTest
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         calls += 1
         if calls <= failures { throw URLError(.timedOut) }
-        return ChatResult(text: "1. Observe the screen", total: 0)
+        return ChatResult(text: "THINK: look\nDO: wait", total: 0)
     }
 }
 

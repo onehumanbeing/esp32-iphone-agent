@@ -40,6 +40,9 @@ void gop_set_config(gop_buf *g, const uint8_t *annexb, size_t len, uint32_t ts);
 int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts);
 // Appends without the IDR rules (a plain AU list, e.g. the AUs after a frozen GOP). -1 if full.
 int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts);
+// Appends to a plain AU list kept as a ring: when full, drops the oldest (a quarter at a time: each drop moves
+// the arena). Returns how many AUs were dropped, -1 if the AU can't fit even alone.
+int gop_append_ring(gop_buf *g, const uint8_t *annexb, size_t len, uint32_t ts);
 // Empties the list, same generation.
 void gop_clear(gop_buf *g);
 int gop_find(const gop_buf *g, uint32_t ts);  // the last AU with this timestamp, -1 if none

@@ -49,6 +49,22 @@
           }
         }
       }
+    },
+    "NSSpeechRecognitionUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“收听手机声音”后，ESP32 Agent 会在这台 iPhone 上把投屏时手机播放的声音转成文字，让 Agent 能听懂视频和通话内容。"
+          }
+        }
+      }
     }
   }
 }

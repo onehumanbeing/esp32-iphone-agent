@@ -8,6 +8,8 @@ import Foundation
     static let port: UInt16 = 7200
 
     var onChunk: ((Data) -> Void)?
+    var onAudio: ((Data) -> Void)?             // audio needs the TCP link: never called here
+    var wantsAudio: () -> Bool = { false }
     /// Video moved to Wi-Fi (true) or back to BLE (false).
     var onActive: ((Bool) -> Void)?
     var resumeAt: () -> UInt32? = { nil }
@@ -50,6 +52,8 @@ import Foundation
         guard target != nil else { return }
         if fd < 0 { reopen() } else { send("hello \(target!.token)") }
     }
+
+    func resume() { if fd >= 0 { send("resync") } }  // UDP: no resume, the board starts over from the IDR
 
     func stop() {
         timer?.cancel()

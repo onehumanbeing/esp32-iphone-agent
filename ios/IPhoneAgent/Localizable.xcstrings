@@ -541,16 +541,6 @@
         }
       }
     },
-    "I Agree to Send This Data" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我同意发送这些数据"
-          }
-        }
-      }
-    },
     "Not allowed to send to %@ yet" : {
       "localizations" : {
         "zh-Hans" : {
@@ -571,32 +561,12 @@
         }
       }
     },
-    "In Use" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用中"
-          }
-        }
-      }
-    },
     "All" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部"
-          }
-        }
-      }
-    },
-    "Providers" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服务商"
           }
         }
       }
@@ -6547,16 +6517,6 @@
         }
       }
     },
-    "Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行数据不会上传。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
-          }
-        }
-      }
-    },
     "Share anonymous usage stats" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6747,36 +6707,6 @@
         }
       }
     },
-    "To work, ESP32 Agent sends data to the AI service you chose. Nothing is sent until you agree." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ESP32 Agent 需要把数据发送给你选择的 AI 服务才能工作。你同意之前不会发送任何内容。"
-          }
-        }
-      }
-    },
-    "Sent to" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发送到"
-          }
-        }
-      }
-    },
-    "What is sent" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发送的内容"
-          }
-        }
-      }
-    },
     "When" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6827,32 +6757,12 @@
         }
       }
     },
-    "Screenshots may show anything on your screen. %@ handles them under its own privacy policy and terms; the ESP32 Agent developer never receives them. You can withdraw this anytime in Settings › Privacy." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图可能包含屏幕上的任何内容。%@ 按其自己的隐私政策和条款处理这些数据；ESP32 Agent 的开发者不会收到。你可以随时在 设置 › 隐私 中撤回。"
-          }
-        }
-      }
-    },
     "I agree to send this data to %@" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "我同意把这些数据发送到 %@"
-          }
-        }
-      }
-    },
-    "Send to AI Service?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发送给 AI 服务？"
           }
         }
       }
@@ -6923,16 +6833,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 服务"
-          }
-        }
-      }
-    },
-    "Screenshots and your task go only to the AI service you allowed, and only during runs, tests and intent saving." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图和任务只会发送给你允许的 AI 服务，并且只在运行、测试和保存意图时发送。"
           }
         }
       }
@@ -8623,32 +8523,12 @@
         }
       }
     },
-    "Each run on the free line (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Handsy"
-          }
-        }
-      }
-    },
     "Free Line Busy" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "免费线路忙"
-          }
-        }
-      }
-    },
-    "Free line privacy notice" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路隐私说明"
           }
         }
       }
@@ -8693,92 +8573,12 @@
         }
       }
     },
-    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on the free line. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@handsy.tech。你可以随时在“设置 › 隐私”中撤回同意。"
-          }
-        }
-      }
-    },
-    "The free line is busy or your free runs are used up. Try again in a few minutes, or use your own model." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路正忙，或你的免费次数已用完。请几分钟后再试，或使用你自己的模型。"
-          }
-        }
-      }
-    },
-    "The free line isn't available on this phone right now. Use your own model instead." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台手机目前无法使用免费线路，请改用你自己的模型。"
-          }
-        }
-      }
-    },
-    "The free line needs the App Store version on a real iPhone." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路需要在真实 iPhone 上使用 App Store 版本。"
-          }
-        }
-      }
-    },
-    "The free line only runs tasks. Use your own model for tests and intent analysis." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路只用于运行任务。测试连接和意图分析请使用你自己的模型。"
-          }
-        }
-      }
-    },
     "Unavailable" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "不可用"
-          }
-        }
-      }
-    },
-    "Waiting for the free line…" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在排队等免费线路…"
-          }
-        }
-      }
-    },
-    "The free line is busy. Try again in a minute, or switch to your own model." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路正忙。请稍后再试，或切换到你自己的模型。"
-          }
-        }
-      }
-    },
-    "The free line is busy or ended this run. Tap Retry in a moment." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路正忙，或已结束本次运行。请稍后点「重试」。"
           }
         }
       }
@@ -8989,6 +8789,646 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 %@"
+          }
+        }
+      }
+    },
+    "Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行数据不会上传，打开 Jev 后发给 Jev 的步骤除外。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "Screenshots and your task go only to the AI service you allowed (and to Jev, if you turn it on), and only during runs, tests and intent saving." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图和任务只会发送给你允许的 AI 服务（打开 Jev 后也会发给 Jev），并且只在运行、测试和保存意图时发送。"
+          }
+        }
+      }
+    },
+    "Who decides each step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步由谁决定"
+          }
+        }
+      }
+    },
+    "Jev (decision model)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev（决策模型）"
+          }
+        }
+      }
+    },
+    "Jev" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev"
+          }
+        }
+      }
+    },
+    "Thinks through each step it gets." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交给它的每一步都会仔细想。"
+          }
+        }
+      }
+    },
+    "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实验功能：只由 Jev 决定。遇到没把握的步骤，运行会停下来问你。"
+          }
+        }
+      }
+    },
+    "Holomix, Inc. (Handsy) and its provider TypeSafe" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holomix, Inc.（Handsy）及其服务商 TypeSafe"
+          }
+        }
+      }
+    },
+    "A screenshot of your mirrored screen at every step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步镜像屏幕的截图"
+          }
+        }
+      }
+    },
+    "Your task, the plan and the recent actions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的任务、计划和最近的操作"
+          }
+        }
+      }
+    },
+    "Kept privately to run and improve Jev" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私下保存，用于运行和改进 Jev"
+          }
+        }
+      }
+    },
+    "With your own model, each step's screenshot, task, plan and recent actions go to Jev while it is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你自己的模型时，只要 Jev 开着，每一步的截图、任务、计划和最近的操作都会发给 Jev。"
+          }
+        }
+      }
+    },
+    "More Providers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多服务商"
+          }
+        }
+      }
+    },
+    "Large Language Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大模型"
+          }
+        }
+      }
+    },
+    "Ask Both at Once" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时问两边"
+          }
+        }
+      }
+    },
+    "Faster, uses more tokens" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更快，但更费 token"
+          }
+        }
+      }
+    },
+    "Jev and the Large Language Model get each step together. When Jev isn't sure, the model's answer is already on the way, so no time is lost. The model also answers the steps Jev takes, so it uses more tokens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 和大模型同时收到每一步。Jev 拿不准时，大模型的回答已经在路上，不耽误时间；Jev 接手的步骤大模型也会回答，所以更费 token。"
+          }
+        }
+      }
+    },
+    "Jev takes the plain steps in a fraction of a second and leaves the rest to the Large Language Model. Drag ≡ to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 不到一秒就能接手简单的步骤，其余交给大模型。拖动 ≡ 调整顺序。"
+          }
+        }
+      }
+    },
+    "The Large Language Model decides. Jev steps in only when the model doesn't answer. Drag ≡ to change the order." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由大模型决定。只有大模型没有回答时，Jev 才接手。拖动 ≡ 调整顺序。"
+          }
+        }
+      }
+    },
+    "Reorder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调整顺序"
+          }
+        }
+      }
+    },
+    "Runs on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行在"
+          }
+        }
+      }
+    },
+    "TypeSafe, your key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TypeSafe（你的密钥）"
+          }
+        }
+      }
+    },
+    "Steps go straight from this iPhone to TypeSafe on your key; Handsy gets nothing. The key stays in this iPhone's Keychain." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Handsy 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
+          }
+        }
+      }
+    },
+    "Steps go to Jev on Handsy's server, free of charge." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每一步发给 Handsy 服务器上的 Jev，免费。"
+          }
+        }
+      }
+    },
+    "Get a TypeSafe key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 TypeSafe 密钥"
+          }
+        }
+      }
+    },
+    "TypeSafe, on your own key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TypeSafe，用你自己的密钥"
+          }
+        }
+      }
+    },
+    "Your data" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的数据"
+          }
+        }
+      }
+    },
+    "Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Handsy"
+          }
+        }
+      }
+    },
+    "Handsy Free privacy notice" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路隐私说明"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@handsy.tech。你可以随时在“设置 › 隐私”中撤回同意。"
+          }
+        }
+      }
+    },
+    "Handsy Free is busy or your free runs are used up. Try again in a few minutes, or use your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙，或你的免费次数已用完。请几分钟后再试，或使用你自己的模型。"
+          }
+        }
+      }
+    },
+    "Handsy Free isn't available on this phone right now. Use your own model instead." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台手机目前无法使用免费线路，请改用你自己的模型。"
+          }
+        }
+      }
+    },
+    "Handsy Free needs the App Store version on a real iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路需要在真实 iPhone 上使用 App Store 版本。"
+          }
+        }
+      }
+    },
+    "Handsy Free only runs tasks. Use your own model for tests and intent analysis." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路只用于运行任务。测试连接和意图分析请使用你自己的模型。"
+          }
+        }
+      }
+    },
+    "Waiting for Handsy Free…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在排队等免费线路…"
+          }
+        }
+      }
+    },
+    "Handsy Free is busy. Try again in a minute, or switch to your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙。请稍后再试，或切换到你自己的模型。"
+          }
+        }
+      }
+    },
+    "Handsy Free is busy or ended this run. Tap Retry in a moment." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路正忙，或已结束本次运行。请稍后点「重试」。"
+          }
+        }
+      }
+    },
+    "Only the Large Language Model decides. On Handsy Free it stays on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由大模型决定。免费线路上大模型始终开启。"
+          }
+        }
+      }
+    },
+    "Nothing leaves this iPhone until you agree." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在你同意之前，任何数据都不会离开这台 iPhone。"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen, so avoid private tasks. Withdraw anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容，请避免执行私密任务。随时可以在「设置 › 隐私」中撤回。"
+          }
+        }
+      }
+    },
+    "Allow Sending to Both?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许发送给两者？"
+          }
+        }
+      }
+    },
+    "Allow Sending?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许发送数据？"
+          }
+        }
+      }
+    },
+    "Allow Both" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部允许"
+          }
+        }
+      }
+    },
+    "Allow" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许"
+          }
+        }
+      }
+    },
+    "Handled under %@'s own privacy policy and terms" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 %@ 自己的隐私政策和条款处理"
+          }
+        }
+      }
+    },
+    "Allow sending to the Large Language Model and Jev first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先允许发送数据给大模型和 Jev"
+          }
+        }
+      }
+    },
+    "Allow sending to Jev first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先允许发送数据给 Jev"
+          }
+        }
+      }
+    },
+    "Allow sending to %@ first" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先允许发送数据给 %@"
+          }
+        }
+      }
+    },
+    "Only your Large Language Model decides. Jev sends each step to its server, so it asks you first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只由你的大模型决定。Jev 会把每一步发给它的服务器，所以会先征求你的同意。"
+          }
+        }
+      }
+    },
+    "Listen to phone audio" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收听手机声音"
+          }
+        }
+      }
+    },
+    "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。英语和第二语言的语音只在这台 iPhone 上转成文字。"
+          }
+        }
+      }
+    },
+    "Speech recognition is off for ESP32 Agent. Turn it on in Settings › ESP32 Agent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ESP32 Agent 的语音识别已关闭，请在 设置 › ESP32 Agent 中打开。"
+          }
+        }
+      }
+    },
+    "On-device speech recognition isn't available for this language." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前语言不支持在本机识别语音。"
+          }
+        }
+      }
+    },
+    "Second language" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第二语言"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
+          }
+        }
+      }
+    },
+    "Share with the computer (CLI)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享给电脑（CLI）"
+          }
+        }
+      }
+    },
+    "Audio test" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音频测试"
+          }
+        }
+      }
+    },
+    "Automatic (from the screen)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动（按屏幕判断）"
+          }
+        }
+      }
+    },
+    "Developer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发者"
+          }
+        }
+      }
+    },
+    "Keep Going" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续执行"
+          }
+        }
+      }
+    },
+    "Phrase" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "短句"
+          }
+        }
+      }
+    },
+    "Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPhone transcribes it. Needs Listen to phone audio on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过屏幕镜像把短句播放两遍，板子把声音传回来，由这台 iPhone 转成文字。需要先打开「收听手机声音」。"
+          }
+        }
+      }
+    },
+    "That's %lld steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已经 %lld 步了"
+          }
+        }
+      }
+    },
+    "The screen hasn't changed in a while" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面已经有一阵没变化了"
           }
         }
       }

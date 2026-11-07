@@ -91,6 +91,7 @@ type Session struct {
 	ctrC     uint32
 	ctrB     uint32
 	ctrV     uint32
+	ctrA     uint32
 }
 
 // Hello opens a session. keyFor returns K for a board id (nil: not paired with it).
@@ -138,9 +139,9 @@ func (s *Session) Send(line string) error {
 
 // Msg is one decrypted board message.
 type Msg struct {
-	Kind byte   // 'r' reply line, 's' status JSON, 'v' video chunk
+	Kind byte   // 'r' reply line, 's' status JSON, 'v' video chunk, 'a' audio record
 	Data []byte // without the kind byte (a video chunk as is)
-	Gap  bool   // video: frames were lost before this one
+	Gap  bool   // video, audio: frames were lost before this one
 }
 
 // Decode authenticates a frame from the board. ok=false: drop it (forged, replayed). An error ends the session.
@@ -167,6 +168,14 @@ func (s *Session) Decode(f []byte) (m Msg, ok bool, err error) {
 		gap := ctr != s.ctrV+1
 		s.ctrV = ctr
 		return Msg{Kind: 'v', Data: plain, Gap: gap}, true, nil
+	case TAudio:
+		ctr, plain, err := s.b2c.Open(StreamA, f)
+		if err != nil || ctr <= s.ctrA {
+			return m, false, nil
+		}
+		gap := ctr != s.ctrA+1
+		s.ctrA = ctr
+		return Msg{Kind: 'a', Data: plain, Gap: gap}, true, nil
 	case TError:
 		return m, false, BoardError(f[1:])
 	}

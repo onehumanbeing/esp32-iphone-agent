@@ -181,6 +181,8 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 	case "info":
 		st, age := c.Status()
 		st["id"], st["name"] = c.ID, c.Name
+		l := s.Config.GetListen()
+		st["listen"] = map[string]any{"on": l.On, "mode": l.ListenMode()}
 		if age >= 0 {
 			st["age_ms"] = age.Milliseconds()
 		}
@@ -202,6 +204,8 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 		return s.boardLog(ctx, c)
 	case "net":
 		return s.net(ctx, c, req.Text)
+	case "listen":
+		return s.listen(ctx, c, req.Text)
 	}
 	return fail(fmt.Errorf("unknown command %q", req.Cmd))
 }
@@ -374,6 +378,7 @@ func (s *Server) open(ctx context.Context, f ble.Found, sel string, l proto.Link
 		ff, _ := video.FFmpeg()
 		c = newConn(id, f.Name, ff)
 		c.onApp = s.noteApp
+		s.hearingFor(c)
 		dial := s.DialWiFi
 		if dial == nil {
 			dial = ble.DialWiFi

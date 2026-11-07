@@ -15,6 +15,13 @@ import UIKit
     @Published private(set) var checkError: String?
     @Published var presented = false  // the update sheet on Home (banner tap, or required)
     @Published private var dismissedVersion = UserDefaults.standard.string(forKey: "firmwareBannerDismissed")
+    /// When the banner was put off: it comes back a day later (2026-11-06: one stray tap hid v0.2.3 for good).
+    /// A dismissal saved without a date (older builds) has expired.
+    private var dismissedAt = UserDefaults.standard.double(forKey: "firmwareBannerDismissedAt")
+    static let dismissFor: TimeInterval = 24 * 3600
+    private var putOff: Bool {
+        release?.version == dismissedVersion && Date().timeIntervalSince1970 - dismissedAt < Self.dismissFor
+    }
     private var manifest: URL?
     private unowned let app: AppModel
     private var background: UIBackgroundTaskIdentifier = .invalid
@@ -30,7 +37,7 @@ import UIKit
     var required: Bool { app.board.connected && current < Firmware.required }
     /// Required and possible now: the sheet can't be put off (an old board needing USB, or no release found, can).
     var mustUpdate: Bool { required && current >= Firmware.firstOTA && release != nil }
-    var showsBanner: Bool { available && !required && !busy && release?.version != dismissedVersion }
+    var showsBanner: Bool { available && !required && !busy && !putOff }
     /// Why Update can't start now, if it can't.
     var blocker: String? {
         if !app.board.connected { return String(localized: "Connect the board first.") }
@@ -45,6 +52,9 @@ import UIKit
         checkError = nil
         defer { checking = false }
         do { (release, manifest) = try await Firmware.latest() } catch { checkError = error.localizedDescription }
+        DebugLog.write("firmware: check: latest \(release?.version ?? "none") from \(manifest?.absoluteString ?? "-"), board "
+            + "\(app.board.status?.fw?.description ?? "no fw") connected \(app.board.connected), available \(available), "
+            + "required \(required), banner \(showsBanner) (put off \(putOff))\(checkError.map { ", error: " + $0 } ?? "")")
     }
 
     /// The board (re)connected: look for a release, and open the sheet if this app needs it.
@@ -55,7 +65,9 @@ import UIKit
 
     func dismissBanner() {
         dismissedVersion = release?.version
+        dismissedAt = Date().timeIntervalSince1970
         UserDefaults.standard.set(dismissedVersion, forKey: "firmwareBannerDismissed")
+        UserDefaults.standard.set(dismissedAt, forKey: "firmwareBannerDismissedAt")
     }
 
     func install() {
@@ -150,6 +162,7 @@ import UIKit
             if app.board.connected, let ip = app.board.net?.ip, let token = app.board.net?.vtok,
                !ip.isEmpty, ip != "0.0.0.0", !token.isEmpty { address = (ip, token) }
             if let address { return address }
+            if app.board.connected { _ = try? await app.board.readNet(fresh: true) }  // it may have joined Wi-Fi since
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return nil

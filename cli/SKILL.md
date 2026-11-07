@@ -29,6 +29,10 @@ plus history, intent_list, intent_show and intent_save.
    - `esp32agent io button HOME` (Home Screen)
 4. Screenshot again and check the result before the next step. Never chain several taps blind.
 
+When the task depends on what the phone plays (a video, a call, a voice message, a spoken code),
+`esp32agent listen` gives its words from the last 30 s, or says why the phone can't be heard (listening off,
+the app not sharing, no Wi-Fi). The words can be partial or misheard; check the screen when it matters.
+
 ## Typing
 - The board types printable ASCII only, one key per character.
 - Chinese is typed as pinyin: `io text '拿铁'` types `natie` (the reply says `typed_as`). With the iPhone's Chinese (pinyin)

@@ -89,7 +89,7 @@ extension AppModel {
     }
 
     /// A line from the Mac harness, relayed by the board: "run <task>", "calibrate", "stop", "bench <kb>",
-    /// "snap", "status", "log <n>", "mode <m>" or "ota [dir]".
+    /// "snap", "status", "log <n>", "mode <m>", "audio", "audiotest <lang>" or "ota [dir]".
     func handleAppCommand(_ line: String) {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
@@ -98,6 +98,24 @@ extension AppModel {
         case "calibrate", "stop", "snap": debugCommand(name)
         case "bench": debugCommand("bench", kb: Int(rest) ?? 256)
         case "status": say(statusSummary)
+        case "audio": say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard()))  // the phone audio the agent hears
+        case "audiotest":  // says a phrase twice over mirroring, then reports what the app heard
+            let language = AudioTest.phrases[rest] != nil ? rest : "en-US"
+            homeHint = AudioTest.phrases[language]  // on screen, for Second language › Automatic
+            Task { [weak self] in
+                let streaming = self?.feed.streamOn ?? false  // idle on Home, no frames come: the screen can't be read
+                if !streaming { try? await self?.feed.stream(true) }
+                for _ in 0..<3 where SpeechLanguages.second != language {  // a frame showing the phrase (the first may be old)
+                    _ = await self?.feed.fresh(since: now() + 0.5, timeout: 2)
+                    await self?.audio.followScreen(verbose: true)
+                }
+                await AudioTest.run(language)
+                if !streaming { try? await self?.feed.stream(false) }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let self else { return }
+                self.homeHint = nil
+                self.say(self.audio.summary + "\n" + self.audio.heard(within: 60))
+            }
         case "log": relayHistory(Int(rest) ?? 50)
         case "ota":  // a test build staged in Documents/<rest or firmware>, sent over Wi-Fi like Update Board does
             if !rest.isEmpty { Firmware.localDir = rest }
@@ -191,8 +209,23 @@ extension AppModel {
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
+        if args.contains("-stop") { debugCommand("stop") }
+        if args.contains("-pause") || args.contains("-continue") {  // harness/ctl.sh: hold the run while the Mac looks into a step
+            if !agent.running { DebugLog.write("run: not running") }
+            args.contains("-pause") ? pause() : unpause()
+        }
         if args.contains("-bench") { debugCommand("bench", kb: Int(value(after: "-bench") ?? "") ?? 256) }
         if args.contains("-snap") { debugCommand("snap") }
+        if let v = value(after: "-listen") {  // harness: Settings › Listen to phone audio
+            UserDefaults.standard.set(v == "on", forKey: ListenSetting.key)
+            setListening(v == "on")
+            say("harness: listen \(v == "on" ? "on" : "off")")
+        }
+        #if DEBUG
+        if let host = value(after: "-harness-host") { HarnessLink.shared.use(host: host) }  // harness/live.py's address
+        #endif
+        if let lang = value(after: "-audiotest") { handleAppCommand("audiotest " + lang) }  // harness: Settings › Developer › Audio test
+        if args.contains("-audio") { say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard())) }
     }
 
     private func debugCommand(_ name: String, task: String = "", kb: Int = 256) {
@@ -240,32 +273,56 @@ extension AppModel {
         }
     }
 
+    /// harness/live.py on the Mac: the same commands as the inbox, over the network (HarnessLink).
+    func startHarnessLink() {
+        HarnessLink.shared.onCommand = { [weak self] args in
+            self?.say("harness: live \(args.first ?? "")")
+            self?.handleLaunchArguments(["harness"] + args)
+        }
+        HarnessLink.shared.start()
+    }
+
     /// Raw board commands ("key ctrl+space; type abc"), one after another, each reply logged: harness experiments.
     private func harnessHID(_ commands: String) {
         Task { [weak self] in
             guard let self else { return }
             guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String
-                if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
+                if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
+                    try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
+                    reply = "ok"
+                } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
                     wifiVideo.stop()
                     wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)
                     reply = "reconnecting, resume at \(feed.resumeMs.map(String.init) ?? "none")"
+                } else if command.hasPrefix("point ") {  // "point 500 620": move there (no click), report the landing
+                    let xy = command.split(separator: " ").dropFirst().compactMap { Double($0) }
+                    if xy.count == 2, (try? await pointer.point(xy[0] / 1000, xy[1] / 1000)) != nil,
+                       let p = await pointer.landing(xy[0] / 1000, xy[1] / 1000) {
+                        reply = String(format: "landed %.0f %.0f", p.x * 1000, p.y * 1000)
+                    } else { reply = "err not found" }
                 } else if command == "shot" {  // the mirrored screen now, for harness/hid.sh to pull
                     await feed.settled(most: 1.5)
                     let name = "harness-shots/\(Int(Date().timeIntervalSince1970)).jpg"
                     let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
                     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                     reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
+                    if let jpeg = feed.frame { HarnessLink.shared.sendFile(name, jpeg) }  // harness/live.py saves it
                 } else {
                     do { reply = try await board.commands.send(command) } catch { reply = "err " + error.localizedDescription }
+                    if command == "home" || command.hasPrefix("move") { moved = true }
                 }
                 say("harness hid: \(command) → \(reply)")
                 try? await Task.sleep(nanoseconds: 400_000_000)
             }
+            // raw moves leave the pointer where the app doesn't think it is: the next run's home-bar flick pressed
+            // mid-screen and never left the app (2026-11-06). Once at the end, so "home; move …; move …" composes.
+            if moved { try? await pointer.reset() }
             say("harness hid: done")
         }
     }

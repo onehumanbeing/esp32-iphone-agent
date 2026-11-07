@@ -11,12 +11,16 @@ struct ModelSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                ProviderFields(settings: settings)
-            } header: {
-                Text("Model Provider")
-            } footer: {
-                if let url = settings.provider.keyURL { Link("Get an API key", destination: url) }
+            if Trial.available {
+                DecidersPanel(settings: settings, inForm: true)
+            } else {
+                Section {
+                    ProviderFields(settings: settings)
+                } header: {
+                    Text("Model Provider")
+                } footer: {
+                    if let url = settings.provider.keyURL { Link("Get an API key", destination: url) }
+                }
             }
             Section {
                 Button {

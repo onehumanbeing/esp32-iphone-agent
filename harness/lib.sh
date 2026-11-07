@@ -1,4 +1,5 @@
-# Shared by the harness scripts: the test iPhone and the app's Documents/debug.log, all over devicectl (Wi-Fi).
+# Shared by the harness scripts: the test iPhone and the app's Documents/debug.log, over harness/live.py when the app
+# is connected to it (no devicectl), else over devicectl (Wi-Fi).
 DEVICE=${HARNESS_IPHONE:?set HARNESS_IPHONE to the test iPhone (xcrun devicectl list devices)}
 # the Debug build's bundle id (yours, from ios/Config/Local.xcconfig): $HARNESS_BUNDLE, else the last harness/app.sh build
 BUNDLE=${HARNESS_BUNDLE:-$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' \
@@ -17,28 +18,42 @@ dc() {
   perl -e 'alarm shift; exec @ARGV' "${DC_TIMEOUT:-45}" xcrun devicectl "$@"
 }
 
+# live: the app is connected to harness/live.py (its log streams to $LIVE/debug.log; commands go to $LIVE/outbox/).
+LIVE=${HARNESS_LIVE:-/tmp/harness-live}
+live() { [[ -e $LIVE/connected && -z ${NO_LIVE:-} ]]; }
+
+# pull_log <dest>: the app's recent log lines (live, else debug.recent.log, else debug.log for an older app).
+pull_log() {
+  if live; then tail -c 256000 "$LIVE/debug.log" >"$1"; return; fi
+  dc device copy from "${ON[@]}" --source Documents/debug.recent.log --destination "$1" >/dev/null 2>&1 \
+    || dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$1" >/dev/null 2>&1
+}
+
 # log_lines: how many lines debug.log has now (0 if there is none yet).
 log_lines() {
+  if live; then wc -l <"$LIVE/debug.log" | tr -d ' '; return; fi
   local f; f=$(mktemp -u /tmp/harness-log.XXXXXX)
   dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || { echo 0; return; }
   wc -l <"$f" | tr -d ' '; rm -f "$f"
 }
 
-# follow <from line> <show regex> <end regex> <seconds> [fail regex]: print new log lines matching show until one
-# matches end; returns 1 when that line matches fail (or nothing came in time).
+# follow <since> <show regex> <end regex> <seconds> [fail regex]: print new log lines (stamped after since) matching
+# show until one matches end; returns 1 when that line matches fail (or nothing came in time). Reads the app's small
+# debug.recent.log: the whole 2 MB debug.log over Wi-Fi, beside mirroring and a run, timed out for 11 minutes
+# (2026-11-06). Lines are matched by time, not count, as that file is cut short now and then.
 follow() {
-  local from=$1 show=$2 end=$3 deadline=$((SECONDS + $4)) seen=$1 f n last
+  local since=$1 show=$2 end=$3 deadline=$((SECONDS + $4)) f new last
   while (( SECONDS < deadline )); do
-    sleep 4
+    if live; then sleep 1; else sleep "${FOLLOW_EVERY:-5}"; fi
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
-    dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || continue
-    n=$(wc -l <"$f" | tr -d ' ')
-    (( n < from )) && from=0 seen=0  # the log rolled over (2 MB)
-    tail -n +$((seen + 1)) "$f" | grep -E "$show" || true
-    if last=$(tail -n +$((from + 1)) "$f" | grep -E "$end" | tail -n 1) && [[ -n $last ]]; then
-      rm -f "$f"; [[ -z ${5:-} ]] || ! grep -qE "$5" <<<"$last"; return
+    pull_log "$f" || continue
+    new=$(awk -v t="$since" '$1 ~ /^[0-9]/ && $1 > t' "$f"); rm -f "$f"  # unstamped lines (the link's own) would end it
+    [[ -n $new ]] || continue
+    since=$(tail -n 1 <<<"$new" | cut -d' ' -f1)
+    grep -E "$show" <<<"$new" || true
+    if last=$(grep -E "$end" <<<"$new" | tail -n 1) && [[ -n $last ]]; then
+      [[ -z ${5:-} ]] || ! grep -qE "$5" <<<"$last"; return
     fi
-    seen=$n; rm -f "$f"
   done
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
 }
@@ -50,10 +65,14 @@ launch() {
   local name f from
   name=$(date +%Y%m%d-%H%M%S)-$RANDOM.json
   f=/tmp/harness-$name
-  python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" >"$f"
-  from=$(log_lines)
-  dc device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
-  rm -f "$f"
+  local extra=()  # harness/live.py running but the app not on it yet: tell the app where it is
+  if ! live && pgrep -f harness/live.py >/dev/null; then extra=(-harness-host "$(ipconfig getifaddr en0):${HARNESS_LIVE_PORT:-7290}"); fi
+  python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" ${extra[@]+"${extra[@]}"} >"$f"
+  from=$(date -u -v-2S +%Y-%m-%dT%H:%M:%S)  # follow from here; the phone's clock may run a little behind
+  if live; then mv "$f" "$LIVE/outbox/$name"; else
+    dc device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
+    rm -f "$f"
+  fi
   [[ -n ${NO_LAUNCH:-} ]] || dc device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
   echo "$from"
 }

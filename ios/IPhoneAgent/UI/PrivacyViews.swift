@@ -1,25 +1,31 @@
 import SwiftUI
 
-/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded.
+/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded (steps sent
+/// to Jev, when it is on, are covered by Jev's own consent).
 struct PrivacyLists: View {
     var body: some View {
         Section {
-            ForEach(Self.kept.indices, id: \.self) { Label(Self.kept[$0], systemImage: "checkmark.circle") }
+            entry("Kept on this iPhone", Self.kept)
+            entry("Never collected", Self.never)
         } header: {
-            Text("Kept on this iPhone")
-        }
-        Section {
-            ForEach(Self.never.indices, id: \.self) { Label(Self.never[$0], systemImage: "xmark.circle") }
-        } header: {
-            Text("Never collected")
+            Text("Your data")
         } footer: {
-            Text("Run data is never uploaded. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
+            Text("Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
         }
     }
 
-    static let kept: [LocalizedStringKey] = ["Per-step screenshots", "Actions", "Model replies", "Timings",
-                                             "Board metrics", "Device model and iOS version"]
-    static let never: [LocalizedStringKey] = ["Wi-Fi password", "API key", "Base URL", "Contacts"]
+    private func entry(_ title: LocalizedStringKey, _ items: [String.LocalizationValue]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(verbatim: ListFormatter.localizedString(byJoining: items.map { String(localized: $0) }))
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+    }
+
+    static let kept: [String.LocalizationValue] = ["Per-step screenshots", "Actions", "Model replies", "Timings",
+                                                   "Board metrics", "Device model and iOS version"]
+    static let never: [String.LocalizationValue] = ["Wi-Fi password", "API key", "Base URL", "Contacts"]
 }
 
 /// The usage-stats switch, off by default; only in builds that can send stats (see Analytics).
@@ -76,6 +82,7 @@ struct PrivacySettingsView: View {
     var body: some View {
         List {
             AIConsentSection(settings: app.settings)
+            JevConsentSection()
             PrivacyLists()
             Section { Toggle("Keep run data for sharing", isOn: $keep) }
             if keep { export }

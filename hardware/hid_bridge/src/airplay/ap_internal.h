@@ -47,11 +47,16 @@ int fairplay_setup(const uint8_t req[16], uint8_t res[142]);
 int fairplay_handshake(uint8_t keymsg[164], const uint8_t req[164], uint8_t res[32]);
 void fairplay_decrypt(const uint8_t keymsg[164], const uint8_t in[72], uint8_t out[16]);
 
-// ---- mirror.c (mirror TCP data channel, NTP timing, audio port drain) ----
+// ---- mirror.c (mirror TCP data channel, NTP timing, audio ports) ----
 bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remote_ip, uint16_t timing_rport);
 void ap_mirror_stop(void);
 bool ap_mirror_running(void);
 bool ap_mirror_streaming(void);
+// The audio stream of the running mirror session (SETUP type 96): ct is its compression type; only AAC-ELD
+// (AP_AUDIO_CT_AAC_ELD) is decrypted and forwarded, other packets are only counted.
+void ap_mirror_audio(const uint8_t aeskey[16], const uint8_t eiv[16], int ct);
+void ap_mirror_set_volume(float db);
+void ap_mirror_audio_end(void);  // TEARDOWN of the audio stream: logs what it carried
 
 // ---- mdns.c ----
 bool ap_mdns_start(void);
@@ -89,6 +94,7 @@ typedef struct {
   bool have_keymsg;
   uint8_t aeskey[16];  // FairPlay-decrypted (and pairing-hashed) session key
   bool have_aes;
+  uint8_t eiv[16];     // SETUP eiv: the audio stream's AES-CBC IV
   uint16_t timing_rport;
 } ap_conn;
 
