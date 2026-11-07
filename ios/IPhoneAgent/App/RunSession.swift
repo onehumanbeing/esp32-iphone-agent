@@ -264,6 +264,7 @@ extension AppModel {
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil]) { $1 })
         Analytics.flush()
+        DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
         live.end((outcome.mood, last.map(StepText.line) ?? ""))
         runs.reload()
@@ -287,7 +288,7 @@ extension AppModel {
                                 summary: outcome == .done ? "" : ChatContext.stopSummary(steps: agent.steps, plan: agent.plan,
                                                                                          notebook: agent.notebook),
                                 stats: Run.statsText(steps: moveCount, seconds: seconds, calls: runUsage.calls,
-                                                     tokens: runUsage.promptTokens + runUsage.completionTokens)))
+                                                     tokens: runUsage.tokens)))
         if outcome != .stopped || UIApplication.shared.applicationState == .active { openReview(run: runID) }
         moodReset?.cancel()
         moodReset = Task { [weak self] in

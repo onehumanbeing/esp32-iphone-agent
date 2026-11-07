@@ -85,8 +85,9 @@ jobs:
         run: xcrun simctl bootstatus "$SIM_UDID" -b
       - name: Test (simulator)
         run: |
+          # no diagnostics collection after the run: it took ~2 min, for logs nobody reads when tests pass
           xcodebuild test-without-building -scheme IPhoneAgent -destination "id=$SIM_UDID" \
-            -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO $ONLY_TESTING
+            -derivedDataPath build-sim CODE_SIGNING_ALLOWED=NO -collect-test-diagnostics never $ONLY_TESTING
 
   firmware:
     needs: changes
@@ -102,7 +103,7 @@ jobs:
           arduino-cli lib install "NimBLE-Arduino@2.5.1"
       - name: Build
         run: hardware/flash.sh --build-only
-      - name: Host tests (bplist, GOP buffer)
+      - name: Host tests (bplist, GOP buffer, CLI protocol, Bonjour TXT, …)
         run: |
           sudo apt-get install -y libmbedtls-dev
           make -C hardware/tests

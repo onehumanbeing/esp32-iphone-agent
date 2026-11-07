@@ -142,6 +142,11 @@ See [cli/README.md](cli/README.md) for the tools and other commands.
   endpoint's models for you to choose one explicitly; you can also enter a model ID, and set a separate planner
   and actor model.
 - The prompts are plain text in [`prompts/`](prompts/) and bundled with the app: edit them, rebuild, done.
+- Each finished run logs planner/actor call counts, requests with a screenshot, and token totals when the endpoint reports
+  `usage`. Missing usage is left absent (never coerced to 0); the run total is marked **partial** if any call
+  omitted it. A short task is typically a few planner calls plus one actor call per step — each actor step sends
+  a fresh screenshot — so image tokens dominate cost. Giving the planner a cheaper model while keeping a stronger
+  actor is usually the best tradeoff.
 - The project was developed with [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)
   served on two DGX Sparks ([TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)).
 

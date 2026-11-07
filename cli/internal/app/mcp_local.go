@@ -10,6 +10,9 @@ import (
 // Tools answered here, from the files in the config dir, without the daemon or a board.
 
 func local(required []string, props map[string]any) map[string]any {
+	if required == nil {
+		required = []string{}
+	}
 	return map[string]any{"type": "object", "properties": props, "required": required}
 }
 

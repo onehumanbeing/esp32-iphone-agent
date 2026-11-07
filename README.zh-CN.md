@@ -122,6 +122,7 @@ Cursor、Cline 等 MCP 客户端：
 
 - 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型，由你明确选一个；也可以自己填模型 ID，规划器和执行器可以用不同模型。
 - 提示词是 [`prompts/`](prompts/) 里的纯文本，打包进 App：改完重新编译即可。
+- 每次运行结束会记录规划器/执行器调用次数、带截图的请求数，以及接口返回的 token 用量。接口没给 `usage` 时字段保持空缺（不会当成 0）；只要有一次缺用量，本次合计就标成 **partial**。短任务一般是几次规划 + 每步一次执行（每步带一张新截图），成本主要在图片 token；规划器用便宜模型、执行器保留更强模型通常最划算。
 - 开发时用的是 [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)，部署在两台 DGX Spark 上（[TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)）。
 
 ## 目录结构
