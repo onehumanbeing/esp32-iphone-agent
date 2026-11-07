@@ -353,6 +353,17 @@ import XCTest
         XCTAssertEqual(again.span, Pointer.Span(w: 400, h: 800))
     }
 
+    func testUnusableSpanLeavesThePointerUncalibrated() {  // TestFlight 1.0.1 (9) crashed converting inf to Int
+        XCTAssertNil(Pointer.Span(w: 200 / 0.0, h: 400))
+        XCTAssertNil(Pointer.Span(w: .nan, h: 400))
+        XCTAssertNil(Pointer.Span(w: -300.0, h: 400))
+        XCTAssertEqual(Pointer.Span(w: 399.6, h: 800.2), Pointer.Span(w: 400, h: 800))
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".json"))
+        pointer.finishCalibration(x: 0, y: 0.25)
+        XCTAssertFalse(pointer.calibrated)
+    }
+
     func testModelSettingsNeedOnlyAnEndpoint() {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let settings = Settings(defaults: defaults, info: nil)  // no build-time preset

@@ -20,7 +20,16 @@ import UIKit
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
     static let agree = 0.02                 // a far reading is taken again; both must agree this closely
 
-    struct Span: Codable, Equatable { var w: Int, h: Int }
+    struct Span: Codable, Equatable {
+        var w: Int, h: Int
+        init(w: Int, h: Int) { (self.w, self.h) = (w, h) }
+        /// nil unless both sides are a usable size: when the pointer did not move between two probes the fit
+        /// divides by zero, and converting that to Int crashed calibration (TestFlight 1.0.1 (9), C2).
+        init?(w: Double, h: Double) {
+            guard w.isFinite, h.isFinite, 1...1e6 ~= w, 1...1e6 ~= h else { return nil }
+            self.init(w: Int(w.rounded(.toNearestOrEven)), h: Int(h.rounded(.toNearestOrEven)))
+        }
+    }
     private struct Saved: Codable {
         var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?,
             gain: [[Double]]?
@@ -90,16 +99,20 @@ import UIKit
             guard let screen, screen.live, let p = try await findPointer() else { break }
             found.append((units, p.x, p.y))
         }
-        if found.count < 2 {
-            log("calibration: pointer not found on screen, waiting for a tap")
-            if found.isEmpty {
+        var fit: Span?
+        if found.count == 2 {
+            let (u1, x1, y1) = found[0], (u2, x2, y2) = found[1]
+            fit = Span(w: Double(u2 - u1) / (x2 - x1), h: Double(u2 - u1) / (y2 - y1))
+        }
+        guard let s = fit else {
+            log(found.count < 2 ? "calibration: pointer not found on screen, waiting for a tap"
+                                : "calibration: the pointer did not move between the probes, waiting for a tap")
+            if found.count != 1 {  // the tap expects the pointer at calibrationMove
                 try await device.send("home")
                 try await device.send("move \(Self.calibrationMove) \(Self.calibrationMove)")
             }
             return false
         }
-        let (u1, x1, y1) = found[0], (u2, x2, y2) = found[1]
-        let s = Span(w: Int((Double(u2 - u1) / (x2 - x1)).rounded(.toNearestOrEven)), h: Int((Double(u2 - u1) / (y2 - y1)).rounded(.toNearestOrEven)))
         span = s
         (quality, aspect) = (nil, screenAspect())
         seen = ["x": [], "y": []]
@@ -137,7 +150,11 @@ import UIKit
     /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
     func finishCalibration(x: Double, y: Double) {
         (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
-        span = Span(w: Int((Double(Self.calibrationMove) / x).rounded(.toNearestOrEven)), h: Int((Double(Self.calibrationMove) / y).rounded(.toNearestOrEven)))
+        guard let s = Span(w: Double(Self.calibrationMove) / x, h: Double(Self.calibrationMove) / y) else {
+            log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
+            return
+        }
+        span = s
         seen = ["x": [], "y": []]
         save()
     }
@@ -145,7 +162,10 @@ import UIKit
     /// Touch-probe result: per-axis lines landed = a * units + b fitted from taps the app caught itself.
     /// The span is 1/a and the origin b; every probe becomes a landing sample, so `fix` corrects what is left.
     func applyProbe(x: ProbeFit.Line, y: ProbeFit.Line, samples: [(ux: Double, uy: Double, fx: Double, fy: Double)]) {
-        let s = Span(w: Int((1 / x.a).rounded()), h: Int((1 / y.a).rounded()))
+        guard let s = Span(w: 1 / x.a, h: 1 / y.a) else {
+            log(String(format: "calibration: touch probe slopes %.5f / %.5f give no usable span", x.a, y.a))
+            return
+        }
         span = s
         (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
         (origin, gain) = (CGPoint(x: x.b, y: y.b), [])

@@ -41,8 +41,10 @@ enum DebugLog {
 
     private static func append(_ data: Data, to file: URL) {
         if let h = try? FileHandle(forWritingTo: file) {
-            h.seekToEndOfFile()
-            h.write(data)
+            // The throwing calls: the old seekToEndOfFile()/write(_:) raise an ObjC exception on an I/O
+            // error, which aborted the app (TestFlight 1.0.1 (9), C3). A lost log line is fine.
+            _ = try? h.seekToEnd()
+            try? h.write(contentsOf: data)
             try? h.close()
         } else {
             try? data.write(to: file)
