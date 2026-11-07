@@ -84,6 +84,8 @@ struct LLMError: LocalizedError {
     private let headers: (() throws -> [String: String])?  // extra per-request headers (e.g. the free line's lease)
     private(set) var tokenParam: String
     private var auto: Bool
+    // some reasoning models allow only their default temperature; drop it for good once the server says so
+    private var sendsTemperature = true
     private let session: URLSession
     private var retryAfter: Double?  // seconds, from the last response's Retry-After header
 
@@ -142,7 +144,8 @@ struct LLMError: LocalizedError {
             ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
         }
         content.append(["type": "text", "text": text])
-        var body: [String: Any] = ["model": model, "temperature": temperature]
+        var body: [String: Any] = ["model": model]
+        if sendsTemperature { body["temperature"] = temperature }
         extra.forEach { body[$0.key] = $0.value }
         body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
         body["stream"] = true
@@ -153,8 +156,15 @@ struct LLMError: LocalizedError {
         var status = 0, result: ChatResult?, errorText = ""
         do {
             (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
-            if status == 400 && auto && errorText.contains("max_completion_tokens") {
-                (tokenParam, auto) = ("max_completion_tokens", false)
+            // A 400 names one refused parameter at a time: a model may refuse both, in either order.
+            for _ in 0..<2 where status == 400 {
+                if auto && errorText.contains("max_completion_tokens") {
+                    (tokenParam, auto) = ("max_completion_tokens", false)
+                } else if sendsTemperature && errorText.contains("temperature") {
+                    sendsTemperature = false
+                    body["temperature"] = nil
+                    DebugLog.write("llm: \(model) rejects an explicit temperature; retrying without it")
+                } else { break }
                 (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
             }
             // A busy upstream: once more. A per-minute rate limit: wait as told (Retry-After, at most 20 s), up
