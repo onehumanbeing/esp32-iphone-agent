@@ -124,6 +124,7 @@ extension Gestures {
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
             notebook = Notebook(); learned = []
+            metrics?.runStarted()
         }
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero

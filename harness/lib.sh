@@ -47,12 +47,13 @@ follow() {
     if live; then sleep 1; else sleep "${FOLLOW_EVERY:-5}"; fi
     f=$(mktemp -u /tmp/harness-log.XXXXXX)
     pull_log "$f" || continue
-    new=$(awk -v t="$since" '$1 ~ /^[0-9]/ && $1 > t' "$f"); rm -f "$f"  # unstamped lines (the link's own) would end it
+    # unstamped lines (the link's own) would end it; LC_ALL=C: `tail -c` can start mid-character (Japanese), which stopped awk
+    new=$(LC_ALL=C awk -v t="$since" '$1 ~ /^[0-9]/ && $1 > t' "$f"); rm -f "$f"
     [[ -n $new ]] || continue
     since=$(tail -n 1 <<<"$new" | cut -d' ' -f1)
-    grep -E "$show" <<<"$new" || true
-    if last=$(grep -E "$end" <<<"$new" | tail -n 1) && [[ -n $last ]]; then
-      [[ -z ${5:-} ]] || ! grep -qE "$5" <<<"$last"; return
+    LC_ALL=C grep -aE "$show" <<<"$new" || true
+    if last=$(LC_ALL=C grep -aE "$end" <<<"$new" | tail -n 1) && [[ -n $last ]]; then
+      [[ -z ${5:-} ]] || ! LC_ALL=C grep -aqE "$5" <<<"$last"; return
     fi
   done
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
