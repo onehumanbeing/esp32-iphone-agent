@@ -53,6 +53,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 *左：真机；右：Agent 通过板子的 AirPlay 镜像看到的画面。第二张是指针校准。*
 
+想知道 AI 到底怎么操控 iPhone，可以先看[让 AI 操控 iPhone](https://handsy.tech/zh/ai-control-iphone)。
+
 ## 目录
 
 - [工作原理](#工作原理)
@@ -88,7 +90,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 ## 硬件
 
-支持的板子和硬件细节见[硬件指南](https://handsy.tech/zh/docs/hardware)。
+支持的板子和硬件细节见[硬件指南](https://handsy.tech/zh/docs/hardware)。选板子、线材和转接头，或者设置时卡住了，见[安装设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup)。
 
 | 部件 | 说明 |
 |---|---|
@@ -143,7 +145,7 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 
 ## 在编程 Agent 里使用
 
-`esp32agent` 命令行（npm，`npx -y esp32agent mcp`）是一个 MCP 服务器，电脑上的编程 Agent 可以通过板子看到并操作 iPhone（板子固件需 v0.2.2 或更高）。本仓库也是一个插件，包含这个 MCP 服务器和一个 Agent 技能（[skills/handsy/SKILL.md](skills/handsy/SKILL.md)）。在 Claude Code 里：
+`esp32agent` 命令行（npm，`npx -y esp32agent mcp`）是一个 MCP 服务器，电脑上的编程 Agent 可以通过板子看到并操作 iPhone（板子固件需 v0.2.2 或更高），见[把 iPhone 变成 MCP 服务器](https://handsy.tech/zh/iphone-mcp)。本仓库也是一个插件，包含这个 MCP 服务器和一个 Agent 技能（[skills/handsy/SKILL.md](skills/handsy/SKILL.md)）。在 Claude Code 里（[使用教程](https://handsy.tech/zh/claude-code-iphone)）：
 
 ```bash
 /plugin marketplace add onehumanbeing/esp32-iphone-agent
