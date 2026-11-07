@@ -58,6 +58,7 @@ struct SendConsentSheet: View {
             item("photo", "A screenshot of your mirrored screen at every step of a run, so the AI can see it")
             item("text.bubble", "The task you type and the steps so far")
             if !freeLine { item("key", "Your API key, to sign in to that service") }
+            if freeLine { item("iphone", "Your iPhone's model (e.g. iPhone18,2), to adapt to its screen") }
             item("hand.tap", "Only when you start a run, test the connection, check the calibration or save an intent")
             if !freeLine { item("building.columns", "Handled under \(host)'s own privacy policy and terms") }
         }
