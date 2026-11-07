@@ -410,6 +410,9 @@ static void toText(Text &t, const String &s) {
 }
 
 static NimBLEAdvertisementData appAdv, cliAdv;
+#ifdef HID_TRANSPORT_BLE
+static NimBLEAdvertisementData appScan, cliScan;
+#endif
 static SemaphoreHandle_t advLock;
 static AdvId advNow = ADV_NONE;
 
@@ -440,7 +443,11 @@ static void advertise() {
     if (active) adv->stop();
     advNow = ADV_NONE;
     if (want != ADV_NONE && NimBLEDevice::setOwnAddrType(want == ADV_CLI ? BLE_OWN_ADDR_RANDOM : BLE_OWN_ADDR_PUBLIC) &&
-        adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) && adv->start())
+        adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) &&
+#ifdef HID_TRANSPORT_BLE
+        adv->setScanResponseData(want == ADV_CLI ? cliScan : appScan) &&
+#endif
+        adv->start())
       advNow = want;
   }
   xSemaphoreGive(advLock);
@@ -456,9 +463,15 @@ static void setUpAdvertising(const std::string &name) {
   appAdv.setAppearance(0x03c2);
 #endif
   cliAdv.setCompleteServices(NimBLEUUID(UUID("0010")));
+#ifdef HID_TRANSPORT_BLE
+  // iPhone 系统配对界面按名称显示；CLI 继续用末尾四位标识开发板。
+  appScan.setName(name);
+  cliScan.setName("CLI " + name);
+#else
   NimBLEAdvertisementData scan;
   scan.setName(name);
   NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+#endif
   uint8_t a[6];
   esp_fill_random(a, sizeof a);
   a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
