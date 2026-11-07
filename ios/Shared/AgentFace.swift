@@ -233,7 +233,7 @@ struct Spiral: Shape {
         for i in 0...60 {
             let a = Double(i) / 60 * 2.6 * 2 * .pi
             let rad = maxR * Double(i) / 60
-            let pt = CGPoint(x: c.x + rad * cos(a), y: c.y + rad * sin(a))
+            let pt = CGPoint(x: c.x + rad * Foundation.cos(a), y: c.y + rad * Foundation.sin(a))
             if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
         }
         return p
