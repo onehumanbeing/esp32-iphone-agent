@@ -7,13 +7,25 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+
+## App 1.0.4 (TestFlight)
+
 - App: requests to DeepSeek's API (`api.deepseek.com`) turn thinking off unless Extra body JSON sets `thinking`,
   so a step no longer waits on high-effort reasoning (#118).
+- App: the board needs the latest released firmware, not just the oldest one the app works with. On connect an
+  outdated board gets the Board Update Required sheet (once no task or recording runs); Skip for Now asks first and
+  lasts for that connection only, with a warning on Home until the board is updated. Offline, or a board that needs
+  USB first, works as before. Demo data: `-mockFirmware 0.2.0` launches with an outdated board.
 - App: opening the model list in Settings › Model no longer crashes on iOS 27.3 (TestFlight 1.0.3): its search
   bar now sits in the navigation bar instead of the bottom of the sheet.
 - App: a calibration whose check tap misses by more than 6% (e.g. ±49.8% on a fast pointer, #96) is no longer
   kept: the previous calibration (or none) stays, and the board says it failed and suggests the AssistiveTouch
   pointer settings before trying again. A cancelled or failed run also leaves the previous calibration.
+
+## CLI 0.1.4 (npm `esp32agent` 0.1.5, dsh plugin 0.1.3)
+
+- Daemon: fixed a deadlock where the CLI daemon could hang while the app was connected (a status update notified
+  the app while still holding the connection lock, #122).
 
 ## App 1.0.3 (TestFlight)
 
