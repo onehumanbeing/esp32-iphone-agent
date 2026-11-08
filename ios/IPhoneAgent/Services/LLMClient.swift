@@ -146,6 +146,8 @@ struct LLMError: LocalizedError {
         content.append(["type": "text", "text": text])
         var body: [String: Any] = ["model": model]
         if sendsTemperature { body["temperature"] = temperature }
+        // DeepSeek thinks at effort high when `thinking` is omitted; Extra body can turn it back on (#118).
+        if baseURL.host?.lowercased() == "api.deepseek.com" { body["thinking"] = ["type": "disabled"] }
         extra.forEach { body[$0.key] = $0.value }
         body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
         body["stream"] = true

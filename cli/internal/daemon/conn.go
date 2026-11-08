@@ -273,7 +273,13 @@ func (c *Conn) onStatus(b []byte) {
 	}
 	now := time.Now()
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	notify := false
+	defer func() {
+		c.mu.Unlock()
+		if notify {
+			c.appBusy()
+		}
+	}()
 	for k, v := range m {
 		if sub, ok := v.(map[string]any); ok {
 			if old, ok := c.status[k].(map[string]any); ok {
@@ -286,9 +292,7 @@ func (c *Conn) onStatus(b []byte) {
 		c.status[k] = v
 	}
 	c.statusAt = now
-	if m["owner"] == "app" || m["busy"] == float64(1) {
-		defer c.appBusy() // after mu is released
-	}
+	notify = m["owner"] == "app" || m["busy"] == float64(1)
 	if up, ok := m["up"].(float64); ok {
 		c.learnClock(now, uint32(up))
 	}
