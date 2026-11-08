@@ -82,6 +82,34 @@ final class FirmwareTests: XCTestCase {
         XCTAssertEqual(FirmwareVersion("v1.2")?.description, "v1.2.0")
     }
 
+    /// 2026-11-09: a board behind the newest release is asked to update; Skip lasts for this connection only.
+    func testOutdatedBoardWithReleaseIsRequired() throws {
+        let latest = try release(image, key: Curve25519.Signing.PrivateKey(), version: "0.2.4")
+        XCTAssertTrue(FirmwareReminder.outdated(FirmwareVersion([0, 2, 1]), latest: latest))
+        XCTAssertTrue(FirmwareReminder.outdated(Firmware.required, latest: latest), "at the minimum, still behind")
+        XCTAssertFalse(FirmwareReminder.outdated(FirmwareVersion([0, 2, 4]), latest: latest), "up to date")
+        XCTAssertFalse(FirmwareReminder.outdated(FirmwareVersion([0, 2, 5]), latest: latest), "newer than the release")
+    }
+
+    func testNoReleaseDoesNotBlock() {
+        XCTAssertFalse(FirmwareReminder.outdated(FirmwareVersion([0, 2, 1]), latest: nil), "offline or the check failed")
+    }
+
+    func testPreOTABoardKeepsItsUSBNote() throws {
+        let latest = try release(image, key: Curve25519.Signing.PrivateKey(), version: "0.2.4")
+        XCTAssertFalse(FirmwareReminder.outdated(Firmware.version(of: nil), latest: latest))
+        XCTAssertLessThan(Firmware.version(of: nil), Firmware.required, "still below the minimum: the USB sheet as before")
+    }
+
+    func testSkipLastsForThisConnection() {
+        var reminder = FirmwareReminder()
+        XCTAssertFalse(reminder.skipped)
+        reminder.skip()
+        XCTAssertTrue(reminder.skipped)
+        reminder.boardLeft()
+        XCTAssertFalse(reminder.skipped, "the next connection asks again")
+    }
+
     func testPushSendsHeaderAndImage() async throws {
         let board = try FakeOTABoard(cutAfter: nil)
         let progress = PushProgress()
