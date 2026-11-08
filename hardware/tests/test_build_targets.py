@@ -1,4 +1,4 @@
-"""确认板型与输入传输分别选择，构建产物隔离，蓝牙目标不会误刷 USB 固件。"""
+"""Check board and transport selection, separate build outputs and build-only BLE targets."""
 import os
 from pathlib import Path
 import subprocess
@@ -59,7 +59,7 @@ assert not is_usb_app(image)
 assert not is_usb_app(image[:12])
 image[3], image[32] = 0x3f, 0
 assert not is_usb_app(image)
-print("板型构建隔离、禁止自动刷写与 OTA 镜像识别检查通过")
+print("Build target isolation, flash safeguards and OTA image checks passed")
 
 if "--built-images" in sys.argv:
     for directory, target in (("", b"ESPA:usb-8m"), ("ble-hid", b"ESPA:ble-8m"), ("note4", b"ESPA:note4-ble")):
@@ -69,4 +69,4 @@ if "--built-images" in sys.argv:
             if suffix == "bin":
                 assert data[288:304] == target.ljust(16, b"\0"), path
             assert is_usb_app(data) == (directory == "" and suffix == "bin"), path
-    print("三目标九个实际镜像的目标标记与 USB OTA 识别检查通过")
+    print("Target marker and USB OTA checks passed for all nine images across three targets")

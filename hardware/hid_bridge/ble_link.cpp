@@ -78,7 +78,7 @@ static volatile int peers[MAX_PEERS] = {-1, -1};
 static volatile bool subscribed[MAX_PEERS][CH_COUNT];
 #ifdef HID_TRANSPORT_BLE
 static std::atomic<int> trustedPhone[MAX_PEERS] = {-1, -1};
-static bool hidSubscribed[MAX_PEERS];  // 只在 NimBLE 的订阅、认证和断开回调内读写。
+static bool hidSubscribed[MAX_PEERS];  // Only accessed by NimBLE subscription, authentication and disconnect callbacks.
 #endif
 static uint32_t winStart, winBytes;  // touched by the video task only
 static volatile uint32_t kbps;
@@ -241,7 +241,7 @@ class ServerCb : public NimBLEServerCallbacks {
       known[knownCount++] = a;
     }
 #ifdef HID_TRANSPORT_BLE
-    // 恢复订阅可早于加密回调，两者到达后才绑定到允许名单里的手机。
+    // A restored subscription can arrive before encryption. Bind the trusted phone only after both.
     int slot = slotFor(ci.getConnHandle());
     if (slot >= 0) {
       trustedPhone[slot] = ci.getConnHandle();
@@ -352,7 +352,7 @@ static bool notifyRaw(int ch, const uint8_t *p, size_t n, uint32_t timeout_ms) {
 
 static void sendText(int ch, const Text &t, uint32_t timeout_ms) {
   size_t room = ble_mtu() - 3;
-  if (ch == CH_STATUS && t.len > room) return;  // 重新协商 MTU 时等待下一条完整状态。
+  if (ch == CH_STATUS && t.len > room) return;  // If the MTU shrank, wait for the next complete status.
   if (!notifyRaw(ch, (const uint8_t *)t.s, t.len < room ? t.len : room, timeout_ms) && ch == CH_REPLY &&
       anySubscribed(CH_REPLY)) {
     replyDrops++;
@@ -457,14 +457,14 @@ static void setUpAdvertising(const std::string &name) {
   for (auto *d : {&appAdv, &cliAdv}) d->setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
   appAdv.setCompleteServices(NimBLEUUID(UUID("0000")));
 #ifdef HID_TRANSPORT_BLE
-  // 手机通过固定的 App 身份发现 HID；CLI 继续使用独立的临时地址。
+  // Advertise HID on the stable app identity; keep the CLI on its own random address.
   appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x1812)));
   appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x180f)));
   appAdv.setAppearance(0x03c2);
 #endif
   cliAdv.setCompleteServices(NimBLEUUID(UUID("0010")));
 #ifdef HID_TRANSPORT_BLE
-  // iPhone 系统配对界面按名称显示；CLI 继续用末尾四位标识开发板。
+  // iOS lists devices by name; keep the board's four-digit suffix for CLI selection.
   appScan.setName(name);
   cliScan.setName("CLI " + name);
 #else

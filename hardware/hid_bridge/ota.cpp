@@ -54,7 +54,7 @@ static void session(int c) {
   reply(c, "ok\n");
   board_log("ota: receiving %lu bytes", size);
   static uint8_t buf[4096];
-  // 先核对芯片、Flash 布局和输入传输，再写入 OTA 分区，避免装入其他目标的镜像。
+  // Check the chip, flash layout and input transport before writing to the OTA slot.
   uint8_t header[USB_APP_PREFIX_SIZE];
   size_t got = 0;
   while (got < sizeof header) {

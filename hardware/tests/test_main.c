@@ -267,7 +267,7 @@ void cli_random(uint8_t *p, size_t n) {
 
 // docs/cli-protocol.md vectors (cli/testdata/vectors.json, made with Python's cryptography).
 static void test_cli_proto(void) {
-  // Wi-Fi 能装下带音频、板型和蓝牙输入状态的整条 JSON；小 MTU 只能用精简状态。
+  // Wi-Fi fits the full audio, board and HID status; small MTUs need the compact report.
   CHECK(cli_ctrl_room(1463) >= 519 && cli_ctrl_room(1463) == BOARD_STATUS_CAP - 1);
   CHECK(cli_ctrl_room(517) == 496 && cli_ctrl_room(247) == 226 && cli_ctrl_room(185) == 164);
   CHECK(cli_ctrl_room(23) == 2 && cli_ctrl_room(0) == 0);

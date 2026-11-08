@@ -10,9 +10,9 @@ int main() {
   assert(note4_battery_percent(3700) == 48);
   assert(note4_battery_percent(4200) == 100);
   assert(note4_battery_percent(65535) == 100);
-  puts("电池电压估算范围检查通过");
+  puts("Battery level estimates stayed within range");
 
-  // 非 Note 4 目标可在没有 Arduino/GPIO API 的宿主上运行，不会误读电池或操作电源。
+  // Non-Note 4 targets must run on a host without Arduino or GPIO, without touching battery or power pins.
   board_begin();
   assert(board_battery_percent() == 0);
   assert(strcmp(board_status_fields(), "") == 0);

@@ -10,7 +10,7 @@ struct Recovery {
         var ap: String?           // idle | connected | streaming
         var frameAt: Double       // when the newest decoded frame arrived
         var stalled = false       // the board itself gets no frames from AirPlay: ask the user at once
-        var needsPointer = false  // 指针配对可能单独断开，此时 GATT 和镜像仍能工作。
+        var needsPointer = false  // The pointer can disconnect while GATT and mirroring stay up.
     }
 
     enum Part: Equatable { case board, hotspot, mirroring, frames, pointer }
@@ -67,7 +67,7 @@ extension Recovery.Stage {
     /// For the log: "recover: …".
     var logLine: String {
         switch (part, ask) {
-        case (.pointer, _): return "等待本机的蓝牙指针重新连接"
+        case (.pointer, _): return "waiting for the Bluetooth pointer to reconnect to this iPhone"
         case (.board, false): return "BLE link lost; reconnecting"
         case (.board, true): return "board still gone; asked the user to check it"
         case (.hotspot, false): return "board up, iPhone not on its hotspot (sta 0); waiting for iOS to rejoin"

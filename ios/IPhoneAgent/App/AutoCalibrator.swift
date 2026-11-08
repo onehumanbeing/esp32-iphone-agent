@@ -49,7 +49,7 @@ import UIKit
 
     var busy: Bool { phase.step != nil }
 
-    /// 指针和控制通道都就绪时才能开始校准。
+    /// Calibration needs both the control link and a working pointer.
     var boardReady: Bool { app.board.connected && app.board.status?.inputReady == true }
     var mirroring: Bool { app.board.status?.ap == "streaming" }
 

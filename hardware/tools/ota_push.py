@@ -65,11 +65,11 @@ def main() -> None:
 
     image = bytearray(a.image.read_bytes())
     if not is_usb_app(image):
-        ap.error("此 OTA 工具仅接受 8 MiB USB 板的 ESP32-S3 应用镜像。")
+        ap.error("This OTA tool only accepts ESP32-S3 application images for the 8 MiB USB board.")
     port = serial.Serial(a.serial, 115200, timeout=0.3)
     before = status(port)
     if before.get("board") is not None or before.get("hid") is not None or before.get("usb") is None:
-        ap.error("此 OTA 通道仅适用于已识别的标准 USB 板。")
+        ap.error("This OTA channel requires a recognized standard USB board.")
     net = json.loads(ask(port, "0 netinfo"))
     print(f"board fw {before.get('fw', 1)}, net {net.get('mode')} {net.get('ssid')} {net.get('ip')}")
     if a.join:

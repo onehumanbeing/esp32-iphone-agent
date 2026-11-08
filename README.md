@@ -125,6 +125,8 @@ The first version (v0.1.0) ran on a Mac/Linux computer with UxPlay and a Python 
 Supported boards and setup details: [hardware guide](https://handsy.tech/docs/hardware).
 Picking a board, cables and adapters, or stuck during setup: [setup guide](https://handsy.tech/esp32-iphone-agent-setup).
 
+For wireless input built from source, see [Bluetooth mouse and keyboard](docs/bluetooth-hid.md). For the Zectrix Note 4 power, battery and flash layout, see the [Note 4 board guide](docs/note4-bluetooth.md).
+
 | Part | Notes |
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |

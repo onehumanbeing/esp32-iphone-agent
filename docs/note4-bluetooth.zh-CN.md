@@ -1,5 +1,7 @@
 # Zectrix Note 4 板型适配
 
+[English](note4-bluetooth.md)
+
 Note 4 是带电池的 4.2 英寸黑白墨水屏设备，主控为 ESP32-S3。本适配选择项目的[通用蓝牙键鼠能力](bluetooth-hid.zh-CN.md)，并提供板型所需的电源、引脚、电池和分区配置。
 
 ## Note 4 专用范围

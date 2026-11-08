@@ -207,7 +207,7 @@ bool cli_send_ctrl(char kind, const char *text, size_t n, uint32_t timeout_ms) {
   Session &s = sessions[slot];
   uint8_t *buf = ctrlBuf, *out = ctrlOut;
   size_t room = cli_ctrl_room(mtu(slot));
-  if (kind == 's' && n > room) return false;  // 传输途中换链路时，下一次再发完整 JSON。
+  if (kind == 's' && n > room) return false;  // If the link changed, wait for the next complete JSON report.
   if (n > room) n = room;
   buf[0] = (uint8_t)kind;
   memcpy(buf + 1, text, n);

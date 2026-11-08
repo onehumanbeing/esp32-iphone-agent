@@ -48,7 +48,7 @@ void ble_hid_begin(NimBLEServer *server) {
   resetReports();
   inputs[0]->setCallbacks(&hidSubscription);
   hid->getOutputReport(2)->setValue(uint8_t(0));
-  // 电池来源由板层决定；无电池时按 BAS 规范报告 0，不读取其他板型的引脚。
+  // Let the board supply the battery level; a board without a battery reports zero.
   hid->setBatteryLevel(board_battery_percent());
   batteryAt = millis();
 }
@@ -84,7 +84,7 @@ bool ble_hid_command_begin(uint32_t session) {
 }
 
 bool ble_hid_command_ok() {
-  // 已发出按下报告后仍可能失败，交给主循环补发释放，避免残留拖动或组合键。
+  // A press may already have reached the phone. Retry its release in the main loop.
   if (failed) releasePending = true;
   return !failed;
 }
@@ -95,14 +95,14 @@ static void send(int input, const void *data, size_t size) {
   uint32_t start = millis();
   for (;;) {
     if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) { failed = true; return; }
-    // 与现有视频通道使用同一 host API；只重试缓存不足，不掩盖断线或其他错误。
+    // As in the video path, retry only when the host runs out of buffers.
     os_mbuf *packet = ble_hs_mbuf_from_flat(data, size);
     int rc = packet ? ble_gatts_notify_custom(handle, inputs[input]->getHandle(), packet) : BLE_HS_ENOMEM;
     if (rc == 0) { lastReportAt = millis(); return; }
     if (rc != BLE_HS_ENOMEM || millis() - start >= 100) {
       failed = true;
 #if DEBUG_SERIAL
-      Serial.printf("蓝牙 HID 报告发送失败：rc=%d\n", rc);
+      Serial.printf("BLE HID report failed: rc=%d\n", rc);
 #endif
       return;
     }
@@ -116,7 +116,7 @@ void ble_hid_poll() {
     hidDevice->setBatteryLevel(board_battery_percent(), true);
     batteryAt = now;
   }
-  // shortcut: 静态按住超过五秒会释放，需要更长按住动作时延长租约。
+  // shortcut: idle mouse holds expire after five seconds; extend the lease if longer holds are needed.
   if (ble_hid_ready() && (releasePending || (mouseButtons && now - lastReportAt >= 5000))) {
     if (!ble_hid_command_begin(target.session())) return;
     uint8_t zero[8] = {};
@@ -125,7 +125,7 @@ void ble_hid_poll() {
     send(2, zero, 2);
     if (!failed) {
 #if DEBUG_SERIAL
-      if (releasePending) Serial.println("蓝牙 HID 异常命令后的按键释放完成");
+      if (releasePending) Serial.println("BLE HID inputs released after command failure");
 #endif
       mouseButtons = 0;
       memset(keys, 0, sizeof keys);

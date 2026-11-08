@@ -255,7 +255,7 @@ import XCTest
         board.updateStatus(BoardStatus(up: 200))
         XCTAssertEqual(board.status?.hid, "ok")
         board.updateStatus(BoardStatus(hid: "off"))
-        XCTAssertNotEqual(board.commands.links, paired, "指针与 GATT 可独立断开，应废弃断线前的动作")
+        XCTAssertNotEqual(board.commands.links, paired, "Losing the pointer while GATT stays connected must invalidate earlier actions")
         XCTAssertEqual(board.status?.needsWirelessPointer, true)
         XCTAssertEqual(board.status?.usb, "ok")
         board.updateStatus(BoardStatus(hid: "ok"))
@@ -265,8 +265,8 @@ import XCTest
     func testHIDCapabilityDoesNotDependOnBoardName() throws {
         for model in ["note4", "esp32s3"] {
             let status = try XCTUnwrap(BoardStatus.decode(Data("{\"board\":\"\(model)\",\"usb\":\"ok\"}".utf8)))
-            XCTAssertFalse(status.isWirelessHID, "板型身份不能代替输入能力")
-            XCTAssertNil(status.inputState, "未报告输入能力的板型不能借用 USB 状态")
+            XCTAssertFalse(status.isWirelessHID, "The board model alone must not imply wireless HID support")
+            XCTAssertNil(status.inputState, "A named board without an input capability must not fall back to USB status")
             XCTAssertFalse(status.inputReady)
             XCTAssertFalse(status.acceptsUSBRelease)
             let paired = status.merged(with: BoardStatus(hid: "ok"))

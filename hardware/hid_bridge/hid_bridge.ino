@@ -48,7 +48,7 @@ const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the boa
 BleHidMouse mouse;
 BleHidKeyboard keyboard;
 BleHidConsumer consumer;
-const int HOME_REPORT_MS = 15;  // 按蓝牙连接间隔发送归零报告。
+const int HOME_REPORT_MS = 15;  // Space homing reports to match the BLE connection interval.
 #else
 const int HOME_REPORT_MS = 2;
 USBHIDMouse mouse;
@@ -139,7 +139,7 @@ String run(const String &line) {
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") {
 #ifdef HID_TRANSPORT_BLE
-    // 辅助触控将按钮 2 映射到主屏幕。
+    // AssistiveTouch maps Button 2 to Home.
     mouse.press(MOUSE_RIGHT); delay(60); mouse.release(MOUSE_RIGHT);
 #else
     consumer.press(AC_HOME); delay(40); consumer.release();
@@ -339,7 +339,7 @@ String statusJson(bool full, char who) {
     snprintf(s + len - 1, sizeof s - len + 1, ",\"busy\":%d}", app);
   }
   if (full && strlen(s) < sizeof s - 1) return s;
-  // 小 MTU 先保留控制与重连所需字段，剩余空间可以容纳时再附上诊断数据。
+  // On small MTUs, keep control and reconnect fields first; include diagnostics only if they fit.
   snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"owner\":\"%s\"%s",
            FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, owner, board_status_fields());
 #ifdef HID_TRANSPORT_BLE
@@ -436,7 +436,7 @@ void setup() {
   if (!video_begin()) board_log("video: no PSRAM for the GOP buffer");
   if (!wv_begin()) board_log("video: Wi-Fi video channel failed to start");
 #ifndef HID_TRANSPORT_BLE
-  // 现有签名清单只发行标准 USB 镜像；蓝牙输入目标须走对应的发布通道。
+  // The signed release channel only ships images for the standard USB board.
   if (board_supports_usb_release() && !ota_begin()) board_log("ota: failed to start");
 #endif
   arb_init(&arb);

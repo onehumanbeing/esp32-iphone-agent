@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-// 复用 Arduino 的键码与布局；无效按键或超过六键时保持原报告不变。
+// Use the Arduino layout. Invalid keys and a seventh held key leave the current report intact.
 inline bool hid_key_press(uint8_t (&report)[8], uint8_t key, const uint8_t *layout) {
   if (key >= 128 && key < 136) {
     report[0] |= 1u << (key - 128);

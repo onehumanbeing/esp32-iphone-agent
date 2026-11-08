@@ -41,7 +41,7 @@ extension AppModel {
     func leaveForRun() async throws -> Bool {
         if try await leaveApp() { return true }
         guard startupBoardIssue || !board.connected else {
-            DebugLog.write("leave app: the board took every gesture, the app stayed in front; not plugged into this iPhone")
+            DebugLog.write("leave app: the board acknowledged every gesture, but the app stayed in front")
             if board.status?.isWirelessHID == true {
                 throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
             }

@@ -5,8 +5,8 @@
 #   --sta         test build: join the Wi-Fi in hid_bridge/secrets.h instead of opening a hotspot
 #   --build-only  compile only (prints flash/RAM usage)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
-#   --note4       选择 Note 4 板型并启用蓝牙 HID，仅支持构建。
-#   --ble-hid     标准 8 MB 板启用通用蓝牙键鼠，仅支持构建。
+#   --note4       build BLE HID for the Note 4 (build only)
+#   --ble-hid     build BLE HID for the standard 8 MB board (build only)
 # BLE host: h2zero NimBLE-Arduino (arduino-cli lib install "NimBLE-Arduino"); its buffer sizes live in
 # hid_bridge/nimble_cfg.h, force-included into every C/C++ file below.
 # A running bridge is a TinyUSB device, so it is first kicked into the ROM
@@ -27,7 +27,7 @@ for a in "$@"; do
     --ap-tune) DEFS+=" -DAP_TUNE=1" ;;
     --crash-test) DEFS+=" -DOTA_CRASH_TEST=1" ;;  # build only, then push it with ota_push.py
     --small-gop) DEFS+=" -DGOP_CAP_KB=256" ;;  # test build: the GOP fills (freezes) within minutes
-    --*) echo "未知构建参数：$a" >&2; exit 1 ;;
+    --*) echo "Unknown build option: $a" >&2; exit 1 ;;
     *) PORT=$a ;;
   esac
 done
@@ -39,7 +39,7 @@ elif (( BLE_HID )); then
 fi
 if (( BLE_HID )); then DEFS+=" -DHID_TRANSPORT_BLE=1"; fi
 if (( BLE_HID && !BUILD_ONLY )); then
-  echo "蓝牙 HID 目标仅支持 --build-only；刷写前须单独核对备份和目标分区。" >&2
+  echo "BLE HID targets require --build-only. Verify the backup and target partition before flashing." >&2
   exit 1
 fi
 [[ $PWD != *" "* ]] || { echo "the -include path below cannot contain spaces: $PWD"; exit 1; }

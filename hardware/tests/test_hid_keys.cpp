@@ -25,23 +25,23 @@ int main() {
   assert(memcmp(before, report, sizeof report) == 0);
   assert(!hid_key_press(report, 0xc2, layout));
   assert(memcmp(before, report, sizeof report) == 0);
-  puts("蓝牙 HID 键码、修饰键、六键容量及错误状态检查通过");
+  puts("BLE HID keycode, modifier, six-key limit and error handling checks passed");
   BleHidTarget target;
   assert(!target.allows(1, false));
-  assert(!target.subscribe(2, false, true));  // 未获认证的订阅者不能占用目标。
-  assert(!target.subscribe(1, true, false));  // 已认证但尚未订阅也不能收取 HID。
-  assert(target.subscribe(1, true, true));    // 订阅与认证以任意顺序到达，缺一不可。
+  assert(!target.subscribe(2, false, true));  // An untrusted subscriber cannot claim the target.
+  assert(!target.subscribe(1, true, false));  // A trusted peer must subscribe before it can receive HID.
+  assert(target.subscribe(1, true, true));    // Subscription and authentication can arrive in either order.
   const auto first = target.session();
   assert(target.allows(1, true));
   assert(!target.allows(1, false));
-  assert(!target.allows(2, true));  // 即使已配对，第二个中心连接也不能控制第一台手机。
+  assert(!target.allows(2, true));  // A second bonded central cannot control the first phone.
   assert(!target.subscribe(2, true, true));
   target.disconnect(2);
   assert(target.session() == first);
   target.disconnect(1);
   assert(BleHidTarget::peer(target.session()) == -1);
-  assert(target.subscribe(1, true, true) && target.session() != first);  // 重连后丢弃旧队列命令。
-  puts("蓝牙输入目标、其他写入者拒绝和断线重连检查通过");
+  assert(target.subscribe(1, true, true) && target.session() != first);  // Reconnect invalidates old queued commands.
+  puts("BLE HID target selection, writer rejection and reconnect checks passed");
   uint8_t header[USB_APP_PREFIX_SIZE] = {0xe9, 6, 2, 0x3f};
   header[12] = 9;
   memcpy(header + 32, "\x32\x54\xcd\xab", 4);
@@ -59,8 +59,8 @@ int main() {
   header[80] = 'a';
   assert(!usb_ota_app(header, sizeof header - 1));
   header[3] = 0x4f;
-  assert(!usb_ota_app(header, sizeof header));  // 拒绝 16 MiB Note 4 镜像。
+  assert(!usb_ota_app(header, sizeof header));  // Reject a 16 MiB Note 4 image.
   header[3] = 0x3f;
   header[32] = 0;
-  assert(!usb_ota_app(header, sizeof header));  // 拒绝引导程序和整片镜像。
+  assert(!usb_ota_app(header, sizeof header));  // Reject bootloaders and full-flash images.
 }

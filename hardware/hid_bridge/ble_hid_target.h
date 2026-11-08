@@ -2,7 +2,7 @@
 #include <atomic>
 #include <cstdint>
 
-// 低 16 位保存连接句柄加一。取消订阅或断开时推进代数，避免复用句柄后执行旧指令。
+// The low 16 bits hold the handle plus one. Bump the generation when it is released so a reused handle cannot run stale commands.
 class BleHidTarget {
   std::atomic<uint32_t> state{0};
 public:

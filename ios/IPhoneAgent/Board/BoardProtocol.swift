@@ -28,8 +28,8 @@ struct BoardStatus: Codable, Equatable {
     var heap: Int?
     var psram: Int?
     var usb: String?   // ok | asleep | off
-    var board: String? // 板型身份；原版 USB 固件没有此字段。
-    var hid: String?   // 本连接的蓝牙 HID 状态；配对且订阅后为 ok。
+    var board: String? // Board model; absent on stock USB firmware.
+    var hid: String?   // BLE HID on this connection: ok once paired and subscribed.
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
@@ -43,11 +43,11 @@ struct BoardStatus: Codable, Equatable {
     var udp: UDP?
 
     var isWirelessHID: Bool { hid != nil }
-    // 命名板型须先报告输入能力，不能把用于供电的 USB 误认成手机输入。
+    // A named board must report its input capability: its USB port may only supply power.
     var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }
     var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
-    // 现有签名清单只提供 USB 镜像；未收到板型状态时也不允许安装。
+    // The signed feed ships only standard USB images; wait for positive identification.
     var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }

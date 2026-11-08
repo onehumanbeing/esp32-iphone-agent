@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-// 沿用 Zectrix Lab 参考工程的电压估算曲线，许可见 LICENSE-ZECTRIX。
+// Voltage curve from Zectrix Lab's reference firmware; see LICENSE-ZECTRIX.
 inline uint8_t note4_battery_percent(int mv) {
   if (mv <= 3300) return 0;
   if (mv >= 4200) return 100;

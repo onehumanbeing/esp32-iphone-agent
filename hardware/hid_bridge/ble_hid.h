@@ -13,7 +13,7 @@ void ble_hid_claim(uint16_t handle, bool subscribed);
 bool ble_hid_command_begin(uint32_t session);
 bool ble_hid_command_ok();
 
-// 保留原有命令执行器的接口，USB 版不受无线适配影响。
+// Match the USB HID interface used by the command handler.
 class BleHidMouse {
 public:
   void begin() {}

@@ -5,7 +5,7 @@
 #include "note4_battery.h"
 #endif
 
-// ESP-IDF 将此标记放在 256 字节应用描述后，升级前可先区分板型和输入传输。
+// ESP-IDF places this marker after the 256-byte app descriptor so OTA can check the target before writing.
 extern const char firmware_target[16]
 #ifdef ARDUINO_ARCH_ESP32
     __attribute__((section(".rodata_custom_desc"), used))
@@ -21,7 +21,7 @@ extern const char firmware_target[16]
 
 void board_begin() {
 #ifdef ZECTRIX_NOTE4
-  // 电池供电先保持电源，再关闭闲置外设，避免音频噪声和额外耗电。
+  // Latch battery power before disabling idle peripherals to avoid noise and wasted power.
   gpio_hold_dis(GPIO_NUM_17);
   gpio_set_level(GPIO_NUM_17, 1);
   gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
@@ -44,7 +44,7 @@ uint8_t board_battery_percent() {
   for (int i = 0; i < 10; i++) total += 2 * analogReadMilliVolts(4);
   return note4_battery_percent(total / 10);
 #else
-  // 此目标没有电池监测；BAS 3.1.1 对无电池设备规定 Battery Level 为 0。
+  // This target has no battery monitor; BAS 3.1.1 specifies zero for a device without a battery.
   return 0;
 #endif
 }
