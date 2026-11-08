@@ -43,7 +43,11 @@ struct FirmwareReminder {
     init(app: AppModel) {
         self.app = app
         // Skip lasts for this connection only: in memory, and forgotten when the board goes away.
-        link = app.board.$connected.removeDuplicates().sink { [weak self] up in if !up { self?.reminder.boardLeft() } }
+        link = app.board.$connected.removeDuplicates().sink { [weak self] up in
+            guard let self, !up else { return }
+            reminder.boardLeft()
+            if !busy { presented = false }  // a sheet for the old connection; the next one asks again
+        }
     }
 
     var busy: Bool { phase == .downloading || phase == .sending || phase == .restarting }
@@ -89,6 +93,8 @@ struct FirmwareReminder {
     /// recording isn't interrupted: Home shows the warning and the gate asks again when it ends.
     func ask() {
         guard required, phase == .idle, !presented, !reminder.skipped else { return }
+        // A background relaunch (Bluetooth restores the board link) can't show a sheet: ask when the app comes up.
+        guard UIApplication.shared.applicationState == .active else { return }
         let versions = "board \(current), latest \(release?.version ?? "none"), minimum \(Firmware.required)"
         DebugLog.write("firmware: update required (\(versions))\(taskRunning ? "; asking after the task" : "")")
         if !taskRunning { presented = true }

@@ -8,10 +8,12 @@ struct FirmwareGate: ViewModifier {
     @ObservedObject var board: BoardLink
     @ObservedObject var agent: AgentLoop
     @ObservedObject var recorder: DemoRecorder
+    @Environment(\.scenePhase) private var scene
 
     func body(content: Content) -> some View {
         content
             .task(id: board.connected) { if board.connected { await updater.boardConnected() } }
+            .onChange(of: scene) { _, phase in if phase == .active { updater.ask() } }
             .onChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
             .sheet(isPresented: $updater.presented) { FirmwareSheet(app: app, updater: updater, board: board) }
     }
