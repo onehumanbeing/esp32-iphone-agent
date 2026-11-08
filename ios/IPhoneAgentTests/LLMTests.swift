@@ -458,10 +458,11 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(progress, [.waiting, .receiving])
     }
 
-    func client(_ model: String, extra: [String: Any] = [:], tokenParam: String = "auto") -> LLMClient {
+    func client(_ model: String, extra: [String: Any] = [:], tokenParam: String = "auto",
+                baseURL: String = "http://test/v1/") -> LLMClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
-        return LLMClient(baseURL: "http://test/v1/", model: model, extra: extra, tokenParam: tokenParam,
+        return LLMClient(baseURL: baseURL, model: model, extra: extra, tokenParam: tokenParam,
                          session: URLSession(configuration: config))
     }
 
@@ -588,6 +589,27 @@ final class StubProtocol: URLProtocol {
         let user = (body["messages"] as? [[String: Any]])?[1]["content"] as? [[String: Any]]
         let url = (user?[0]["image_url"] as? [String: Any])?["url"] as? String
         XCTAssertTrue(url?.hasPrefix("data:image/jpeg;base64,") ?? false)
+        XCTAssertNil(body["thinking"])
+    }
+
+    func testDeepSeekRequestsDisableThinkingUnlessExtraBodySetsIt() async throws {
+        fakeServer(wants: "max_tokens")
+        _ = try await client("deepseek-flash", baseURL: "https://api.deepseek.com").chat(system: "sys", text: "hi")
+        XCTAssertEqual(StubProtocol.seen.count, 1)
+        XCTAssertEqual((StubProtocol.seen[0]["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+        XCTAssertEqual(StubProtocol.seen[0]["stream"] as? Bool, true)
+
+        let json = #"{"thinking":{"type":"enabled"},"reasoning_effort":"low"}"#
+        let extra = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        fakeServer(wants: "max_tokens")
+        _ = try await client("deepseek-flash", extra: extra, baseURL: "https://api.deepseek.com")
+            .chat(system: "sys", text: "hi")
+        XCTAssertEqual((StubProtocol.seen[0]["thinking"] as? [String: Any])?["type"] as? String, "enabled")
+        XCTAssertEqual(StubProtocol.seen[0]["reasoning_effort"] as? String, "low")
+
+        fakeServer(wants: "max_tokens")
+        _ = try await client("gpt", baseURL: "https://api.openai.com/v1").chat(system: "sys", text: "hi")
+        XCTAssertNil(StubProtocol.seen[0]["thinking"])
     }
 
     func testStreamedReplyIsJoinedAndTimed() async throws {
