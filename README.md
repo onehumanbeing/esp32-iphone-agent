@@ -327,6 +327,14 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 distributed under GPL-3.0. Files under [`skills/`](skills/) are [MIT-0](skills/LICENSE) (MIT No Attribution);
 the rest of the repository keeps the license above.
 
+## Contributors
+
+Thanks to everyone who has helped build ESP32 iPhone Agent. Pull requests start from the latest `main`.
+
+<a href="https://github.com/onehumanbeing/esp32-iphone-agent/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=onehumanbeing/esp32-iphone-agent">
+</a>
+
 ## Star History
 
 <a href="https://www.star-history.com/#onehumanbeing/esp32-iphone-agent&Date">

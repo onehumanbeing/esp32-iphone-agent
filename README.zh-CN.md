@@ -276,6 +276,14 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 [MIT](LICENSE)；`hardware/hid_bridge/src/airplay/`（移植自 UxPlay）除外，为 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md)，因此链接了它的固件二进制按 GPL-3.0 分发。[`skills/`](skills/) 目录下的文件采用 [MIT-0](skills/LICENSE)（MIT No Attribution），仓库其余部分仍按上面的许可证。
 
+## 贡献者
+
+感谢每一位帮助打造 ESP32 iPhone Agent 的人。PR 请基于最新的 `main`。
+
+<a href="https://github.com/onehumanbeing/esp32-iphone-agent/graphs/contributors">
+  <img alt="贡献者" src="https://contrib.rocks/image?repo=onehumanbeing/esp32-iphone-agent">
+</a>
+
 ## Star 增长
 
 <a href="https://www.star-history.com/#onehumanbeing/esp32-iphone-agent&Date">
