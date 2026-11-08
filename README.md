@@ -78,6 +78,11 @@ cellular data while it runs because the board's hotspot takes the Wi-Fi.
 
 Stuck? See [troubleshooting](https://handsy.tech/troubleshooting?ref=github) or mail [support@handsy.tech](mailto:support@handsy.tech).
 
+> [!NOTE]
+> **Free line busy or failing?** The free model line is shared and can be busy or return errors (HTTP 503) for a
+> while, so a run may stall or fail every step. Switch to your own API key in Settings › Model to keep going, and
+> let us know on X: [@iamhenryyuan](https://x.com/iamhenryyuan).
+
 ## How it works
 
 New to the idea? Start with [AI control for iPhone](https://handsy.tech/ai-control-iphone), then [how Handsy works](https://handsy.tech/how-it-works).
@@ -329,7 +334,7 @@ the rest of the repository keeps the license above.
 
 ## Contributors
 
-Thanks to everyone who has helped build ESP32 iPhone Agent. Pull requests start from the latest `main`.
+Thanks to everyone who has helped build ESP32 iPhone Agent: [@cy41](https://github.com/cy41) · [@shinjiyu](https://github.com/shinjiyu) · [@Yi-111-a](https://github.com/Yi-111-a) · [@buddyh](https://github.com/buddyh) · [@djs-91](https://github.com/djs-91) · [@EliotAndres](https://github.com/EliotAndres) · [@lukas-1997](https://github.com/lukas-1997) · [@mvanhorn](https://github.com/mvanhorn). Pull requests start from the latest `main`.
 
 <a href="https://github.com/onehumanbeing/esp32-iphone-agent/graphs/contributors">
   <img alt="Contributors" src="https://contrib.rocks/image?repo=onehumanbeing/esp32-iphone-agent">
