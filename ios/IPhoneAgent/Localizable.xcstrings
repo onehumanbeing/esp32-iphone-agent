@@ -9512,6 +9512,16 @@
           }
         }
       }
+    },
+    "The test tap landed far from its target, so this calibration wasn't saved. In AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试点击落点离目标太远，这次校准没有保存。请在 辅助触控 › 指针设备 中把跟踪速度调到中间并关闭指针动画，然后再试一次。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

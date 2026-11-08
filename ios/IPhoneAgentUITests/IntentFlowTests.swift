@@ -144,3 +144,32 @@ final class IntentFlowTests: XCTestCase {
     }
 
 }
+/// TestFlight 1.0.3 on iOS 27.3: activating the model search in its sheet hit a UIKit assertion
+/// (-[UISearchController _setInlineSearchAccessoryEnabled:]). The sheet's search must open and filter.
+final class ModelSearchTests: XCTestCase {
+    @MainActor func testModelSearchActivatesInSheet() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-mock", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        continueAfterFailure = false
+        app.launch()
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Model'")).firstMatch.tap()
+        let llm = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Large Language Model'")).firstMatch
+        if llm.waitForExistence(timeout: 3) { llm.tap() }
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Model,' OR label BEGINSWITH 'Model '"))
+            .firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), app.debugDescription)
+        picker.tap()
+        XCTAssertTrue(app.navigationBars["Choose Model"].waitForExistence(timeout: 5))
+        let field = app.searchFields["Search models"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("zz-no-such-model")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'zz-no-such-model'")).firstMatch
+            .waitForExistence(timeout: 5))
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+}
