@@ -9,6 +9,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
 - App: requests to DeepSeek's API (`api.deepseek.com`) turn thinking off unless Extra body JSON sets `thinking`,
   so a step no longer waits on high-effort reasoning (#118).
+- App: opening the model list in Settings › Model no longer crashes on iOS 27.3 (TestFlight 1.0.3): its search
+  bar now sits in the navigation bar instead of the bottom of the sheet.
 
 ## App 1.0.3 (TestFlight)
 
