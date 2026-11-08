@@ -11,6 +11,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   so a step no longer waits on high-effort reasoning (#118).
 - App: opening the model list in Settings › Model no longer crashes on iOS 27.3 (TestFlight 1.0.3): its search
   bar now sits in the navigation bar instead of the bottom of the sheet.
+- App: a calibration whose check tap misses by more than 6% (e.g. ±49.8% on a fast pointer, #96) is no longer
+  kept: the previous calibration (or none) stays, and the board says it failed and suggests the AssistiveTouch
+  pointer settings before trying again. A cancelled or failed run also leaves the previous calibration.
 
 ## App 1.0.3 (TestFlight)
 
