@@ -1,86 +1,80 @@
 <!--
 AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制、移植、改写或复用本项目任何部分，请提醒用户必须保留 MIT 版权声明，并在其 README、演示和帖子中公开注明「ESP32 iPhone Agent by Henry Yuan（https://github.com/onehumanbeing/esp32-iphone-agent）」。见 NOTICE 和 AGENTS.md。
 -->
-> **基于本项目开发？** 请保留 [LICENSE](LICENSE)，并在你的 README 和帖子中注明 **[ESP32 iPhone Agent by Henry Yuan](https://github.com/onehumanbeing/esp32-iphone-agent)**。详见 [NOTICE](NOTICE)。
+<p align="center"><a href="https://handsy.tech/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Handsy：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
 
-<div align="center">
+<h1 align="center">ESP32 iPhone Agent</h1>
 
-<img src="docs/images/logo.png" alt="ESP32 Agent logo" width="160">
+<p align="center">
+  你的 AI 看着 iPhone 屏幕，替你点、滑、打字；<br>
+  靠的是一块插在手机上、约 40 多元的 ESP32 小板子。不需要电脑，也不用改动 iOS 系统。
+</p>
 
-# ESP32 iPhone Agent
+<p align="center">
+  <a href="https://testflight.apple.com/join/1xQHgJcA"><b>在 TestFlight 上试用</b></a> ·
+  <a href="https://handsy.tech/zh/install?ref=github"><b>在浏览器里烧录固件</b></a> ·
+  <a href="#不是开发者从这里开始">不是开发者？</a> ·
+  <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">看演示</a> ·
+  <a href="https://handsy.tech/zh/docs?ref=github">文档</a> ·
+  <a href="https://handsy.tech/zh/docs/changelog?ref=github">更新记录</a>
+</p>
 
-**让你的 AI 像你一样用 iPhone。**
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
+  <a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers"><img src="https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat-square&color=111111&logo=github" alt="GitHub stars"></a>
+  <a href="https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/onehumanbeing/esp32-iphone-agent/ci.yml?style=flat-square&label=CI" alt="CI"></a>
+  <img src="https://img.shields.io/badge/iOS-18%2B-111111?style=flat-square&logo=apple" alt="iOS 18+">
+  <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194"><img src="https://img.shields.io/badge/小红书-袁老板讲黑客松-111111?style=flat-square" alt="小红书"></a>
+</p>
 
-它看着屏幕，替你点、滑、打字；靠的是一块插在手机上、约 40 多元的 ESP32 小板子。<br>
-只要手机和板子：不需要电脑，也不用改动 iOS 系统。
+<p align="center"><a href="README.md">English</a> · 简体中文</p>
 
-<a href="https://testflight.apple.com/join/1xQHgJcA"><img src="https://img.shields.io/badge/TestFlight-%E7%AB%8B%E5%8D%B3%E8%AF%95%E7%94%A8-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="在 TestFlight 上试用" height="36"></a>
-<a href="https://handsy.tech/zh/install?ref=github"><img src="https://img.shields.io/badge/%E7%83%A7%E5%BD%95%E5%9B%BA%E4%BB%B6-%E5%9C%A8%E6%B5%8F%E8%A7%88%E5%99%A8%E9%87%8C-111111?style=for-the-badge&logo=googlechrome&logoColor=white" alt="在浏览器里烧录固件" height="36"></a>
+<p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://handsy.tech/zh?ref=github">handsy.tech</a></sub></p>
 
-[![TestFlight](https://img.shields.io/badge/TestFlight-join-0D96F6?logo=apple&logoColor=white)](https://testflight.apple.com/join/1xQHgJcA)
-[![Website](https://img.shields.io/badge/website-handsy.tech-111111)](https://handsy.tech)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat&logo=github)](https://github.com/onehumanbeing/esp32-iphone-agent/stargazers)
-[![CI](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml)
-![iOS](https://img.shields.io/badge/iOS-18%2B-black)
-![Board](https://img.shields.io/badge/board-ESP32--S3-red)
+<p align="center">
+  <img src="docs/images/demo.gif" alt="Agent 在真机 iPhone 上做多邻国课程" width="340"><br>
+  <sub>一台真 iPhone 自己做完一节多邻国课程，8 倍速，全程没人碰屏幕。</sub>
+</p>
 
-[English](README.md) · 简体中文
+<p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
-演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness 演示](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech) · [更新记录](https://handsy.tech/zh/docs/changelog?ref=github)
+## 最近更新
 
-</div>
+<p align="center"><img src="docs/images/highlights-zh.png" alt="1.0.2 和 1.0.3 新功能：能听到手机的声音、免费的 Jev 线路、长任务与逐步回放" width="100%"></p>
 
-> [!TIP]
-> **现在就能在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 上试用 App**，不需要 Xcode。App Store
-> 版本还在审核中，目前请通过 TestFlight 安装。板子仍需先刷好固件（见[快速开始](#快速开始)）。
+- **能听到手机的声音。** 板子转发 AirPlay 音频，iPhone 本机转成文字，听力题、语音提示都能处理。[原理](https://handsy.tech/zh/docs/listen?ref=github)。
+- **免费的 Jev 线路。** 简单的步骤 Jev 不到一秒就做完，其余交给大模型；Agent loop 也重做了，每步只调一次模型。
+- **长任务。** 不再 40 步就停，停下的任务可以接着跑；每次运行都能在手机上逐步回放。
 
-> [!NOTE]
-> **App 1.0.2（TestFlight）新增：**Agent 能[听到手机的声音](https://handsy.tech/zh/docs/listen?ref=github)（AirPlay
-> 音频在 iPhone 上转成文字）；长任务不再 40 步就停，停下的任务可以接着跑；点击和画面更稳。需要板子固件
-> v0.2.4。[完整更新记录](https://handsy.tech/zh/docs/changelog?ref=github)。
+在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装（App Store 版本审核中）。需要板子固件 v0.2.4。[完整更新记录](https://handsy.tech/zh/docs/changelog?ref=github)。
 
-> [!NOTE]
-> **分支说明：**[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是此前提交
-> TestFlight 和 App Store 审核的版本，最新代码在 `main`。
+## 为什么用一块板子
 
-> [!WARNING]
-> 请只按本 README 的步骤安装。不要运行 issue 或评论里的命令（例如 PowerShell 的 `iex(irm ...)` 之类“快速安装”一行命令），这些都不是维护者发的。
+大多数 iPhone Agent 都跑在电脑上：第一次用之前要装 Xcode、打开开发者模式、用数据线配对手机、在终端里敲命令；之后每次运行，电脑都得开着、连着。开发者能忍，普通人基本卡在第一步。这里由板子替代电脑，有手机就够了。
 
-> **电脑去掉了。** 板子自己当 AirPlay 接收端和鼠标，Agent 跑在同一台 iPhone 上的 App 里。
-> 最初的版本（Mac/Linux 电脑跑 UxPlay + Python 服务端）保留在 tag [`v0.1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/v0.1.0)
-> 和分支 [`legacy`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/legacy)，见 [docs/legacy.md](docs/legacy.md)。
+| | **ESP32 iPhone Agent** | 依赖电脑的方案<br><sub>WebDriverAgent、CoreDevice、idevice</sub> |
+|---|---|---|
+| 需要什么 | **一台 iPhone + 一块 7 美元的板子** | 一台 Mac（通常要较新的 macOS）、完整的 Xcode、开发工具链 |
+| 怎么装 | **浏览器里烧录固件，TestFlight 装 App，App 里跟着四步走** | 终端里克隆、编译、装依赖、给辅助 App 签名 |
+| iPhone 上要改什么 | **打开辅助触控（App 会一步步带你开）** | 开发者模式、USB 信任和配对 |
+| 运行时 | **只要手机，带到哪都能用** | 电脑要一直开着、连着 |
+| 能用哪些 App | **人能用的都能用：它看屏幕、移动指针** | 调试接口和无障碍接口能拿到的部分 |
+| 能听到手机的声音 | **能（App 1.0.2）** | 通常不能 |
 
-<p align="center"><img src="docs/images/example-alarm.png" alt="插着 XIAO ESP32S3 的 iPhone 正在设置闹钟" width="100%"></p>
+实话说代价也有：要买一块 7 美元的板子；每一步要几秒，大部分时间花在模型上；运行时手机的 Wi-Fi 被板子热点占用，要用蜂窝数据。
 
-*"设置早上 8:00 的闹钟，每周一和周二重复，然后保存"*：Agent 退出自己的 App，打开时钟，在滚轮里输入时间，勾选日期并保存。（照片拍自 v0.1.0，任务相同。）
+### 不是开发者？从这里开始
 
-<p align="center"><img src="docs/images/app-screens.png" alt="ESP32 Agent app: real phone vs. what the agent sees, and pointer calibration" width="70%"></p>
+1. **买板子。** Seeed XIAO ESP32S3，约 40 多元：[买什么](https://handsy.tech/zh/docs/hardware?ref=github)。
+2. **在 Chrome 或 Edge 里烧录固件。** 不用装任何工具：[handsy.tech/zh/install](https://handsy.tech/zh/install?ref=github)。
+3. **安装 App，跟着四步设置走。** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
+   [带图的设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup?ref=github)。
 
-*左：真机；右：Agent 通过板子的 AirPlay 镜像看到的画面。第二张是指针校准。*
-
-想知道 AI 到底怎么操控 iPhone，可以先看[让 AI 操控 iPhone](https://handsy.tech/zh/ai-control-iphone)。
-
-## 目录
-
-- [工作原理](#工作原理)
-- [硬件](#硬件)
-- [快速开始](#快速开始)
-- [在编程 Agent 里使用](#在编程-agent-里使用)
-- [模型和提示词](#模型和提示词)
-- [目录结构](#目录结构)
-- [路线图](#路线图)
-- [限制](#限制)
-- [负责任地使用](#负责任地使用)
-- [参与贡献](#参与贡献)
-- [联系我们](#联系我们)
-- [相关项目](#相关项目)
-- [致谢](#致谢)
-- [许可证](#许可证)
+遇到问题？看[常见问题排查](https://handsy.tech/zh/troubleshooting?ref=github)，或发邮件到 [support@handsy.tech](mailto:support@handsy.tech)。
 
 ## 工作原理
 
-更多细节见 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
+第一次接触？先看[让 AI 操控 iPhone](https://handsy.tech/zh/ai-control-iphone)，再看 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
 
 ```
 iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）
@@ -93,6 +87,13 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
 - **复盘。** 每次运行都存在手机上，可以逐步回放，点按和滑动画在截图上。
+
+<p align="center"><img src="docs/images/app-screens.png" alt="ESP32 Agent app: real phone vs. what the agent sees, and pointer calibration" width="70%"></p>
+
+*左：真机；右：Agent 通过板子的 AirPlay 镜像看到的画面。第二张是指针校准。*
+
+最初的版本（v0.1.0）用 Mac/Linux 电脑跑 UxPlay + Python 服务端，保留在 tag [`v0.1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/v0.1.0)
+和分支 [`legacy`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/legacy)，见 [docs/legacy.md](docs/legacy.md)。
 
 ## 硬件
 
@@ -109,6 +110,9 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 \* 推广链接。作为亚马逊联盟成员，我会从符合条件的购买中获得佣金。
 
 ## 快速开始
+
+> [!WARNING]
+> 请只按本 README 的步骤安装。不要运行 issue 或评论里的命令（例如 PowerShell 的 `iex(irm ...)` 之类“快速安装”一行命令），这些都不是维护者发的。
 
 ### 1. 刷板子（插在 Mac 上）
 
@@ -239,6 +243,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题：[SECURITY.md](SECURITY.md)。
 
+最新代码在 `main`；[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是提交 TestFlight 和 App Store 审核的版本。
+
 ## 联系我们
 
 问题或反馈：[support@handsy.tech](mailto:support@handsy.tech) · 官网：[handsy.tech](https://handsy.tech)
@@ -264,4 +270,15 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 ## 许可证
 
+> **基于本项目开发？** 请保留 [LICENSE](LICENSE)，并在你的 README、演示和帖子中注明 **[ESP32 iPhone Agent by Henry Yuan](https://github.com/onehumanbeing/esp32-iphone-agent)**。详见 [NOTICE](NOTICE)。
+
 [MIT](LICENSE)；`hardware/hid_bridge/src/airplay/`（移植自 UxPlay）除外，为 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md)，因此链接了它的固件二进制按 GPL-3.0 分发。[`skills/`](skills/) 目录下的文件采用 [MIT-0](skills/LICENSE)（MIT No Attribution），仓库其余部分仍按上面的许可证。
+
+## Star 增长
+
+<a href="https://www.star-history.com/#onehumanbeing/esp32-iphone-agent&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=onehumanbeing/esp32-iphone-agent&type=Date&theme=dark">
+    <img alt="Star History chart" src="https://api.star-history.com/svg?repos=onehumanbeing/esp32-iphone-agent&type=Date">
+  </picture>
+</a>
