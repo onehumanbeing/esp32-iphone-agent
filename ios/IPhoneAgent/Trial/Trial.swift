@@ -146,8 +146,9 @@ import UIKit
     /// Headers for one model request. Only during a run: tests, intent analysis and the like need your own model.
     func headers() throws -> [String: String] {
         guard let lease, let token else { throw TrialError.runsOnly }
-        return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Lease-ID": lease.id,
-                "X-Lease-Token": lease.token, "X-Run-ID": lease.run, "X-Request-ID": UUID().uuidString.lowercased()]
+        return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
+                "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run,
+                "X-Request-ID": UUID().uuidString.lowercased()]
     }
 
     /// Send a diagnostics report (gzip). Same App Attest enrollment as the free line, so only this app can
@@ -232,6 +233,7 @@ import UIKit
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+            request.setValue(DeviceInfo.model, forHTTPHeaderField: "X-Device-Model")  // e.g. iPhone18,2: adapting to screens
         }
         if let leaseToken { request.setValue(leaseToken, forHTTPHeaderField: "X-Lease-Token") }
         if let body {

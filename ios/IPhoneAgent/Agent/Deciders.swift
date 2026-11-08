@@ -36,7 +36,7 @@ struct Deciders: Equatable, Codable {
 
     /// The free line's X-Handsy-Jev header for the actor: Jev first ("race": Jev and the model at once).
     func freeLineHeader(race: Bool) -> [String: String] {
-        mode == .jevFirst ? ["X-Handsy-Jev": race ? "race" : "1"] : [:]
+        mode == .jevFirst && !JevGate.hold ? ["X-Handsy-Jev": race ? "race" : "1"] : [:]
     }
 
     static let raceKey = "jevRace"
@@ -74,4 +74,11 @@ enum JevConsent {
         own.set(.jev, on: false, freeLine: false)
         own.save(freeLine: false)
     }
+}
+
+/// After a round of several gestures the model's plan is behind: its first items were done in that round, but
+/// Jev reads the plan from the top and redid them (2026-11-07, Duolingo: "Tap Rice" again took Rice back out of
+/// the answer). The next step then goes to the model, which brings its plan up to date. Set by AgentLoop.
+enum JevGate {
+    nonisolated(unsafe) static var hold = false
 }

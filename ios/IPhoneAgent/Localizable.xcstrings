@@ -9432,6 +9432,16 @@
           }
         }
       }
+    },
+    "Your iPhone's model (e.g. iPhone18,2), to adapt to its screen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 iPhone 型号（例如 iPhone18,2），用于适配屏幕"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

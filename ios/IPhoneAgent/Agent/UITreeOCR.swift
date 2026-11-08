@@ -14,7 +14,9 @@ enum UITreeOCR {
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
         }
         return await withCheckedContinuation { done in
+            let once = Vision.Once()
             let request = VNRecognizeTextRequest { request, _ in
+                guard once.take() else { return }
                 let lines = (request.results as? [VNRecognizedTextObservation] ?? []).flatMap { o -> [(text: String, box: [Int])] in
                     guard let top = o.topCandidates(1).first, languages != nil || top.confidence >= 0.5,
                           !top.string.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
@@ -34,7 +36,7 @@ enum UITreeOCR {
             if let languages { request.recognitionLanguages = languages } else { request.automaticallyDetectsLanguage = true }
             request.usesLanguageCorrection = false
             DispatchQueue.global(qos: .userInitiated).async {
-                do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { done.resume(returning: []) }
+                do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { if once.take() { done.resume(returning: []) } }
             }
         }
     }

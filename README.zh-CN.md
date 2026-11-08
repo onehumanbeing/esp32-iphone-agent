@@ -15,6 +15,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 只要手机和板子：不需要电脑，也不用改动 iOS 系统。
 
 <a href="https://testflight.apple.com/join/1xQHgJcA"><img src="https://img.shields.io/badge/TestFlight-%E7%AB%8B%E5%8D%B3%E8%AF%95%E7%94%A8-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="在 TestFlight 上试用" height="36"></a>
+<a href="https://handsy.tech/zh/install?ref=github"><img src="https://img.shields.io/badge/%E7%83%A7%E5%BD%95%E5%9B%BA%E4%BB%B6-%E5%9C%A8%E6%B5%8F%E8%A7%88%E5%99%A8%E9%87%8C-111111?style=for-the-badge&logo=googlechrome&logoColor=white" alt="在浏览器里烧录固件" height="36"></a>
 
 [![TestFlight](https://img.shields.io/badge/TestFlight-join-0D96F6?logo=apple&logoColor=white)](https://testflight.apple.com/join/1xQHgJcA)
 [![Website](https://img.shields.io/badge/website-handsy.tech-111111)](https://handsy.tech)
@@ -26,13 +27,18 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 [English](README.md) · 简体中文
 
-演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness 演示](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech)
+演示视频和更新：[X @iamhenryyuan](https://x.com/iamhenryyuan) · [小红书 袁老板讲黑客松（Henry）](https://www.xiaohongshu.com/user/profile/5eb444030000000001000194) · [YouTube 演示](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness 演示](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech) · [更新记录](https://handsy.tech/zh/docs/changelog?ref=github)
 
 </div>
 
 > [!TIP]
 > **现在就能在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 上试用 App**，不需要 Xcode。App Store
 > 版本还在审核中，目前请通过 TestFlight 安装。板子仍需先刷好固件（见[快速开始](#快速开始)）。
+
+> [!NOTE]
+> **App 1.0.2（TestFlight）新增：**Agent 能[听到手机的声音](https://handsy.tech/zh/docs/listen?ref=github)（AirPlay
+> 音频在 iPhone 上转成文字）；长任务不再 40 步就停，停下的任务可以接着跑；点击和画面更稳。需要板子固件
+> v0.2.4。[完整更新记录](https://handsy.tech/zh/docs/changelog?ref=github)。
 
 > [!NOTE]
 > **分支说明：**请在 [`main`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/main) 上贡献：

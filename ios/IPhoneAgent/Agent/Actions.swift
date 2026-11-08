@@ -19,6 +19,8 @@ enum Actions {
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
+    /// Actions that touch the screen.
+    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "key", "home", "back", "open"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
 

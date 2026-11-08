@@ -15,6 +15,7 @@ It looks at the screen, then taps, swipes and types for you, through a $7 ESP32 
 Just the phone and the board: no computer, no changes to iOS.
 
 <a href="https://testflight.apple.com/join/1xQHgJcA"><img src="https://img.shields.io/badge/Try%20on-TestFlight-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="Try on TestFlight" height="36"></a>
+<a href="https://handsy.tech/install?ref=github"><img src="https://img.shields.io/badge/Flash%20the%20board-in%20your%20browser-111111?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Flash the board in your browser" height="36"></a>
 
 [![TestFlight](https://img.shields.io/badge/TestFlight-join-0D96F6?logo=apple&logoColor=white)](https://testflight.apple.com/join/1xQHgJcA)
 [![Website](https://img.shields.io/badge/website-handsy.tech-111111)](https://handsy.tech)
@@ -26,7 +27,7 @@ Just the phone and the board: no computer, no changes to iOS.
 
 English · [简体中文](README.zh-CN.md)
 
-Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTube demo](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness demo](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech)
+Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTube demo](https://www.youtube.com/watch?v=Ly4im-P4jYg) · [DeepSeek Harness demo](https://www.youtube.com/watch?v=DzYv0QVk_No) · [handsy.tech](https://handsy.tech) · [Changelog](https://handsy.tech/docs/changelog?ref=github)
 
 </div>
 
@@ -34,6 +35,11 @@ Demo video and updates: [X @iamhenryyuan](https://x.com/iamhenryyuan) · [YouTub
 > **Try the app now on [TestFlight](https://testflight.apple.com/join/1xQHgJcA)**, no Xcode needed. The App Store
 > listing is still in review, so TestFlight is the way to get it today. You still need a flashed board
 > (see [Quick start](#quick-start)).
+
+> [!NOTE]
+> **New in App 1.0.2 (TestFlight):** the agent can [hear the phone](https://handsy.tech/docs/listen?ref=github)
+> (AirPlay audio turned into words on the iPhone), long tasks no longer stop at 40 steps, any stopped run can
+> continue, and taps and video are steadier. Needs board firmware v0.2.4. [Full changelog](https://handsy.tech/docs/changelog?ref=github).
 
 > [!NOTE]
 > **Branches:** Contribute on [`main`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/main):
