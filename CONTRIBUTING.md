@@ -2,6 +2,10 @@
 
 Issues and pull requests are welcome. Keep changes small and focused, and match the surrounding code.
 
+Start from the latest [`main`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/main) and open
+pull requests against `main`. `release-1.0` is no longer the branch for contributions. Before you open a
+pull request, update your branch from the latest `main` (fetch and rebase, or merge in the latest `main`).
+
 Before sending a change, run the checks for what you touched:
 
 ```bash

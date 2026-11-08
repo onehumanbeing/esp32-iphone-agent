@@ -7,6 +7,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+- App: requests to DeepSeek's API (`api.deepseek.com`) turn thinking off unless Extra body JSON sets `thinking`,
+  so a step no longer waits on high-effort reasoning (#118).
 - App: opening the model list in Settings › Model no longer crashes on iOS 27.3 (TestFlight 1.0.3): its search
   bar now sits in the navigation bar instead of the bottom of the sheet.
 
