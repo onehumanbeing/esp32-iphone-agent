@@ -27,6 +27,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
   <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194"><img src="https://img.shields.io/badge/小红书-袁老板讲黑客松-111111?style=flat-square" alt="小红书"></a>
 </p>
 
+<p align="center"><b>媒体报道</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">阮一峰《科技爱好者周刊》#415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio 官方推荐</a></p>
+
 <p align="center"><a href="README.md">English</a> · 简体中文</p>
 
 <p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://handsy.tech/zh?ref=github">handsy.tech</a></sub></p>
