@@ -242,9 +242,10 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 ## 参与贡献
 
-欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题：[SECURITY.md](SECURITY.md)。
+欢迎提 Issue 和 PR，见 [CONTRIBUTING.md](CONTRIBUTING.md)。请从最新的 `main` 开分支，并把 PR 的目标设为 `main`。
+开 PR 前先更新到最新的 `main`（fetch 后 rebase，或并入最新的 `main`）。安全问题：[SECURITY.md](SECURITY.md)。
 
-最新代码在 `main`；[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是提交 TestFlight 和 App Store 审核的版本。
+最新代码在 `main`；[`release-1.0`](https://github.com/onehumanbeing/esp32-iphone-agent/tree/release-1.0) 是提交 TestFlight 和 App Store 审核的版本，已不再作为贡献分支。
 
 ## 联系我们
 
