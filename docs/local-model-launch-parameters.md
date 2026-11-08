@@ -19,7 +19,11 @@ xcrun devicectl device process launch --device <DEVICE_ID> --terminate-existing 
   -llm-extra-body '{"chat_template_kwargs":{"enable_thinking":false}}' -test-model
 ```
 
-This is an optional provider setting, not an app-wide default. Use only options supported by the selected server. Importing selects **Others**, clears the previous API key and role-specific model overrides, and resets token-parameter selection to automatic before saving the supplied endpoint, model and extra body. A server that requires authentication can receive an optional `IA_LLM_API_KEY` process environment variable through the development launcher. The app saves that key in the Keychain; the importer never accepts a key argument or logs arguments or the extra body. Omit the environment variable to configure a server without authentication; an old cloud key is never carried over, even when the host is unchanged.
+This is an optional provider setting, not an app-wide default. Use only options supported by the selected server.
+
+`chat_template_kwargs.enable_thinking` is for local servers. Cloud DeepSeek on `api.deepseek.com` gets `{"thinking":{"type":"disabled"}}` from the app by default; an `-llm-extra-body` that sets `thinking` still wins (and import still selects **Others**).
+
+Importing selects **Others**, clears the previous API key and role-specific model overrides, and resets token-parameter selection to automatic before saving the supplied endpoint, model and extra body. A server that requires authentication can receive an optional `IA_LLM_API_KEY` process environment variable through the development launcher. The app saves that key in the Keychain; the importer never accepts a key argument or logs arguments or the extra body. Omit the environment variable to configure a server without authentication; an old cloud key is never carried over, even when the host is unchanged.
 
 These import flags are compiled only in Debug builds. They do not add a configuration URL that a web page can invoke. Existing App Store AI-service and analytics consent settings are unchanged.
 
