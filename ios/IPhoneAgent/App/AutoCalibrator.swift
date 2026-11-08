@@ -138,7 +138,7 @@ import UIKit
 
     /// The fallback: find the pointer in the mirrored video.
     private func videoCalibrate(noTaps: Bool) async {
-        let diagnosis = noTaps ? Self.noTapsText : nil
+        let diagnosis = noTaps ? noTapsText : nil
         guard mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }
         guard FrameMode.current == .stream else {  // the video finder needs the live stream
             app.say("calibration: video fallback skipped in snap mode")
@@ -162,8 +162,11 @@ import UIKit
         }
     }
 
-    static var noTapsText: String {
-        String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the pointer connected?")
+    private var noTapsText: String {
+        if app.board.status?.isWirelessHID == true {
+            return String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone.")
+        }
+        return String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
     }
 
     func finished(_ error: Double) {

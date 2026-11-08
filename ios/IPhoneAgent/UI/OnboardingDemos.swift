@@ -13,7 +13,7 @@ struct MiniPhoneDemo: View {
     private var frames: [(caption: LocalizedStringKey, finger: CGPoint?)] {
         switch kind {
         case .plugIn:
-            return [("Plug in the USB board or power on the Bluetooth board", nil), ("Plug in the USB board or power on the Bluetooth board", nil),
+            return [("Plug the board into the USB-C port", nil), ("Plug the board into the USB-C port", nil),
                     ("Tap Pair when iOS asks", CGPoint(x: 0.68, y: 0.56)),
                     ("No antenna? Keep it right beside your phone", nil)]
         case .wifi:

@@ -4,12 +4,15 @@ import UIKit
 /// 0 · Welcome: the character wakes up and says hello; the disclaimer must be accepted to go on.
 struct WelcomePage: View {
     @Binding var accepted: Bool
+    let wireless: Bool
     @State private var awake = false
 
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm ESP32 Agent",
-                       message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer.")
+                       message: wireless
+                           ? "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer."
+                           : "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
             Panel {
                 DisclosureGroup {
                     Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
@@ -40,8 +43,10 @@ struct ConnectPage: View {
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: board.connected ? .success : board.scanning ? .listening : .sleeping,
-                       title: "Connect the Board",
-                       message: "Plug in the USB board or power on the Bluetooth board. Select the board over Bluetooth and tap Pair when asked.")
+                       title: board.status?.isWirelessHID == true ? "Connect the board" : "Plug Me In",
+                       message: board.status?.isWirelessHID == true
+                           ? "Keep the Bluetooth board powered on and near this iPhone."
+                           : "Connect the board to the USB-C port. I'll find it over Bluetooth; tap Pair when iOS asks.")
             if !board.connected { MiniPhoneDemo(kind: .plugIn) }
             Panel {
                 switch board.state {
@@ -118,7 +123,7 @@ struct FirmwareLinks: View {
     /// One line, so both links stay above the bottom button on every iPhone.
     var body: some View {
         HStack(spacing: Space.m) {
-            Text("New USB board?").foregroundStyle(.secondary)
+            Text("New board?").foregroundStyle(.secondary)
             Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
             Link(destination: AboutView.repo) {
                 Label { Text(verbatim: "GitHub") } icon: {
@@ -244,10 +249,12 @@ struct ActPage: View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: pointer.calibrated ? .success : calibrator.busy ? .acting : .idle,
                        title: "Let Me Use the Pointer",
-                       message: "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid.")
+                       message: board.status?.isWirelessHID == true
+                           ? "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid."
+                           : "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed.")
             if board.status?.isWirelessHID == true {
                 let deviceName = board.name.isEmpty ? String(localized: "the board connected in this app") : board.name
-                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName).")
+                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName). Then select the paired device and set Button 2 to Home.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if !pointer.calibrated { MiniPhoneDemo(kind: .assistiveTouch) }

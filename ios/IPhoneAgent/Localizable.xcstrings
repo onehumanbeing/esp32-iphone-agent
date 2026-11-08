@@ -9533,22 +9533,12 @@
         }
       }
     },
-    "Connect the Board" : {
+    "Keep the Bluetooth board powered on and near this iPhone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接开发板"
-          }
-        }
-      }
-    },
-    "Plug in the USB board or power on the Bluetooth board. Select the board over Bluetooth and tap Pair when asked." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插上 USB 开发板或启动蓝牙开发板，通过蓝牙选择开发板，在系统询问时轻点“配对”。"
+            "value" : "让蓝牙开发板保持通电，并放在这台 iPhone 附近。"
           }
         }
       }
@@ -9563,12 +9553,12 @@
         }
       }
     },
-    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@." : {
+    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@. Then select the paired device and set Button 2 to Home." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。"
+            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。然后选择已配对的设备，将“按钮 2”设为“主屏幕”。"
           }
         }
       }
@@ -9579,36 +9569,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
-          }
-        }
-      }
-    },
-    "New USB board?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新的 USB 开发板？"
-          }
-        }
-      }
-    },
-    "Plug in the USB board or power on the Bluetooth board" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插上 USB 开发板或启动蓝牙开发板"
-          }
-        }
-      }
-    },
-    "Plug in the USB board or power on the Bluetooth board." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插上 USB 开发板或启动蓝牙开发板。"
           }
         }
       }
@@ -9639,16 +9599,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请检查这台 iPhone 上的蓝牙开发板配对状态和辅助触控设置。"
-          }
-        }
-      }
-    },
-    "Clicks aren't reaching the screen — is AssistiveTouch on and the pointer connected?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "屏幕没有收到点击。请确认辅助触控已开启，并已连接指针设备。"
           }
         }
       }

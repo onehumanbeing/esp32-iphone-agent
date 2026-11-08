@@ -85,7 +85,7 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>ESP32 Agent talks to its board over Bluetooth to see the screen and move the pointer.</string>
+	<string>ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_esp32agent._tcp</string>

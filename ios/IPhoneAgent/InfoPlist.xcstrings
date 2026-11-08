@@ -23,13 +23,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent talks to its board over Bluetooth to see the screen and move the pointer."
+            "value" : "ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 通过蓝牙与开发板通信，用来查看屏幕和移动指针。"
+            "value" : "ESP32 Agent 通过蓝牙与 USB 开发板通信，用来查看屏幕和移动指针。"
           }
         }
       }

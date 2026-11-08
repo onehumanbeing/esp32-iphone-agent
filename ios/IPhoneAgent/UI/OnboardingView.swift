@@ -48,7 +48,7 @@ struct OnboardingView: View {
             let from = page
             Task {
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                if page == from { advance() }
+                if page == from && (from != .act || pageDone) { advance() }
             }
         }
     }
@@ -116,12 +116,12 @@ struct OnboardingView: View {
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
 
     /// The page's goal is reached (drives auto-advance).
-    private var pageDone: Bool {
+    var pageDone: Bool {
         switch page {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return pointer.calibrated && !calibrator.busy && (MockMode.on || board.status?.inputReady == true)
+        case .act: return pointer.calibrated && !calibrator.busy && !board.needsWirelessPointer
         case .brain: return app.modelOK == true
         }
     }
@@ -156,7 +156,9 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
-            if board.status?.needsWirelessPointer == true { return "Pair the Bluetooth pointer" }
+            if board.needsWirelessPointer {
+                return board.connected ? "Pair the Bluetooth pointer" : "Waiting for the mouse…"
+            }
             if pointer.calibrated { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
@@ -166,12 +168,12 @@ struct OnboardingView: View {
         }
     }
 
-    private var primaryEnabled: Bool {
+    var primaryEnabled: Bool {
         switch page {
         case .welcome: return accepted
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && !app.join.busy)
-        case .act: return (MockMode.on || board.status?.inputReady == true) && !calibrator.busy && (pointer.calibrated || actReady)
+        case .act: return pointer.calibrated ? pageDone : !calibrator.busy && actReady
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }
@@ -200,7 +202,7 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: $accepted)
+        case .welcome: WelcomePage(accepted: $accepted, wireless: board.status?.isWirelessHID == true)
         case .connect: ConnectPage(board: board)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi)
         case .act: ActPage(app: app, board: board, calibrator: calibrator, pointer: pointer)

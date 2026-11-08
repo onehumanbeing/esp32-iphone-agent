@@ -262,6 +262,60 @@ import XCTest
         XCTAssertEqual(board.status?.needsWirelessPointer, false)
     }
 
+    func testUSBStatusIsKeptForDiagnosticsButNotForTheNextFirmwareCheck() {
+        let board = BoardLink(mock: true)
+        let net = NetConfig(mode: "ap")
+        board.mockConnect(name: "board", net: net)
+        let usb = BoardStatus(fw: .init([0, 2, 4]), heap: 81234, usb: "asleep")
+        board.updateStatus(usb)
+        XCTAssertEqual(board.status?.acceptsUSBRelease, true)
+
+        board.setDisconnected()
+        XCTAssertEqual(board.status, usb)
+        board.mockConnect(name: "board", net: net)
+        XCTAssertNil(board.status)
+        board.updateStatus(BoardStatus(usb: "ok", hid: "off"))
+        XCTAssertEqual(board.status?.acceptsUSBRelease, false)
+        XCTAssertNil(board.status?.heap)
+    }
+
+    func testCalibratedSetupCanContinueWithSleepingUSBButWaitsForWirelessInput() {
+        let app = AppModel.shared, board = BoardLink(mock: true)
+        let net = NetConfig(mode: "ap")
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        pointer.mockCalibrated(quality: 0.005)
+        let view = OnboardingView(app: app, board: board, feed: app.feed, settings: app.settings,
+                                  calibrator: AutoCalibrator(app: app), pointer: pointer, start: .act)
+        func check(_ ready: Bool, line: UInt = #line) {
+            XCTAssertEqual(view.pageDone, ready, line: line)
+            XCTAssertEqual(view.primaryEnabled, ready, line: line)
+        }
+
+        board.mockConnect(name: "board", net: net)
+        board.updateStatus(BoardStatus(usb: "asleep"))
+        check(true)
+        board.setDisconnected()
+        check(true)
+        board.mockConnect(name: "board", net: net)
+        board.updateStatus(BoardStatus(usb: "ok", hid: "off"))
+        check(false)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(true)
+        board.setDisconnected()
+        XCTAssertNil(board.status)
+        check(false)
+        board.mockConnect(name: "board", net: net)
+        check(false)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(true)
+
+        board.setDisconnected()
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(false)
+        board.mockConnect(name: "board", net: net)
+        check(true)
+    }
+
     func testHIDCapabilityDoesNotDependOnBoardName() throws {
         for model in ["note4", "esp32s3"] {
             let status = try XCTUnwrap(BoardStatus.decode(Data("{\"board\":\"\(model)\",\"usb\":\"ok\"}".utf8)))

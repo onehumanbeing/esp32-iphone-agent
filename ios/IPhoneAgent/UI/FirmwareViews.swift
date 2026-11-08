@@ -64,11 +64,11 @@ struct FirmwareSection: View {
         } footer: {
             if board.status?.board == "note4" {
                 Text("Use firmware made for Note 4. Back up the board and follow its USB installation guide.")
-            } else if board.connected && !updater.usesUSBRelease {
+            } else if board.status?.isWirelessHID == true || board.status?.board != nil {
                 Text("Use firmware for your board model. Back up the board and follow its installation guide.")
             } else if let error = updater.checkError {
                 Text(verbatim: error)
-            } else if updater.release != nil && !updater.available && board.connected {
+            } else if updater.release != nil && !updater.available && updater.usesUSBRelease {
                 Text("The board is up to date.")
             }
         }
