@@ -78,6 +78,9 @@ cellular data while it runs because the board's hotspot takes the Wi-Fi.
 
 Stuck? See [troubleshooting](https://handsy.tech/troubleshooting?ref=github) or mail [support@handsy.tech](mailto:support@handsy.tech).
 
+A run stalls or every step fails on the free line? The free line may be busy or returning errors (HTTP 503) for a
+while. Use your own API key in Settings › Model to keep going, and tell us on X [@iamhenryyuan](https://x.com/iamhenryyuan).
+
 ## How it works
 
 New to the idea? Start with [AI control for iPhone](https://handsy.tech/ai-control-iphone), then [how Handsy works](https://handsy.tech/how-it-works).

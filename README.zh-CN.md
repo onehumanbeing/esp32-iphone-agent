@@ -72,6 +72,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 遇到问题？看[常见问题排查](https://handsy.tech/zh/troubleshooting?ref=github)，或发邮件到 [support@handsy.tech](mailto:support@handsy.tech)。
 
+用免费线路时任务卡住、或者每一步都失败？可能是免费线路暂时繁忙或报错（HTTP 503）。可以在「设置 › 模型」里换成你自己的 API key 继续用，也欢迎随时在 X 上联系作者 [@iamhenryyuan](https://x.com/iamhenryyuan)。
+
 ## 工作原理
 
 第一次接触？先看[让 AI 操控 iPhone](https://handsy.tech/zh/ai-control-iphone)，再看 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
