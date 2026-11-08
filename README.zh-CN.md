@@ -188,6 +188,7 @@ dsh plugin --profile web add dsh-esp32agent
 ## 模型和提示词
 
 - 任何兼容 OpenAI 接口的视觉模型都能用（vLLM、SGLang、llama.cpp、Ollama、云端 API）。App 会列出接口上的模型，由你明确选一个；也可以自己填模型 ID，规划器和执行器可以用不同模型。
+- 设置 → 模型 → 高级 → Extra body JSON 会合并进每次聊天请求。DeepSeek 的 API（`api.deepseek.com`）默认以高强度思考，所以 App 会发送 `{"thinking":{"type":"disabled"}}`，除非这段 JSON 里已经有 `thinking`；想保留少量推理可填 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}`。
 - 提示词是 [`prompts/`](prompts/) 里的纯文本，打包进 App：改完重新编译即可。
 - 每次运行结束会记录规划器/执行器调用次数、带截图的请求数，以及接口返回的 token 用量。接口没给 `usage` 时字段保持空缺（不会当成 0）；只要有一次缺用量，本次合计就标成 **partial**。短任务一般是几次规划 + 每步一次执行（每步带一张新截图），成本主要在图片 token；规划器用便宜模型、执行器保留更强模型通常最划算。
 - 开发时用的是 [nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4)，部署在两台 DGX Spark 上（[TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Dual-DGX-Sparks-TensorFold)）。

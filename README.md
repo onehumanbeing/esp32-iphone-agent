@@ -215,6 +215,10 @@ Commands and options are in the [CLI reference](https://handsy.tech/docs/cli) an
 - Any OpenAI-compatible vision endpoint works (vLLM, SGLang, llama.cpp, Ollama, cloud APIs). The app lists the
   endpoint's models for you to choose one explicitly; you can also enter a model ID, and set a separate planner
   and actor model.
+- Settings → Model → Advanced → Extra body JSON is merged into each chat request. DeepSeek's API
+  (`api.deepseek.com`) thinks at high effort unless told otherwise, so the app sends
+  `{"thinking":{"type":"disabled"}}` there unless that JSON already contains `thinking`; use
+  `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}` to keep a little reasoning.
 - The prompts are plain text in [`prompts/`](prompts/) and bundled with the app: edit them, rebuild, done.
 - Each finished run logs planner/actor call counts, requests with a screenshot, and token totals when the endpoint reports
   `usage`. Missing usage is left absent (never coerced to 0); the run total is marked **partial** if any call
