@@ -1,39 +1,40 @@
 import SwiftUI
 
-/// On Home: checks for firmware when the board connects, opens the update sheet by itself when this app needs a
-/// newer board, and shows the sheet when the banner is tapped.
+/// On Home: checks for firmware when the board connects, opens the update sheet by itself when the board needs an
+/// update (once a running task or recording ends), and shows the sheet when the banner is tapped.
 struct FirmwareGate: ViewModifier {
     @ObservedObject var app: AppModel
     @ObservedObject var updater: FirmwareUpdater
     @ObservedObject var board: BoardLink
+    @ObservedObject var agent: AgentLoop
+    @ObservedObject var recorder: DemoRecorder
 
     func body(content: Content) -> some View {
         content
             .task(id: board.connected) { if board.connected { await updater.boardConnected() } }
+            .onChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
             .sheet(isPresented: $updater.presented) { FirmwareSheet(app: app, updater: updater, board: board) }
     }
 }
 
-/// Above the face on Home: "Update firmware 2 → 3", with × to put it off until the next release.
+/// Above the face on Home while the board runs old firmware (Skip Anyway, or a task was running): it stays until
+/// the board is updated, no ×; Update opens the sheet.
 struct FirmwareBanner: View {
     @ObservedObject var updater: FirmwareUpdater
 
     var body: some View {
-        if updater.showsBanner, let release = updater.release {
-            HStack(spacing: Space.s) {
-                Button { updater.presented = true } label: {
-                    Label("Update firmware \(updater.current.description) → \(release.ver.description)", systemImage: "arrow.down.circle")
-                        .font(.footnote.weight(.medium))
+        if updater.showsWarning {
+            Button { updater.presented = true } label: {
+                HStack(spacing: Space.s) {
+                    Label("Board firmware \(updater.current.description) is out of date", systemImage: "exclamationmark.triangle.fill")
+                    Text("Update").bold()
                 }
-                Button { withAnimation { updater.dismissBanner() } } label: {
-                    Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
-                }
-                .accessibilityLabel("Not Now")
+                .font(.footnote.weight(.medium))
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(.orange)
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
-            .background(Color(.secondarySystemFill), in: Capsule())
+            .background(Color.orange.opacity(0.15), in: Capsule())
             .transition(.opacity.combined(with: .scale))
         }
     }
@@ -76,6 +77,7 @@ struct FirmwareSheet: View {
     @ObservedObject var updater: FirmwareUpdater
     @ObservedObject var board: BoardLink
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmSkip = false
 
     private var onBoardWiFi: Bool { app.onBoardHotspot(manual: false) }
 
@@ -84,7 +86,17 @@ struct FirmwareSheet: View {
             if updater.phase == .idle { intro } else { FirmwareProgress(updater: updater, close: close) }
         }
         .padding(Space.xl)
-        .interactiveDismissDisabled(updater.busy || updater.mustUpdate)
+        .interactiveDismissDisabled(updater.busy || updater.mustUpdate || updater.outdated)  // outdated: Skip asks first
+        .alert("Use the old firmware?", isPresented: $confirmSkip) {
+            Button("Update", role: .cancel) { if onBoardWiFi && updater.blocker == nil { updater.install() } }
+                .keyboardShortcut(.defaultAction)  // as the cancel role it stands in for Cancel; still the default
+            Button("Skip Anyway", role: .destructive) {
+                updater.skip()
+                dismiss()
+            }
+        } message: {
+            Text("Taps may land in the wrong place and the board may disconnect. You can update any time from Settings › Board.")
+        }
         .task {
             while !Task.isCancelled {
                 await app.refreshHotspot()
@@ -104,8 +116,10 @@ struct FirmwareSheet: View {
             FirmwareArt(phase: .idle)
             Text(updater.required ? "Board Update Required" : "Update the Board").font(.title2.bold())
             Group {
-                if updater.required {
+                if updater.belowMinimum {
                     Text("This version of ESP32 Agent needs board firmware \(Firmware.required.description) or later.")
+                } else if updater.outdated {
+                    Text("Update the board to the latest firmware to keep taps accurate and the connection stable.")
                 } else {
                     Text("Takes about a minute. Your intents and settings stay as they are.")
                 }
@@ -146,7 +160,10 @@ struct FirmwareSheet: View {
                 Button("Update Now") { updater.install() }
                     .buttonStyle(BigButton(tint: .primary, ink: Color(.systemBackground)))
             }
-            if !updater.mustUpdate {
+            if updater.outdated && !updater.mustUpdate {
+                Button("Skip for Now") { confirmSkip = true }
+                    .font(.footnote).foregroundStyle(.secondary).padding(.top, Space.xs)
+            } else if !updater.mustUpdate {
                 Button("Later") { dismiss() }.buttonStyle(BigButton(tint: Color(.secondarySystemFill), ink: .primary))
             }
         }

@@ -109,7 +109,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $renaming) { RenameSheet(settings: settings) }
             .sheet(isPresented: $exportingIntents) { IntentExportSheet(app: app, intents: intents.items) }
-            .modifier(FirmwareGate(app: app, updater: app.firmware, board: board))
+            .modifier(FirmwareGate(app: app, updater: app.firmware, board: board, agent: agent, recorder: recorder))
             .fileImporter(isPresented: $importingIntents, allowedContentTypes: [.esp32Intent, .json]) { result in
                 if case .success(let url) = result { app.importIntents(url) }
             }

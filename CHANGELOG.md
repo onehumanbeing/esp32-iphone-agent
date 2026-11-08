@@ -9,6 +9,10 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
 - App: requests to DeepSeek's API (`api.deepseek.com`) turn thinking off unless Extra body JSON sets `thinking`,
   so a step no longer waits on high-effort reasoning (#118).
+- App: the board needs the latest released firmware, not just the oldest one the app works with. On connect an
+  outdated board gets the Board Update Required sheet (once no task or recording runs); Skip for Now asks first and
+  lasts for that connection only, with a warning on Home until the board is updated. Offline, or a board that needs
+  USB first, works as before. Demo data: `-mockFirmware 0.2.0` launches with an outdated board.
 
 ## App 1.0.3 (TestFlight)
 
