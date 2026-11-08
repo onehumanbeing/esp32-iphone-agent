@@ -15,6 +15,11 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   kept: the previous calibration (or none) stays, and the board says it failed and suggests the AssistiveTouch
   pointer settings before trying again. A cancelled or failed run also leaves the previous calibration.
 
+## CLI 0.1.4 (npm `esp32agent` 0.1.5, dsh plugin 0.1.3)
+
+- Daemon: fixed a deadlock where the CLI daemon could hang while the app was connected (a status update notified
+  the app while still holding the connection lock, #122).
+
 ## App 1.0.3 (TestFlight)
 
 - Free line: requests carry the iPhone's model (e.g. `iPhone18,2`, `X-Device-Model`) to adapt to its screen;
