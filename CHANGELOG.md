@@ -7,6 +7,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+- App: a calibration whose check tap misses by more than 6% (e.g. ±49.8% on a fast pointer, #96) is no longer
+  kept: the previous calibration (or none) stays, and the board says it failed and suggests the AssistiveTouch
+  pointer settings before trying again. A cancelled or failed run also leaves the previous calibration.
 
 ## App 1.0.3 (TestFlight)
 
