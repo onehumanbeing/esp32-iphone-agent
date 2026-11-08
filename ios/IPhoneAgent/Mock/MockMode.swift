@@ -7,6 +7,9 @@ enum MockMode {
     static let key = "demoData"
     /// Read once at launch, so turning the switch on mid-session never mixes real and fake state.
     static let on: Bool = ProcessInfo.processInfo.arguments.contains("-mock") || UserDefaults.standard.bool(forKey: key)
+    /// The demo board's firmware: `-mockFirmware 0.2.0` puts it behind the newest release, so the update is asked for.
+    static let firmware = UserDefaults.standard.string(forKey: "mockFirmware").flatMap { FirmwareVersion($0) }
+        ?? FirmwareVersion([0, 2, 1])
 }
 
 extension AppModel {
@@ -157,7 +160,7 @@ extension AppModel {
 
     private static func status(up: Int, n: Int, mirroring: Bool) -> BoardStatus {
         // a board on released firmware: without `fw` it reads as pre-OTA and the required Board Update covers the app
-        BoardStatus(fw: FirmwareVersion([0, 2, 1]), up: up, rst: "power-on", heap: 81_234 - n % 7 * 120, psram: 6_200_000, usb: "ok",
+        BoardStatus(fw: MockMode.firmware, up: up, rst: "power-on", heap: 81_234 - n % 7 * 120, psram: 6_200_000, usb: "ok",
                     net: "ap", ip: "192.168.4.1", sta: 1, ap: mirroring ? "streaming" : "idle", w: 480, h: 1040,
                     kbps: Double.random(in: 150...230), fps: Double.random(in: 4.4...5), idr: 2000,
                     gop: 42_000 + n % 5 * 3000,
