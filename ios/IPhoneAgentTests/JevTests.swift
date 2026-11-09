@@ -91,7 +91,7 @@ import XCTest
         let defaults = UserDefaults.standard
         defer { defaults.removeObject(forKey: JevConfig.thresholdKey) }
         defaults.removeObject(forKey: JevConfig.thresholdKey)
-        XCTAssertEqual(JevConfig.threshold, 0.6)
+        XCTAssertEqual(JevConfig.threshold, 0.55)
         defaults.set(0.1, forKey: JevConfig.thresholdKey)
         XCTAssertEqual(JevConfig.threshold, 0.5)
         defaults.set(0.75, forKey: JevConfig.thresholdKey)

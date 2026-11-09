@@ -222,8 +222,10 @@ enum JevConfig {
     static let ownKey = "jev.ownKey"   // UserDefaults: use the user's TypeSafe key
     static let modelKey = "jev.model"  // UserDefaults: the TypeSafe model, default jev-latest
     static let thresholdKey = "jev.threshold"  // UserDefaults: how sure Jev must be to take a step
-    static let defaultThreshold = 0.6
+    static let defaultThreshold = 0.55
     static let thresholdRange = 0.5...0.9
+    /// Shown under the slider: the range where Jev's taps were measured right most of the time.
+    static let suggestedRange = 0.55...0.65
     /// The user's setting. On Handsy's server it can only raise the server's own per-operation minimum.
     static var threshold: Double {
         let v = UserDefaults.standard.object(forKey: thresholdKey) as? Double ?? defaultThreshold

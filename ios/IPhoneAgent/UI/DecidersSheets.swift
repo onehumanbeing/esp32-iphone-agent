@@ -54,6 +54,8 @@ struct JevFieldsSheet: View {
                         LabeledContent("Confidence needed", value: threshold.formatted(.percent.precision(.fractionLength(0))))
                         Slider(value: $threshold, in: JevConfig.thresholdRange, step: 0.05)
                             .accessibilityLabel(Text("Confidence needed"))
+                        Text("Suggested: \(JevConfig.suggestedRange.lowerBound.formatted(.percent.precision(.fractionLength(0))))–\(JevConfig.suggestedRange.upperBound.formatted(.percent.precision(.fractionLength(0))))")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     if threshold != JevConfig.defaultThreshold {
                         Button("Reset to Default") { threshold = JevConfig.defaultThreshold }

@@ -9562,6 +9562,16 @@
           }
         }
       }
+    },
+    "Suggested: %@–%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建议：%1$@–%2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
