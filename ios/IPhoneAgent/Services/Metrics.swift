@@ -2,7 +2,19 @@ import Foundation
 
 /// Live numbers for the Diagnostics page; a snapshot goes into every trace (metrics.json).
 @MainActor final class Metrics: ObservableObject {
-    struct Step: Codable { var frameMs = 0.0, llmMs = 0.0, hidMs = 0.0 }
+    struct Step: Codable {
+        var frameMs = 0.0, llmMs = 0.0, hidMs = 0.0
+        var settleMs = 0.0  // of frameMs (and any other wait): time in `settled`
+        var snap = false  // a snap was asked for (or the run is in snap mode)
+
+        /// The free line's `X-Handsy-Step` value: this step's timing in seconds, and `gap`, from its model reply to
+        /// the next request. Numbers only, each capped, so the value stays short.
+        func header(gap: Double) -> String {
+            func s(_ v: Double) -> String { String(format: "%.1f", min(max(v, 0), 999.9)) }
+            return "llm=\(s(llmMs / 1000)),frame=\(s(frameMs / 1000)),hid=\(s(hidMs / 1000)),"
+                + "settle=\(s(settleMs / 1000)),mode=\(snap ? "snap" : "stream"),gap=\(s(gap))"
+        }
+    }
 
     // board, from status
     @Published var board: BoardStatus?
@@ -67,8 +79,8 @@ import Foundation
     func step(_ s: Step) {
         steps = Array((steps + [s]).suffix(40))
         stepCount += 1
-        DebugLog.write(String(format: "step %d timing: frame %.0f ms, LLM %.0f ms, HID %.0f ms", stepCount, s.frameMs,
-                              s.llmMs, s.hidMs))
+        DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), LLM %.0f ms, HID %.0f ms",
+                              stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.llmMs, s.hidMs))
     }
 
     /// Called every second by a timer; also detects suspension (a gap far longer than the tick).
@@ -93,7 +105,8 @@ import Foundation
             "ble_kbps_app": bleKbps, "mtu": mtu, "drops": drops, "fps": fps, "decode_ms": decodeMs,
             "decode_errors": decodeErrors, "background_decode_errors": backgroundDecodeErrors,
             "background_alive_s": backgroundAlive, "suspensions": suspensions, "hid_ms": hidMs,
-            "steps": steps.map { ["frame_ms": $0.frameMs, "llm_ms": $0.llmMs, "hid_ms": $0.hidMs] },
+            "steps": steps.map { ["frame_ms": $0.frameMs, "llm_ms": $0.llmMs, "hid_ms": $0.hidMs, "settle_ms": $0.settleMs,
+                                  "snap": $0.snap] },
         ]
         out["bench_kbps"] = benchKbps
         out["idr_interval_ms"] = idrIntervalMs
@@ -104,5 +117,30 @@ import Foundation
             out["board"] = try? JSONSerialization.jsonObject(with: data)
         }
         return out
+    }
+}
+
+/// The previous step's timing, sent once on the next actor request to the free line (`X-Handsy-Step`) so the server
+/// can tell app-side waits from its own. Timing only: no task, no screen content.
+final class StepReport: @unchecked Sendable {
+    static let shared = StepReport()
+    static let header = "X-Handsy-Step"
+    private let lock = NSLock()
+    private var pending: Metrics.Step?
+    private var repliedAt: Double?
+
+    /// The actor's reply arrived: `gap` counts from here.
+    func replied(at t: Double = now()) { lock.withLock { repliedAt = t } }
+    /// The step after that reply is over.
+    func finished(_ step: Metrics.Step) { lock.withLock { pending = step } }
+    func clear() { lock.withLock { pending = nil; repliedAt = nil } }
+
+    /// The header for the next request, once per step.
+    func take(at t: Double = now()) -> [String: String] {
+        lock.withLock {
+            defer { pending = nil }
+            guard let pending, let repliedAt else { return [:] }
+            return [Self.header: pending.header(gap: t - repliedAt)]
+        }
     }
 }

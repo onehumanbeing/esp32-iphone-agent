@@ -79,4 +79,28 @@ import XCTest
             XCTAssertFalse(LLMClient.trialRunEnded(body), body)  // full or waiting: worth asking again
         }
     }
+
+    func testStepHeaderIsShortNumericAndCapped() {
+        var step = Metrics.Step(frameMs: 1140, llmMs: 2310, hidMs: 420)
+        step.settleMs = 3940
+        XCTAssertEqual(step.header(gap: 6.08), "llm=2.3,frame=1.1,hid=0.4,settle=3.9,mode=stream,gap=6.1")
+        step.snap = true
+        step.frameMs = 1e9
+        XCTAssertEqual(step.header(gap: -1), "llm=2.3,frame=999.9,hid=0.4,settle=3.9,mode=snap,gap=0.0")
+        XCTAssertLessThanOrEqual(step.header(gap: 1e12).count, 80)
+    }
+
+    func testStepReportIsSentOnceAfterAReply() {
+        let report = StepReport()
+        report.finished(Metrics.Step())
+        XCTAssertEqual(report.take(), [:])  // no reply to count the gap from
+        report.replied(at: 100)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        XCTAssertEqual(report.take(at: 104),
+                       [StepReport.header: "llm=2.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=4.0"])
+        XCTAssertEqual(report.take(at: 105), [:])  // a retry of the same request does not send it again
+        report.finished(Metrics.Step())
+        report.clear()  // a new run
+        XCTAssertEqual(report.take(), [:])
+    }
 }

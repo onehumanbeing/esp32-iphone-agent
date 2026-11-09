@@ -320,6 +320,48 @@ final class VideoReorderTests: XCTestCase {
 }
 
 @MainActor final class StillScreenTests: XCTestCase {
+    override func setUp() async throws { StepWaits.reset() }
+    override func tearDown() async throws { StepWaits.reset() }
+
+    /// A screen that changes on every frame (a video playing): one full wait per step, then short ones.
+    func testMovingScreenWaitsInFullOncePerStep() async {
+        let screen = FakeStillScreen()
+        let feeding = Task { while !Task.isCancelled { screen.changed = now(); try? await Task.sleep(nanoseconds: 50_000_000) } }
+        defer { feeding.cancel() }
+        var start = now()
+        await screen.settled(quiet: 0.5, least: 0.3, most: 3)
+        XCTAssertGreaterThan(now() - start, 2.9)
+        XCTAssertTrue(StepWaits.moving)
+        start = now()
+        await screen.settled()
+        await screen.settled(quiet: 0.5, least: 1.0, most: 4)
+        XCTAssertLessThan(now() - start, 2 * StepWaits.movingCap + 0.5)
+        XCTAssertGreaterThan(StepWaits.settle, 3.5)
+        StepWaits.reset()  // the next step waits in full again
+        start = now()
+        await screen.settled(quiet: 0.5, least: 0.3, most: 3)
+        XCTAssertGreaterThan(now() - start, 2.9)
+    }
+
+    /// A short wait that runs out (the pointer's own small caps) says nothing about the screen.
+    func testShortTimeoutDoesNotCapLaterWaits() async {
+        let screen = FakeStillScreen()
+        let feeding = Task { while !Task.isCancelled { screen.changed = now(); try? await Task.sleep(nanoseconds: 50_000_000) } }
+        await screen.settled(quiet: 0.5, least: 0.3, most: 1)
+        feeding.cancel()
+        XCTAssertFalse(StepWaits.moving)
+    }
+
+    /// A screen that goes still is not capped: it settles as before, and a still one stays quick.
+    func testSettlingScreenIsNotMarkedMoving() async {
+        let screen = FakeStillScreen()
+        screen.changed = now()
+        let start = now()
+        await screen.settled()
+        XCTAssertLessThan(now() - start, 1.5)
+        XCTAssertFalse(StepWaits.moving)
+    }
+
     /// AirPlay repeats a still screen: the same image again must not count as a change, or `settled` never ends.
     func testRepeatedImageDoesNotCountAsAChange() async throws {
         let feed = VideoFeed()

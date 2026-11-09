@@ -129,6 +129,7 @@ extension Gestures {
             notebook = Notebook(); learned = []
             metrics?.runStarted()
         }
+        StepReport.shared.clear()
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
         lastActed = 0
@@ -291,6 +292,7 @@ extension Gestures {
             }
             let seconds = ((now() - started) * 100).rounded() / 100
             metrics?.llm(first: reply.firstToken, total: reply.total)
+            if role == "actor" { StepReport.shared.replied() }
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
             let built = tree != nil
             if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
@@ -435,6 +437,7 @@ extension Gestures {
     /// One see-think-act round (one or more actions). Returns true when the task is over.
     func step() async throws -> Bool {
         var timing = Metrics.Step()
+        StepWaits.reset()
         let acts = try await nextActions()
         JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
@@ -442,7 +445,13 @@ extension Gestures {
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
         var quiet: [CGRect]?  // what moved on its own while the model looked: not a result of these gestures
         let confirmed = steps.last { $0["action"]?.str != "plan" }?["action"]?.str == "confirmed"  // a risky round
-        defer { metrics?.step(timing) }
+        defer {
+            timing.settleMs = StepWaits.settle * 1000
+            timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap
+            StepWaits.reset()
+            metrics?.step(timing)
+            StepReport.shared.finished(timing)
+        }
         for (i, planned) in acts.enumerated() {
             var act = planned.act
             let name = act["action"]?.str ?? ""
