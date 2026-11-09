@@ -30,6 +30,20 @@ enum FrameMode: String {
     }
 }
 
+/// What one agent step spent waiting for the screen. A screen that never stops moving (a video playing, a live
+/// feed) makes every `settled` run to its `most`, several times per step; after one such long wait the rest of
+/// the step only waits a short cap. `AgentLoop.step` resets this per step.
+@MainActor enum StepWaits {
+    /// A wait allowed at least this long that still ended without a quiet gap marks the screen as moving.
+    static let longWait = 3.0
+    /// The most any later `settled` in the same step waits.
+    static let movingCap = 0.8
+    static var moving = false
+    static var settle = 0.0  // s spent in `settled`
+    static var snaps = 0  // snaps asked for
+    static func reset() { moving = false; settle = 0; snaps = 0 }
+}
+
 extension ScreenSource {
     var changed: Double { updated }
     var stale: Bool { false }
@@ -42,8 +56,12 @@ extension ScreenSource {
     ///
     /// With `ignoring` (where the pointer was and went), frames that differ only there or in the status bar are
     /// still: after a tap the pointer fades for seconds, and a tap that changed nothing waited ~2.2 s (2026-11-06).
+    ///
+    /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
     func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = []) async {
-        let started = now()
+        let started = now(), cap = StepWaits.moving ? StepWaits.movingCap : most
+        let (least, most) = (min(least, cap), min(most, cap))
+        defer { StepWaits.settle += now() - started }
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
         var still = frame, moved = changed, checked = changed  // moved: the last change that counts
         while !Task.isCancelled && now() - (spots.isEmpty ? changed : moved) < quiet + lag && now() - started < most {
@@ -55,6 +73,10 @@ extension ScreenSource {
                 still = b
                 moved = checked
             }
+        }
+        if !Task.isCancelled, !StepWaits.moving, most >= StepWaits.longWait, now() - started >= most {
+            StepWaits.moving = true
+            DebugLog.write(String(format: "settle: no still moment in %.1f s; the screen keeps moving, later waits this step are capped at %.1f s", most, StepWaits.movingCap))
         }
     }
 
@@ -251,6 +273,7 @@ extension ScreenSource {
         try Task.checkCancellation()
         guard let device, device.connected else { throw DeviceError(message: "board not connected") }
         let started = now(), previousFrame = updated
+        StepWaits.snaps += 1
         if inStep {
             // Already in step: take a newer frame if the screen moves within a second, else the current one is it
             // (2026-10-20: a 14 s snap stalled calibration, a 24 s one the run start).

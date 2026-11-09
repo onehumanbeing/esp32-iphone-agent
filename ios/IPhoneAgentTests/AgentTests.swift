@@ -250,6 +250,16 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("error"))
     }
 
+    func testStepTimingIsKeptForTheNextRequest() async {
+        let model = FakeModel { n in n == 1 ? "THINK: home\nDO: home" : "THINK: there\nDO: done ok" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        await agent.run()
+        let header = StepReport.shared.take()[StepReport.header] ?? ""
+        XCTAssertTrue(header.hasPrefix("llm="), header)
+        XCTAssertTrue(header.contains(",settle=") && header.contains(",mode=stream,gap="), header)
+        XCTAssertFalse(StepWaits.moving)
+    }
+
     func testRunFinishesOnDone() async {
         let model = FakeModel { n in n == 1 ? "THINK: home\nPLAN:\n1. Go home\nDO: home" : "THINK: there\nDO: done ok" }
         let phone = FakeGestures()

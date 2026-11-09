@@ -328,8 +328,11 @@ import UIKit
             .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
         let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
+        // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
+        let step = { role == "actor" ? StepReport.shared.take() : [:] }
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
-            ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a } } : nil
+            ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
+                .merging(step()) { a, _ in a } } : nil
         return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
     }
 
