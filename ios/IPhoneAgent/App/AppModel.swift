@@ -66,6 +66,8 @@ import UIKit
     @Published var departing = false  // the character's take-off before a run
     var startupTask: Task<Void, Never>?
     var returningInput = false
+    var handoffStop = AsyncStream<Void>.makeStream()
+    var lastPartialReleaseNoticeLink: Int?
     var runModelRevision = 0
     var startupBoardIssue = false
     var startupDeadline = 0.0
@@ -234,8 +236,8 @@ import UIKit
 
         timers.append(Task { [weak self] in
             await self?.board.commands.keepAwake {
-                guard let self, !self.returningInput, self.feed.live else { return false }
-                return self.agent.running || self.startingAgent || self.recorder.busy || self.calibrator.busy
+                guard let self else { return false }
+                return self.feed.live && !self.returningInput
             }
         })
         timers.append(Task { [weak self] in

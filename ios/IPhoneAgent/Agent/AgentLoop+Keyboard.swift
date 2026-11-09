@@ -1,20 +1,49 @@
 import Foundation
 
+enum HandoffRelease {
+    case allInputs, leftMouseButtonOnly
+
+    func notice(on link: Int, lastShown: inout Int?) -> String? {
+        guard self == .leftMouseButtonOnly, lastShown != link else { return nil }
+        lastShown = link
+        return String(localized: "The board confirmed only the left mouse button was released. Check the other buttons and keys before continuing.")
+    }
+}
+
 extension HIDDevice {
     /// Older firmware can confirm only that the left mouse button was released.
-    func releaseForHandoff() async throws {
+    func releaseForHandoff() async throws -> HandoffRelease {
         let link = links
-        do { try await send("reset") }
+        do { try await send("reset"); return .allInputs }
         catch let error as DeviceError where error.message == "err unknown command" {
             try Task.checkCancellation()
             guard connected, links == link else { throw error }
             try await send("release")
-            throw DeviceError(message: String(localized: "The mouse button was released. Update the board firmware to release all keys."))
+            return .leftMouseButtonOnly
         }
     }
 }
 
 @MainActor enum KeyboardHandoff {
+    /// Stop gives an optional keyboard check a short grace period after the board has released input.
+    static func finish(by deadline: ContinuousClock.Instant, stop: AsyncStream<Void>,
+                       stopGrace: Duration = .seconds(5), check: @escaping @MainActor () async throws -> Void) async throws {
+        guard ContinuousClock.now < deadline else { throw CancellationError() }
+        let work = Task { try await check() }
+        let timeout = Task {
+            try await Task.sleep(until: deadline, clock: .continuous)
+            work.cancel()
+        }
+        let stopped = Task {
+            var signal = stop.makeAsyncIterator()
+            _ = await signal.next()
+            try await Task.sleep(for: stopGrace)
+            work.cancel()
+        }
+        defer { timeout.cancel(); stopped.cancel() }
+        try await work.value
+    }
+
     private enum State: String { case visible = "VISIBLE", hiddenFocused = "HIDDEN_FOCUSED", noInput = "NO_INPUT" }
 
     private static let prompt = """
@@ -26,8 +55,10 @@ extension HIDDevice {
     """
 
     static func restore(device: HIDDevice, screen: ScreenSource, model: ChatModel?,
+                        enabled: () -> Bool = { true },
                         stillInTargetApp: () -> Bool = { true },
                         refresh: () async throws -> Void) async throws {
+        guard enabled() else { return }
         let uncertain = DeviceError(message: String(localized: "The software keyboard state could not be verified."))
         let changed = DeviceError(message: String(localized: "The screen or board connection changed during keyboard handoff."))
         guard let model else { throw uncertain }
@@ -35,6 +66,7 @@ extension HIDDevice {
 
         func checkLink() throws {
             try Task.checkCancellation()
+            guard enabled() else { throw CancellationError() }
             guard device.connected, device.links == link, stillInTargetApp() else { throw changed }
         }
 

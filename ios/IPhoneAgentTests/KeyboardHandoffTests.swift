@@ -3,6 +3,24 @@ import XCTest
 @testable import IPhoneAgent
 
 @MainActor final class KeyboardHandoffTests: XCTestCase {
+    func testDisablingKeyboardRestorePersistsAndSkipsScreenshotsAndModelCalls() async throws {
+        let suite = UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = Settings(defaults: defaults, info: [:])
+        XCTAssertTrue(settings.restoreKeyboardAfterRun)
+        settings.restoreKeyboardAfterRun = false
+
+        let reopened = Settings(defaults: defaults, info: [:])
+        let device = FakeDevice(), screen = HandoffScreen(), model = FakeModel { _ in "HIDDEN_FOCUSED" }
+        try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+                                          enabled: { reopened.restoreKeyboardAfterRun }) {
+            XCTFail("A disabled keyboard check must not request a screenshot")
+        }
+        XCTAssertTrue(model.images.isEmpty)
+        XCTAssertTrue(device.sent.isEmpty)
+    }
+
     func testVisibleOrUnfocusedScreensNeedNoInput() async throws {
         for answer in ["VISIBLE", "NO_INPUT"] {
             let device = FakeDevice(), screen = HandoffScreen()
@@ -16,9 +34,40 @@ import XCTest
         let hidden = screen.frame, visible = HandoffScreen.picture(.white)
         device.onSend = { _ in screen.frame = visible }
         let model = FakeModel { $0 == 1 ? "HIDDEN_FOCUSED" : "VISIBLE" }
-        try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+        let stop = AsyncStream<Void>.makeStream()
+        stop.continuation.finish()
+        try await KeyboardHandoff.finish(by: .now + .seconds(30), stop: stop.stream) {
+            try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+        }
         XCTAssertEqual(model.images, [hidden, visible])
         XCTAssertEqual(device.sent, ["key eject"])
+    }
+
+    func testStopBeforeOrDuringKeyboardCheckShortensTheWait() async {
+        for stoppedBeforeRelease in [true, false] {
+            let stop = AsyncStream<Void>.makeStream()
+            if stoppedBeforeRelease { stop.continuation.finish() }
+            let checking = expectation(description: "Asked for the current keyboard state")
+            let ended = expectation(description: "Stopped before the normal deadline")
+            let device = FakeDevice(), screen = HandoffScreen(), model = SlowModel()
+            model.delay = 10_000_000_000
+            let result = Task {
+                defer { ended.fulfill() }
+                try await KeyboardHandoff.finish(by: .now + .seconds(4), stop: stop.stream, stopGrace: .milliseconds(20)) {
+                    try await KeyboardHandoff.restore(device: device, screen: screen, model: model) {
+                        screen.refresh()
+                        checking.fulfill()
+                    }
+                }
+            }
+            await fulfillment(of: [checking], timeout: 2)
+            stop.continuation.finish()
+            await fulfillment(of: [ended], timeout: 2)
+            do { try await result.value; XCTFail("Expected the slow keyboard check to be cancelled") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertTrue(model.cancelled)
+            XCTAssertTrue(device.sent.isEmpty)
+        }
     }
 
     func testUnknownStateAndFailedVerificationNeverRepeatEject() async {
@@ -104,15 +153,36 @@ import XCTest
     }
 
     func testOnlyAnExplicitlyUnsupportedResetFallsBackToMouseRelease() async throws {
-        for failure in [nil, "err unknown command", "err phone usb asleep (unlock the phone)"] {
-            let board = ResetBoard(failure), channel = CommandChannel(transport: board)
+        let unknown = "err unknown command", asleep = "err phone usb asleep (unlock the phone)"
+        let cases: [(String?, String?, HandoffRelease?)] = [
+            (nil, nil, .allInputs), (unknown, nil, .leftMouseButtonOnly),
+            (asleep, nil, nil), (unknown, asleep, nil)
+        ]
+        for (resetFailure, releaseFailure, expected) in cases {
+            let board = ResetBoard(resetFailure, releaseFailure), channel = CommandChannel(transport: board)
             board.channel = channel
             do {
-                try await channel.releaseForHandoff()
-                XCTAssertNil(failure, "旧固件不能确认键盘及消费控制键已释放")
-            } catch { XCTAssertNotNil(failure) }
-            XCTAssertEqual(board.commands, failure == "err unknown command" ? ["reset", "release"] : ["reset"])
+                let release = try await channel.releaseForHandoff()
+                XCTAssertEqual(release, expected)
+            } catch {
+                XCTAssertNil(expected)
+                XCTAssertEqual((error as? DeviceError)?.message, asleep)
+            }
+            XCTAssertEqual(board.commands, resetFailure == unknown ? ["reset", "release"] : ["reset"])
         }
+    }
+
+    func testLegacyBoardReleasesEveryTimeButShowsOneNoticePerConnection() async throws {
+        let board = ResetBoard("err unknown command"), channel = CommandChannel(transport: board)
+        board.channel = channel
+        var lastNoticeLink: Int?
+        for reconnect in [true, false, true] {
+            if reconnect { channel.linkUp() }
+            let release = try await channel.releaseForHandoff()
+            XCTAssertEqual(release, .leftMouseButtonOnly)
+            XCTAssertEqual(release.notice(on: channel.links, lastShown: &lastNoticeLink) != nil, reconnect)
+        }
+        XCTAssertEqual(board.commands, ["reset", "release", "reset", "release", "reset", "release"])
     }
 
     func testLostAcknowledgementRetriesResetButNeverEject() async throws {
@@ -148,16 +218,20 @@ import XCTest
 
 @MainActor private final class ResetBoard: BoardTransport {
     let isConnected = true
-    let failure: String?
+    let resetFailure: String?, releaseFailure: String?
     var commands: [String] = []
     weak var channel: CommandChannel?
 
-    init(_ failure: String?) { self.failure = failure }
+    init(_ resetFailure: String?, _ releaseFailure: String? = nil) {
+        self.resetFailure = resetFailure
+        self.releaseFailure = releaseFailure
+    }
     func write(_ line: String) throws {
         let parts = line.split(separator: " ", maxSplits: 1)
         let command = String(parts[1])
         commands.append(command)
-        channel?.handleReply("\(parts[0]) \(command == "reset" ? failure ?? "ok" : "ok")")
+        let failure = command == "reset" ? resetFailure : releaseFailure
+        channel?.handleReply("\(parts[0]) \(failure ?? "ok")")
     }
     func dropLink() {}
 }

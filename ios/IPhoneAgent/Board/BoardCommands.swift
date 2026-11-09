@@ -148,8 +148,9 @@ extension BoardTransport {
         let name = String(command.split(separator: " ").first ?? "")
         await lock.lock()
         defer { lock.unlock() }
-        // The task or the input conditions may have changed while the command was queued.
-        try Task.checkCancellation()
+        // A cancelled gesture still needs to release held input and wait for the board's reply.
+        let releasesInput = command == "release" || command == "reset"
+        if !releasesInput { try Task.checkCancellation() }
         try checking()
         let started = now()
         let id = nextID
@@ -170,6 +171,7 @@ extension BoardTransport {
                     }
                 }
             } onCancel: {
+                guard !releasesInput else { return }
                 Task { @MainActor [weak self] in self?.fail(id, CancellationError()) }
             }
         } catch is CancellationError {

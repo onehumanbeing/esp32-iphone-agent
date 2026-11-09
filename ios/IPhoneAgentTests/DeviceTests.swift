@@ -178,6 +178,34 @@ import XCTest
         }
     }
 
+    func testCancellingADragDuringPressStillAcknowledgesReleaseAndReset() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: channel, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        let pressed = expectation(description: "The board received the press")
+        board.dropReplyOnceOn = "press"
+        board.onCommand = { if $0 == "press" { pressed.fulfill() } }
+        var acknowledged: [String] = []
+        channel.onTiming = { name, _ in acknowledged.append(name) }
+
+        let drag = Task {
+            do {
+                try await pointer.swipe(0.2, 0.2, 0.5, 0.5)
+                XCTFail("The drag should have been cancelled")
+            } catch is CancellationError {}
+            try await channel.send("reset")
+        }
+        await fulfillment(of: [pressed], timeout: 2)
+        drag.cancel()
+        try await drag.value
+
+        XCTAssertEqual(board.lines.suffix(3).map { $0.split(separator: " ")[1] }, ["press", "release", "reset"])
+        XCTAssertEqual(Array(acknowledged.suffix(2)), ["release", "reset"])
+    }
+
     func testUnacknowledgedAimMovesForceRehomingButSuccessfulAimKeepsPosition() async throws {
         let images = VisionTests()
         let before = images.screen(pointer: (274, 540)), after = images.screen(pointer: (289, 540))

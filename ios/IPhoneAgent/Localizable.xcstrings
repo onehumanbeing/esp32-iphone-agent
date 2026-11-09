@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Restore on-screen keyboard after runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务结束后恢复屏幕键盘"
+          }
+        }
+      }
+    },
+    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务结束时，模型会查看一张截图。如果需要恢复键盘，模型会再查看一张截图确认。"
+          }
+        }
+      }
+    },
     "The software keyboard state could not be verified." : {
       "localizations" : {
         "zh-Hans" : {
@@ -21,12 +41,12 @@
         }
       }
     },
-    "The mouse button was released. Update the board firmware to release all keys." : {
+    "The board confirmed only the left mouse button was released. Check the other buttons and keys before continuing." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已松开鼠标左键。请更新开发板固件以释放全部按键。"
+            "value" : "开发板只确认了鼠标左键已松开。请检查其他鼠标按钮和键盘按键后再继续。"
           }
         }
       }
