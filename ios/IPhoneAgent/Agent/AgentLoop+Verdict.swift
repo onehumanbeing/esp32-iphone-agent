@@ -44,6 +44,20 @@ extension AgentLoop {
         return small ? await Vision.off { Vision.changed(seen, later, ignore: all, quiet: quiet) } : false
     }
 
+    /// TouchCheck after a round: true = the board's pointer is not reaching the iPhone (a fail step is recorded, the
+    /// check armed again for after the user's fix). One probe, only early in a run (TouchCheck.note).
+    func touchless() async throws -> Bool {
+        guard let last = steps.last, touchCheck.note(last) == .probe else { return false }
+        try await gate?()
+        let seen = await phone?.pointerSeen(near: pointerAt)
+        DebugLog.write("touch check: \(TouchCheck.rounds) pointer rounds changed nothing; the probe "
+                       + (seen.map { $0 ? "found the pointer" : "did not find the pointer" } ?? "could not tell"))
+        guard touchCheck.probed(seen) else { return false }
+        record(nil, ["action": .str("fail"), "reason": .str(TouchCheck.reason)])
+        touchCheck.rearm()
+        return true
+    }
+
     /// The landing check saw the pointer on the tap's target (within 1.5% of the screen).
     static func onTarget(_ s: JObject) -> Bool {
         guard case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,

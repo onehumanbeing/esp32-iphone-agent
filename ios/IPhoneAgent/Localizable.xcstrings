@@ -9582,6 +9582,36 @@
           }
         }
       }
+    },
+    "The board is connected, but the iPhone isn't taking its pointer. Check that AssistiveTouch is on (Settings › Accessibility › Touch › AssistiveTouch), that the board is plugged into this iPhone, then unplug and replug it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已连接，但 iPhone 没有接收它的指针。请确认辅助触控已打开（设置 › 辅助功能 › 触控 › 辅助触控），板子插在这台 iPhone 上，然后拔下再重新插上。"
+          }
+        }
+      }
+    },
+    "My taps aren't reaching the iPhone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的点击没有到达 iPhone"
+          }
+        }
+      }
+    },
+    "%@ Then tap Keep Going." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 然后点「继续执行」。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

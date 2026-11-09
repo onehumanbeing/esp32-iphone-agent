@@ -368,7 +368,8 @@ struct RunEnd: Equatable {
         case "stopped": reason = trace.dropLast().last?["action"]?.str == "help" ? .helpStop : .userStop
         case "fail":
             if why.hasSuffix("errors in a row") { reason = .failErrors }
-            else if why.hasPrefix(AgentLoop.stallReason) { reason = .stall }
+            // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
+            else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
             else if why == Recovery.reason(.board) { reason = .boardLost }
             else if why == BlindError().reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {

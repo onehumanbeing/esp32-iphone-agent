@@ -368,14 +368,15 @@ extension AppModel {
     func needsHelp(_ reason: String, confirm: Bool = false) async -> AgentLoop.HelpChoice {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
         runMood = confirm ? .listening : .failure
-        let line = confirm ? String(localized: "OK to do this? \(help ?? "")") : String(localized: "Needs your help: \(help ?? "")")
+        let shown = reason == TouchCheck.reason ? TouchCheck.advice : help ?? ""  // the panel words it from the reason
+        let line = confirm ? String(localized: "OK to do this? \(shown)") : String(localized: "Needs your help: \(shown)")
         live.update(mood: runMood ?? .failure, step: moveCount, line: line, phase: .help, status: confirm ? .confirm : .help)
         if confirm {
             notifier.post(.confirm, title: String(localized: "OK to go on?"),
-                          body: String(localized: "\(help ?? "") Press and hold for Continue, Skip or Stop."), run: runID)
+                          body: String(localized: "\(shown) Press and hold for Continue, Skip or Stop."), run: runID)
         } else {
             notifier.post(.help, title: String(localized: "Needs your help"),
-                          body: String(localized: "\(help ?? "") Press and hold for Take Over, Skip or Stop."), run: runID)
+                          body: String(localized: "\(shown) Press and hold for Take Over, Skip or Stop."), run: runID)
         }
         return await withCheckedContinuation { helpWait = $0 }
     }

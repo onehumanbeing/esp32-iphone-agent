@@ -285,6 +285,16 @@ import UIKit
         return found
     }
 
+    /// Whether the pointer shows on screen at all: wiggled twice and looked for near `p`, then anywhere (TouchCheck).
+    /// nil = no live screen or calibration, or the board did not answer.
+    func pointerSeen(near p: CGPoint) async -> Bool? {
+        guard let screen, screen.live, span != nil else { return nil }
+        do {
+            for _ in 0..<2 { if try await measure(p.x, p.y, model: false) != nil { return true } }
+        } catch { return nil }
+        return false
+    }
+
     /// measure (pixels only), with a reading far from the target taken again: a word tile flying into Duolingo's
     /// answer row once read as the pointer 60% away (2026-11-06). nil when not found; when the two readings
     /// disagree the position is unknown too, so the next gesture starts from the corner.
