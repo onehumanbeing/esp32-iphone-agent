@@ -362,6 +362,36 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
     }
 
+    func testAConfirmedTapIsNeverPressedTwice() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = Self.jpeg()  // the same before and after
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Send\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        agent.steps = [["action": .str("confirm"), "reason": .str("send the message")],
+                       ["action": .str("confirmed"), "reason": .str("the user said yes, do it now: send the message")]]
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNil(agent.steps.last?["again"])
+    }
+
+    func testATargetThatMovedByItselfIsNotPressedAgain() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        let seen = v.screen(spinner: 230)
+        screen.frame = seen
+        var looked = false
+        let model = FakeModel { _ in
+            looked = true
+            return "THINK: bar\nDO: tap 720 289"  // on the bar (x 300-420, y 300-324 of 498 x 1080)
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 90) } }  // moved while the model looked
+        phone.onTap = { screen.frame = v.screen(spinner: 160) }
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
     func testAMissedTapSaysWhereThePointerIs() async throws {
         let phone = FakeGestures()
         phone.landed = CGPoint(x: 0.5, y: 0.958)

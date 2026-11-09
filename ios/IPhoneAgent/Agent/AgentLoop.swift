@@ -439,6 +439,7 @@ extension Gestures {
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
         var quiet: [CGRect]?  // what moved on its own while the model looked: not a result of these gestures
+        let confirmed = steps.last { $0["action"]?.str != "plan" }?["action"]?.str == "confirmed"  // a risky round
         defer { metrics?.step(timing) }
         for (i, planned) in acts.enumerated() {
             var act = planned.act
@@ -494,7 +495,7 @@ extension Gestures {
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
-                if !(try await tapChanged(seen, &spots, quiet: quiet ?? [])) {
+                if !(try await tapChanged(seen, &spots, quiet: quiet ?? [], confirmed: confirmed)) {
                     verdict(false)
                     return false  // skip the rest; the actor looks again
                 }
@@ -505,7 +506,7 @@ extension Gestures {
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
         let (frame, mask, still) = (screen?.frame, spots, quiet ?? [])
         let changed: Bool
-        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: still) }
+        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: still, confirmed: confirmed) }
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: still) } }
         verdict(changed)
         return false
@@ -519,11 +520,14 @@ extension Gestures {
 
     /// A tap that changed nothing is pressed once more, the pointer found and set on the target first (`aim`),
     /// unless the landing check already saw it there. Otherwise the model asks for the same tap again, a whole
-    /// model call later; with the pointer seen on the target, pressing again rarely helps.
-    private func tapChanged(_ seen: Data?, _ spots: inout [CGPoint], quiet: [CGRect]) async throws -> Bool {
+    /// model call later; with the pointer seen on the target, pressing again rarely helps. Never pressed again: a
+    /// round the user confirmed (or that followed a `confirm`: send, pay, post, delete), where a second press could
+    /// repeat what can't be undone, and a target that was moving by itself, where "no change" proves nothing.
+    private func tapChanged(_ seen: Data?, _ spots: inout [CGPoint], quiet: [CGRect], confirmed: Bool) async throws -> Bool {
         if await tapResult(seen, &spots, quiet) { return true }
         let last = steps.count - 1
-        guard let phone, let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double, !Self.onTarget(steps[last])
+        guard let phone, !confirmed, let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double,
+              !Self.onTarget(steps[last]), !quiet.contains(where: { $0.contains(CGPoint(x: x / 1000, y: y / 1000)) })
         else { return false }
         try await gate?()
         guard !connectionChanged(since: acceptedLookLinks) else { return false }
