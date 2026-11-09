@@ -322,13 +322,14 @@ import UIKit
             if !others.isEmpty { extra["models"] = [model] + others }
         }
         // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
-        // once, the first sure answer wins)
-        let jev = role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
-            .freeLineHeader(race: Deciders.race(defaults)) : [:]
+        // once, the first sure answer wins). Read per request: JevGate.hold changes during the run.
+        let defaults = defaults
+        let jev = { role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
+            .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
         let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
-            ? { try Trial.shared.headers().merging(jev) { a, _ in a }.merging(tree) { a, _ in a } } : nil
+            ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a } } : nil
         return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
     }
 
