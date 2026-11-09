@@ -60,6 +60,8 @@ import UIKit
     var log: (String) -> Void = { print($0) }
     /// This app is in front (it must not be: open checks the app it opened is not this one).
     var ownAppInFront: (() -> Bool)?
+    /// Puts text on the clipboard (ClipboardHop), for app names the board cannot type (AppOpener.paste).
+    var clipboard: ((String) async throws -> Bool)?
     /// The device screen's width / height (iPhone or iPad), stored with a calibration.
     var screenAspect: () -> Double = { 9 / 19.5 }
     /// Last-resort pointer finder on a frame (the vision model), when the pixel diff finds nothing.
@@ -285,6 +287,16 @@ import UIKit
         return found
     }
 
+    /// Whether the pointer shows on screen at all: wiggled twice and looked for near `p`, then anywhere (TouchCheck).
+    /// nil = no live screen or calibration, or the board did not answer.
+    func pointerSeen(near p: CGPoint) async -> Bool? {
+        guard let screen, screen.live, span != nil else { return nil }
+        do {
+            for _ in 0..<2 { if try await measure(p.x, p.y, model: false) != nil { return true } }
+        } catch { return nil }
+        return false
+    }
+
     /// measure (pixels only), with a reading far from the target taken again: a word tile flying into Duolingo's
     /// answer row once read as the pointer 60% away (2026-11-06). nil when not found; when the two readings
     /// disagree the position is unknown too, so the next gesture starts from the corner.
@@ -430,12 +442,13 @@ import UIKit
 
     /// The board types printable ASCII (one key per character). Chinese goes in as toneless pinyin through
     /// the pinyin keyboard, word by word, each committed and read back (HanTyper); accented Latin letters
-    /// through Option keys (Accents); other non-ASCII (emoji) is folded or dropped. The clipboard is no route:
-    /// iOS refuses a background app's write (a Mac's Universal Clipboard text got pasted instead, 2026-10-20)
-    /// and other apps ask "Allow Paste" every time.
+    /// through Option keys (Accents); emoji are dropped. Other scripts (kana, Hangul, Cyrillic …) are not typed at
+    /// all: the agent pastes them (Scripts, AgentLoop.pasteInstead). The clipboard is no route from here: iOS
+    /// refuses a background app's write (a Mac's Universal Clipboard text got pasted instead, 2026-10-20).
     /// Returns nil when all went in, else a note for the model (what did not, and what is left).
     @discardableResult
     func type(_ text: String) async throws -> String? {
+        if Scripts.needsPaste(text) { return "nothing typed: the board cannot type this script; \"\(text)\" is left" }
         let han = HanTyper.isHan(text)
         let typed = han ? Self.typeable(text) : Accents.plan(text).typed
         if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
@@ -542,7 +555,7 @@ import UIKit
             // Chinese names need zh-Hans named (the automatic pick drops small ones), the device's language too
             let languages = UITreeOCR.languages(for: name)
             return await UITreeOCR.lines(image, languages: languages, whole: true).map(\.text)  // "App Store" stays one
-        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false })
+        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false }, paste: clipboard)
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
         return result

@@ -10,3 +10,4 @@ Notebook and memory actions (they move nothing on screen):
   remember TEXT    (only when the user asks you to remember something; use their words)
   learn TEXT       (one lesson worth knowing next time, as "App: fact", e.g. "Bilibili: favorites are under Me > Favorites")
 To collect a list across screens, read each screen into the notebook, then scroll less than one screen and read again until the end; the notebook below the recent actions shows what you have so far. done attaches the whole notebook to your answer.
+A type with text the board cannot type (Japanese, Korean, Cyrillic …) puts that text on the clipboard instead; the result says how to paste it.

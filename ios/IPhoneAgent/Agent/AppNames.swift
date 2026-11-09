@@ -43,10 +43,10 @@ enum AppNames {
         ["高德地图", "Amap", "高德"],
         ["美团", "Meituan"],
         ["京东", "JD"],
+        ["KakaoTalk", "KakaoTalk", "Kakao"],  // no Chinese name: the English one twice
+        ["Mercari", "Mercari"],
     ]
 
-    /// The system names to try for `name` (Chinese first, then English), never `name` itself; empty when the
-    /// table does not know it.
     /// Apple's names for the system apps in other languages, by English name and language (`language(_:)`).
     static let localized: [String: [String: String]] = [
         "Clock": ["de": "Uhr", "fr": "Horloge", "es": "Reloj", "es-419": "Reloj", "it": "Orologio", "pt": "Relógio",
@@ -95,18 +95,41 @@ enum AppNames {
                     "pt": "Bússola", "pt-PT": "Bússola", "ja": "コンパス", "ko": "나침반"],
         "Books": ["de": "Bücher", "fr": "Livres", "es": "Libros", "es-419": "Libros", "it": "Libri", "pt": "Livros",
                   "pt-PT": "Livros", "ja": "ブック", "ko": "도서"],
+        "Wallet": ["ko": "지갑"],
+        "Podcasts": ["ja": "Podcast", "ko": "팟캐스트"],
+        // well-known apps whose Home Screen name is in the local script
+        "KakaoTalk": ["ko": "카카오톡"],
+        "Mercari": ["ja": "メルカリ"],
     ]
 
-    /// At most two other names for `name`'s app, for Spotlight: the device language's name first when the board
-    /// can type it (Latin, accents included), else English and Chinese (Chinese first on a Chinese device).
-    static func alternatives(_ name: String, language: String = deviceLanguage) -> [String] {
+    /// The table's row for `name` (any of its names, localized ones included).
+    private static func row(_ name: String) -> [String]? {
         let want = norm(name)
-        guard let row = table.first(where: { row in
-            (row + (localized[row[1]].map { Array($0.values) } ?? [])).contains { norm($0) == want }
-        }) else { return [] }
+        return table.first { row in (row + (localized[row[1]].map { Array($0.values) } ?? [])).contains { norm($0) == want } }
+    }
+
+    /// The names the app's Home Screen label can have here (Chinese, English, the device language's), for reading
+    /// Spotlight's results: on a Japanese iPhone "Notes" typed lists the app as メモ. Empty when the table does not
+    /// know it.
+    static func labels(_ name: String, language: String = deviceLanguage) -> [String] {
+        guard let row = row(name) else { return [] }
+        return [row[0], row[1]] + [own(row[1], language)].compactMap { $0 }
+    }
+
+    private static func own(_ en: String, _ language: String) -> String? {
+        localized[en]?[language] ?? localized[en]?[String(language.prefix { $0 != "-" })]
+    }
+
+    /// At most two other names for `name`'s app, for Spotlight: the device language's name first when the board
+    /// can type it (Latin, accents included) or it can be pasted (`paste`: kana, Hangul), else English and Chinese
+    /// (Chinese first on a Chinese device).
+    static func alternatives(_ name: String, language: String = deviceLanguage, paste: Bool = false) -> [String] {
+        let want = norm(name)
+        guard let row = row(name) else { return [] }
         let (zh, en) = (row[0], row[1])
-        let own = localized[en]?[language] ?? localized[en]?[String(language.prefix { $0 != "-" })]
-        let order = language == "zh" ? [zh, en] : own.map { Accents.typeable($0) ? [$0, en] : [en, zh] } ?? [en, zh]
+        let mine = own(en, language)
+        let order = language == "zh" ? [zh, en]
+            : mine.map { Accents.typeable($0) || paste ? [$0, en] : [en, zh] } ?? [en, zh]
         var out: [String] = []
         for system in order where norm(system) != want && !out.contains(system) { out.append(system) }
         return out
@@ -128,5 +151,5 @@ enum AppNames {
         }
     }
 
-    static func norm(_ s: String) -> String { s.lowercased().filter { !$0.isWhitespace } }
+    static func norm(_ s: String) -> String { Scripts.fold(s) }
 }

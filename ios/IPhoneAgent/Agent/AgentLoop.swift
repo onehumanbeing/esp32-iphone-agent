@@ -22,12 +22,15 @@ struct BlindError: LocalizedError {
     func reset() async throws
     /// Where the pointer really is after a tap that changed nothing (pixels only, learned for later taps).
     func landing(_ x: Double, _ y: Double) async -> CGPoint?
+    /// Whether the pointer shows on screen at all (TouchCheck); nil = can't tell.
+    func pointerSeen(near p: CGPoint) async -> Bool?
 }
 
 extension Pointer: Gestures {}
 
 extension Gestures {
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
+    func pointerSeen(near p: CGPoint) async -> Bool? { nil }
 }
 
 /// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own
@@ -53,6 +56,7 @@ extension Gestures {
     @Published private(set) var shots: [Int: Data] = [:]  // step index -> screenshot the model decided on
     @Published private(set) var running = false
     var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
+    var touchCheck = TouchCheck()  // gestures acknowledged by the board but not reaching the iPhone
     /// When the last gesture ended: the model never decides on a frame from before it.
     var lastActed = 0.0
     /// Awaited before every look and every gesture (the app holds the run while its own UI is in front).
@@ -131,6 +135,7 @@ extension Gestures {
         }
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
+        touchCheck = TouchCheck()
         lastActed = 0
         helpAsked = 0
         acceptedLookLinks = nil
@@ -349,6 +354,10 @@ extension Gestures {
                     }
                     failures = 0
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
+                    if try await touchless() {
+                        guard try await askForHelp() else { return finish() }
+                        stalls = 0
+                    }
                 } catch is InvalidatedLook {
                     failures = 0  // no gesture was sent; the next look restores the screen first
                 } catch let e where e is BlindError || e is CancellationError || Task.isCancelled {

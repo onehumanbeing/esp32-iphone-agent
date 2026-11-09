@@ -241,6 +241,7 @@ import UIKit
         }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
+        pointer.clipboard = agent.onWrite
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         Trial.shared.attach(self)  // free line
         AgentRequests.handle = { [weak self] request in await self?.handle(request) ?? AgentRequests.unavailable }

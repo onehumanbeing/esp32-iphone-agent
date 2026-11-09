@@ -484,6 +484,9 @@ import XCTest
     func reset() async throws { calls.append("reset") }
     var landed: CGPoint?
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { landed }
+    var pointerVisible: Bool?  // what a TouchCheck probe sees (nil = can't tell)
+    var probes = 0
+    func pointerSeen(near p: CGPoint) async -> Bool? { probes += 1; return pointerVisible }
 }
 
 @MainActor private final class ConnectionFailureModel: ChatModel {

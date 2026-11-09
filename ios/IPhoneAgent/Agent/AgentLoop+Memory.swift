@@ -56,6 +56,16 @@ extension AgentLoop {
             + "then key cmd+v and check the result"
     }
 
+    /// `type` with text the board cannot type (Scripts.needsPaste: Japanese, Korean …): on the clipboard instead, the
+    /// way `write` does it; the app hop leaves the target app, so the actor opens it again and pastes.
+    func pasteInstead(_ text: String) async throws -> String {
+        let not = "nothing typed: the board cannot type this script"
+        guard let onWrite else { return "\(not), and the clipboard is not available here" }
+        guard try await onWrite(text) else { return "\(not), and the text could not be put on the clipboard" }
+        return "\(not), so the text is on the clipboard instead: open the target app again, tap the text field, "
+            + "then key cmd+v and check the result"
+    }
+
     /// `done` carries everything collected, so the answer (and the chat) keeps the full list.
     func attachNotebook(_ act: inout JObject) {
         guard !notebook.items.isEmpty else { return }
