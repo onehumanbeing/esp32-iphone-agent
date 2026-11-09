@@ -89,34 +89,57 @@ import UIKit
 
     /// Before leaving the app for a run: enroll if needed, then take the line (this uses one of the
     /// install's runs). Throws a friendly error when the line is busy.
-    func begin() async throws {
-        end()
+    /// Before leaving the app: is the line open at all? Says busy/used up while the user can still read it; the
+    /// lease itself is claimed only once the screen is ready (`begin`), so a start that fails on the way (board
+    /// not on this iPhone, no mirroring) holds no lease and costs no free run.
+    func precheck() async throws {
+        switch await refresh() {
+        case .free, .waiting, .unknown: return
+        case .usedUp: throw TrialError.usedUp
+        case .unavailable: throw TrialError.unavailable
+        case .busy: throw TrialError.busy
+        }
+    }
+
+    /// Claim the run's lease, waiting in line up to `wait` seconds (onWait: the first time it has to wait).
+    func begin(wait: TimeInterval = 600, onWait: (() -> Void)? = nil) async throws {
+        end(nil)
         let token = try await enrolledToken()
         struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
         // often as the server says. Cancel ends the wait (the place lapses on the server by itself).
-        let waitUntil = Date().addingTimeInterval(600)
-        var taken: Lease
+        let asked = Date(), waitUntil = asked.addingTimeInterval(wait)
+        var taken: Lease, waited = false
         while true {
             do {
                 taken = try await call("POST", "/trial/leases", token: token,
                                        body: ["run_id": run, "consent_version": Self.consentVersion])
                 break
             } catch TrialError.waiting(let ms) where Date() < waitUntil {
+                if !waited { onWait?() }
+                waited = true
                 app?.homeHint = String(localized: "Waiting for Handsy Free…")
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
+            } catch {
+                DebugLog.write(String(format: "trial: no lease after %.1f s: %@", Date().timeIntervalSince(asked),
+                                      lastRefusal ?? error.localizedDescription))
+                throw error
             }
         }
         app?.homeHint = String(localized: "Preparing the run…")
         lease = (taken.lease_id, taken.lease_token, run)
+        claimedAt = Date()
+        leaseLost = false
         status = .busy
+        DebugLog.write(String(format: "trial: lease %@ claimed (waited %.1f s)", String(taken.lease_id.prefix(8)),
+                              claimedAt.timeIntervalSince(asked)))
         startKeepAlive(generation: taken.generation, token: token)
     }
+    private var claimedAt = Date()
+    private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
+    private var lastRefusal: String?
 
-    /// The server ends a lease after 30 s without model work or actions. A run can pause longer between model
-    /// calls (2026-10-20: 38 s getting back out of this app after a stray tap, then every call got 503 busy), so
-    /// report the run's activity every 10 s while it holds the line.
     private func startKeepAlive(generation: Int?, token: String) {
         keepAlive?.cancel()
         guard let generation, let lease else { return }
@@ -128,24 +151,56 @@ import UIKit
                     let _: Empty = try await self.call("POST", "/trial/leases/\(lease.id)/action", token: token,
                                                        leaseToken: lease.token, body: ["generation": generation])
                 } catch {
-                    DebugLog.write("trial: keep-alive failed: \(error.localizedDescription)")
+                    DebugLog.write("trial: keep-alive failed: \(self.lastRefusal ?? error.localizedDescription)")
+                    // The server ended this lease (idle, paused, time): final. Stop asking every 10 s, and the run's
+                    // next model call fails at once (headers).
+                    if self.lastRefusal?.hasPrefix("lease_") == true || self.lastRefusal == "admin_paused" {
+                        self.leaseLost = true
+                        return
+                    }
                 }
             }
         }
     }
 
-    /// After a run (or a failed start): give the line back; the server also ends it on its own when idle.
-    func end() {
+    /// After a run (or a failed start): give the line back, saying why the run ended (old gateways ignore the
+    /// body); the server also ends it on its own when idle. In its own background task: the run's ends right after,
+    /// and a DELETE that never went out left the lease to idle out 30 s later.
+    func end(_ runEnd: RunEnd?) {
         keepAlive?.cancel()
         keepAlive = nil
         guard let lease, let token else { return }
         self.lease = nil
-        Task { let _: Empty? = try? await call("DELETE", "/trial/leases/\(lease.id)", token: token, leaseToken: lease.token) }
+        var runEnd = runEnd ?? RunEnd(reason: .other, stage: .running)
+        if leaseLost, runEnd.reason != .done { runEnd.reason = .leaseLost }
+        let held = Date().timeIntervalSince(claimedAt), id = String(lease.id.prefix(8))
+        var background = UIBackgroundTaskIdentifier.invalid
+        background = UIApplication.shared.beginBackgroundTask(withName: "trial-release") {
+            UIApplication.shared.endBackgroundTask(background)
+            background = .invalid
+        }
+        Task {
+            defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
+            var result = "ok"
+            for attempt in 0..<2 {
+                do {
+                    let _: Empty = try await call("DELETE", "/trial/leases/\(lease.id)", token: token,
+                                                  leaseToken: lease.token, body: ["run_end": runEnd.json])
+                    result = "ok"
+                    break
+                } catch {
+                    result = "failed: " + (lastRefusal ?? error.localizedDescription)
+                    guard error is URLError, attempt == 0 else { break }  // a refusal is final; a dropped link, once more
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
+            DebugLog.write(String(format: "trial: lease %@ released after %.1f s: %@ → %@", id, held, runEnd.logLine, result))
+        }
     }
 
-    /// Headers for one model request. Only during a run: tests, intent analysis and the like need your own model.
     func headers() throws -> [String: String] {
         guard let lease, let token else { throw TrialError.runsOnly }
+        guard !leaseLost else { throw TrialError.busy }  // ended on the server: no request would be served
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run,
                 "X-Request-ID": UUID().uuidString.lowercased()]
@@ -256,6 +311,70 @@ import UIKit
         if T.self == Empty.self, let empty = Empty() as? T { return empty }
         return try JSONDecoder().decode(T.self, from: data)
     }
+}
+
+/// Why a free-line run ended, sent when its lease is given back (DELETE /trial/leases): a small enum and counts,
+/// never task text or screens. Without it the gateway could not tell a user's stop from the app failing.
+struct RunEnd: Equatable {
+    enum Reason: String {
+        case done, userStop = "user_stop", helpStop = "help_stop", failErrors = "fail_errors", stall,
+             stepLimit = "step_limit", modelFail = "model_fail", modelError = "model_error",
+             blindMirroring = "blind_mirroring", boardLost = "board_lost", leaseLost = "lease_lost",
+             startFailed = "start_failed", other
+    }
+    enum Stage: String { case startup, running }  // startup: the lease was held but the agent never started
+
+    var outcome = "stopped"  // done | failed | stopped (Outcome)
+    var reason: Reason
+    var stage: Stage
+    var steps = 0, calls = 0
+    var firmware: String?
+
+    init(reason: Reason, stage: Stage, outcome: String? = nil, steps: Int = 0, calls: Int = 0, firmware: String? = nil) {
+        self.reason = reason
+        self.stage = stage
+        self.outcome = outcome ?? (reason == .done ? "done" : [.userStop, .helpStop].contains(reason) ? "stopped" : "failed")
+        self.steps = steps
+        self.calls = calls
+        self.firmware = firmware
+    }
+
+    /// From the run's trace: its last record says how it ended (AgentLoop.run).
+    init(steps trace: [JObject], moves: Int, calls: Int, firmware: String?) {
+        let last = trace.last?["action"]?.str, why = trace.last?["reason"]?.str ?? ""
+        let reason: Reason
+        switch last {
+        case "done": reason = .done
+        case "stopped": reason = trace.dropLast().last?["action"]?.str == "help" ? .helpStop : .userStop
+        case "fail":
+            if why.hasSuffix("errors in a row") { reason = .failErrors }
+            else if why.hasPrefix(AgentLoop.stallReason) { reason = .stall }
+            else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
+            else if why == Recovery.reason(.board) { reason = .boardLost }
+            else if why == BlindError().reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {
+                reason = .blindMirroring
+            } else { reason = .modelFail }  // the model itself said fail
+        case "error": reason = .modelError
+        default: reason = .other
+        }
+        self.init(reason: reason, stage: .running, outcome: "\(Outcome(last: last, running: false))", steps: moves,
+                  calls: calls, firmware: firmware)
+    }
+
+    static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        return "\(info?["CFBundleShortVersionString"] as? String ?? "0") (\(info?["CFBundleVersion"] as? String ?? "0"))"
+    }
+
+    var json: [String: Any] {
+        var body: [String: Any] = ["outcome": outcome, "reason": reason.rawValue, "stage": stage.rawValue,
+                                   "steps": min(max(steps, 0), 10_000), "calls": min(max(calls, 0), 10_000),
+                                   "app_version": Self.appVersion]
+        if let firmware { body["fw"] = firmware }
+        return body
+    }
+
+    var logLine: String { "\(reason.rawValue), outcome \(outcome), stage \(stage.rawValue), steps \(steps), calls \(calls)" }
 }
 
 enum TrialError: LocalizedError {

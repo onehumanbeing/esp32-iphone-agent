@@ -81,7 +81,7 @@ extension AppModel {
         }
         guard !Task.isCancelled else { return }
         do {
-            if settings.provider == .handsyTrial { try await Trial.shared.begin() }  // free line: take it before leaving
+            if settings.provider == .handsyTrial { try await Trial.shared.precheck() }  // free line: open? (lease later)
             let actor = try await settings.client("actor")
             let jev = settings.jevActor(around: actor)  // Jev on, asked from the app
             if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
@@ -157,13 +157,19 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
+            if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
+                try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
+                try Task.checkCancellation()
+                mark("free line lease")
+            }
             try agent.start(task, traceStarted: true, resume: resume)
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)
         } catch {
             let cancelled = Task.isCancelled || error is CancellationError
-            Trial.shared.end()  // free line
+            Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
+                                    firmware: board.status?.fw?.description))  // free line
             Analytics.capture("run_ended", ModelUsage().props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
                 "seconds": Int(now() - t0), "from_intent": currentIntent != nil
@@ -257,7 +263,8 @@ extension AppModel {
 
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
-        Trial.shared.end()  // free line
+        Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
+                                firmware: board.status?.fw?.description))  // free line
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
