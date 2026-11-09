@@ -11,7 +11,8 @@ final class VisionTests: XCTestCase {
     var H: Double { Double(Self.H) }
 
     /// A synthetic home screen: gradient background, optional button, pointer dot and checkmark.
-    func screen(pointer: (Double, Double)? = nil, button: Bool = false, checked: Bool = false, island: Bool = false) -> Data {
+    func screen(pointer: (Double, Double)? = nil, button: Bool = false, checked: Bool = false, island: Bool = false,
+                spinner: Int? = nil) -> Data {
         let ctx = CGContext(data: nil, width: Self.W, height: Self.H, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
         ctx.translateBy(x: 0, y: CGFloat(Self.H))  // draw with a top-left origin, like PIL
@@ -30,6 +31,10 @@ final class VisionTests: XCTestCase {
         if island {  // the run's Live Activity label in the Dynamic Island, above the topMask line
             ctx.setFillColor(rgb(255, 255, 255))
             ctx.fill(CGRect(x: 120, y: 12, width: 260, height: 40))
+        }
+        if let spinner {  // something that animates by itself, e.g. a progress bar
+            ctx.setFillColor(rgb(spinner, spinner, spinner))
+            ctx.fill(CGRect(x: 300, y: 300, width: 120, height: 24))
         }
         if let (x, y) = pointer {
             ctx.setFillColor(rgb(200, 200, 200))
@@ -90,6 +95,27 @@ final class VisionTests: XCTestCase {
     func testMaskedPointerMoveIsNotAChange() {
         XCTAssertFalse(Vision.changed(screen(pointer: (100, 500)), screen(pointer: (300, 500)),
                                       ignore: [p(100, 500), p(300, 500)]))
+    }
+
+    func testThePointerOutsideItsMasksIsNotAChange() {
+        // drifted off its masks: where it was and where it is now are two round spots, not a result
+        XCTAssertFalse(Vision.changed(screen(pointer: (100, 500)), screen(pointer: (300, 700))))
+        XCTAssertFalse(Vision.changed(screen(), screen(pointer: (300, 700))))
+        XCTAssertTrue(Vision.changed(screen(pointer: (100, 500)), screen(pointer: (300, 700), checked: true)))
+    }
+
+    func testSomethingThatMovedWhileTheModelLookedIsNotAResult() {
+        let seen = screen(spinner: 230), ahead = screen(spinner: 90), after = screen(spinner: 160)
+        let quiet = Vision.motion(seen, ahead)
+        XCTAssertFalse(quiet.isEmpty)
+        XCTAssertTrue(Vision.changed(seen, after))
+        XCTAssertFalse(Vision.changed(seen, after, quiet: quiet))
+        XCTAssertTrue(Vision.changed(seen, screen(checked: true, spinner: 160), quiet: quiet))  // a result elsewhere
+    }
+
+    func testABigChangeLeavesNothingQuiet() {
+        XCTAssertTrue(Vision.motion(screen(), screen(button: true)).isEmpty)
+        XCTAssertTrue(Vision.motion(screen(), screen()).isEmpty)
     }
 
     func testPointerFarFromTheTargetIsFoundWithAFullScreenSearch() throws {

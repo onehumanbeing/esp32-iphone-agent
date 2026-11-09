@@ -440,6 +440,8 @@ extension Gestures {
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
+        var quiet: [CGRect]?  // what moved on its own while the model looked: not a result of these gestures
+        let confirmed = steps.last { $0["action"]?.str != "plan" }?["action"]?.str == "confirmed"  // a risky round
         defer { metrics?.step(timing) }
         for (i, planned) in acts.enumerated() {
             var act = planned.act
@@ -461,6 +463,10 @@ extension Gestures {
                     throw InvalidatedLook.connectionChanged
                 }
                 onDoing?(.acting(act))  // the thought (on the first act) names the target
+                if quiet == nil {
+                    let ahead = screen?.frame  // the screen just before acting
+                    quiet = await Vision.off { Vision.motion(seen, ahead) }
+                }
                 let started = now()
                 // after a tap in the same round the pointer moved again unseen: find it before pressing
                 let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
@@ -491,7 +497,7 @@ extension Gestures {
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key" || following == "clear") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
-                if !(await tapChanged(seen, &spots)) {
+                if !(try await tapChanged(seen, &spots, quiet: quiet ?? [], confirmed: confirmed)) {
                     verdict(false)
                     return false  // skip the rest; the actor looks again
                 }
@@ -500,9 +506,10 @@ extension Gestures {
         timing.frameMs += await settle(ignoring: spots)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        let (frame, mask) = (screen?.frame, spots)
-        let changed = steps.last?["action"]?.str == "tap" ? await tapChanged(seen, &spots)
-            : await Vision.off { Vision.changed(seen, frame, ignore: mask) }
+        let (frame, mask, still) = (screen?.frame, spots, quiet ?? [])
+        let changed: Bool
+        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: still, confirmed: confirmed) }
+        else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: still) } }
         verdict(changed)
         return false
     }
@@ -513,18 +520,46 @@ extension Gestures {
         trace?.write(kind: "verdict", ["changed": .bool(changed), "pointer": .str("\(Int(pointerAt.x * 1000)) \(Int(pointerAt.y * 1000))")])
     }
 
+    /// A tap that changed nothing is pressed once more, the pointer found and set on the target first (`aim`),
+    /// unless the landing check already saw it there. Otherwise the model asks for the same tap again, a whole
+    /// model call later; with the pointer seen on the target, pressing again rarely helps. Never pressed again: a
+    /// round the user confirmed (or that followed a `confirm`: send, pay, post, delete), where a second press could
+    /// repeat what can't be undone, and a target that was moving by itself, where "no change" proves nothing.
+    private func tapChanged(_ seen: Data?, _ spots: inout [CGPoint], quiet: [CGRect], confirmed: Bool) async throws -> Bool {
+        if await tapResult(seen, &spots, quiet) { return true }
+        let last = steps.count - 1
+        guard let phone, !confirmed, let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double,
+              !Self.onTarget(steps[last]), !quiet.contains(where: { $0.contains(CGPoint(x: x / 1000, y: y / 1000)) })
+        else { return false }
+        try await gate?()
+        guard !connectionChanged(since: acceptedLookLinks) else { return false }
+        DebugLog.write("step: the tap changed nothing; pressing once more with the pointer checked")
+        try await phone.tap(x / 1000, y / 1000, aim: true)
+        lastActed = now()
+        steps[last]["again"] = .bool(true)
+        _ = await settle(ignoring: spots)
+        return await tapResult(seen, &spots, quiet)
+    }
+
     /// Did the last tap change the screen? Only the pointer may have changed, landed off target: then find
     /// where it really is (which also teaches the pointer's correction) and look again without it. 2026-11-06:
     /// the pointer 3% above the Search pill read as "changed", so the miss went unseen and nothing was learned.
-    private func tapChanged(_ seen: Data?, _ spots: inout [CGPoint]) async -> Bool {
+    private func tapResult(_ seen: Data?, _ spots: inout [CGPoint], _ quiet: [CGRect]) async -> Bool {
         let (frame, mask) = (screen?.frame, spots)
         if await Vision.off({ Vision.bigChange(seen, frame, ignore: mask) }) { return true }
-        let small = await Vision.off { Vision.changed(seen, frame, ignore: mask) }
+        let small = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: quiet) }
         guard let landed = await noteLanding() else { return small }
         spots.append(landed)
         pointerAt = landed  // the next tap's mask starts where the pointer really is
         let (later, all) = (screen?.frame, spots)
-        return small ? await Vision.off { Vision.changed(seen, later, ignore: all) } : false
+        return small ? await Vision.off { Vision.changed(seen, later, ignore: all, quiet: quiet) } : false
+    }
+
+    /// The landing check saw the pointer on the tap's target (within 1.5% of the screen).
+    static func onTarget(_ s: JObject) -> Bool {
+        guard case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
+              let x = s["x"]?.double, let y = s["y"]?.double else { return false }
+        return abs(lx - x) <= 15 && abs(ly - y) <= 15
     }
 
     /// A tap that changed little or nothing: find where the pointer really is, for the model (and the pointer's own
@@ -549,7 +584,7 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "landed", "opened", "typed"]
+                                   "replay", "jev", "landed", "opened", "typed", "again"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")

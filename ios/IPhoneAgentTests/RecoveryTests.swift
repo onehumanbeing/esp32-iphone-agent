@@ -132,7 +132,8 @@ import XCTest
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
         agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
         await agent.run()
-        XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+        XCTAssertEqual(Array(phone.aims.prefix(3)), [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+        XCTAssertEqual(phone.aims.count, 4)  // the last tap changed nothing (a still fake screen): pressed once more
     }
 
     func testARoundOfSeveralTapsLeavesTheNextStepToTheModel() async {
