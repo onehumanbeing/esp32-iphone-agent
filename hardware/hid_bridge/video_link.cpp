@@ -146,8 +146,8 @@ static bool frozenNow() {
   return f;
 }
 
-// True while the GOP is empty waiting for the next IDR (boot, or after an overflow that dropped
-// mid-GOP). Distinct from frozen: mirroring may still be up, just no decodable snap yet (#25).
+// True while the GOP is empty waiting for the next IDR (boot, or an IDR too big for the buffer;
+// an overflow with frames already buffered sets frozen instead). Distinct from frozen: mirroring may still be up, just no decodable snap yet (#25).
 // Only meaningful while AirPlay is streaming — wait_idr starts true at boot before any mirror.
 static bool waitingIdrNow() {
   xSemaphoreTake(lock, portMAX_DELAY);
