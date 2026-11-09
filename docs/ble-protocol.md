@@ -123,3 +123,7 @@ Receiver name `ESP32 Agent`, mirroring only, H.264 video plus AAC-ELD audio whil
 - `net` read in `sta` mode returns the station network's `ssid`/`pass`.
 - `snap` while mirroring has stopped returns the last buffered GOP (check `"ap"` in status); `snap` without
   any video replies `err no video ...`.
+- `snap` while AirPlay is `streaming` but the GOP is still empty (`wait_idr`, e.g. right after connect or
+  when an IDR was too big for the buffer) replies `err waiting for keyframe` instead of `err no video ...`.
+  Before mirroring starts (`ap` idle/connected), the same empty-GOP state still replies `err no video ...`
+  so Diagnostics can tell "start screen mirroring" from "mirroring is up, waiting for an IDR".
