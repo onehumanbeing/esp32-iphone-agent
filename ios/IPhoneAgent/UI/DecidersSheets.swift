@@ -24,6 +24,7 @@ struct ModelFieldsSheet: View {
 struct JevFieldsSheet: View {
     @AppStorage(JevConfig.ownKey) private var ownKey = false
     @AppStorage(JevConfig.modelKey) private var model = TypeSafeJev.defaultModel
+    @AppStorage(JevConfig.thresholdKey) private var threshold = JevConfig.defaultThreshold
     @State private var apiKey = JevConfig.apiKey
     @Environment(\.dismiss) private var dismiss
 
@@ -48,6 +49,18 @@ struct JevFieldsSheet: View {
                          : "Steps go to Jev on Handsy's server, free of charge.")
                 }
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Section {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        LabeledContent("Confidence needed", value: threshold.formatted(.percent.precision(.fractionLength(0))))
+                        Slider(value: $threshold, in: JevConfig.thresholdRange, step: 0.05)
+                            .accessibilityLabel(Text("Confidence needed"))
+                    }
+                    if threshold != JevConfig.defaultThreshold {
+                        Button("Reset to Default") { threshold = JevConfig.defaultThreshold }
+                    }
+                } footer: {
+                    Text("Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Handsy's server may ask for more on some kinds of steps.")
+                }
                 if ownKey, let url = URL(string: "https://typesafe.ai") {
                     Section { KeyLinkRow(title: "Get a TypeSafe key", url: url) }
                 }

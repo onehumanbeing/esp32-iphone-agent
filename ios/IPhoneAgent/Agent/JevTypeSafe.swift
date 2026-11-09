@@ -44,7 +44,8 @@ import Foundation
             if code == 429 { return JevAnswer(reason: "rate_limited") }
             guard (200..<300).contains(code) else { throw LLMError(message: "Jev: TypeSafe HTTP \(code)", status: code) }
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-            return JevRules.reply(steps: steps, response: json) ?? JevAnswer(reason: "invalid_answer")
+            return JevRules.reply(steps: steps, response: json, history: input.history, accept: JevConfig.threshold)
+                ?? JevAnswer(reason: "invalid_answer")
         }
         throw LLMError(message: "Jev: TypeSafe busy")
     }
@@ -53,7 +54,7 @@ import Foundation
 /// step.ts in Swift: which plan step is due, its operation, a box per step; the DO line when Jev is sure.
 enum JevRules {
     typealias Step = (key: String, text: String)
-    static let accept = 0.7
+    static let accept = 0.7  // Handsy's server without a tuned minimum
 
     static let rules = """
         Advance the user's goal on this iPhone screen using one supported operation.
@@ -175,8 +176,20 @@ enum JevRules {
         return (b, c)
     }
 
-    /// As the server: TAP = min(p(op), box confidence), else p(op); accept at 0.7 or more.
-    static func reply(steps: [Step], response: [String: Any]) -> JevAnswer? {
+    /// The last action was a tap at this spot: the model decides (tapping again may undo it, or loop when it
+    /// changed nothing). As the server's repeatsLastTap.
+    static func repeatsLastTap(_ line: String, history: String?) -> Bool {
+        let tap = line.split(separator: " ")
+        guard tap.count == 3, tap[0] == "tap", let x = Int(tap[1]), let y = Int(tap[2]),
+              let last = history?.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n").last,
+              let m = groups(lastTap, last), let lx = Int(m[1]), let ly = Int(m[2]) else { return false }
+        return abs(x - lx) <= 30 && abs(y - ly) <= 30
+    }
+    private static let lastTap = re(#""action":\s*"tap",\s*"x":\s*(\d+),\s*"y":\s*(\d+)"#)
+
+    /// As the server: TAP = min(p(op), box confidence), else p(op); accept at `accept` or more. WAIT is left to
+    /// the model, which sees more of what the screen is waiting for.
+    static func reply(steps: [Step], response: [String: Any], history: String? = nil, accept: Double = JevRules.accept) -> JevAnswer? {
         let a = response["answers"] as? [String: Any] ?? [:]
         guard let step = validChoice(a["step"], steps.map { "step \($0.key)" } + ["done", "other"]),
               let op = validChoice(a["operation"], Array(operations.keys)) else { return nil }
@@ -198,6 +211,8 @@ enum JevRules {
             if matches(finalAction, text) { return no("final_action") }
         }
         guard let line = doLine(op.choice, text, box: box) else { return no("no_action") }
+        if repeatsLastTap(line, history: history) { return no("repeat") }
+        if op.choice == "WAIT" { return no("wait") }
         return sure(line)
     }
 }
@@ -206,6 +221,14 @@ enum JevRules {
 enum JevConfig {
     static let ownKey = "jev.ownKey"   // UserDefaults: use the user's TypeSafe key
     static let modelKey = "jev.model"  // UserDefaults: the TypeSafe model, default jev-latest
+    static let thresholdKey = "jev.threshold"  // UserDefaults: how sure Jev must be to take a step
+    static let defaultThreshold = 0.6
+    static let thresholdRange = 0.5...0.9
+    /// The user's setting. On Handsy's server it can only raise the server's own per-operation minimum.
+    static var threshold: Double {
+        let v = UserDefaults.standard.object(forKey: thresholdKey) as? Double ?? defaultThreshold
+        return min(thresholdRange.upperBound, max(thresholdRange.lowerBound, v))
+    }
     static let keychainAccount = "jev-typesafe-key"
 
     static var apiKey: String { Keychain.get(keychainAccount) ?? "" }

@@ -49,7 +49,7 @@ import XCTest
     func testModesAndFreeLineHeader() {
         var d = Deciders.standard(freeLine: true)
         XCTAssertEqual(d.mode, .jevFirst)
-        XCTAssertEqual(d.freeLineHeader(race: true), ["X-Handsy-Jev": "race"])
+        XCTAssertEqual(d.freeLineHeader(race: true, threshold: 0.6), ["X-Handsy-Jev": "race", "X-Handsy-Jev-Threshold": "0.60"])
         d.move(from: [1], to: 0)
         XCTAssertEqual(d.mode, .modelFirst)
         XCTAssertEqual(d.freeLineHeader(race: false), [:])
@@ -83,6 +83,20 @@ import XCTest
         XCTAssertEqual(input, JevStepInput(goal: "open Notes", plan: "1. Open Notes", history: "(none)", image: jpeg))
         XCTAssertNil(JevStepInput.parse("Goal: open Notes", image: jpeg))  // the planner's prompt
         XCTAssertNil(JevStepInput.parse(prompt, image: Data([0x89, 0x50])))  // Jev takes JPEG only
+        let unplanned = prompt.replacingOccurrences(of: "1. Open Notes", with: "(none yet: write one)")
+        XCTAssertNil(JevStepInput.parse(unplanned, image: jpeg))  // no numbered plan yet: Jev is not asked
+    }
+
+    func testThresholdSettingIsClampedAndDefaultsTo60() {
+        let defaults = UserDefaults.standard
+        defer { defaults.removeObject(forKey: JevConfig.thresholdKey) }
+        defaults.removeObject(forKey: JevConfig.thresholdKey)
+        XCTAssertEqual(JevConfig.threshold, 0.6)
+        defaults.set(0.1, forKey: JevConfig.thresholdKey)
+        XCTAssertEqual(JevConfig.threshold, 0.5)
+        defaults.set(0.75, forKey: JevConfig.thresholdKey)
+        XCTAssertEqual(JevConfig.threshold, 0.75)
+        XCTAssertTrue(Deciders.race(UserDefaults(suiteName: "jev-race-\(UUID())")!))  // asks both at once by default
     }
 
     // MARK: modes
@@ -245,6 +259,18 @@ import XCTest
         let done = JevRules.reply(steps: steps, response: ["answers": ["step": choice("done", ids), "operation": choice("DONE", ops)]])
         XCTAssertEqual(done?.taken, false)  // only the model ends a run
         XCTAssertNil(JevRules.reply(steps: steps, response: ["answers": ["step": ["choice": "step 1"]]]))
+        let tapAt = { (p: Double, history: String?, accept: Double) in
+            let b: [String: Any] = ["confidence": p, "box": ["top": 0.1, "bottom": 0.2, "left": 0.4, "right": 0.6]]
+            return JevRules.reply(steps: steps, response: ["answers": ["step": self.choice("step 2", ids), "operation": self.choice("TAP", ops), "box_2": b]],
+                                  history: history, accept: accept)
+        }
+        XCTAssertEqual(tapAt(0.65, nil, 0.6)?.taken, true)  // the user's own setting
+        XCTAssertEqual(tapAt(0.65, nil, 0.7)?.taken, false)
+        for result in ["screen changed", "screen did NOT change"] {  // a tap on the last tap's spot goes to the model
+            XCTAssertEqual(tapAt(0.95, "{\"action\": \"tap\", \"x\": 505, \"y\": 160} -> \(result)", 0.6)?.reason, "repeat")
+        }
+        let wait = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("WAIT", ops)]], accept: 0.5)
+        XCTAssertEqual(wait?.taken, false)
     }
 
     func testShortProviderError() {

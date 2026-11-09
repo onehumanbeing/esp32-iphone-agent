@@ -324,7 +324,7 @@ import UIKit
         // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
         // once, the first sure answer wins)
         let jev = role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
-            .freeLineHeader(race: defaults.bool(forKey: Deciders.raceKey)) : [:]
+            .freeLineHeader(race: Deciders.race(defaults)) : [:]
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
         let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
         let headers: (() throws -> [String: String])? = provider == .handsyTrial
@@ -347,7 +347,7 @@ import UIKit
         let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }
         return JevDeciderModel(inner: actor, jev: JevConfig.client(), mode: deciders.mode,
-                               race: defaults.bool(forKey: Deciders.raceKey))
+                               race: Deciders.race(defaults))
     }
 }
 

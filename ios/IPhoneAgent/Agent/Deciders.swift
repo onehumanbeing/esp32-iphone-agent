@@ -35,11 +35,14 @@ struct Deciders: Equatable, Codable {
     mutating func move(from: IndexSet, to: Int) { order.move(fromOffsets: from, toOffset: to) }
 
     /// The free line's X-Handsy-Jev header for the actor: Jev first ("race": Jev and the model at once).
-    func freeLineHeader(race: Bool) -> [String: String] {
-        mode == .jevFirst && !JevGate.hold ? ["X-Handsy-Jev": race ? "race" : "1"] : [:]
+    func freeLineHeader(race: Bool, threshold: Double = JevConfig.threshold) -> [String: String] {
+        guard mode == .jevFirst, !JevGate.hold else { return [:] }
+        return ["X-Handsy-Jev": race ? "race" : "1", "X-Handsy-Jev-Threshold": String(format: "%.2f", threshold)]
     }
 
     static let raceKey = "jevRace"
+    /// Ask both at once unless the user turned it off: a step Jev leaves then costs no time.
+    static func race(_ defaults: UserDefaults = .standard) -> Bool { defaults.object(forKey: raceKey) as? Bool ?? true }
     static func key(freeLine: Bool) -> String { freeLine ? "deciders.free" : "deciders.own" }
     static func standard(freeLine: Bool) -> Deciders { Deciders(order: [.jev, .model], off: freeLine ? [] : [.jev]) }
 
