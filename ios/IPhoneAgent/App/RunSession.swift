@@ -51,7 +51,7 @@ extension AppModel {
         let job = Task {
             var usedInput = false
             await prepareAgent(task, resume: resume, usedInput: &usedInput)
-            // 校准后若在创建本次运行记录之前退出，不把诊断写进上一个任务。
+            // Startup can exit after calibration but before opening a trace for this run.
             if usedInput { await returnInput(checkKeyboard: false, traceStarted: false) }
         }
         startupTask = job
@@ -167,7 +167,7 @@ extension AppModel {
             }
             mark("first frame: " + frameSource)
             try agent.start(task, traceStarted: true, resume: resume)
-            usedInput = false  // 收尾交给已经启动的运行循环。
+            usedInput = false  // The running agent now owns cleanup.
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)
@@ -204,7 +204,7 @@ extension AppModel {
         }
     }
 
-    /// 停止操作后，等持有输入的启动流程或运行循环完成收尾。
+    /// Wait for whichever task owns input to finish cleanup.
     func stopAgent() async {
         let startup = startupTask
         startup?.cancel()
@@ -216,7 +216,7 @@ extension AppModel {
         await startup?.value
     }
 
-    /// 还原本次自动化占用的输入状态，不修改继续任务所需的数据。
+    /// Return input to the user while preserving the plan, steps, and notebook for resume.
     func returnInput(checkKeyboard: Bool, traceStarted: Bool = true) async {
         guard !MockMode.on else { return }
         returningInput = true

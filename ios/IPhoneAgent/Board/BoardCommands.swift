@@ -117,7 +117,7 @@ extension BoardTransport {
         }
     }
 
-    /// 回执超时先降低视频负载，只有可重复执行的命令才重试。
+    /// Reduce video traffic on a reply timeout before retrying eligible commands.
     var onTimeout: ((String) async -> Void)?
 
     /// Send one command; returns the text after "ok" (e.g. bench's ms). Throws DeviceError on err/timeout.
@@ -128,7 +128,7 @@ extension BoardTransport {
         } catch let e as BoardTimeout {
             guard command != "ping", !command.hasPrefix("stream"), let onTimeout else { throw e }
             await onTimeout(command)
-            // 回执可能丢在执行后。仅重试能查询或设定同一状态的命令，避免重复操作手机。
+            // The board may already have acted. Retry only queries and commands that reapply the same state.
             let name = command.split(separator: " ", maxSplits: 1).first
             switch name {
             case "home", "pace", "release", "reset", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
@@ -148,7 +148,7 @@ extension BoardTransport {
         let name = String(command.split(separator: " ").first ?? "")
         await lock.lock()
         defer { lock.unlock() }
-        // 指令排队期间可能已经停止任务，或失去了发送这次输入的条件。
+        // The task or the input conditions may have changed while the command was queued.
         try Task.checkCancellation()
         try checking()
         let started = now()

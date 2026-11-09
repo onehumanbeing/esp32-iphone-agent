@@ -1,7 +1,7 @@
 import Foundation
 
 extension HIDDevice {
-    /// 旧固件只能确认左键已松开，不能把它报告成全部输入均已释放。
+    /// Older firmware can confirm only that the left mouse button was released.
     func releaseForHandoff() async throws {
         let link = links
         do { try await send("reset") }
@@ -53,7 +53,7 @@ extension HIDDevice {
                                              maxTokens: 80, temperature: 0)
             try checkLink()
             guard let state = State(rawValue: reply.text.trimmingCharacters(in: .whitespacesAndNewlines)) else { throw uncertain }
-            // 等模型期间用户可能已经接手，重新检查当前屏幕再确认状态。
+            // The user may have taken over while the model was responding.
             try await refresh()
             guard !Vision.changed(seen, try current(after: boundary)) else { throw changed }
             return (state, seen)
@@ -64,7 +64,7 @@ extension HIDDevice {
         func stillFocused() throws {
             guard !Vision.changed(seen, try current()) else { throw changed }
         }
-        // 获得命令锁后再次核对；Eject 是切换动作，回执超时也不能重发。
+        // Recheck focus under the command lock. Retrying Eject after a lost reply could hide the keyboard.
         if let channel = device as? CommandChannel {
             try await channel.send("key eject", timeout: nil, checking: stillFocused)
         } else {

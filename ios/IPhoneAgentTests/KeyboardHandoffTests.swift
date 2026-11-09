@@ -81,7 +81,7 @@ import XCTest
             }
         }
         await fulfillment(of: [verified], timeout: 2)
-        targetApp = false  // 截图仍相同，但用户已回到控制 App。
+        targetApp = false  // The user returned to the control app while the mirrored frame still looked the same.
         let id = try XCTUnwrap(board.lines.first?.split(separator: " ").first)
         channel.handleReply("\(id) ok")
         _ = try await ping.value

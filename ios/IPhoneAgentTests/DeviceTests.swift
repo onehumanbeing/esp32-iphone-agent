@@ -135,7 +135,7 @@ import XCTest
     }
 
     func testActualReplyDeadlineDoesNotRepeatClickAndStillRetriesRelease() async throws {
-        // 真正丢弃回执并等待通道计时器，覆盖已写入后超时而非写入直接抛错。
+        // Drop the reply after a successful write so the channel timer fires.
         for command in ["click", "release"] {
             let board = FakeBoard(), channel = CommandChannel(transport: board)
             board.channel = channel
@@ -144,7 +144,7 @@ import XCTest
             channel.onTimeout = { _ in
                 recoveries += 1
                 let id = board.lines[0].split(separator: " ")[0]
-                channel.handleReply("\(id) ok")  // 已超时的回执不得完成后续请求。
+                channel.handleReply("\(id) ok")  // A late reply must not complete a later request.
             }
             do {
                 try await channel.send(command)
@@ -187,7 +187,7 @@ import XCTest
             board.timeoutOnceOn = failure
             screen.frame = before
             var correction: [Int]?
-            // 用真实像素差分进入 aim 纠偏；屏幕先反映移动，再模拟回执丢失。
+            // Trigger aim correction through a pixel change, then drop the reply after the move appears on screen.
             board.onCommand = { [weak board] command in
                 if command == "move 12 0" { screen.frame = after; screen.updated = now() }
                 if command == "move -12 0" { screen.frame = before; screen.updated = now() }
@@ -564,7 +564,7 @@ import XCTest
             x += dx
             y += dy
             let position = CGPoint(x: Double(x) / 400, y: Double(y) / 800)
-            // 微移时切换底色，模拟背景动画使像素差分无法定位指针。
+            // Change the background during the nudge to simulate animation that hides the pointer in the pixel diff.
             let image = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 200)).image { context in
                 (dx == Pointer.nudge ? UIColor.black : .white).setFill()
                 context.fill(CGRect(x: 0, y: 0, width: 100, height: 200))
@@ -585,7 +585,7 @@ import XCTest
         let calibrated = try await pointer.startCalibration()
         XCTAssertTrue(calibrated)
         XCTAssertEqual(readings, [CGPoint(x: 0.375, y: 0.1875), CGPoint(x: 0.875, y: 0.4375)])
-        // 单独载入已知正确的标定参数，避免首次标定的偏移与复验的偏移相互抵消。
+        // Load a known calibration so errors in calibration and verification cannot cancel each other out.
         pointer.finishCalibration(x: 0.5, y: 0.25)
         let error = try await pointer.verify()
         XCTAssertEqual(error, 0)

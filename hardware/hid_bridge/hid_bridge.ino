@@ -75,7 +75,7 @@ uint8_t keyCode(const String &k) {
 
 bool pressCombo(String combo) {
   if (combo == "eject") {
-    // Eject 是消费控制报告，只能单独切换一次屏幕键盘。
+    // iOS toggles the on-screen keyboard once per Consumer Control Eject press.
     consumer.press(CONSUMER_CONTROL_EJECT);
     delay(40);
     consumer.release();
@@ -114,7 +114,7 @@ String run(const String &line) {
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
   if (cmd == "reset") {
     if (arg.length()) return "err usage: reset";
-    // 归还用户控制时，保留指针位置、当前页面和输入框内容。
+    // Release held inputs in place so the user keeps the current page and text.
     mouse.release(0xff);
     keyboard.releaseAll();
     consumer.release();

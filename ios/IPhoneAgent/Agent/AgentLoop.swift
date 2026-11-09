@@ -140,7 +140,7 @@ extension Gestures {
         job = Task { [weak self] in
             guard let self else { return }
             await run()
-            // 停止会取消任务本身；收尾仍须完成，期间保留运行权和可继续的上下文。
+            // Stop cancels the run. Let cleanup finish before another run can start or resume.
             if let beforeFinish { await Task { await beforeFinish() }.value }
             running = false
             job = nil
