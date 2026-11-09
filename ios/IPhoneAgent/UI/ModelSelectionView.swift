@@ -70,7 +70,9 @@ struct ModelSelectionView: View {
                 }
 
             }
-            .searchable(text: $search, prompt: "Search models")
+            // In the navigation bar: iOS 26+ otherwise puts it at the bottom of this sheet, and on iOS 27.3
+            // activating that bottom search asserted in UIKit (TestFlight 1.0.3 crash).
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search models")
             .navigationTitle("Choose Model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

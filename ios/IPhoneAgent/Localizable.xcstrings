@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Board firmware %@ is out of date" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板固件 %@ 已过期"
+          }
+        }
+      }
+    },
     "Collapses the result" : {
       "localizations" : {
         "zh-Hans" : {
@@ -327,6 +337,66 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重复直到"
+          }
+        }
+      }
+    },
+    "Skip Anyway" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然跳过"
+          }
+        }
+      }
+    },
+    "Skip for Now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先跳过"
+          }
+        }
+      }
+    },
+    "Taps may land in the wrong place and the board may disconnect. You can update any time from Settings › Board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击可能点偏，开发板也可能断开。你随时可以在 设置 › 开发板 里更新。"
+          }
+        }
+      }
+    },
+    "Update" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
+    "Update the board to the latest firmware to keep taps accurate and the connection stable." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请把开发板更新到最新固件，让点击更准、连接更稳定。"
+          }
+        }
+      }
+    },
+    "Use the old firmware?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续使用旧固件？"
           }
         }
       }
@@ -9439,6 +9509,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的 iPhone 型号（例如 iPhone18,2），用于适配屏幕"
+          }
+        }
+      }
+    },
+    "The test tap landed far from its target, so this calibration wasn't saved. In AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试点击落点离目标太远，这次校准没有保存。请在 辅助触控 › 指针设备 中把跟踪速度调到中间并关闭指针动画，然后再试一次。"
           }
         }
       }

@@ -27,6 +27,8 @@ import UIKit
     struct Progress: Equatable { var done: Int, total: Int }
 
     static let tolerance = 0.015  // fraction of the screen; a bigger miss calibrates again
+    /// A calibration whose check misses by more is wrong (issue #96: ±49.8%, pinned at an edge) and is not kept.
+    static let rejectAbove = 0.06
 
     @Published var phase = Phase.idle
     @Published var reason = ""  // why the last run started
@@ -41,6 +43,7 @@ import UIKit
     var link = -1  // board link the pointer was last calibrated on
     private var hide: Task<Void, Never>?
     private var current: Task<Void, Never>?
+    private var previous: Data??  // the calibration before this run (`Pointer.snapshot`), put back if it fails
 
     init(app: AppModel) { self.app = app }
 
@@ -83,10 +86,12 @@ import UIKit
         progress = nil
         toast = false
         if DeviceScreen.foreground { openBoard() }
+        previous = app.pointer.snapshot()
         let job = Task { await runOnce() }
         current = job
         await job.value
         current = nil
+        previous = nil
     }
 
     private func openBoard() {
@@ -103,6 +108,7 @@ import UIKit
     func cancel() {
         current?.cancel()
         if busy || phase == .needsTap { app.say("calibration: cancelled") }
+        putBack()
         progress = nil
         phase = app.pointer.calibrated ? .done : .idle
         closeBoard()
@@ -161,6 +167,11 @@ import UIKit
     }
 
     func finished(_ error: Double) {
+        guard error <= Self.rejectAbove else {
+            app.say(String(format: "calibration: check off by ±%.1f%%, not kept", error * 100))
+            return failed(Self.rejectedText)
+        }
+        previous = nil
         link = app.board.commands.links
         progress = nil
         problem = nil
@@ -177,8 +188,20 @@ import UIKit
         }
     }
 
+    static var rejectedText: String {
+        String(localized: "The test tap landed far from its target, so this calibration wasn't saved. In AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off, then try again.")
+    }
+
+    /// A failed or cancelled run leaves the calibration it started with, not a half-made or wrong one.
+    private func putBack() {
+        guard let previous else { return }
+        app.pointer.restore(previous)
+        self.previous = nil
+    }
+
     /// The board stays up with the problem, Try Again and "Tap the pointer yourself".
     private func failed(_ why: String) {
+        putBack()
         Analytics.capture("calibration_failed")
         progress = nil
         problem = why

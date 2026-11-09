@@ -22,8 +22,8 @@ func TestOnStatusNotifiesAfterReleasingConnMu(t *testing.T) {
 		select {
 		case <-acquired:
 		case <-time.After(3 * time.Second):
+			// Return so onStatus can release c.mu; blocking here would hang the test.
 			t.Error("app callback ran while c.mu was still held")
-			<-acquired
 		}
 	}
 

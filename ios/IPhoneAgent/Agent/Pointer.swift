@@ -68,13 +68,32 @@ import UIKit
         self.file = calibrationFile
         self.screen = screen
         if let data = try? Data(contentsOf: calibrationFile), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
-            span = Span(w: saved.w, h: saved.h)
-            (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
-            origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
-            gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
-            for axis in ["x", "y"] where saved.v == Self.samplesVersion {
-                seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
-            }
+            load(saved)
+        }
+    }
+
+    private func load(_ saved: Saved) {
+        span = Span(w: saved.w, h: saved.h)
+        (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
+        origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
+        gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
+        for axis in ["x", "y"] where saved.v == Self.samplesVersion {
+            seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
+        }
+    }
+
+    /// The calibration as saved (nil when there is none), so a rejected calibration can put it back (`restore`).
+    func snapshot() -> Data? { try? Data(contentsOf: file) }
+
+    /// Back to a `snapshot`: the previous calibration, or none (issue #96: a ±49.8% check was kept and used).
+    func restore(_ snapshot: Data?) {
+        (span, quality, aspect, pace, origin, gain) = (nil, nil, nil, 1, .zero, [])
+        (seen, pos) = (["x": [], "y": []], nil)
+        if let snapshot, let saved = try? JSONDecoder().decode(Saved.self, from: snapshot) {
+            load(saved)
+            try? snapshot.write(to: file)
+        } else {
+            try? FileManager.default.removeItem(at: file)
         }
     }
 

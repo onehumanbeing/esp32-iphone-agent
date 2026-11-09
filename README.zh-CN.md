@@ -27,6 +27,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
   <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194"><img src="https://img.shields.io/badge/小红书-袁老板讲黑客松-111111?style=flat-square" alt="小红书"></a>
 </p>
 
+<p align="center"><b>媒体报道</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">阮一峰《科技爱好者周刊》#415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio 官方推荐</a></p>
+
 <p align="center"><a href="README.md">English</a> · 简体中文</p>
 
 <p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://handsy.tech/zh?ref=github">handsy.tech</a></sub></p>
@@ -71,6 +73,10 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
    [带图的设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup?ref=github)。
 
 遇到问题？看[常见问题排查](https://handsy.tech/zh/troubleshooting?ref=github)，或发邮件到 [support@handsy.tech](mailto:support@handsy.tech)。
+
+> [!NOTE]
+> **免费线路繁忙或报错？** 免费模型线路是大家共用的，有时会繁忙或暂时报错（HTTP 503），任务可能卡住、或每一步都失败。
+> 这时可以在「设置 › 模型」里换成你自己的 API key 继续用，也欢迎在 X 上告诉作者：[@iamhenryyuan](https://x.com/iamhenryyuan)。
 
 ## 工作原理
 
@@ -275,6 +281,14 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 > **基于本项目开发？** 请保留 [LICENSE](LICENSE)，并在你的 README、演示和帖子中注明 **[ESP32 iPhone Agent by Henry Yuan](https://github.com/onehumanbeing/esp32-iphone-agent)**。详见 [NOTICE](NOTICE)。
 
 [MIT](LICENSE)；`hardware/hid_bridge/src/airplay/`（移植自 UxPlay）除外，为 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md)，因此链接了它的固件二进制按 GPL-3.0 分发。[`skills/`](skills/) 目录下的文件采用 [MIT-0](skills/LICENSE)（MIT No Attribution），仓库其余部分仍按上面的许可证。
+
+## 贡献者
+
+感谢每一位帮助打造 ESP32 iPhone Agent 的贡献者：[@cy41](https://github.com/cy41) · [@shinjiyu](https://github.com/shinjiyu) · [@Yi-111-a](https://github.com/Yi-111-a) · [@buddyh](https://github.com/buddyh) · [@djs-91](https://github.com/djs-91) · [@EliotAndres](https://github.com/EliotAndres) · [@lukas-1997](https://github.com/lukas-1997) · [@mvanhorn](https://github.com/mvanhorn)。PR 请基于最新的 `main`。
+
+<a href="https://github.com/onehumanbeing/esp32-iphone-agent/graphs/contributors">
+  <img alt="贡献者" src="https://contrib.rocks/image?repo=onehumanbeing/esp32-iphone-agent">
+</a>
 
 ## Star 增长
 

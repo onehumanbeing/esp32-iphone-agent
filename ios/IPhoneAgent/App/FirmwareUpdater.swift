@@ -1,5 +1,23 @@
+import Combine
 import Foundation
 import UIKit
+
+/// Asking for the newest firmware (Henry, 2026-11-09): a board behind it may tap off target and drop the link, so
+/// every board connection asks for the update. It can be skipped at the user's risk, until the board connects again.
+struct FirmwareReminder {
+    private(set) var skipped = false
+
+    /// Behind the newest release found and able to take it over Wi-Fi. No release (offline, the check failed) never
+    /// blocks, and a board from before OTA keeps its USB note.
+    static func outdated(_ current: FirmwareVersion, latest: FirmwareRelease?) -> Bool {
+        guard let latest else { return false }
+        return current >= Firmware.firstOTA && latest.ver > current
+    }
+
+    mutating func skip() { skipped = true }
+    /// The board went away: its next connection asks again.
+    mutating func boardLeft() { skipped = false }
+}
 
 /// Settings › Board › Firmware: finds the newest signed release, sends it to the board over Wi-Fi and waits
 /// until the board is back with it. A failed send is retried; the board keeps its old firmware until a whole
@@ -14,35 +32,43 @@ import UIKit
     @Published private(set) var checking = false
     @Published private(set) var checkError: String?
     @Published var presented = false  // the update sheet on Home (banner tap, or required)
-    @Published private var dismissedVersion = UserDefaults.standard.string(forKey: "firmwareBannerDismissed")
-    /// When the banner was put off: it comes back a day later (2026-11-06: one stray tap hid v0.2.3 for good).
-    /// A dismissal saved without a date (older builds) has expired.
-    private var dismissedAt = UserDefaults.standard.double(forKey: "firmwareBannerDismissedAt")
-    static let dismissFor: TimeInterval = 24 * 3600
-    private var putOff: Bool {
-        release?.version == dismissedVersion && Date().timeIntervalSince1970 - dismissedAt < Self.dismissFor
-    }
+    @Published private(set) var reminder = FirmwareReminder()
+    private var link: AnyCancellable?
     private var manifest: URL?
     private unowned let app: AppModel
     private var background: UIBackgroundTaskIdentifier = .invalid
     private var address: (String, String)?  // the board's ip and token for this update
     static let attempts = 3
 
-    init(app: AppModel) { self.app = app }
+    init(app: AppModel) {
+        self.app = app
+        // Skip lasts for this connection only: in memory, and forgotten when the board goes away.
+        link = app.board.$connected.removeDuplicates().sink { [weak self] up in
+            guard let self, !up else { return }
+            reminder.boardLeft()
+            if !busy { presented = false }  // a sheet for the old connection; the next one asks again
+        }
+    }
 
     var busy: Bool { phase == .downloading || phase == .sending || phase == .restarting }
     var current: FirmwareVersion { Firmware.version(of: app.board.status) }
     var available: Bool { app.board.connected && (release.map { $0.ver > current } ?? false) }
-    /// This app needs a newer board: the sheet opens by itself and can't be put off.
-    var required: Bool { app.board.connected && current < Firmware.required }
-    /// Required and possible now: the sheet can't be put off (an old board needing USB, or no release found, can).
-    var mustUpdate: Bool { required && current >= Firmware.firstOTA && release != nil }
-    var showsBanner: Bool { available && !required && !busy && !putOff }
+    /// Older than this app works with.
+    var belowMinimum: Bool { app.board.connected && current < Firmware.required }
+    /// Behind the newest release and able to take it over Wi-Fi: asked for on every connection, can be skipped.
+    var outdated: Bool { app.board.connected && FirmwareReminder.outdated(current, latest: release) }
+    /// The sheet opens by itself, titled Board Update Required.
+    var required: Bool { belowMinimum || outdated }
+    /// Below the minimum and possible now: the sheet can't be put off (an old board needing USB, or no release found, can).
+    var mustUpdate: Bool { belowMinimum && current >= Firmware.firstOTA && release != nil }
+    /// Skipped, or not asked yet because a task runs: Home keeps a warning up, without ×, until the board is updated.
+    var showsWarning: Bool { outdated && !mustUpdate && !presented && !busy }
+    var taskRunning: Bool { app.agent.running || app.startingAgent || app.recorder.busy }
     /// Why Update can't start now, if it can't.
     var blocker: String? {
         if !app.board.connected { return String(localized: "Connect the board first.") }
         if current < Firmware.firstOTA { return String(localized: "This board needs one update over USB first (hardware/flash.sh).") }
-        if app.agent.running || app.startingAgent || app.recorder.busy { return String(localized: "Wait until the task or recording ends.") }
+        if taskRunning { return String(localized: "Wait until the task or recording ends.") }
         return nil
     }
 
@@ -54,20 +80,32 @@ import UIKit
         do { (release, manifest) = try await Firmware.latest() } catch { checkError = error.localizedDescription }
         DebugLog.write("firmware: check: latest \(release?.version ?? "none") from \(manifest?.absoluteString ?? "-"), board "
             + "\(app.board.status?.fw?.description ?? "no fw") connected \(app.board.connected), available \(available), "
-            + "required \(required), banner \(showsBanner) (put off \(putOff))\(checkError.map { ", error: " + $0 } ?? "")")
+            + "required \(required), outdated \(outdated) (skipped \(reminder.skipped))\(checkError.map { ", error: " + $0 } ?? "")")
     }
 
-    /// The board (re)connected: look for a release, and open the sheet if this app needs it.
+    /// The board (re)connected: look for a release, and ask for the update if the board needs it.
     func boardConnected() async {
         await check()
-        if required && phase == .idle { presented = true }
+        ask()
     }
 
-    func dismissBanner() {
-        dismissedVersion = release?.version
-        dismissedAt = Date().timeIntervalSince1970
-        UserDefaults.standard.set(dismissedVersion, forKey: "firmwareBannerDismissed")
-        UserDefaults.standard.set(dismissedAt, forKey: "firmwareBannerDismissedAt")
+    /// Opens the sheet when the board needs an update, unless it was skipped for this connection. A running task or
+    /// recording isn't interrupted: Home shows the warning and the gate asks again when it ends.
+    func ask() {
+        guard required, phase == .idle, !presented, !reminder.skipped else { return }
+        // A background relaunch (Bluetooth restores the board link) can't show a sheet: ask when the app comes up.
+        guard UIApplication.shared.applicationState == .active else { return }
+        let versions = "board \(current), latest \(release?.version ?? "none"), minimum \(Firmware.required)"
+        DebugLog.write("firmware: update required (\(versions))\(taskRunning ? "; asking after the task" : "")")
+        if !taskRunning { presented = true }
+    }
+
+    /// Skip Anyway: the old firmware until the board reconnects or the app starts again.
+    func skip() {
+        reminder.skip()
+        presented = false
+        DebugLog.write("firmware: update skipped on \(current) (latest \(release?.version ?? "none")) until the board reconnects")
+        Analytics.capture("firmware_update_skipped", ["from": current.description, "to": release?.version ?? ""])
     }
 
     func install() {
@@ -116,7 +154,7 @@ import UIKit
             phase = .restarting
             try await waitForBoard(release, upBefore: upBefore)
             phase = .done
-            DebugLog.write("firmware: board back on \(current)")
+            DebugLog.write("firmware: updated: board back on \(current)")
             Analytics.capture("firmware_update_done", ["to": release.version])
         } catch {
             DebugLog.write("firmware: failed: \(error.localizedDescription)")

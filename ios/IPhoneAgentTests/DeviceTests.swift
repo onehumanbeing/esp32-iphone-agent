@@ -276,6 +276,49 @@ import XCTest
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).origin.x, 0.142, accuracy: 1e-9)  // kept
     }
 
+    /// Issue #96: a check that missed by ±49.8% (a span ~2x off, the pointer pinned at an edge) was kept and used.
+    func testRejectedCalibrationIsNotSavedAndThePreviousOneStays() throws {
+        XCTAssertGreaterThan(0.498, AutoCalibrator.rejectAbove)
+        XCTAssertLessThanOrEqual(0.012, AutoCalibrator.rejectAbove)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        let good = ProbeFit.Line(a: 0.00148, b: 0.142, rms: 0.0057), goodY = ProbeFit.Line(a: 0.00071, b: -0.009, rms: 0.0087)
+        pointer.applyProbe(x: good, y: goodY, samples: [])
+        pointer.setQuality(0.011)
+        let previous = pointer.snapshot(), span = pointer.span
+        XCTAssertNotNil(previous)
+
+        let bad = ProbeFit.Line(a: 0.003, b: 0, rms: 0.01)
+        pointer.applyProbe(x: bad, y: bad, samples: [])
+        pointer.setQuality(0.498)
+        XCTAssertNotEqual(pointer.span, span)
+        pointer.restore(previous)
+        XCTAssertEqual(pointer.span, span)
+        XCTAssertEqual(pointer.quality, 0.011)
+        XCTAssertEqual(pointer.origin.x, 0.142, accuracy: 1e-9)
+        let reloaded = Pointer(device: FakeDevice(), calibrationFile: file)  // what the next launch uses
+        XCTAssertEqual(reloaded.span, span)
+        XCTAssertEqual(reloaded.quality, 0.011)
+    }
+
+    func testRejectedFirstCalibrationLeavesNone() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        let previous = pointer.snapshot()
+        XCTAssertNil(previous)
+        pointer.applyProbe(x: ProbeFit.Line(a: 0.003, b: 0, rms: 0.01), y: ProbeFit.Line(a: 0.003, b: 0, rms: 0.01),
+                           samples: [])
+        pointer.setQuality(0.498)
+        XCTAssertTrue(pointer.calibrated)
+        pointer.restore(previous)
+        XCTAssertFalse(pointer.calibrated)
+        XCTAssertNil(pointer.quality)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertFalse(Pointer(device: FakeDevice(), calibrationFile: file).calibrated)
+    }
+
     func testShortMovesAreScaledUpByTheSpeedCalibration() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: file) }

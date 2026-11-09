@@ -27,6 +27,8 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
   <a href="https://x.com/iamhenryyuan"><img src="https://img.shields.io/badge/follow-@iamhenryyuan-111111?style=flat-square&logo=x" alt="Follow on X"></a>
 </p>
 
+<p align="center"><b>Featured on</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
+
 <p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center"><sub>Follow along: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demo</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demo</a> · <a href="https://handsy.tech?ref=github">handsy.tech</a></sub></p>
@@ -77,6 +79,11 @@ cellular data while it runs because the board's hotspot takes the Wi-Fi.
    [setup guide with pictures](https://handsy.tech/esp32-iphone-agent-setup?ref=github).
 
 Stuck? See [troubleshooting](https://handsy.tech/troubleshooting?ref=github) or mail [support@handsy.tech](mailto:support@handsy.tech).
+
+> [!NOTE]
+> **Free line busy or failing?** The free model line is shared and can be busy or return errors (HTTP 503) for a
+> while, so a run may stall or fail every step. Switch to your own API key in Settings › Model to keep going, and
+> let us know on X: [@iamhenryyuan](https://x.com/iamhenryyuan).
 
 ## How it works
 
@@ -326,6 +333,14 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 [GPL-3.0](hardware/hid_bridge/src/airplay/LICENSE-GPL.md); the firmware binary that links it is therefore
 distributed under GPL-3.0. Files under [`skills/`](skills/) are [MIT-0](skills/LICENSE) (MIT No Attribution);
 the rest of the repository keeps the license above.
+
+## Contributors
+
+Thanks to everyone who has helped build ESP32 iPhone Agent: [@cy41](https://github.com/cy41) · [@shinjiyu](https://github.com/shinjiyu) · [@Yi-111-a](https://github.com/Yi-111-a) · [@buddyh](https://github.com/buddyh) · [@djs-91](https://github.com/djs-91) · [@EliotAndres](https://github.com/EliotAndres) · [@lukas-1997](https://github.com/lukas-1997) · [@mvanhorn](https://github.com/mvanhorn). Pull requests start from the latest `main`.
+
+<a href="https://github.com/onehumanbeing/esp32-iphone-agent/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=onehumanbeing/esp32-iphone-agent">
+</a>
 
 ## Star History
 
