@@ -68,10 +68,27 @@ import UIKit
     var startupBoardIssue = false
     var startupDeadline = 0.0
     var backgroundEnteredAt = 0.0
+    /// Whether the app is in the background (tests stand in for UIKit's application state).
+    var isBackground: () -> Bool = { UIApplication.shared.applicationState == .background }
     var linkRecoveryDisplay: Recovery?
     var lastRunDoing: AgentLoop.Doing?
     /// A banner on Home: the app could not leave by itself (swipe up), or the run waits while the app is in front.
-    @Published var homeHint: String?
+    /// Published only when it changes: wait loops set the same line many times a second, also in the background,
+    /// and every change notice re-renders the whole app on the main thread.
+    var homeHint: String? {
+        get { shownHomeHint }
+        set {
+            probeCounts.hintWrites += 1
+            guard newValue != shownHomeHint else { return }
+            probeCounts.hintChanges += 1
+            shownHomeHint = newValue
+        }
+    }
+    @Published private var shownHomeHint: String?
+    /// Counts behind the once-a-minute background summary (BackgroundProbe.swift).
+    var probeCounts = BackgroundCounters()
+    private var backgroundSummary = MinuteSummary()
+    private var noticeSink: AnyCancellable?
     var resumeAsked = 0.0  // when Continue was tapped in the app
     /// Text the agent's `write` wants on the clipboard; written the next time the app is in front (ClipboardHop).
     var pendingClipboard: String?
@@ -139,8 +156,12 @@ import UIKit
             DebugLog.write("app command ignored in this build: \(line.prefix(20))")
             #endif
         }
+        let previous = RunMarker.takePrevious().map {
+            String(format: "; the previous process ended mid-run (last stage: %@, set %.0f s before this launch)", $0.stage, $0.ago)
+        } ?? ""
         DebugLog.write("app launched \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "")"
-                       + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))")
+                       + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))" + previous)
+        noticeSink = objectWillChange.sink { [weak self] _ in self?.probeCounts.modelNotices += 1 }
         #if DEBUG
         startHarnessLink()
         #endif
@@ -267,6 +288,7 @@ import UIKit
     /// Every second: metrics; a suspension note; the stream's numbers every 10 s while a run goes.
     private func tick() {
         refreshLinkRecoveryDisplay()
+        summarizeBackground()
         let before = metrics.suspensions, gap = now() - lastTick
         metrics.tick()
         lastTick = now()
@@ -290,6 +312,20 @@ import UIKit
                                   s?.udp?.kbps ?? 0, s?.kbps ?? 0, s?.fps ?? 0, feed.updated > 0 ? now() - feed.updated : -1,
                                   metrics.drops, w.nacks, w.lost, s?.udp?.drop ?? 0))
         }
+    }
+
+    /// Once a minute while a run (or its start) is in the background: what kept the main thread busy.
+    private func summarizeBackground() {
+        let active = (startingAgent || agent.running) && appIsBackgrounded
+        var totals = probeCounts  // two cheap syscalls a second
+        totals.videoUnits = feed.unitsReceived
+        totals.framesDecoded = feed.framesShown
+        totals.faceTicks = FaceTicks.count
+        totals.cpu = ProcessCPU.seconds()
+        totals.mainCPU = ProcessCPU.mainThreadSeconds()
+        guard let line = backgroundSummary.tick(totals, at: now(), active: active) else { return }
+        DebugLog.write(line)
+        metrics.backgroundSummary = line
     }
 
     /// A command timed out: video may be starving the board's control traffic. Stop the stream and run

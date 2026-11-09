@@ -5,7 +5,7 @@ import UIKit
 /// Home Screen (and checks that iOS really put it in the background), and a run holds while it is in front.
 extension AppModel {
 
-    var appIsBackgrounded: Bool { UIApplication.shared.applicationState == .background }
+    var appIsBackgrounded: Bool { isBackground() }
 
     /// Each fallback is a distinct gesture; never treat the board's ACK as a successful departure.
     func leaveApp() async throws -> Bool {
@@ -85,7 +85,10 @@ extension AppModel {
                 guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.board)) }
                 waited = true
                 let stage = Recovery.Stage(part: .board, ask: now() - began >= Recovery.quiet[.board]!)
-                if stage != recovering { recover(stage) }
+                if stage != recovering {
+                    DebugLog.write(String(format: "startup board wait: %@ after %.1f s", stage.logLine, now() - began))
+                    recover(stage)
+                }
                 homeHint = stage.line
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
@@ -153,6 +156,8 @@ extension AppModel {
                 && boundary.accepts(capturedAt: feed.capturedAt, backgroundEnteredAt: backgroundEnteredAt)
         }
         var logged = 0.0
+        var shownStage: Recovery.Stage?, shownPoll = 0.0  // for the log: transitions only
+        RunMarker.set("startup: waiting for the first frame")
         while true {
             if now() - logged >= 1 {  // why there is no usable frame yet, once a second
                 logged = now()
@@ -181,16 +186,27 @@ extension AppModel {
             }
             let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled)
+            var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
             case .live: break
-            case .wait(let stage):
-                if stage != recovering { recover(stage) }
-                homeHint = stage.line
+            case .wait(let s):
+                stage = s
+                waiting = s.part != .frames  // board, hotspot or mirroring down
+                if s != recovering { recover(s) }
+                homeHint = s.line
             case .giveUp(let reason): throw DeviceError(message: reason)
+            }
+            let poll = Self.startupPoll(waiting: waiting)
+            if stage != shownStage || poll != shownPoll {
+                DebugLog.write(String(format: "startup wait: %@ at %.1f s, poll %.1f s",
+                                      stage?.logLine ?? "links up", now() - began, poll))
+                shownStage = stage
+                shownPoll = poll
+                RunMarker.set("startup: " + (stage.map { "waiting, \($0.part)\($0.ask ? ", asked the user" : "")" } ?? "waiting for a frame"))
             }
             if !board.connected { try await waitForStartupBoard(); continue }
             if now() < streamDeadline {
-                try await Task.sleep(nanoseconds: 100_000_000)
+                try await Task.sleep(nanoseconds: UInt64(poll * 1e9))
                 continue
             }
             do {
@@ -272,6 +288,10 @@ extension AppModel {
         await feed.settled()
         DebugLog.write("run: app in background again, going on")
     }
+
+    /// How often the startup wait looks for its first frame: often while frames may be on the way, slower
+    /// while a link is down (no frame can come until it is back, and the app is in the background).
+    static func startupPoll(waiting: Bool) -> Double { waiting ? 0.5 : 0.1 }
 
     private func waitForBackground(_ seconds: Double, stopOnBoardLoss: Bool = false) async throws -> Bool {
         let deadline = now() + seconds

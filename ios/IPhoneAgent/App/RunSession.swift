@@ -38,7 +38,9 @@ extension AppModel {
         lastRunDoing = nil
         startupDeadline = now() + Recovery.limit
         homeHint = String(localized: "Preparing the run…")
+        RunMarker.set("startup")
         defer {
+            if !agent.running { RunMarker.clear() }
             startingAgent = false
             departing = false
             homeHint = nil
@@ -163,6 +165,7 @@ extension AppModel {
                 mark("free line lease")
             }
             try agent.start(task, traceStarted: true, resume: resume)
+            RunMarker.set("running")
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)
@@ -263,6 +266,7 @@ extension AppModel {
 
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
+        RunMarker.clear()
         Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
                                 firmware: board.status?.fw?.description))  // free line
         videoSink = nil

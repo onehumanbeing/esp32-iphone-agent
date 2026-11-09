@@ -43,6 +43,7 @@ enum SetupPage: Int, CaseIterable, Identifiable {
 struct RootView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var settings: Settings
+    @Environment(\.scenePhase) private var scene
     @AppStorage(RunShare.askedKey) private var privacyAsked = false
     @State private var consent = false
 
@@ -88,6 +89,7 @@ struct RootView: View {
                 Task { await app.startAgent(pending.task) }
             }
         }
+        .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
         .onAppear {
             if privacyAsked { setUp() } else { consent = true }  // what is kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
@@ -119,4 +121,15 @@ struct RootView: View {
 private struct PendingRun: Identifiable {
     let task: String
     var id: String { task }
+}
+
+extension RootView {
+    static func name(_ phase: ScenePhase) -> String {
+        switch phase {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
+    }
 }

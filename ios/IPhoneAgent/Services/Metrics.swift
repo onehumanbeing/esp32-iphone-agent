@@ -30,6 +30,7 @@ import Foundation
     @Published var backgroundSince: Double?
     @Published var backgroundAlive = 0.0  // s alive in background (current or last stint)
     @Published var suspensions = 0
+    @Published var backgroundSummary: String?  // the last once-a-minute background line
 
     private var windowBytes = 0, windowFrames = 0
     private var windowStart = now()

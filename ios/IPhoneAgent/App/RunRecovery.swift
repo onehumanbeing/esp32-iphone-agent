@@ -50,6 +50,7 @@ extension AppModel {
         let was = recovering
         recovering = stage
         guard let stage else {
+            if agent.running { RunMarker.set("running") }
             notifier.clearLinkAsks()
             runMood = .thinking
             return
@@ -59,6 +60,7 @@ extension AppModel {
             DebugLog.write("recover: board rebooted \(up / 1000) s ago (reset: \(board.status?.rst ?? "?"))")
         }
         DebugLog.write("recover: \(stage.logLine)")
+        if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
         if stage.ask { notifier.post(kind(stage.part), title: title(stage.part), body: stage.line, run: runID) }
