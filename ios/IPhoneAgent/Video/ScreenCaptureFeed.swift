@@ -64,8 +64,8 @@ struct ScreenCaptureError: LocalizedError {
         }
     }
 
-    func afterAction(since: Double) async {
-        await settled()
+    func afterAction(since: Double, ignoring spots: [CGPoint]) async {
+        await settled(ignoring: spots)
         _ = await fresh(since: since, timeout: 1)
     }
 

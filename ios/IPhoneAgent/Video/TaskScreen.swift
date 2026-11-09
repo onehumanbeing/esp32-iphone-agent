@@ -9,6 +9,7 @@ import Foundation
     @Published private(set) var frame: Data?
     // AgentLoop treats live as readiness to act, so losing the control link must still pause the run.
     var live: Bool { source.live && isConnected() }
+    var stale: Bool { source.stale }
     var updated: Double { source.updated }
     var changed: Double { source.changed }
     var capturedAt: Double { source.capturedAt }
@@ -27,6 +28,8 @@ import Foundation
         frameSink = frames.sink { [weak self] in self?.frame = $0 }
     }
 
-    func afterAction(since: Double) async { await source.afterAction(since: since) }
+    func afterAction(since: Double, ignoring spots: [CGPoint]) async {
+        await source.afterAction(since: since, ignoring: spots)
+    }
     func checkAvailability() throws { try source.checkAvailability() }
 }

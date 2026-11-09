@@ -545,7 +545,7 @@ extension AppModel {
     func setListening(_ on: Bool) {
         audio.enabled = on && !MockMode.on
         audio.screenLines = { [weak self] in
-            guard let jpeg = self?.feed.frame, let image = Vision.image(jpeg) else { return [] }
+            guard let jpeg = self?.screen.frame, let image = Vision.image(jpeg) else { return [] }
             return await UITreeOCR.lines(image, languages: nil).map(\.text)
         }
         if audio.enabled { audio.prepare() }

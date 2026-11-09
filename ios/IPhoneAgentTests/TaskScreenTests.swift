@@ -36,6 +36,19 @@ import XCTest
         XCTAssertFalse(screen.live)
     }
 
+    func testStaleFramesFollowTheSelectedSource() {
+        let airPlay = Source(frame: Data([1]))
+        let local = Source(frame: Data([2]))
+        let screen = TaskScreen(source: airPlay, frames: airPlay.$frame, isConnected: { true })
+        XCTAssertFalse(screen.stale)
+        airPlay.stale = true
+        XCTAssertTrue(screen.stale)
+        screen.select(local, frames: local.$frame)
+        XCTAssertFalse(screen.stale)
+        local.stale = true
+        XCTAssertTrue(screen.stale)
+    }
+
     func testLostControlLinkPausesWithoutDiscardingTheScreen() {
         var connected = true
         let source = Source(frame: Data([1]))
@@ -56,7 +69,9 @@ import XCTest
         XCTAssertNoThrow(try screen.checkAvailability())
         screen.select(second, frames: second.$frame)
         XCTAssertThrowsError(try screen.checkAvailability())
-        await screen.afterAction(since: 42)
+        let spots = [CGPoint(x: 0.2, y: 0.4), CGPoint(x: 0.3, y: 0.5)]
+        await screen.afterAction(since: 42, ignoring: spots)
+        XCTAssertEqual(second.ignoredSpots, spots)
         XCTAssertEqual(second.waitedSince, 42)
         XCTAssertNil(first.waitedSince)
     }
@@ -124,11 +139,16 @@ import XCTest
         let updated = 1.0
         let capturedAt = 1.0
         let aspect: Double
+        var stale = false
         var stopped = false
+        var ignoredSpots: [CGPoint] = []
         var waitedSince: Double?
 
         init(frame: Data?, aspect: Double = 0.5) { self.frame = frame; self.aspect = aspect }
-        func afterAction(since: Double) async { waitedSince = since }
+        func afterAction(since: Double, ignoring spots: [CGPoint]) async {
+            waitedSince = since
+            ignoredSpots = spots
+        }
         func checkAvailability() throws {
             if stopped { throw ScreenCaptureError(message: "stopped") }
         }
