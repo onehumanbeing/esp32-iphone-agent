@@ -68,10 +68,18 @@ import UIKit
     var startupBoardIssue = false
     var startupDeadline = 0.0
     var backgroundEnteredAt = 0.0
+    /// Whether the app is in the background (tests stand in for UIKit's application state).
+    var isBackground: () -> Bool = { UIApplication.shared.applicationState == .background }
     var linkRecoveryDisplay: Recovery?
     var lastRunDoing: AgentLoop.Doing?
     /// A banner on Home: the app could not leave by itself (swipe up), or the run waits while the app is in front.
-    @Published var homeHint: String?
+    /// Published only when it changes: wait loops set the same line many times a second, also in the background,
+    /// and every change notice re-renders the whole app on the main thread.
+    var homeHint: String? {
+        get { shownHomeHint }
+        set { if newValue != shownHomeHint { shownHomeHint = newValue } }
+    }
+    @Published private var shownHomeHint: String?
     var resumeAsked = 0.0  // when Continue was tapped in the app
     /// Text the agent's `write` wants on the clipboard; written the next time the app is in front (ClipboardHop).
     var pendingClipboard: String?

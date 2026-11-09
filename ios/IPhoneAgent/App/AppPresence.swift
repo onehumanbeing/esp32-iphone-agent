@@ -5,7 +5,7 @@ import UIKit
 /// Home Screen (and checks that iOS really put it in the background), and a run holds while it is in front.
 extension AppModel {
 
-    var appIsBackgrounded: Bool { UIApplication.shared.applicationState == .background }
+    var appIsBackgrounded: Bool { isBackground() }
 
     /// Each fallback is a distinct gesture; never treat the board's ACK as a successful departure.
     func leaveApp() async throws -> Bool {
@@ -181,16 +181,18 @@ extension AppModel {
             }
             let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled)
+            var waiting = false
             switch recovery.next(link, at: now()) {
             case .live: break
             case .wait(let stage):
+                waiting = stage.part != .frames  // board, hotspot or mirroring down
                 if stage != recovering { recover(stage) }
                 homeHint = stage.line
             case .giveUp(let reason): throw DeviceError(message: reason)
             }
             if !board.connected { try await waitForStartupBoard(); continue }
             if now() < streamDeadline {
-                try await Task.sleep(nanoseconds: 100_000_000)
+                try await Task.sleep(nanoseconds: UInt64(Self.startupPoll(waiting: waiting) * 1e9))
                 continue
             }
             do {
@@ -272,6 +274,10 @@ extension AppModel {
         await feed.settled()
         DebugLog.write("run: app in background again, going on")
     }
+
+    /// How often the startup wait looks for its first frame: often while frames may be on the way, slower
+    /// while a link is down (no frame can come until it is back, and the app is in the background).
+    static func startupPoll(waiting: Bool) -> Double { waiting ? 0.5 : 0.1 }
 
     private func waitForBackground(_ seconds: Double, stopOnBoardLoss: Bool = false) async throws -> Bool {
         let deadline = now() + seconds

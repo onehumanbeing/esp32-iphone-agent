@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
-    @ObservedObject var feed: VideoFeed
+    let feed: VideoFeed  // not observed: a new frame re-renders only the run card's thumbnail
     @ObservedObject var agent: AgentLoop
     @ObservedObject var settings: Settings
     @ObservedObject var intents: IntentStore
@@ -238,14 +238,7 @@ struct HomeView: View {
     private func liveSection(_ card: RunCardSnapshot) -> some View {
         Section {
             HStack(alignment: .top, spacing: Space.m) {
-                Group {
-                    if let img = card.frame.flatMap({ UIImage(data: $0) })
-                        ?? card.cover.flatMap({ UIImage(contentsOfFile: $0.path) }) {
-                        Image(uiImage: img).resizable().scaledToFit()
-                    } else {
-                        Color(uiColor: .tertiarySystemFill)
-                    }
-                }
+                RunThumbnail(feed: feed, card: card)
                 .frame(width: 64, height: 138)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: Space.s) {
@@ -458,5 +451,27 @@ struct RenameSheet: View {
     private func save() {
         settings.agentName = name
         dismiss()
+    }
+}
+
+/// The run card's screen: the live frame while a run goes, else the run's cover. Its own view, so each new frame
+/// re-renders only this thumbnail, and decodes nothing while the app is in the background.
+private struct RunThumbnail: View {
+    @ObservedObject var feed: VideoFeed
+    let card: RunCardSnapshot
+    @Environment(\.scenePhase) private var phase
+
+    var body: some View {
+        if let img = image {
+            Image(uiImage: img).resizable().scaledToFit()
+        } else {
+            Color(uiColor: .tertiarySystemFill)
+        }
+    }
+
+    private var image: UIImage? {
+        guard card.storedRun == nil else { return card.cover.flatMap { UIImage(contentsOfFile: $0.path) } }
+        guard phase != .background else { return nil }
+        return (feed.frame ?? card.frame).flatMap { UIImage(data: $0) }
     }
 }

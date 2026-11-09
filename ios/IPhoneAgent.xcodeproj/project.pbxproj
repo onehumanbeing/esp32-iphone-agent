@@ -134,6 +134,7 @@
 		A42DB537742861FF668DB34A /* JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7FAA4989F36E7F9B4C021 /* JSON.swift */; };
 		A5A1640A615256B576F9A055 /* RunSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB6FEBD55DCBE8EED6834C /* RunSession.swift */; };
 		A5A78F1B4D15D843B8932932 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A02583BE955659071F3172 /* ModelProvider.swift */; };
+		A6006B2CA89BD106CA73618E /* BackgroundWaitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */; };
 		A8146F03F1C5164120A183B1 /* JevTypeSafe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */; };
 		ABEF22E60573E04FACD0E4A9 /* AgentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7314ABD64EC1106422C685E /* AgentFace.swift */; };
 		AD702230192ADBF827044490 /* LiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A03E1A122C50B8ED88AC91 /* LiveActivity.swift */; };
@@ -377,6 +378,7 @@
 		B1B84B4F1C81E697ACB30630 /* RunShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShare.swift; sourceTree = "<group>"; };
 		B260480A536241A2B9043EE1 /* AgentShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentShortcuts.swift; sourceTree = "<group>"; };
 		B9719A5EC1DD7C5033CC8DF5 /* Metrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metrics.swift; sourceTree = "<group>"; };
+		BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundWaitTests.swift; sourceTree = "<group>"; };
 		BE08EC61AC214B03938A0D28 /* IntentArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchiveTests.swift; sourceTree = "<group>"; };
 		C12C6B350F7AFD555CE0B8EA /* HotspotJoin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotspotJoin.swift; sourceTree = "<group>"; };
 		C2BE9FDCCB259EC7A7E259E4 /* ModelSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelectionView.swift; sourceTree = "<group>"; };
@@ -513,6 +515,7 @@
 			children = (
 				DCDFF66F3082E46B88130ABC /* AgentTests.swift */,
 				5DAABB20E9733B875E7D123D /* AudioTests.swift */,
+				BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */,
 				74060C297931361BA5916910 /* BoardLogDumpTests.swift */,
 				8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */,
 				058E1A3713DF7C52A472CAAD /* ChatTests.swift */,
@@ -968,6 +971,7 @@
 			files = (
 				7D859BE4F1E945FE96CD8C61 /* AgentTests.swift in Sources */,
 				D8139D919517804094B91D55 /* AudioTests.swift in Sources */,
+				A6006B2CA89BD106CA73618E /* BackgroundWaitTests.swift in Sources */,
 				462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */,
 				2AC3B28D33CD484DAE8CF66F /* BoardLogTests.swift in Sources */,
 				862E35000B05A1D8C18E2D38 /* ChatTests.swift in Sources */,
