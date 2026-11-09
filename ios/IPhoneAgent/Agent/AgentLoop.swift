@@ -353,8 +353,8 @@ extension Gestures {
                     failures = 0  // no gesture was sent; the next look restores the screen first
                 } catch let e where e is BlindError || e is CancellationError || Task.isCancelled {
                     throw e
-                } catch let e as LLMError where e.kind == "rate_limit_day" {
-                    throw e  // no point retrying today: ends the run with the message
+                } catch let e as LLMError where e.kind == "rate_limit_day" || e.kind == "trial_run_ended" {
+                    throw e  // retrying can't help (today's quota, or the free line ended the run): ends it with the message
                 } catch {  // a bad reply or a dropped link: recover, don't crash
                     record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)

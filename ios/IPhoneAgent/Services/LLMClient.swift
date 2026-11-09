@@ -68,6 +68,11 @@ struct LLMError: LocalizedError {
     var status = 0  // the HTTP status, when the server answered with an error
     var kind: String?  // for usage stats, e.g. "rate_limit_day"
     var errorDescription: String? { message }
+
+    /// The free line ended this run (its lease): the run stops instead of retrying.
+    static let trialRunEnded = LLMError(
+        message: String(localized: "Handsy Free ended this run (idle too long or out of time). Start it again when you're ready."),
+        status: 503, kind: "trial_run_ended")
 }
 
 /// Client for any OpenAI-compatible chat endpoint (vision models). Port of llm.py, with streaming:
@@ -173,6 +178,7 @@ struct LLMError: LocalizedError {
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             for attempt in 0..<2 where [429, 502, 503, 504].contains(status) {
                 if status == 429 && Self.dailyLimit(errorText) { break }
+                if status == 503 && Self.trialRunEnded(errorText) { break }  // final: asking again can't help
                 if status != 429 && attempt > 0 { break }
                 let wait = status == 429 ? min(retryAfter ?? 5, 20) : 3
                 DebugLog.write(String(format: "llm: HTTP %d, retrying in %.0f s", status, wait))
@@ -186,6 +192,10 @@ struct LLMError: LocalizedError {
         guard (200..<300).contains(status), var result else {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
+            if status == 503 && Trial.isTrial(baseURL.absoluteString) && Self.trialRunEnded(errorText) {
+                Trial.shared.runEnded()
+                throw LLMError.trialRunEnded
+            }
             if status == 503 && Trial.isTrial(baseURL.absoluteString) {  // the free line took the run back or is full
                 throw LLMError(message: String(localized: "Handsy Free is busy or ended this run. Tap Retry in a moment."), status: status)
             }
@@ -202,6 +212,14 @@ struct LLMError: LocalizedError {
     static func dailyLimit(_ errorText: String) -> Bool {
         let t = errorText.lowercased()
         return t.contains("per-day") || t.contains("per day") || t.contains("daily")
+    }
+
+    /// The free line refused because this run's lease is over (idle too long, out of time, paused, call limit):
+    /// every further call would be refused too.
+    nonisolated static func trialRunEnded(_ errorText: String) -> Bool {
+        guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],
+              body["status"] as? String == "busy", let reason = body["reason"] as? String else { return false }
+        return reason.hasPrefix("lease_") || ["admin_paused", "run_mismatch", "task_call_limit"].contains(reason)
     }
 
     static func rateLimitError(_ errorText: String, openRouter: Bool) -> LLMError {

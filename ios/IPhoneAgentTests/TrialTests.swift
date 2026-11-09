@@ -68,4 +68,15 @@ import XCTest
         XCTAssertEqual(RunEnd(reason: .userStop, stage: .startup).outcome, "stopped")
         XCTAssertEqual(RunEnd(reason: .stall, stage: .running, steps: 99_999).json["steps"] as? Int, 10_000)
     }
+
+    func testRefusalsThatEndTheRun() {
+        for reason in ["lease_ended", "lease_idle", "lease_time_exhausted", "lease_invalid", "admin_paused",
+                       "task_call_limit"] {
+            XCTAssertTrue(LLMClient.trialRunEnded(#"{"status": "busy", "reason": "\#(reason)"}"#), reason)
+        }
+        for body in [#"{"status": "busy", "reason": "queue_full"}"#, #"{"status": "waiting", "reason": "lease_idle"}"#,
+                     "upstream error", ""] {
+            XCTAssertFalse(LLMClient.trialRunEnded(body), body)  // full or waiting: worth asking again
+        }
+    }
 }

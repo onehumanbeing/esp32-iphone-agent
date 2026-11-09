@@ -140,28 +140,48 @@ import UIKit
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
     private var lastRefusal: String?
 
+    /// Every 10 s off the main actor: a main thread busy for 30 s (screen tree, a stuck UI) let the lease idle
+    /// out while the run was still going.
     private func startKeepAlive(generation: Int?, token: String) {
         keepAlive?.cancel()
-        guard let generation, let lease else { return }
-        keepAlive = Task { [weak self] in
+        guard let generation, let lease, let url = URL(string: Self.origin + "/trial/leases/\(lease.id)/action") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+        request.setValue(DeviceInfo.model, forHTTPHeaderField: "X-Device-Model")
+        request.setValue(lease.token, forHTTPHeaderField: "X-Lease-Token")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["generation": generation])
+        let session = session, id = lease.id
+        keepAlive = Task.detached { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
-                guard let self, !Task.isCancelled, self.lease?.id == lease.id else { return }
-                do {
-                    let _: Empty = try await self.call("POST", "/trial/leases/\(lease.id)/action", token: token,
-                                                       leaseToken: lease.token, body: ["generation": generation])
-                } catch {
-                    DebugLog.write("trial: keep-alive failed: \(self.lastRefusal ?? error.localizedDescription)")
-                    // The server ended this lease (idle, paused, time): final. Stop asking every 10 s, and the run's
-                    // next model call fails at once (headers).
-                    if self.lastRefusal?.hasPrefix("lease_") == true || self.lastRefusal == "admin_paused" {
-                        self.leaseLost = true
-                        return
-                    }
+                guard !Task.isCancelled else { return }
+                guard let failure = await Self.ping(request, session) else { continue }
+                DebugLog.write("trial: keep-alive failed: \(failure)")
+                // The server ended this lease (idle, paused, time): final. Stop asking every 10 s, and the run's
+                // next model call fails at once (headers).
+                if failure.hasPrefix("lease_") || failure == "admin_paused" {
+                    await MainActor.run { if self?.lease?.id == id { self?.leaseLost = true } }
+                    return
                 }
             }
         }
     }
+
+    /// One keep-alive: nil when the server took it, else the refusal reason (or the error).
+    private nonisolated static func ping(_ request: URLRequest, _ session: URLSession) async -> String? {
+        do {
+            let (data, response) = try await session.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(code) { return nil }
+            return (try? JSONDecoder().decode(Hint.self, from: data))?.reason ?? "HTTP \(code)"
+        } catch { return error.localizedDescription }
+    }
+
+    /// A model call was refused because the server ended this run's lease: the run has to stop.
+    func runEnded() { if lease != nil { leaseLost = true } }
 
     /// After a run (or a failed start): give the line back, saying why the run ended (old gateways ignore the
     /// body); the server also ends it on its own when idle. In its own background task: the run's ends right after,
@@ -200,7 +220,7 @@ import UIKit
 
     func headers() throws -> [String: String] {
         guard let lease, let token else { throw TrialError.runsOnly }
-        guard !leaseLost else { throw TrialError.busy }  // ended on the server: no request would be served
+        guard !leaseLost else { throw LLMError.trialRunEnded }  // ended on the server: no request would be served
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run,
                 "X-Request-ID": UUID().uuidString.lowercased()]
@@ -278,7 +298,7 @@ import UIKit
     // MARK: HTTP
 
     private struct Empty: Decodable {}
-    private struct Hint: Decodable { let status: String?; let retry_after_ms: Int?; let reason: String? }
+    fileprivate struct Hint: Decodable { let status: String?; let retry_after_ms: Int?; let reason: String? }
 
     private func call<T: Decodable>(_ method: String, _ path: String, token: String? = nil, leaseToken: String? = nil,
                                     body: [String: Any]? = nil, gzip: Data? = nil) async throws -> T {

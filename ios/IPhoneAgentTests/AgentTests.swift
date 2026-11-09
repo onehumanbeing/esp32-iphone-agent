@@ -241,6 +241,15 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["reason"], .str("3 errors in a row"))
     }
 
+    func testRunStopsAtOnceWhenTheFreeLineEndsIt() async {
+        let model = FakeModel { _ in "THINK: x\nDO: wait" }
+        model.error = LLMError.trialRunEnded
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        await agent.run()
+        XCTAssertEqual(model.prompts.count, 1)  // no retries: every further call would be refused too
+        XCTAssertEqual(agent.steps.last?["action"], .str("error"))
+    }
+
     func testRunFinishesOnDone() async {
         let model = FakeModel { n in n == 1 ? "THINK: home\nPLAN:\n1. Go home\nDO: home" : "THINK: there\nDO: done ok" }
         let phone = FakeGestures()
@@ -415,12 +424,14 @@ import XCTest
     private(set) var images: [Data?] = []
     private let reply: (Int) -> String
     var tree: Data?  // the free line's handsy.tree on every reply
+    var error: Error?  // thrown instead of a reply
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
+        if let error { throw error }
         var result = ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
         result.tree = tree
         return result

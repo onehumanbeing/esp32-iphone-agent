@@ -9572,6 +9572,16 @@
           }
         }
       }
+    },
+    "Handsy Free ended this run (idle too long or out of time). Start it again when you're ready." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy Free 已结束这次运行（空闲太久或时间用完），准备好后再开始一次。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
