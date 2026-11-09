@@ -50,7 +50,10 @@ extension AgentLoop {
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
-        case "type": return try await phone.type(a["text"]?.str ?? "").map { ("typed", $0) }
+        case "type":
+            let text = a["text"]?.str ?? ""
+            if Scripts.needsPaste(text) { return ("typed", try await pasteInstead(text)) }  // the board can't type it
+            return try await phone.type(text).map { ("typed", $0) }
         case "clear": return try await phone.clearField().map { ("cleared", $0) }
         case "key": try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome()
