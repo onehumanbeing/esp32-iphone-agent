@@ -15,7 +15,7 @@ struct BlindError: LocalizedError {
     func type(_ text: String) async throws
     func key(_ combo: String) async throws
     func goHome() async throws
-    func openApp(_ name: String) async throws
+    func openApp(_ name: String) async throws -> OpenResult
     func goBack() async throws
     func reset() async throws
     /// Where the pointer really is after a tap that changed nothing (pixels only, learned for later taps).
@@ -476,7 +476,7 @@ extension Gestures {
                         return false
                     }
                 }
-                try await perform(act, aim: earlierTap)
+                if let opened = try await perform(act, aim: earlierTap) { act["opened"] = .str(opened.rawValue) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
@@ -559,7 +559,7 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "landed"]
+                                   "replay", "jev", "landed", "opened"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
@@ -588,6 +588,13 @@ extension Gestures {
     static func effect(_ s: JObject) -> String {
         guard let changed = s["changed"]?.bool else { return "" }
         var out = changed ? " -> screen changed" : " -> screen did NOT change"
+        let app = s["app"]?.str ?? ""
+        switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
+        case .opened?: out += "; \(app) is open"
+        case .notFound?: out += "; Spotlight lists no app named \(app) (the search is still on screen)"
+        case .notOpened?: out += "; \(app) did not open"
+        default: break
+        }
         if case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
            let x = s["x"]?.double, let y = s["y"]?.double {
             let dx = Int(lx - x), dy = Int(ly - y)
@@ -599,7 +606,9 @@ extension Gestures {
         return out
     }
 
-    func perform(_ a: JObject, aim: Bool = false) async throws {
+    /// The result of `open` (nil for every other action).
+    @discardableResult
+    func perform(_ a: JObject, aim: Bool = false) async throws -> OpenResult? {
         guard let phone else { throw DeviceError(message: "no phone") }
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
@@ -610,11 +619,12 @@ extension Gestures {
         case "type": try await phone.type(a["text"]?.str ?? "")
         case "key": try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome()
-        case "open": try await phone.openApp(a["app"]?.str ?? "")
+        case "open": return try await phone.openApp(a["app"]?.str ?? "")
         case "back": try await phone.goBack()
         case "wait": break
         case let other: throw Actions.ParseError(message: "unknown action \(other ?? "nil")")
         }
+        return nil
     }
 
     /// Show a run without running it (demo data).

@@ -58,6 +58,8 @@ import UIKit
     /// The connected board's pacing; a calibration made under another one no longer fits (iOS accelerates by speed).
     @Published var boardPace: Int?
     var log: (String) -> Void = { print($0) }
+    /// This app is in front (it must not be: open checks the app it opened is not this one).
+    var ownAppInFront: (() -> Bool)?
     /// The device screen's width / height (iPhone or iPad), stored with a calibration.
     var screenAspect: () -> Double = { 9 / 19.5 }
     /// Last-resort pointer finder on a frame (the vision model), when the pixel diff finds nothing.
@@ -495,21 +497,27 @@ import UIKit
         try await homeSwipe()
     }
 
-    /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
-    /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
-    /// hit, which was a text message mentioning the app.
+    /// Spotlight (cmd+space) with the app's name typed, opened and read back by AppOpener: tapping Home's Search
+    /// pill with the pointer mostly did nothing (2026-11-03: 20+ taps in one run), and a tap on the results
+    /// that misses closes Spotlight.
     /// Only the Home key first, never goHome's flick: on the Home Screen the key changes nothing, and the flick
     /// then opened the App Switcher (2026-11-06). Spotlight opens from any app anyway.
-    /// The results show up a moment after the name: wait for them, or the model sees the screen from before
-    /// and sends home + open again (2026-11-06, Brain task #885).
-    func openApp(_ name: String) async throws {
+    /// The results show up a moment after the name: wait for them (2026-11-06, Brain task #885).
+    func openApp(_ name: String) async throws -> OpenResult {
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
-        if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
-        try await Task.sleep(nanoseconds: 400_000_000)
-        try await key("cmd+space")
-        try await Task.sleep(nanoseconds: 700_000_000)
-        try await type(name)
-        await screen?.settled(quiet: 0.5, least: 1.0, most: 3.0)
+        let opener = AppOpener(home: { [self] in
+            if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+        }, key: { [self] in try await key($0) }, type: { [self] in try await type($0) }, look: { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.5, least: 1.0, most: 3.0)
+            return screen.frame
+        }, read: { jpeg in
+            guard let image = Vision.image(jpeg) else { return [] }
+            return await UITreeOCR.lines(image, languages: nil).map(\.text)  // whole lines: "App Store" stays one
+        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false })
+        let result = try await opener.open(name)
+        log("open \(name): \(result.rawValue)")
+        return result
     }
 
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.

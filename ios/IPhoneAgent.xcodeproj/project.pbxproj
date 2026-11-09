@@ -22,6 +22,7 @@
 		0B7AB0B39C3257BD2E395DC2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2418164D156C7D2934CA5312 /* Theme.swift */; };
 		0C1298D44729EA283EA84F1D /* RecordingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A3B41EAB2FA09398809742 /* RecordingPanel.swift */; };
 		1032BD2A5C93F44527463EC7 /* ModelConnectionCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEFE87504F77098EF0AEFFC /* ModelConnectionCheck.swift */; };
+		126D4B31DDEBB83EFB62BBC7 /* AppOpenerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02CB6633DFB8075249390689 /* AppOpenerTests.swift */; };
 		16394A944A52D59633E95DBE /* AIConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E12AC1F4CB0EEE97D0424C /* AIConsentView.swift */; };
 		173BD54931BD69B83D7F6FD3 /* CalibrationToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E3712143A195602610004B /* CalibrationToast.swift */; };
 		180133912100FC228377AE9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F960AA3F536A5DF20F8E908A /* Assets.xcassets */; };
@@ -62,6 +63,7 @@
 		4C33F19F733F62B5A131BE9E /* TouchCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A2F48B5948F180DF1450C /* TouchCalibration.swift */; };
 		4C9AF1D3470474D2AB745D00 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E74E2758C4170812147466F /* SettingsView.swift */; };
 		4CA70811574C401EB0012355 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DA6345A40715C8BD2AED6C /* Notifier.swift */; };
+		4D184FEE554A5EBA97B338A4 /* AppOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9486046079B57F9BC9084F8D /* AppOpener.swift */; };
 		4D2CC3505EE787FD08A06FB2 /* ChatContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2922DB7E8B844E6C11E8D1 /* ChatContext.swift */; };
 		50F10FB49F552A8D8F47CA32 /* RecordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9AA4AD10964BF7D3CF159DC /* RecordSheet.swift */; };
 		5235C00D6F94D4A3CC05E949 /* SpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8BE66599E49A93C6BD85ED /* SpeechEngine.swift */; };
@@ -239,6 +241,7 @@
 		01F6840C8EDD48E656084FEA /* AudioFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFeed.swift; sourceTree = "<group>"; };
 		0278B11885CA8C4A96C96531 /* AgentIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntents.swift; sourceTree = "<group>"; };
 		02C2C2C9EBE006E896050646 /* BoardCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCommands.swift; sourceTree = "<group>"; };
+		02CB6633DFB8075249390689 /* AppOpenerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppOpenerTests.swift; sourceTree = "<group>"; };
 		058E1A3713DF7C52A472CAAD /* ChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTests.swift; sourceTree = "<group>"; };
 		05DA6345A40715C8BD2AED6C /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		068467110687822B205043D4 /* AgentMinimalStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMinimalStatus.swift; sourceTree = "<group>"; };
@@ -349,6 +352,7 @@
 		8F2E6CFBDF20832FF9626D99 /* RecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTests.swift; sourceTree = "<group>"; };
 		915FC0D291F09BE0A0439D9C /* RunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsView.swift; sourceTree = "<group>"; };
 		9419B84DE8B4B7CD816AF19B /* ReviewSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewSheets.swift; sourceTree = "<group>"; };
+		9486046079B57F9BC9084F8D /* AppOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppOpener.swift; sourceTree = "<group>"; };
 		953BF9D5FB798BA1F3CEC832 /* IPhoneAgentApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneAgentApp.swift; sourceTree = "<group>"; };
 		961DDD85021E59AD3DDF4F82 /* ListenSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenSection.swift; sourceTree = "<group>"; };
 		96A8E3AF04195B586F10EDC4 /* ModelRequestFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRequestFailure.swift; sourceTree = "<group>"; };
@@ -436,6 +440,7 @@
 				458E8069AA8BE0B721C9AD7A /* Actions.swift */,
 				17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */,
 				6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */,
+				9486046079B57F9BC9084F8D /* AppOpener.swift */,
 				40E457695DD50084E36835E1 /* AskMode.swift */,
 				D317C60AA727B6A20A589DAC /* AssistiveTouchSpots.swift */,
 				87AE5159FF1E2C627E4ECC7A /* Breaker.swift */,
@@ -512,6 +517,7 @@
 			isa = PBXGroup;
 			children = (
 				DCDFF66F3082E46B88130ABC /* AgentTests.swift */,
+				02CB6633DFB8075249390689 /* AppOpenerTests.swift */,
 				5DAABB20E9733B875E7D123D /* AudioTests.swift */,
 				74060C297931361BA5916910 /* BoardLogDumpTests.swift */,
 				8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */,
@@ -967,6 +973,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7D859BE4F1E945FE96CD8C61 /* AgentTests.swift in Sources */,
+				126D4B31DDEBB83EFB62BBC7 /* AppOpenerTests.swift in Sources */,
 				D8139D919517804094B91D55 /* AudioTests.swift in Sources */,
 				462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */,
 				2AC3B28D33CD484DAE8CF66F /* BoardLogTests.swift in Sources */,
@@ -1011,6 +1018,7 @@
 				F66B85509456CAFD4A48376F /* Analytics.swift in Sources */,
 				415214E03E0E5CDFFE550934 /* AppDeparture.swift in Sources */,
 				DDC8DB5DA64D75338F3A52DF /* AppModel.swift in Sources */,
+				4D184FEE554A5EBA97B338A4 /* AppOpener.swift in Sources */,
 				812925C7EC9F24F99DC06037 /* AppPresence.swift in Sources */,
 				6AD192F1135ABB396C28A6AF /* AskMode.swift in Sources */,
 				F77EB884A6AE61AC290911D9 /* AssistiveTouchSpots.swift in Sources */,

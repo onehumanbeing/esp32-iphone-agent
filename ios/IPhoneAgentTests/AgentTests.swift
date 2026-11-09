@@ -400,7 +400,8 @@ import XCTest
     func type(_ text: String) async throws { calls.append("type") }
     func key(_ combo: String) async throws { calls.append("key") }
     func goHome() async throws { calls.append("home") }
-    func openApp(_ name: String) async throws { calls.append("open \(name)") }
+    var openResult = OpenResult.opened
+    func openApp(_ name: String) async throws -> OpenResult { calls.append("open \(name)"); return openResult }
     func goBack() async throws { calls.append("back") }
     func reset() async throws { calls.append("reset") }
     var landed: CGPoint?

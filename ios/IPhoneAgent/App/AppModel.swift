@@ -121,6 +121,7 @@ import UIKit
         pointer.log = say
         pointer.screenAspect = { DeviceScreen.aspect }
         pointer.locate = { [weak self] jpeg in await self?.locatePointer(jpeg) }
+        pointer.ownAppInFront = { [weak self] in self.map { !$0.appIsBackgrounded } ?? false }
         // Lines come from any thread (a firmware check, MetricKit's crash report): hop to the main actor when
         // needed instead of asserting, which crashed build 24 and then every launch that got the report.
         DebugLog.relay = { [weak self] line in
