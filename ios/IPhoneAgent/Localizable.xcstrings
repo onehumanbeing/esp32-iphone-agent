@@ -9522,6 +9522,36 @@
           }
         }
       }
+    },
+    "Confidence needed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所需把握"
+          }
+        }
+      }
+    },
+    "Reset to Default" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认"
+          }
+        }
+      }
+    },
+    "Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Handsy's server may ask for more on some kinds of steps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 只在把握不低于这个值时才自己走这一步，否则交给大语言模型。调低更快，调高更稳。Handsy 服务器对某些类型的步骤可能要求更高。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

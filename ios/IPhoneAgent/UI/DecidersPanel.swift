@@ -15,7 +15,7 @@ struct DecidersPanel: View {
     @State private var dragging: Decider?
     @State private var dragOffset: CGFloat = 0
     @State private var swapped: CGFloat = 0  // rows moved past while dragging, in points
-    @AppStorage(Deciders.raceKey) private var race = false
+    @AppStorage(Deciders.raceKey) private var race = true
     @AppStorage(JevConfig.ownKey) private var jevOwnKey = false
 
     private static let rowHeight: CGFloat = 64

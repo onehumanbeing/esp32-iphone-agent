@@ -9,7 +9,8 @@ struct JevStepInput: Equatable {
     static func parse(_ text: String, image: Data?) -> JevStepInput? {
         guard let image, image.starts(with: [0xff, 0xd8]),
               let goal = first(#"Goal:\s*(.*)"#, text), !goal.isEmpty,
-              let plan = first(#"\n\nPlan:\n(.*?)\n\nRecent actions:\n"#, text, dotAll: true), !plan.isEmpty
+              let plan = first(#"\n\nPlan:\n(.*?)\n\nRecent actions:\n"#, text, dotAll: true),
+              !JevRules.planSteps(plan).isEmpty  // no numbered plan yet: Jev could only say no_plan
         else { return nil }
         let history = first(#"\n\nRecent actions:\n(.*?)(?:\n\n|$)"#, text, dotAll: true)
         return JevStepInput(goal: String(goal.prefix(2000)), plan: String(plan.prefix(4000)),
@@ -67,6 +68,7 @@ struct JevAnswer: Decodable, Equatable {
             "ticket": try await ticket(), "request_id": UUID().uuidString.lowercased(), "run_id": runID,
             "goal": input.goal, "plan": input.plan, "image": "data:image/jpeg;base64," + input.image.base64EncodedString(),
             "app_version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+            "threshold": JevConfig.threshold,
         ]
         if let history = input.history { body["history"] = history }
         var request = URLRequest(url: url)
