@@ -12,6 +12,31 @@ import Vision
 enum UITreeOCR {
     static let chinese = ["zh-Hans", "en-US"]
 
+    /// The iPhone's own language ahead of `chinese` when Vision reads it (Spotlight lists the apps under their
+    /// names in that language). The first language leads: after zh-Hans, Vision dropped French and German
+    /// accents and misread kana and Hangul; first, it read them, and Chinese and English still came through.
+    static let device: [String] = {
+        let supported = (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? []
+        return withLanguage(Locale.preferredLanguages.first ?? "en", supported: supported)
+    }()
+
+    static func withLanguage(_ preferred: String, supported: [String]) -> [String] {
+        func parts(_ id: String) -> (code: String?, script: String?) {
+            let full = Locale.Language(identifier: Locale.Language(identifier: id).maximalIdentifier)
+            return (full.languageCode?.identifier, full.script?.identifier)
+        }
+        let want = parts(preferred)
+        guard let hit = supported.first(where: { parts($0) == want }), !chinese.contains(where: { parts($0) == want })
+        else { return chinese }
+        return [hit] + chinese
+    }
+
+    /// The languages to read Spotlight's results for an app `name` with: named ones for ASCII and Chinese names
+    /// or on a device whose language Vision reads, else Vision's automatic pick (kana and other scripts).
+    static func languages(for name: String, device: [String] = device) -> [String]? {
+        name.unicodeScalars.allSatisfy(\.isASCII) || HanTyper.isHan(name) || device.count > chinese.count ? device : nil
+    }
+
     static func lines(_ image: CGImage, languages: [String]? = chinese, whole: Bool = false) async -> [(text: String, box: [Int])] {
         let w = Double(image.width), h = Double(image.height)
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left

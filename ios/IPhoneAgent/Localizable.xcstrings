@@ -1925,6 +1925,16 @@
         }
       }
     },
+    "Clear the field" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空输入框"
+          }
+        }
+      }
+    },
     "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?" : {
       "localizations" : {
         "zh-Hans" : {

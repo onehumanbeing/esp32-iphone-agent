@@ -15,6 +15,7 @@ struct BlindError: LocalizedError {
     /// nil: all of it went in; else what did not (Pointer.type).
     func type(_ text: String) async throws -> String?
     func key(_ combo: String) async throws
+    func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
     func goHome() async throws
     func openApp(_ name: String) async throws -> OpenResult
     func goBack() async throws
@@ -488,7 +489,7 @@ extension Gestures {
             record(planned.shot, act)
             if name == "done" || name == "fail" { return true }
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
-            if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
+            if name == "tap" && (following == "type" || following == "key" || following == "clear") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
                 if !(await tapChanged(seen, &spots)) {
                     verdict(false)

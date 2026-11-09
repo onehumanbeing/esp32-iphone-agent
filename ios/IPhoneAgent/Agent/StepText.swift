@@ -12,6 +12,7 @@ enum StepText {
         case "path": return String(localized: "Draw a path")
         case "circle": return String(localized: "Draw a circle")
         case "type": return String(localized: "Type “\(s["text"]?.str ?? "")”")
+        case "clear": return String(localized: "Clear the field")
         case "open": return String(localized: "Open \(s["app"]?.str ?? "")")
         case "key": return String(localized: "Press \(s["combo"]?.str ?? "")")
         case "home": return String(localized: "Go to the Home Screen")
@@ -55,7 +56,7 @@ enum StepText {
         case "plan", "replan (stuck)": return "list.bullet.clipboard"
         case "tap": return "hand.tap"
         case "swipe", "path", "circle": return "hand.draw"
-        case "type": return "keyboard"
+        case "type", "clear": return "keyboard"
         case "open": return "magnifyingglass"
         case "key": return "command"
         case "home": return "house"

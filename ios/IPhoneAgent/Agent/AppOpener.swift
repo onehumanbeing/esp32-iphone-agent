@@ -10,7 +10,8 @@ enum OpenResult: String {
 /// only once the results list the name, then a check that the screen left Spotlight and the Home Screen.
 /// The model used to tap the app in the results itself: a tap that missed closed Spotlight back to the Home
 /// Screen, and a Chinese name could stay uncommitted pinyin that never found the app.
-/// A name Spotlight does not know ("闹钟") is tried once more under its system names (AppNames: 时钟, Clock).
+/// A name Spotlight does not know ("闹钟") is tried once more under its system names (AppNames: 时钟, Clock; the
+/// device language's name first).
 /// Bounded: `tries` rounds of a few keys per name, at most three names, every look has a ceiling; the result goes
 /// to the model, which decides.
 @MainActor struct AppOpener {
@@ -25,12 +26,14 @@ enum OpenResult: String {
     var ownAppInFront: () -> Bool = { false }
     var same: (Data?, Data?) -> Bool = { Vision.similar($0, $1) }
     var pause: (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
+    /// Picks the other names to try (AppNames.language).
+    var language = AppNames.deviceLanguage
     static let tries = 2
 
     func open(_ name: String) async throws -> OpenResult {
         let result = try await open(named: name)
         guard result == .notFound else { return result }
-        for other in AppNames.alternatives(name) {
+        for other in AppNames.alternatives(name, language: language) {
             let found = try await open(named: other)
             if found == .opened || found == .notOpened { return found }  // listed under that name
         }

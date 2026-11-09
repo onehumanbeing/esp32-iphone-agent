@@ -2,6 +2,8 @@ import Foundation
 
 /// What people call an app versus what the Home Screen calls it: "闹钟" is 时钟 on a Chinese iPhone and Clock on
 /// an English one, and Spotlight finds neither from "闹钟". `open` tries these when the name itself is not found.
+/// System apps under their other names: a name Spotlight does not list ("闹钟") is tried as the app's system
+/// name. Rows: Chinese, English, then aliases.
 enum AppNames {
     /// One app per row: its Chinese (zh-Hans) system name, its English name, then other names people use.
     static let table: [[String]] = [
@@ -45,12 +47,85 @@ enum AppNames {
 
     /// The system names to try for `name` (Chinese first, then English), never `name` itself; empty when the
     /// table does not know it.
-    static func alternatives(_ name: String) -> [String] {
+    /// Apple's names for the system apps in other languages, by English name and language (`language(_:)`).
+    static let localized: [String: [String: String]] = [
+        "Clock": ["de": "Uhr", "fr": "Horloge", "es": "Reloj", "es-419": "Reloj", "it": "Orologio", "pt": "Relógio",
+                  "pt-PT": "Relógio", "ja": "時計", "ko": "시계"],
+        "Notes": ["de": "Notizen", "fr": "Notes", "es": "Notas", "es-419": "Notas", "it": "Note", "pt": "Notas",
+                  "pt-PT": "Notas", "ja": "メモ", "ko": "메모"],
+        "Settings": ["de": "Einstellungen", "fr": "Réglages", "es": "Ajustes", "es-419": "Configuración",
+                     "it": "Impostazioni", "pt": "Ajustes", "pt-PT": "Definições", "ja": "設定", "ko": "설정"],
+        "Camera": ["de": "Kamera", "fr": "Appareil photo", "es": "Cámara", "es-419": "Cámara", "it": "Fotocamera",
+                   "pt": "Câmera", "pt-PT": "Câmara", "ja": "カメラ", "ko": "카메라"],
+        "Photos": ["de": "Fotos", "fr": "Photos", "es": "Fotos", "es-419": "Fotos", "it": "Foto", "pt": "Fotos",
+                   "pt-PT": "Fotos", "ja": "写真", "ko": "사진"],
+        "Calendar": ["de": "Kalender", "fr": "Calendrier", "es": "Calendario", "es-419": "Calendario",
+                     "it": "Calendario", "pt": "Calendário", "pt-PT": "Calendário", "ja": "カレンダー", "ko": "캘린더"],
+        "Reminders": ["de": "Erinnerungen", "fr": "Rappels", "es": "Recordatorios", "es-419": "Recordatorios",
+                      "it": "Promemoria", "pt": "Lembretes", "ja": "リマインダー", "ko": "미리 알림"],
+        "Messages": ["de": "Nachrichten", "fr": "Messages", "es": "Mensajes", "es-419": "Mensajes", "it": "Messaggi",
+                     "pt": "Mensagens", "pt-PT": "Mensagens", "ja": "メッセージ", "ko": "메시지"],
+        "Phone": ["de": "Telefon", "fr": "Téléphone", "es": "Teléfono", "es-419": "Teléfono", "it": "Telefono",
+                  "pt": "Telefone", "pt-PT": "Telefone", "ja": "電話", "ko": "전화"],
+        "Contacts": ["de": "Kontakte", "fr": "Contacts", "es": "Contactos", "es-419": "Contactos", "it": "Contatti",
+                     "pt": "Contatos", "pt-PT": "Contactos", "ja": "連絡先", "ko": "연락처"],
+        "Mail": ["de": "Mail", "fr": "Mail", "es": "Mail", "es-419": "Mail", "it": "Mail", "pt": "Mail", "ja": "メール",
+                 "ko": "메일"],
+        "Music": ["de": "Musik", "fr": "Musique", "es": "Música", "es-419": "Música", "it": "Musica", "pt": "Música",
+                  "pt-PT": "Música", "ja": "ミュージック", "ko": "음악"],
+        "Maps": ["de": "Karten", "fr": "Plans", "es": "Mapas", "es-419": "Mapas", "it": "Mappe", "pt": "Mapas",
+                 "pt-PT": "Mapas", "ja": "マップ", "ko": "지도"],
+        "Weather": ["de": "Wetter", "fr": "Météo", "es": "Tiempo", "es-419": "Clima", "it": "Meteo", "pt": "Tempo",
+                    "ja": "天気", "ko": "날씨"],
+        "Calculator": ["de": "Rechner", "fr": "Calculette", "es": "Calculadora", "es-419": "Calculadora",
+                       "it": "Calcolatrice", "pt": "Calculadora", "pt-PT": "Calculadora", "ja": "計算機", "ko": "계산기"],
+        "Files": ["de": "Dateien", "fr": "Fichiers", "es": "Archivos", "es-419": "Archivos", "it": "File",
+                  "pt": "Arquivos", "pt-PT": "Ficheiros", "ja": "ファイル", "ko": "파일"],
+        "Shortcuts": ["de": "Kurzbefehle", "fr": "Raccourcis", "es": "Atajos", "es-419": "Atajos",
+                      "it": "Comandi Rapidi", "pt": "Atalhos", "ja": "ショートカット", "ko": "단축어"],
+        "Voice Memos": ["de": "Sprachmemos", "fr": "Dictaphone", "es": "Notas de voz", "es-419": "Notas de voz",
+                        "it": "Memo Vocali", "ja": "ボイスメモ", "ko": "음성 메모"],
+        "Health": ["fr": "Santé", "es": "Salud", "es-419": "Salud", "it": "Salute", "pt": "Saúde", "pt-PT": "Saúde",
+                   "ja": "ヘルスケア", "ko": "건강"],
+        "Find My": ["de": "Wo ist?", "fr": "Localiser", "es": "Buscar", "es-419": "Buscar", "pt": "Buscar",
+                    "ja": "探す", "ko": "나의 찾기"],
+        "Translate": ["de": "Übersetzen", "fr": "Traduire", "es": "Traducir", "es-419": "Traducir", "it": "Traduci",
+                      "pt": "Traduzir", "pt-PT": "Traduzir", "ja": "翻訳", "ko": "번역"],
+        "Compass": ["de": "Kompass", "fr": "Boussole", "es": "Brújula", "es-419": "Brújula", "it": "Bussola",
+                    "pt": "Bússola", "pt-PT": "Bússola", "ja": "コンパス", "ko": "나침반"],
+        "Books": ["de": "Bücher", "fr": "Livres", "es": "Libros", "es-419": "Libros", "it": "Libri", "pt": "Livros",
+                  "pt-PT": "Livros", "ja": "ブック", "ko": "도서"],
+    ]
+
+    /// At most two other names for `name`'s app, for Spotlight: the device language's name first when the board
+    /// can type it (Latin, accents included), else English and Chinese (Chinese first on a Chinese device).
+    static func alternatives(_ name: String, language: String = deviceLanguage) -> [String] {
         let want = norm(name)
-        guard let row = table.first(where: { $0.contains { norm($0) == want } }) else { return [] }
+        guard let row = table.first(where: { row in
+            (row + (localized[row[1]].map { Array($0.values) } ?? [])).contains { norm($0) == want }
+        }) else { return [] }
+        let (zh, en) = (row[0], row[1])
+        let own = localized[en]?[language] ?? localized[en]?[String(language.prefix { $0 != "-" })]
+        let order = language == "zh" ? [zh, en] : own.map { Accents.typeable($0) ? [$0, en] : [en, zh] } ?? [en, zh]
         var out: [String] = []
-        for system in row.prefix(2) where norm(system) != want && !out.contains(system) { out.append(system) }
+        for system in order where norm(system) != want && !out.contains(system) { out.append(system) }
         return out
+    }
+
+    /// The iPhone's first language as a key of `localized`: "de", "es" (Spain) or "es-419" (the Americas),
+    /// "pt" (Brazil) or "pt-PT", "zh" (Simplified) or "zh-Hant".
+    static var deviceLanguage: String { language(Locale.preferredLanguages.first ?? "en") }
+
+    static func language(_ identifier: String) -> String {
+        let lang = Locale.Language(identifier: identifier)
+        let code = lang.languageCode?.identifier ?? "en"
+        let full = Locale.Language(identifier: lang.maximalIdentifier)
+        switch code {
+        case "zh": return full.script?.identifier == "Hant" ? "zh-Hant" : "zh"
+        case "es": return [nil, "ES"].contains(lang.region?.identifier) ? "es" : "es-419"
+        case "pt": return lang.region?.identifier == "PT" ? "pt-PT" : "pt"
+        default: return code
+        }
     }
 
     static func norm(_ s: String) -> String { s.lowercased().filter { !$0.isWhitespace } }

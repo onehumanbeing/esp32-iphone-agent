@@ -28,6 +28,7 @@ extension AgentLoop {
         default: break
         }
         if let typed = s["typed"]?.str { out += "; typing stopped: \(typed)" }
+        if let cleared = s["cleared"]?.str { out += "; clear: \(cleared)" }
         if case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
            let x = s["x"]?.double, let y = s["y"]?.double {
             let dx = Int(lx - x), dy = Int(ly - y)
@@ -50,6 +51,7 @@ extension AgentLoop {
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
         case "type": return try await phone.type(a["text"]?.str ?? "").map { ("typed", $0) }
+        case "clear": return try await phone.clearField().map { ("cleared", $0) }
         case "key": try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome()
         case "open": return ("opened", try await phone.openApp(a["app"]?.str ?? "").rawValue)

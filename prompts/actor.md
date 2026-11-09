@@ -49,7 +49,8 @@ Actions:
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
-  type TEXT                 (English or Chinese; emoji are dropped; tap the input field first)
+  type TEXT                 (English, Chinese or accented Latin; emoji are dropped; tap the input field first)
+  clear                     (empty the focused text field; the result says if text is left)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
   open APP                  (start the app by its name, from any screen; the result says whether it opened)
   home | back | wait

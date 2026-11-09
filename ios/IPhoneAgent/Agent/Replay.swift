@@ -87,7 +87,7 @@ struct Replay {
     mutating func restart() { next = 0; over = false; loops = 0 }
 
     /// Moves that can be repeated blindly; anything else (notes, done, unknown words) goes to the model.
-    static let replayable: Set<String> = ["tap", "swipe", "type", "home", "back", "key", "wait"]
+    static let replayable: Set<String> = ["tap", "swipe", "type", "clear", "home", "back", "key", "wait"]
 
     static func decide(_ step: Step, screen: Data?) -> Decision {
         let name = step.action["action"]?.str ?? ""

@@ -35,7 +35,7 @@ import XCTest
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
                                read: { _ in typed == "时钟" ? ["时钟", "时钟"] : [typed] },
-                               same: { $0 == $1 }, pause: { _ in })
+                               same: { $0 == $1 }, pause: { _ in }, language: "zh")
         let result = try await opener.open("闹钟")
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟", "type 时钟"])
@@ -43,12 +43,12 @@ import XCTest
     }
 
     func testAliasesNameTheSystemAppsChineseFirst() {
-        XCTAssertEqual(AppNames.alternatives("闹钟"), ["时钟", "Clock"])
-        XCTAssertEqual(AppNames.alternatives("clock"), ["时钟"])
-        XCTAssertEqual(AppNames.alternatives("时钟"), ["Clock"])
-        XCTAssertEqual(AppNames.alternatives("Voice Memos"), ["语音备忘录"])
-        XCTAssertEqual(AppNames.alternatives("App Store"), [])
-        XCTAssertEqual(AppNames.alternatives("Duolingo"), [])
+        XCTAssertEqual(AppNames.alternatives("闹钟", language: "zh"), ["时钟", "Clock"])
+        XCTAssertEqual(AppNames.alternatives("clock", language: "zh"), ["时钟"])
+        XCTAssertEqual(AppNames.alternatives("时钟", language: "zh"), ["Clock"])
+        XCTAssertEqual(AppNames.alternatives("Voice Memos", language: "zh"), ["语音备忘录"])
+        XCTAssertEqual(AppNames.alternatives("App Store", language: "zh"), [])
+        XCTAssertEqual(AppNames.alternatives("Duolingo", language: "zh"), [])
     }
 
     func testNoSuchAppLeavesSpotlightForTheModelWithoutReturn() async throws {

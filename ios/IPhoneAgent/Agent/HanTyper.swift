@@ -16,7 +16,7 @@ import NaturalLanguage
     }
     enum Piece: Equatable { case han(String), plain(String) }
 
-    /// ASCII the board types as is.
+    /// ASCII the board types as is (accented letters go through `key`: Accents).
     var send: (String) async throws -> Void
     var key: (String) async throws -> Void
     /// ctrl+space, waited for: pinyin <-> English.
@@ -32,7 +32,9 @@ import NaturalLanguage
     func type(_ text: String, checkLetters: Bool = true) async throws -> String? {
         var queue = Self.pieces(text)[...]
         var typed = ""
-        let checked = checkLetters || queue.contains { if case .han = $0 { true } else { false } }
+        let checked = checkLetters || queue.contains {
+            if case .plain(let s) = $0 { !Self.layoutSymbols(in: s).isEmpty } else { true }
+        }
         var last = checked ? await look() : nil  // the screen before the next piece
         var lastRow: Set<Int> = []
         var pending: (word: String, base: String)?  // a committed word, checked on the next look
@@ -53,25 +55,31 @@ import NaturalLanguage
         while let piece = queue.popFirst() {
             switch piece {
             case .plain(let s):
-                let ascii = Pointer.typeable(s, trim: false)
-                guard !ascii.isEmpty else { continue }
-                try await send(ascii)
-                guard checkLetters, ascii.contains(where: \.isLetter), last != nil else { typed += s; continue }
+                let (strokes, plain) = Accents.plan(s)  // accented letters through Option keys
+                guard !strokes.isEmpty else { continue }
+                try await enter(strokes)
+                let letters = checkLetters && plain.contains(where: \.isLetter), symbols = Self.layoutSymbols(in: plain)
+                guard letters || !symbols.isEmpty, let before = last else { typed += s; continue }
                 guard var seen = await next() else { typed += s; continue }
                 if !seen.ok { return stop("\"\(pending!.word)\" did not show up in the field after committing it", piece) }
                 pending = nil
-                if seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
-                    try await erase(ascii.count)
+                if letters, seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
+                    try await erase(plain.count)
                     try await toggle()
-                    try await send(ascii)
+                    try await enter(strokes)
                     guard let again = await next() else { typed += s; continue }
                     if again.row.count >= 2 {
-                        try await erase(ascii.count)
+                        try await erase(plain.count)
                         return stop("the letters stayed uncommitted pinyin even after ctrl+space (cleared)", piece)
                     }
                     seen = again
                 }
                 typed += s
+                if Self.symbolsWrong(plain, symbols, now: seen.seen, row: seen.row, before: before, beforeRow: lastRow) {
+                    return "the symbols \(String(symbols)) came out as other characters: the iPhone's hardware keyboard layout"
+                        + " is not U.S. (Settings > General > Keyboard > Hardware Keyboard); typed \"\(typed)\" with them"
+                        + " wrong, not typed: \"\(queue.map(\.text).joined())\""
+                }
                 last = seen.seen; lastRow = Set(seen.row)
             case .han(let word):
                 let pinyin = Pointer.typeable(word)
@@ -124,6 +132,15 @@ import NaturalLanguage
         return nil
     }
 
+    private func enter(_ strokes: [Accents.Stroke]) async throws {
+        for stroke in strokes {
+            switch stroke {
+            case .text(let t): try await send(t)
+            case .key(let k): try await key(k)
+            }
+        }
+    }
+
     private func erase(_ count: Int) async throws {
         for _ in 0..<count { try await key("backspace") }
     }
@@ -170,7 +187,7 @@ import NaturalLanguage
         }
     }
 
-    static func isHan(_ s: String) -> Bool {
+    nonisolated static func isHan(_ s: String) -> Bool {
         s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
     }
 
@@ -203,6 +220,27 @@ import NaturalLanguage
         let skip = Set(row)
         return seen.words.indices.filter { !skip.contains($0) }.map { seen.words[$0].text }.joined()
             .filter { !$0.isWhitespace }
+    }
+
+    /// Symbols that sit on other keys in other hardware layouts (shift+2 is " on a U.K. one) and that OCR reads
+    /// reliably; the board sends U.S. key codes.
+    static let layoutSensitive = Set("@#$%&*+=[]{}\\<>/?~^")
+
+    static func layoutSymbols(in text: String) -> [Character] {
+        var out: [Character] = []
+        for ch in text where layoutSensitive.contains(ch) && !out.contains(ch) { out.append(ch) }
+        return out
+    }
+
+    /// The typed words show up in the field but a symbol among them does not: the keys made other characters.
+    /// No verdict when the words do not show up either (a password field, or a field OCR cannot read).
+    static func symbolsWrong(_ text: String, _ symbols: [Character], now: Seen, row: [Int], before: Seen,
+                             beforeRow: Set<Int>) -> Bool {
+        guard !symbols.isEmpty else { return false }
+        let after = fieldText(now, minus: row), base = fieldText(before, minus: Array(beforeRow))
+        let words = text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 }
+        guard words.contains(where: { count($0, in: after) > count($0, in: base) }) else { return false }
+        return symbols.contains { count(String($0), in: after) <= count(String($0), in: base) }
     }
 
     static func count(_ needle: String, in text: String) -> Int {
