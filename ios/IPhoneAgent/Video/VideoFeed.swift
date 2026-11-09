@@ -143,6 +143,9 @@ extension ScreenSource {
     /// Frame width / height (portrait iPhone as a fallback).
     var aspect: Double { size.width > 0 && size.height > 0 ? size.width / size.height : 9 / 19.5 }
 
+    /// Totals for the background summary: access units assembled, and frames shown after decoding.
+    private(set) var unitsReceived = 0, framesShown = 0
+
     /// One video chunk, from BLE (BoardLink) or Wi-Fi (VideoStream): both feed the one assembler.
     func receive(_ chunk: Data, via: String = "ble") {
         metrics?.videoBytes(chunk.count)
@@ -156,6 +159,7 @@ extension ScreenSource {
         }
         lastVia = via
         guard var unit else { return }
+        unitsReceived += 1
         unit.generation = generation
         if !unit.snap { boardClock(ms: Int(unit.boardMs)) }  // snap units are resent late: their ages say nothing
         if unit.idr { metrics?.idrSeen() }
@@ -199,6 +203,7 @@ extension ScreenSource {
         let tiny = !f.unit.data.isEmpty && !f.unit.idr && !f.unit.config && f.unit.data.count < Self.repeatBytes
         let repeated = tiny || f.jpeg == frame
         frame = f.jpeg
+        framesShown += 1
         updated = now()
         if !repeated { changed = updated }
         capturedAt = clockOffset.map { Double(f.unit.boardMs) / 1000 + $0 } ?? updated

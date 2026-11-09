@@ -64,4 +64,62 @@ import XCTest
         XCTAssertGreaterThanOrEqual(AppModel.startupPoll(waiting: true), 0.5)
         XCTAssertLessThanOrEqual(AppModel.startupPoll(waiting: false), 0.1)
     }
+
+    // MARK: - background summary
+
+    private func totals(_ n: Int, cpu: Double = 0) -> BackgroundCounters {
+        BackgroundCounters(hintWrites: n, hintChanges: n / 10, modelNotices: n, videoUnits: n, framesDecoded: n,
+                           faceTicks: n, cpu: cpu, mainCPU: cpu / 2)
+    }
+
+    func testSummaryLogsOncePerMinuteWithDeltas() {
+        var summary = MinuteSummary()
+        var lines: [String] = []
+        for t in 0...150 {  // a tick a second for 150 s in the background
+            if let line = summary.tick(totals(t * 10, cpu: Double(t) * 0.5), at: Double(t), active: true) { lines.append(line) }
+        }
+        XCTAssertEqual(lines.count, 2, "at 60 s and 120 s, nothing per tick")
+        XCTAssertTrue(lines[0].hasPrefix("background 60 s: hint writes 600 (changed 60), app model notices 600 (10.0/s)"), lines[0])
+        XCTAssertTrue(lines[0].contains("CPU 30.0 s (50%), main thread 15.0 s (25%)"), lines[0])
+        XCTAssertTrue(lines[1].contains("hint writes 600 "), "the second minute counts only its own writes: \(lines[1])")
+    }
+
+    func testSummaryClosesAStintOfAtLeastTenSeconds() {
+        var summary = MinuteSummary()
+        XCTAssertNil(summary.tick(totals(0), at: 0, active: false), "not in the background: nothing")
+        XCTAssertNil(summary.tick(totals(0), at: 1, active: true))
+        XCTAssertNil(summary.tick(totals(5), at: 6, active: false), "a 5 s stint is not worth a line")
+        XCTAssertNil(summary.tick(totals(5), at: 10, active: true))
+        let line = summary.tick(totals(25), at: 40, active: false)
+        XCTAssertEqual(line?.hasPrefix("background (ended) 30 s: hint writes 20 "), true, line ?? "nil")
+        XCTAssertNil(summary.tick(totals(30), at: 41, active: false))
+    }
+
+    func testDiagnosticSummaryNamesTheTopFrameOnly() throws {
+        let tree = try JSONSerialization.data(withJSONObject: ["callStacks": [["threadAttributed": true, "callStackRootFrames": [[
+            "binaryName": "SwiftUI", "binaryUUID": "A", "offsetIntoBinaryTextSegment": 0x1234,
+            "subFrames": [["binaryName": "IPhoneAgent", "binaryUUID": "B", "offsetIntoBinaryTextSegment": 0xabc]],
+        ]]]]])
+        XCTAssertEqual(CrashReports.summary("cpu exception", detail: "30 s CPU in 60 s", build: "7", tree: tree),
+                       "cpu exception, 30 s CPU in 60 s, build 7, top SwiftUI+0x1234, app IPhoneAgent+0xabc")
+        XCTAssertEqual(CrashReports.summary("hang", detail: "2.0 s", build: "7", tree: Data()), "hang, 2.0 s, build 7, top ?")
+    }
+
+    func testRunMarkerSurvivesForTheNextLaunchOnly() {
+        RunMarker.set("startup: waiting, mirroring")
+        RunMarker.clear()
+        XCTAssertNil(RunMarker.takePrevious(), "a run that ended leaves nothing")
+        UserDefaults.standard.set("running", forKey: "runMarker")  // as a process that died mid-run left it
+        XCTAssertEqual(RunMarker.takePrevious()?.stage, "running")
+        XCTAssertNil(RunMarker.takePrevious(), "read once")
+    }
+
+    func testCPUCountersMove() {
+        let cpu = ProcessCPU.seconds(), main = ProcessCPU.mainThreadSeconds()
+        var x = 0.0
+        for i in 0..<3_000_000 { x += sqrt(Double(i)) }
+        XCTAssertGreaterThan(x, 0)
+        XCTAssertGreaterThan(ProcessCPU.seconds(), cpu)
+        XCTAssertGreaterThan(ProcessCPU.mainThreadSeconds(), main, "the tests run on the main thread")
+    }
 }

@@ -38,7 +38,9 @@ extension AppModel {
         lastRunDoing = nil
         startupDeadline = now() + Recovery.limit
         homeHint = String(localized: "Preparing the run…")
+        RunMarker.set("startup")
         defer {
+            if !agent.running { RunMarker.clear() }
             startingAgent = false
             departing = false
             homeHint = nil
@@ -158,6 +160,7 @@ extension AppModel {
             }
             mark("first frame: " + frameSource)
             try agent.start(task, traceStarted: true, resume: resume)
+            RunMarker.set("running")
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)
@@ -257,6 +260,7 @@ extension AppModel {
 
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
+        RunMarker.clear()
         Trial.shared.end()  // free line
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended

@@ -9,6 +9,9 @@ enum Mood: String, Codable, Hashable {
 
 /// The character: the logo redrawn as vectors (rounded black board, two glowing eyes, a USB-C tab), so it can
 /// blink, look around and hop. Animations are short springs and stop under Reduce Motion.
+/// How often the animated face was drawn (the app's background summary logs it; a count only).
+enum FaceTicks { nonisolated(unsafe) static var count = 0 }
+
 struct AgentFace: View {
     var mood: Mood
     /// Where the eyes look, -1...1 on each axis (e.g. toward a tap point).
@@ -28,7 +31,10 @@ struct AgentFace: View {
             let s = min(g.size.width, g.size.height / (showsTab ? 1.12 : 1))
             Group {
                 if animated && !reduceMotion {
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { t in face(s, t: t.date.timeIntervalSinceReferenceDate) }
+                    TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                        FaceTicks.count += 1
+                        return face(s, t: t.date.timeIntervalSinceReferenceDate)
+                    }
                 } else {
                     face(s, t: 0)
                 }

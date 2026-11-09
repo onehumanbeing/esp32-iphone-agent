@@ -85,7 +85,10 @@ extension AppModel {
                 guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.board)) }
                 waited = true
                 let stage = Recovery.Stage(part: .board, ask: now() - began >= Recovery.quiet[.board]!)
-                if stage != recovering { recover(stage) }
+                if stage != recovering {
+                    DebugLog.write(String(format: "startup board wait: %@ after %.1f s", stage.logLine, now() - began))
+                    recover(stage)
+                }
                 homeHint = stage.line
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
@@ -153,6 +156,8 @@ extension AppModel {
                 && boundary.accepts(capturedAt: feed.capturedAt, backgroundEnteredAt: backgroundEnteredAt)
         }
         var logged = 0.0
+        var shownStage: Recovery.Stage?, shownPoll = 0.0  // for the log: transitions only
+        RunMarker.set("startup: waiting for the first frame")
         while true {
             if now() - logged >= 1 {  // why there is no usable frame yet, once a second
                 logged = now()
@@ -181,18 +186,27 @@ extension AppModel {
             }
             let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled)
-            var waiting = false
+            var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
             case .live: break
-            case .wait(let stage):
-                waiting = stage.part != .frames  // board, hotspot or mirroring down
-                if stage != recovering { recover(stage) }
-                homeHint = stage.line
+            case .wait(let s):
+                stage = s
+                waiting = s.part != .frames  // board, hotspot or mirroring down
+                if s != recovering { recover(s) }
+                homeHint = s.line
             case .giveUp(let reason): throw DeviceError(message: reason)
+            }
+            let poll = Self.startupPoll(waiting: waiting)
+            if stage != shownStage || poll != shownPoll {
+                DebugLog.write(String(format: "startup wait: %@ at %.1f s, poll %.1f s",
+                                      stage?.logLine ?? "links up", now() - began, poll))
+                shownStage = stage
+                shownPoll = poll
+                RunMarker.set("startup: " + (stage.map { "waiting, \($0.part)\($0.ask ? ", asked the user" : "")" } ?? "waiting for a frame"))
             }
             if !board.connected { try await waitForStartupBoard(); continue }
             if now() < streamDeadline {
-                try await Task.sleep(nanoseconds: UInt64(Self.startupPoll(waiting: waiting) * 1e9))
+                try await Task.sleep(nanoseconds: UInt64(poll * 1e9))
                 continue
             }
             do {
