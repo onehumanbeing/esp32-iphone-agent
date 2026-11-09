@@ -1,6 +1,56 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "The software keyboard state could not be verified." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法确认屏幕键盘状态。"
+          }
+        }
+      }
+    },
+    "The screen or board connection changed during keyboard handoff." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复屏幕键盘时，画面或开发板连接已变化。"
+          }
+        }
+      }
+    },
+    "The mouse button was released. Update the board firmware to release all keys." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已松开鼠标左键。请更新开发板固件以释放全部按键。"
+          }
+        }
+      }
+    },
+    "Check the on-screen keyboard before typing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请确认屏幕键盘已显示，再继续输入。"
+          }
+        }
+      }
+    },
+    "Check that the mouse and keyboard are released." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请确认鼠标和键盘的按键均已松开。"
+          }
+        }
+      }
+    },
     "Board firmware %@ is out of date" : {
       "localizations" : {
         "zh-Hans" : {

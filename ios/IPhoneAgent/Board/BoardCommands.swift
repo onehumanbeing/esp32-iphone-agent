@@ -131,7 +131,7 @@ extension BoardTransport {
             // 回执可能丢在执行后。仅重试能查询或设定同一状态的命令，避免重复操作手机。
             let name = command.split(separator: " ", maxSplits: 1).first
             switch name {
-            case "home", "pace", "release", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
+            case "home", "pace", "release", "reset", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
             default: throw e
             }
             DebugLog.write("cmd retry after timeout: \(command.prefix(40))")
@@ -142,12 +142,15 @@ extension BoardTransport {
     /// A timeout is the board being slow (e.g. a snap while it also streams), not a lost link: it throws
     /// BoardTimeout and keeps the connection; only a real CoreBluetooth disconnect fails as link lost.
     @discardableResult
-    func send(_ command: String, timeout custom: Double?) async throws -> String {
+    func send(_ command: String, timeout custom: Double?, checking: () throws -> Void = {}) async throws -> String {
         guard connected, let transport else { throw DeviceError(message: "board not connected") }
         let timeout = custom ?? Self.timeout(command)
         let name = String(command.split(separator: " ").first ?? "")
         await lock.lock()
         defer { lock.unlock() }
+        // 指令排队期间可能已经停止任务，或失去了发送这次输入的条件。
+        try Task.checkCancellation()
+        try checking()
         let started = now()
         let id = nextID
         nextID += 1
@@ -224,11 +227,16 @@ extension BoardTransport {
             do {
                 // nudge only a phone that is awake and mirroring: there is nothing to keep awake otherwise
                 if now() - last > idle && screenLive() {
-                    try await send("move 1 0")
-                    try await send("move -1 0")
+                    for move in ["move 1 0", "move -1 0"] {
+                        try await send(move, timeout: nil) {
+                            guard screenLive() else { throw CancellationError() }
+                        }
+                    }
                 } else {
                     try await send("ping")
                 }
+            } catch is CancellationError {
+                continue
             } catch {
                 log("board gone: \(error.localizedDescription)")
             }

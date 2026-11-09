@@ -23,6 +23,9 @@ video stream and replies: see [cli-protocol.md](cli-protocol.md).
 `<id>` is a decimal request id chosen by the app; the reply echoes it.
 Existing HID commands, unchanged semantics from the old TCP protocol:
 `ping`, `home`, `move DX DY`, `press`, `release`, `click`, `scroll A B`, `type TEXT`, `key COMBO`.
+
+`reset` 不带参数，可重复执行。它释放全部鼠标按钮、键盘按键和修饰键、消费控制键，保留指针位置。`key eject` 单独发送消费控制 Eject（`0x00B8`），切换屏幕键盘显示状态，丢失回执时不能重发。旧固件拒绝这两个新增操作。
+
 New:
 - `stream on|off` — continuously forward every access unit over `video` (default off).
 - `snap` — send SPS/PPS + every AU since the last IDR (the current GOP), then reply `ok`.

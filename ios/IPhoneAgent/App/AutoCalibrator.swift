@@ -72,7 +72,8 @@ import UIKit
 
     /// Before a run: calibrate if needed and wait for it. True when the pointer is calibrated.
     func ensureCalibrated() async -> Bool {
-        while busy { try? await Task.sleep(nanoseconds: 200_000_000) }
+        while busy && !Task.isCancelled { try? await Task.sleep(nanoseconds: 200_000_000) }
+        guard !Task.isCancelled else { return false }
         if !app.pointer.calibrated && boardReady { await run(why: String(localized: "before a run")) }
         return app.pointer.calibrated
     }
@@ -89,7 +90,8 @@ import UIKit
         previous = app.pointer.snapshot()
         let job = Task { await runOnce() }
         current = job
-        await job.value
+        await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
+        if Task.isCancelled { cancel(releasePointer: false) }
         current = nil
         previous = nil
     }
@@ -105,14 +107,14 @@ import UIKit
     }
 
     /// The board's Back button: stop whatever runs and close the board.
-    func cancel() {
+    func cancel(releasePointer: Bool = true) {
         current?.cancel()
         if busy || phase == .needsTap { app.say("calibration: cancelled") }
         putBack()
         progress = nil
         phase = app.pointer.calibrated ? .done : .idle
         closeBoard()
-        Task { _ = try? await app.pointer.reset() }
+        if releasePointer { Task { _ = try? await app.pointer.reset() } }
     }
 
     private func runOnce() async {

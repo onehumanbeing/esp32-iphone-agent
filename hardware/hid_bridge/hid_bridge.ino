@@ -74,6 +74,13 @@ uint8_t keyCode(const String &k) {
 }
 
 bool pressCombo(String combo) {
+  if (combo == "eject") {
+    // Eject 是消费控制报告，只能单独切换一次屏幕键盘。
+    consumer.press(CONSUMER_CONTROL_EJECT);
+    delay(40);
+    consumer.release();
+    return true;
+  }
   combo += '+';
   for (int i; (i = combo.indexOf('+')) >= 0; combo = combo.substring(i + 1)) {
     uint8_t c = keyCode(combo.substring(0, i));
@@ -105,6 +112,14 @@ String run(const String &line) {
   if (cmd == "ping") return "ok";
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
+  if (cmd == "reset") {
+    if (arg.length()) return "err usage: reset";
+    // 归还用户控制时，保留指针位置、当前页面和输入框内容。
+    mouse.release(0xff);
+    keyboard.releaseAll();
+    consumer.release();
+    return "ok";
+  }
   if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
     for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(2); }

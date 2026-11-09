@@ -57,6 +57,7 @@
 		42A1AE0EA1AC18461ED8F33B /* RecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2E6CFBDF20832FF9626D99 /* RecoveryTests.swift */; };
 		462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74060C297931361BA5916910 /* BoardLogDumpTests.swift */; };
 		48100361D2ECFE7E36F83F9D /* LLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F071F3E4D7B82DE70AE75A81 /* LLMTests.swift */; };
+		48738AD320FB971E272268C5 /* AgentLoop+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */; };
 		493D5E857A8D5B323A25BA53 /* ThreadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A0229ED6EF9D83865BC9D6 /* ThreadStore.swift */; };
 		4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607F9EBBC39E74507B73F751 /* H264Decoder.swift */; };
 		4C33F19F733F62B5A131BE9E /* TouchCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A2F48B5948F180DF1450C /* TouchCalibration.swift */; };
@@ -75,6 +76,7 @@
 		5BEC984820264DE4C650FC5C /* ScriptSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEC662BD901F01994E23515 /* ScriptSection.swift */; };
 		5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5962900FEB08728899160DD1 /* DemoRecorder.swift */; };
 		5EC81FBCFE439052A8F26EA2 /* Pointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CC3BCF7F90AF60B075DD96 /* Pointer.swift */; };
+		5FF8B2902D53068FD90072FB /* KeyboardHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E322C6A4D40557506D0D25E /* KeyboardHandoffTests.swift */; };
 		607B1520E654F13F1F304F4D /* DeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A9A9D917B2B2FC534E7DBA /* DeviceTests.swift */; };
 		6175C3268A0D1DD8F666FA54 /* IntentShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFD183B70078D3A2A3A4A29 /* IntentShare.swift */; };
 		63B0CAE819339D8FC103AC8B /* VideoFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9615E8664A5DC600B1B97E0 /* VideoFeed.swift */; };
@@ -344,6 +346,7 @@
 		8AE108AA4534D13B7AC12079 /* Recovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recovery.swift; sourceTree = "<group>"; };
 		8B2B975DEE7BC511DC51441F /* Prompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Prompts.swift; sourceTree = "<group>"; };
 		8C498727CAF51C5A955A8A10 /* PrivacyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyViews.swift; sourceTree = "<group>"; };
+		8E322C6A4D40557506D0D25E /* KeyboardHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardHandoffTests.swift; sourceTree = "<group>"; };
 		8E64CF4B18DBAB014C7E9314 /* StepFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepFrame.swift; sourceTree = "<group>"; };
 		8E677990F3420C8F264848AE /* Deciders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deciders.swift; sourceTree = "<group>"; };
 		8F2E6CFBDF20832FF9626D99 /* RecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTests.swift; sourceTree = "<group>"; };
@@ -353,6 +356,7 @@
 		961DDD85021E59AD3DDF4F82 /* ListenSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenSection.swift; sourceTree = "<group>"; };
 		96A8E3AF04195B586F10EDC4 /* ModelRequestFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRequestFailure.swift; sourceTree = "<group>"; };
 		96BDA430E0C54DC956DE9366 /* StatusChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChips.swift; sourceTree = "<group>"; };
+		980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Keyboard.swift"; sourceTree = "<group>"; };
 		98111895572CDFBCBA4C5268 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		98425438C4A7C1EB827CDD2C /* IPhoneAgent.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = IPhoneAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		987C1E28FD7756E03C976FD4 /* SendIntentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendIntentView.swift; sourceTree = "<group>"; };
@@ -435,6 +439,7 @@
 			children = (
 				458E8069AA8BE0B721C9AD7A /* Actions.swift */,
 				17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */,
+				980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */,
 				6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */,
 				40E457695DD50084E36835E1 /* AskMode.swift */,
 				D317C60AA727B6A20A589DAC /* AssistiveTouchSpots.swift */,
@@ -521,6 +526,7 @@
 				BE08EC61AC214B03938A0D28 /* IntentArchiveTests.swift */,
 				A54BC007EE5C64A13CDEE9EE /* IslandTests.swift */,
 				DD41B01C484BEC1A52E74719 /* JevTests.swift */,
+				8E322C6A4D40557506D0D25E /* KeyboardHandoffTests.swift */,
 				F071F3E4D7B82DE70AE75A81 /* LLMTests.swift */,
 				2A44F1AFB66E6208FD9D06E4 /* MemoryTests.swift */,
 				F775C2B833B33E951A629957 /* PromptTests.swift */,
@@ -976,6 +982,7 @@
 				7A2EF1713FD025342B7CF9D2 /* IntentArchiveTests.swift in Sources */,
 				2CF6A30C3D72E05EEBC6FFED /* IslandTests.swift in Sources */,
 				2E0528FB2EE598C85BE46D6B /* JevTests.swift in Sources */,
+				5FF8B2902D53068FD90072FB /* KeyboardHandoffTests.swift in Sources */,
 				48100361D2ECFE7E36F83F9D /* LLMTests.swift in Sources */,
 				94FDACB2484FC9BF5EF837C8 /* MemoryTests.swift in Sources */,
 				962068E4EB7D31C8E1E0A9F2 /* PromptTests.swift in Sources */,
@@ -1003,6 +1010,7 @@
 				E8FA336F818FBAB651C32BEE /* AgentActivity.swift in Sources */,
 				ABEF22E60573E04FACD0E4A9 /* AgentFace.swift in Sources */,
 				74222DFADC00836F21E19FEA /* AgentIntents.swift in Sources */,
+				48738AD320FB971E272268C5 /* AgentLoop+Keyboard.swift in Sources */,
 				F7E73EABE70603DF30BE6233 /* AgentLoop+Memory.swift in Sources */,
 				7B925E867DA328C9A682CDE0 /* AgentLoop.swift in Sources */,
 				5A33023268931BCF26AD1C3A /* AgentMinimalStatus.swift in Sources */,

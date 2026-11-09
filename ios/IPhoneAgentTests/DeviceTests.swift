@@ -82,6 +82,35 @@ import XCTest
         XCTAssertEqual(board.lines.count, 2)
     }
 
+    func testCancellingQueuedInputDoesNotWriteItBeforeReset() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let firstWritten = expectation(description: "首条命令已发出，保留回执以占住发送锁")
+        board.dropReplyOnceOn = "ping"
+        board.onCommand = { if $0 == "ping" { firstWritten.fulfill() } }
+        let first = Task { try await channel.send("ping") }
+        await fulfillment(of: [firstWritten], timeout: 2)
+
+        let queued = expectation(description: "旧任务已请求发送输入")
+        let input = Task {
+            queued.fulfill()
+            return try await channel.send("key enter")
+        }
+        await fulfillment(of: [queued], timeout: 2)
+        XCTAssertEqual(board.lines.count, 1)
+        input.cancel()
+        let id = try XCTUnwrap(board.lines.first?.split(separator: " ").first)
+        channel.handleReply("\(id) ok")
+        _ = try await first.value
+        do {
+            _ = try await input.value
+            XCTFail("已取消的输入必须退出发送队列")
+        } catch { XCTAssertTrue(error is CancellationError) }
+
+        try await channel.send("reset")
+        XCTAssertEqual(board.lines.map { $0.split(separator: " ", maxSplits: 1)[1] }, ["ping", "reset"])
+    }
+
     func testLostReplyDoesNotRepeatInputButRetriesSafeCommands() async throws {
         let board = FakeBoard(), channel = CommandChannel(transport: board)
         board.channel = channel

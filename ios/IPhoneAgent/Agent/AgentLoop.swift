@@ -57,6 +57,7 @@ extension Gestures {
     var gate: (() async throws -> Void)?
     static let maxTokens = ["planner": 1500, "actor": 1000, "reader": 2000]
     private var job: Task<Void, Never>?
+    var beforeFinish: (() async -> Void)?
     var onFinish: (() -> Void)?
     /// Paused for the board to come back (a line for the UI), or nil when going on.
     /// Recovery from a lost link: the link state (from the app), each stage as it changes (nil = live again),
@@ -137,9 +138,13 @@ extension Gestures {
         if resuming { record(nil, ["action": .str("resumed"), "reason": .str("the run had stopped; it goes on from the screen in front now")]) }
         running = true
         job = Task { [weak self] in
-            await self?.run()
-            self?.running = false
-            self?.onFinish?()
+            guard let self else { return }
+            await run()
+            // 停止会取消任务本身；收尾仍须完成，期间保留运行权和可继续的上下文。
+            if let beforeFinish { await Task { await beforeFinish() }.value }
+            running = false
+            job = nil
+            onFinish?()
         }
     }
 
@@ -155,6 +160,8 @@ extension Gestures {
     func stop() {
         if let job { job.cancel() } else { running = false }  // a shown (demo) run has no job
     }
+
+    func waitUntilStopped() async { await job?.value }
 
     func clear() throws {
         if running { throw DeviceError(message: "stop the agent first") }

@@ -65,6 +65,8 @@ import UIKit
     struct Toast: Equatable { let id = UUID(); let text: String }
     @Published var departing = false  // the character's take-off before a run
     var startupTask: Task<Void, Never>?
+    var returningInput = false
+    var runModelRevision = 0
     var startupBoardIssue = false
     var startupDeadline = 0.0
     var backgroundEnteredAt = 0.0
@@ -207,6 +209,11 @@ import UIKit
         board.commands.onTimeout = { [weak self] command in await self?.commandTimedOut(command) }
         DebugLog.write("frame mode: \(FrameMode.current.rawValue)")
         board.commands.onTiming = { [weak self] name, ms in self?.metrics.hidMs[name] = ms }
+        agent.beforeFinish = { [weak self] in
+            guard let self else { return }
+            await self.returnInput(checkKeyboard: true)
+            try? await self.feed.stream(false)
+        }
         agent.onFinish = { [weak self] in self?.agentFinished() }
         agent.onStep = { [weak self] in self?.stepped() }
         agent.onDoing = { [weak self] d in self?.doing(d) }
@@ -225,7 +232,12 @@ import UIKit
         notifier.onAction = { [weak self] action, run, kind in self?.notificationAction(action, run: run, kind: kind) }
         wireRecovery()
 
-        timers.append(Task { [weak self] in await self?.board.commands.keepAwake(screenLive: { self?.feed.live ?? false }) })
+        timers.append(Task { [weak self] in
+            await self?.board.commands.keepAwake {
+                guard let self, !self.returningInput, self.feed.live else { return false }
+                return self.agent.running || self.startingAgent || self.recorder.busy || self.calibrator.busy
+            }
+        })
         timers.append(Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
