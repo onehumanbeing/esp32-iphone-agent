@@ -176,16 +176,17 @@ enum JevRules {
         return (b, c)
     }
 
-    /// The last action was a tap at this spot: the model decides (tapping again may undo it, or loop when it
-    /// changed nothing). As the server's repeatsLastTap.
-    static func repeatsLastTap(_ line: String, history: String?) -> Bool {
+    /// One of the run's last `recentTaps` taps was at this spot: the model decides (tapping again may undo it,
+    /// or loop: tap A, tap B, tap A again even when every step changed the screen). As the server's
+    /// repeatsRecentTap.
+    static let recentTaps = 4
+    static func repeatsRecentTap(_ line: String, history: String?) -> Bool {
         let tap = line.split(separator: " ")
-        guard tap.count == 3, tap[0] == "tap", let x = Int(tap[1]), let y = Int(tap[2]),
-              let last = history?.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n").last,
-              let m = groups(lastTap, last), let lx = Int(m[1]), let ly = Int(m[2]) else { return false }
-        return abs(x - lx) <= 30 && abs(y - ly) <= 30
+        guard tap.count == 3, tap[0] == "tap", let x = Int(tap[1]), let y = Int(tap[2]), let history else { return false }
+        return history.components(separatedBy: "\n").compactMap { groups(tapAt, $0) }.suffix(recentTaps)
+            .contains { m in Int(m[1]).map { abs(x - $0) <= 30 } == true && Int(m[2]).map { abs(y - $0) <= 30 } == true }
     }
-    private static let lastTap = re(#""action":\s*"tap",\s*"x":\s*(\d+),\s*"y":\s*(\d+)"#)
+    private static let tapAt = re(#""action":\s*"tap",\s*"x":\s*(\d+),\s*"y":\s*(\d+)"#)
 
     /// As the server: TAP = min(p(op), box confidence), else p(op); accept at `accept` or more. WAIT is left to
     /// the model, which sees more of what the screen is waiting for.
@@ -211,7 +212,7 @@ enum JevRules {
             if matches(finalAction, text) { return no("final_action") }
         }
         guard let line = doLine(op.choice, text, box: box) else { return no("no_action") }
-        if repeatsLastTap(line, history: history) { return no("repeat") }
+        if repeatsRecentTap(line, history: history) { return no("repeat") }
         if op.choice == "WAIT" { return no("wait") }
         return sure(line)
     }

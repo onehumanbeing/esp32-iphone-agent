@@ -269,6 +269,11 @@ import XCTest
         for result in ["screen changed", "screen did NOT change"] {  // a tap on the last tap's spot goes to the model
             XCTAssertEqual(tapAt(0.95, "{\"action\": \"tap\", \"x\": 505, \"y\": 160} -> \(result)", 0.6)?.reason, "repeat")
         }
+        let tapLine = { (x: Int, y: Int) in "{\"action\": \"tap\", \"x\": \(x), \"y\": \(y)} -> screen changed" }
+        let aba = [tapLine(505, 160), tapLine(200, 800), "{\"action\": \"wait\"} -> screen changed"].joined(separator: "\n")
+        XCTAssertEqual(tapAt(0.95, aba, 0.6)?.reason, "repeat")  // tap A, tap B, tap A: a loop
+        let older = ([tapLine(505, 160)] + (0..<4).map { tapLine(100 + $0 * 100, 900) }).joined(separator: "\n")
+        XCTAssertEqual(tapAt(0.95, older, 0.6)?.taken, true)  // 5 taps back: not a repeat
         let wait = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("WAIT", ops)]], accept: 0.5)
         XCTAssertEqual(wait?.taken, false)
     }
