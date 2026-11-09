@@ -125,7 +125,7 @@ import UIKit
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws { taps += 1; onTap(taps) }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws {}
     func drag(_ points: [CGPoint], hold: Bool) async throws {}
-    func type(_ text: String) async throws {}
+    func type(_ text: String) async throws -> String? { nil }
     func key(_ combo: String) async throws {}
     func goHome() async throws {}
     func openApp(_ name: String) async throws -> OpenResult { .opened }

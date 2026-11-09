@@ -363,14 +363,16 @@ import XCTest
         XCTAssertEqual(device.sent[2], "move 200 400")
     }
 
-    func testChineseIsTypedAsPinyinNeverPasted() async throws {
+    /// No screen to read the candidates from: each word's pinyin is committed with space (HanTyper).
+    func testChineseIsTypedAsPinyinWordByWordNeverPasted() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         let pointer = Pointer(device: device, calibrationFile: file)
         try await pointer.type("hello world")
         try await pointer.type("卫生纸 3卷")
         try await pointer.type("café 👋")
-        XCTAssertEqual(device.sent, ["type hello world", "type weishengzhi 3juan", "type cafe"])
+        XCTAssertEqual(device.sent, ["type hello world", "type weishengzhi", "key space", "type  3", "type juan", "key space",
+                                     "type cafe"])
     }
 
     func testShortStatusNotifyIsMergedWithTheFullRead() throws {

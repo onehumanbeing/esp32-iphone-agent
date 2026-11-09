@@ -21,11 +21,34 @@ import XCTest
         XCTAssertEqual(sent, ["home", "key cmd+space", "type Notes", "key enter"])
     }
 
-    func testChineseNameCommitsThePinyinBeforeReadingTheResults() async throws {
+    func testChineseNameIsTypedAsIsTheTyperCommitsIt() async throws {
         var sent: [String] = []
         let result = try await opener([home, spotlight, app], lines: ["时钟", "时钟"]) { sent.append($0) }.open("时钟")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "type 时钟", "key space", "key enter"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "type 时钟", "key enter"])
+    }
+
+    func testANameSpotlightDoesNotKnowIsTriedUnderItsSystemName() async throws {
+        var sent: [String] = [], typed = ""
+        var queue = [home, spotlight, home, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
+                               type: { typed = $0; sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { _ in typed == "时钟" ? ["时钟", "时钟"] : [typed] },
+                               same: { $0 == $1 }, pause: { _ in })
+        let result = try await opener.open("闹钟")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟", "type 时钟"])
+        XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
+    }
+
+    func testAliasesNameTheSystemAppsChineseFirst() {
+        XCTAssertEqual(AppNames.alternatives("闹钟"), ["时钟", "Clock"])
+        XCTAssertEqual(AppNames.alternatives("clock"), ["时钟"])
+        XCTAssertEqual(AppNames.alternatives("时钟"), ["Clock"])
+        XCTAssertEqual(AppNames.alternatives("Voice Memos"), ["语音备忘录"])
+        XCTAssertEqual(AppNames.alternatives("App Store"), [])
+        XCTAssertEqual(AppNames.alternatives("Duolingo"), [])
     }
 
     func testNoSuchAppLeavesSpotlightForTheModelWithoutReturn() async throws {
@@ -80,6 +103,16 @@ import XCTest
         _ = try await agent.step()
         XCTAssertEqual(phone.calls, ["open Notes"])
         let line = AgentLoop.effect(try XCTUnwrap(agent.steps.last))
-        XCTAssertTrue(line.contains("Spotlight lists no app named Notes"), line)
+        XCTAssertTrue(line.contains("Spotlight lists no app named Notes nor 备忘录"), line)
+    }
+
+    func testTheModelSeesWhatTypingCouldNotType() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        phone.typeNote = "\"龘\" is not among the candidates for da (cleared)"
+        let actor = FakeModel { _ in "THINK: type it\nDO: type 龘" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.step()
+        let line = AgentLoop.effect(try XCTUnwrap(agent.steps.last))
+        XCTAssertTrue(line.contains("typing stopped: \"龘\" is not among"), line)
     }
 }

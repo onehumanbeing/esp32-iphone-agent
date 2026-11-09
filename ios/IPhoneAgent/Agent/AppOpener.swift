@@ -10,7 +10,9 @@ enum OpenResult: String {
 /// only once the results list the name, then a check that the screen left Spotlight and the Home Screen.
 /// The model used to tap the app in the results itself: a tap that missed closed Spotlight back to the Home
 /// Screen, and a Chinese name could stay uncommitted pinyin that never found the app.
-/// Bounded: `tries` rounds of a few keys, every look has a ceiling; the result goes to the model, which decides.
+/// A name Spotlight does not know ("闹钟") is tried once more under its system names (AppNames: 时钟, Clock).
+/// Bounded: `tries` rounds of a few keys per name, at most three names, every look has a ceiling; the result goes
+/// to the model, which decides.
 @MainActor struct AppOpener {
     var home: () async throws -> Void
     var key: (String) async throws -> Void
@@ -26,15 +28,23 @@ enum OpenResult: String {
     static let tries = 2
 
     func open(_ name: String) async throws -> OpenResult {
+        let result = try await open(named: name)
+        guard result == .notFound else { return result }
+        for other in AppNames.alternatives(name) {
+            let found = try await open(named: other)
+            if found == .opened || found == .notOpened { return found }  // listed under that name
+        }
+        return .notFound
+    }
+
+    private func open(named name: String) async throws -> OpenResult {
         for _ in 0..<Self.tries {
             try await home()
             try await pause(0.4)
             let homeFrame = await look()
             try await key("cmd+space")
             try await pause(0.7)
-            try await type(name)
-            // type() writes a Chinese name as pinyin on the pinyin keyboard: commit its first candidate
-            if Self.hasHan(name) { try await key("space") }
+            try await type(name)  // a Chinese name goes in through the pinyin keyboard, committed (HanTyper)
             guard let results = await look() else { return .unchecked }
             if same(results, homeFrame) { continue }  // Spotlight did not come up
             guard Self.listed(name, in: await read(results)) else { return .notFound }  // Spotlight stays for the model
@@ -43,10 +53,6 @@ enum OpenResult: String {
             if !ownAppInFront(), !same(after, results), !same(after, homeFrame) { return .opened }
         }
         return .notOpened
-    }
-
-    static func hasHan(_ s: String) -> Bool {
-        s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
     }
 
     /// The name shows in the search field and again in the results (a label cut short with "…" counts):

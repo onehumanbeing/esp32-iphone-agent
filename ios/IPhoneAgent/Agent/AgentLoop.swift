@@ -12,7 +12,8 @@ struct BlindError: LocalizedError {
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws
     func drag(_ points: [CGPoint], hold: Bool) async throws
-    func type(_ text: String) async throws
+    /// nil: all of it went in; else what did not (Pointer.type).
+    func type(_ text: String) async throws -> String?
     func key(_ combo: String) async throws
     func goHome() async throws
     func openApp(_ name: String) async throws -> OpenResult
@@ -476,7 +477,7 @@ extension Gestures {
                         return false
                     }
                 }
-                if let opened = try await perform(act, aim: earlierTap) { act["opened"] = .str(opened.rawValue) }
+                if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
@@ -543,23 +544,11 @@ extension Gestures {
         return (now() - started) * 1000
     }
 
-    /// The previous round changed nothing on screen, so a tap may have landed off target.
-    var missed: Bool { steps.last?["changed"] == .bool(false) }
-
-    /// A tap where the last one went: that one didn't do what was meant even if the screen moved (Duolingo's
-    /// animated mascot read three misses just above the "water" tile as changed, 2026-11-06).
-    func retaps(_ a: JObject) -> Bool {
-        guard let last = steps.last(where: { $0["action"]?.str != "plan" }), last["action"]?.str == "tap",
-              let x = last["x"]?.double, let y = last["y"]?.double, let ax = a["x"]?.double, let ay = a["y"]?.double
-        else { return false }
-        return abs(ax - x) <= 30 && abs(ay - y) <= 30
-    }
-
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "landed", "opened"]
+                                   "replay", "jev", "landed", "opened", "typed"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
@@ -582,49 +571,6 @@ extension Gestures {
             return acts.map { Planned(act: $0, shot: frame) }
         }
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")
-    }
-
-    /// What an action did, the way a terminal shows a command's result.
-    static func effect(_ s: JObject) -> String {
-        guard let changed = s["changed"]?.bool else { return "" }
-        var out = changed ? " -> screen changed" : " -> screen did NOT change"
-        let app = s["app"]?.str ?? ""
-        switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
-        case .opened?: out += "; \(app) is open"
-        case .notFound?: out += "; Spotlight lists no app named \(app) (the search is still on screen)"
-        case .notOpened?: out += "; \(app) did not open"
-        default: break
-        }
-        if case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
-           let x = s["x"]?.double, let y = s["y"]?.double {
-            let dx = Int(lx - x), dy = Int(ly - y)
-            var off: [String] = []
-            if dx != 0 { off.append("\(abs(dx)) \(dx > 0 ? "right of" : "left of")") }
-            if dy != 0 { off.append("\(abs(dy)) \(dy > 0 ? "below" : "above")") }
-            out += "; the pointer is at \(Int(lx)) \(Int(ly))" + (off.isEmpty ? "" : " (" + off.joined(separator: ", ") + " the target)")
-        }
-        return out
-    }
-
-    /// The result of `open` (nil for every other action).
-    @discardableResult
-    func perform(_ a: JObject, aim: Bool = false) async throws -> OpenResult? {
-        guard let phone else { throw DeviceError(message: "no phone") }
-        func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
-        switch a["action"]?.str {
-        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a))
-        case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
-        case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
-        case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
-        case "type": try await phone.type(a["text"]?.str ?? "")
-        case "key": try await phone.key(a["combo"]?.str ?? "")
-        case "home": try await phone.goHome()
-        case "open": return try await phone.openApp(a["app"]?.str ?? "")
-        case "back": try await phone.goBack()
-        case "wait": break
-        case let other: throw Actions.ParseError(message: "unknown action \(other ?? "nil")")
-        }
-        return nil
     }
 
     /// Show a run without running it (demo data).

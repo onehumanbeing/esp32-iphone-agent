@@ -30,8 +30,8 @@ the sent message in the chat). A step that worked (a correct answer, a "Continue
 keep going.
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
-Chinese is typed as pinyin. With the iPhone's Chinese (pinyin) keyboard active, a candidate bar then shows
-the characters: commit the first one with key space, or tap the right one; check the field.
+Chinese text is typed word by word through the iPhone's pinyin keyboard and committed for you; the result
+says when part of it could not be typed, and what is left.
 key ctrl+space switches the keyboard between English and Chinese pinyin (pinyin: the space bar shows 拼).
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
@@ -49,7 +49,7 @@ Actions:
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
-  type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
+  type TEXT                 (English or Chinese; emoji are dropped; tap the input field first)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
   open APP                  (start the app by its name, from any screen; the result says whether it opened)
   home | back | wait

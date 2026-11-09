@@ -397,7 +397,8 @@ import XCTest
     }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
-    func type(_ text: String) async throws { calls.append("type") }
+    var typeNote: String?
+    func type(_ text: String) async throws -> String? { calls.append("type"); return typeNote }
     func key(_ combo: String) async throws { calls.append("key") }
     func goHome() async throws { calls.append("home") }
     var openResult = OpenResult.opened

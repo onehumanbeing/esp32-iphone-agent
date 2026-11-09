@@ -428,36 +428,61 @@ import UIKit
         try await device.send("scroll \(lines) 0")
     }
 
-    /// The board types printable ASCII only (one key per character). Chinese goes in as toneless pinyin, which
-    /// most Chinese apps' search boxes accept; other non-ASCII (emoji, accents) is folded or dropped. The clipboard
-    /// is no route: iOS refuses a background app's write (a Mac's Universal Clipboard text got pasted instead,
-    /// 2026-10-20) and other apps ask "Allow Paste" every time.
-    func type(_ text: String) async throws {
+    /// The board types printable ASCII only (one key per character). Chinese goes in as toneless pinyin through
+    /// the pinyin keyboard, word by word, each committed and read back (HanTyper); other non-ASCII (emoji,
+    /// accents) is folded or dropped. The clipboard is no route: iOS refuses a background app's write (a Mac's
+    /// Universal Clipboard text got pasted instead, 2026-10-20) and other apps ask "Allow Paste" every time.
+    /// Returns nil when all went in, else a note for the model (what did not, and what is left).
+    @discardableResult
+    func type(_ text: String) async throws -> String? {
         let ascii = Self.typeable(text)
         if ascii != text { DebugLog.write("type: \(text.count) chars as ASCII \"\(ascii)\"") }
         guard !ascii.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII only)") }
-        try await matchKeyboard(pinyin: ascii != text && text.unicodeScalars.contains { (0x3400...0x9fff).contains($0.value) })
-        _ = try await device.send("type \(ascii)")
+        let han = HanTyper.isHan(text)
+        let layout = try await matchKeyboard(pinyin: han)
+        let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
+                             toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
+            guard let image = screen.frame.flatMap(Vision.image) else { return nil }
+            return HanTyper.Seen(words: await UITreeOCR.lines(image), height: image.height)
+        })
+        // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
+        let note = try await typer.type(han ? text : ascii, checkLetters: han || layout == .none)
+        if let note { log("type: \(note)") }
+        return note
     }
 
     /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
     /// letters; models rarely notice (2026-11-03 runs). Read the keyboard off the screen and switch (ctrl+space).
-    private func matchKeyboard(pinyin: Bool) async throws {
-        guard let screen, screen.live else { return }
+    /// The layout it ended on (.none: no keyboard on screen, as with the board as a hardware keyboard: HanTyper
+    /// then tells the layouts apart by whether typed letters bring up candidates).
+    @discardableResult
+    private func matchKeyboard(pinyin: Bool) async throws -> KeyboardLayout {
+        guard let screen, screen.live else { return .none }
+        var layout = KeyboardLayout.none
         for _ in 0..<2 {
-            guard let frame = screen.frame else { return }
-            let layout = await KeyboardLayout.read(frame)
-            if layout == .none || (layout == .pinyin) == pinyin { return }
+            guard let frame = screen.frame else { return .none }
+            layout = await KeyboardLayout.read(frame)
+            if layout == .none || (layout == .pinyin) == pinyin { return layout }
             log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
-            let sent = now()
-            try await key("ctrl+space")
-            _ = await screen.fresh(since: sent, timeout: 1.5)
-            await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
+            try await toggleKeyboard()
         }
+        return layout == .none || (layout == .pinyin) == pinyin ? layout : .none
+    }
+
+    /// ctrl+space (pinyin <-> English), waited for until the screen shows it.
+    private func toggleKeyboard() async throws {
+        let sent = now()
+        try await key("ctrl+space")
+        guard let screen, screen.live else { return }
+        _ = await screen.fresh(since: sent, timeout: 1.5)
+        await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
     }
 
     /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
-    static func typeable(_ text: String) -> String {
+    /// `trim` false keeps spaces at the ends (a piece of a longer text).
+    static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
         for ch in text {
@@ -468,7 +493,7 @@ import UIKit
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
             if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
         }
-        return out.trimmingCharacters(in: .whitespaces)
+        return trim ? out.trimmingCharacters(in: .whitespaces) : out
     }
     /// Models write "delete" for the Mac's backspace key; the board knows it as "backspace" (2026-11-02 log).
     func key(_ combo: String) async throws {
@@ -507,13 +532,15 @@ import UIKit
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
         let opener = AppOpener(home: { [self] in
             if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
-        }, key: { [self] in try await key($0) }, type: { [self] in try await type($0) }, look: { [weak self] in
+        }, key: { [self] in try await key($0) }, type: { [self] in _ = try await type($0) }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.5, least: 1.0, most: 3.0)
             return screen.frame
         }, read: { jpeg in
             guard let image = Vision.image(jpeg) else { return [] }
-            return await UITreeOCR.lines(image, languages: nil).map(\.text)  // whole lines: "App Store" stays one
+            // Chinese names need zh-Hans named (the automatic pick drops small ones); other scripts the automatic pick
+            let languages = name.unicodeScalars.allSatisfy({ $0.isASCII }) || HanTyper.isHan(name) ? UITreeOCR.chinese : nil
+            return await UITreeOCR.lines(image, languages: languages, whole: true).map(\.text)  // "App Store" stays one
         }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false })
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
