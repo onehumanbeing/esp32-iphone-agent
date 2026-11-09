@@ -26,16 +26,12 @@ Existing HID commands, unchanged semantics from the old TCP protocol:
 
 The iOS runner uses these commands to return input to the user when a task finishes, fails, or is stopped. A stopped task retains its plan, steps, and notebook for resume.
 
-iOS 运行器在任务完成、失败或被停止时使用这些命令归还输入。停止的任务会保留计划、步骤和笔记，以便继续执行。
-
-| Command / 命令 | English | 中文 |
-| --- | --- | --- |
-| `reset` | Takes no arguments. Releases all mouse buttons, keyboard keys (including modifiers), and consumer controls in place. Safe to retry. | 不带参数。原位释放全部鼠标按钮、键盘按键（含修饰键）和消费控制键，可安全重试。 |
-| `key eject` | Sends one Consumer Control Eject press and release (`0x00B8`) to toggle the iOS on-screen keyboard. Do not retry after a lost reply because a second press reverses the first. | 发送一次消费控制 Eject（`0x00B8`）的按下和松开，切换 iOS 屏幕键盘。回执丢失时不要重发，第二次会把键盘切回原状态。 |
+| Command | Behavior |
+| --- | --- |
+| `reset` | Takes no arguments. Releases all mouse buttons, keyboard keys (including modifiers), and consumer controls in place. Safe to retry. |
+| `key eject` | Sends one Consumer Control Eject press and release (`0x00B8`) to toggle the iOS on-screen keyboard. Do not retry after a lost reply because a second press reverses the first. |
 
 If older firmware explicitly rejects `reset` as an unknown command, the app sends `release` to release the left mouse button. Other held inputs remain unconfirmed.
-
-旧固件明确回复不支持 `reset` 时，App 会发送 `release` 松开鼠标左键。其余按键的释放状态仍待确认。
 
 New:
 - `stream on|off` — continuously forward every access unit over `video` (default off).
