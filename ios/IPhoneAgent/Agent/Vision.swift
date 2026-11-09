@@ -61,21 +61,90 @@ enum Vision {
     ///
     /// `ignore` lists screen points (fractions) where the pointer was or went: those spots are masked, so pointer
     /// moves never count. The status bar (clock) is ignored too.
-    static func changed(_ before: Data?, _ after: Data?, ignore: [CGPoint] = [], threshold: Double = 1.0) -> Bool {
+    /// `quiet`: spots (fractions) that changed on their own before the gesture (`motion`); the fine pass skips them.
+    static func changed(_ before: Data?, _ after: Data?, ignore: [CGPoint] = [], quiet: [CGRect] = [],
+                        threshold: Double = 1.0) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }
-        // Our own marks never count: the status bar (the run's Live Activity label in the Dynamic Island) and
-        // the pointer, in both passes (2026-11-06: a missed tap read as "changed" from those alone).
         let counts = kept(ignore)
         if coarse(a, b, counts, threshold) { return true }  // a big change: new screen, scrolled list
         let w = a.width / 2, h = a.height / 2  // fine pass for small changes, at half resolution
-        let fa = gray(a, w, h), fb = gray(b, w, h)
-        var hits = 0
-        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 && counts(i, w, h) { hits += 1 }
-        return hits >= 6
+        let hit = hits(gray(a, w, h), gray(b, w, h), counts, quiet: quiet)
+        return beyondPointer(patches(hit, w, h), w)
     }
 
-    /// True when the area around `at` (fractions; about a word tile) changed, the pointer spots aside.
+    /// A connected patch of changed pixels: its size and bounding box, in pixels.
+    struct Patch {
+        var n: Int, x0: Int, y0: Int, x1: Int, y1: Int
+        var w: Int { x1 - x0 + 1 }
+        var h: Int { y1 - y0 + 1 }
+        /// The pointer showing, fading or moving off its mask: a solid round spot 3-8% of the screen width (a
+        /// checkmark or a glyph is a thin stroke and fills far less of its box).
+        func isPointer(_ width: Int) -> Bool {
+            let lo = 0.03 * Double(width), hi = 0.08 * Double(width), ratio = Double(w) / Double(h)
+            return lo...hi ~= Double(w) && lo...hi ~= Double(h) && 0.7...1.43 ~= ratio && Double(n) >= 0.6 * Double(w * h)
+        }
+    }
+
+    private static func hits(_ fa: Gray, _ fb: Gray, _ counts: (Int, Int, Int) -> Bool, quiet: [CGRect]) -> [Bool] {
+        let (w, h) = (fa.w, fa.h)
+        let still = quiet.map { CGRect(x: $0.minX * Double(w), y: $0.minY * Double(h), width: $0.width * Double(w),
+                                       height: $0.height * Double(h)) }
+        var hit = [Bool](repeating: false, count: w * h)
+        for i in 0..<(w * h) where abs(Int(fa.px[i]) - Int(fb.px[i])) > 25 && counts(i, w, h) {
+            let p = CGPoint(x: i % w, y: i / w)
+            hit[i] = !still.contains { $0.contains(p) }
+        }
+        return hit
+    }
+
+    /// 8-connected patches of `hit`, specks under 3 pixels left out (video noise).
+    static func patches(_ hit: [Bool], _ w: Int, _ h: Int) -> [Patch] {
+        var seen = [Bool](repeating: false, count: w * h), out: [Patch] = []
+        for start in 0..<(w * h) where hit[start] && !seen[start] {
+            var stack = [start], p = Patch(n: 0, x0: start % w, y0: start / w, x1: start % w, y1: start / w)
+            seen[start] = true
+            while let i = stack.popLast() {
+                let x = i % w, y = i / w
+                p.n += 1
+                (p.x0, p.x1, p.y0, p.y1) = (min(p.x0, x), max(p.x1, x), min(p.y0, y), max(p.y1, y))
+                for ny in max(0, y - 1)...min(h - 1, y + 1) {
+                    for nx in max(0, x - 1)...min(w - 1, x + 1) where hit[ny * w + nx] && !seen[ny * w + nx] {
+                        seen[ny * w + nx] = true
+                        stack.append(ny * w + nx)
+                    }
+                }
+            }
+            if p.n >= 3 { out.append(p) }
+        }
+        return out
+    }
+
+    /// Whether small changes are a result and not just the pointer: shown or faded where its masks don't expect it,
+    /// it read as "changed" and hid a tap that did nothing. Up to two pointer spots (where it was, where it is)
+    /// are not a change.
+    static func beyondPointer(_ patches: [Patch], _ width: Int) -> Bool {
+        guard patches.reduce(0, { $0 + $1.n }) >= 6 else { return false }
+        let pointers = patches.filter { $0.isPointer(width) }.count
+        return pointers < patches.count || pointers > 2
+    }
+
+    /// Where the screen changed on its own between two frames, e.g. while the model looked: a spinner, a caret,
+    /// the pointer fading (fractions, padded). Nothing when the change is big or covers a fifth of the screen:
+    /// then it was still changing and no spot is quiet.
+    static func motion(_ before: Data?, _ after: Data?) -> [CGRect] {
+        guard let before, let after, let a = image(before), let b = image(after), a.width == b.width,
+              a.height == b.height else { return [] }
+        let counts = kept([])
+        if coarse(a, b, counts, 1.0) { return [] }
+        let w = a.width / 2, h = a.height / 2, pad = 0.02 * Double(w)
+        let rects = patches(hits(gray(a, w, h), gray(b, w, h), counts, quiet: []), w, h).map {
+            CGRect(x: (Double($0.x0) - pad) / Double(w), y: (Double($0.y0) - pad) / Double(h),
+                   width: (Double($0.w) + 2 * pad) / Double(w), height: (Double($0.h) + 2 * pad) / Double(h))
+        }
+        return rects.reduce(0) { $0 + $1.width * $1.height } > 0.2 ? [] : rects
+    }
+
     static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = []) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }

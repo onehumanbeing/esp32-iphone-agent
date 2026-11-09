@@ -326,6 +326,42 @@ import XCTest
         XCTAssertEqual(again.steps.last?["changed"], .bool(true))
     }
 
+    func testATapThatChangedNothingIsPressedOnceMoreWithThePointerChecked() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = Self.jpeg()  // the same before and after
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Send\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false, true])
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.5, y: 0.5), CGPoint(x: 0.5, y: 0.5)])
+        XCTAssertEqual(agent.steps.last?["again"], .bool(true))
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNil(Actions.key(agent.steps.last!)["again"])
+    }
+
+    func testASecondPressThatWorksReadsAsChanged() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen()
+        var presses = 0
+        phone.onTap = { presses += 1; if presses == 2 { screen.frame = v.screen(button: true) } }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Open\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(presses, 2)
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(true))
+    }
+
+    func testAMissWithThePointerOnTheTargetIsNotPressedAgain() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        phone.landed = CGPoint(x: 0.505, y: 0.495)
+        screen.frame = Self.jpeg()
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: label\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])  // the target itself does nothing: the model decides what next
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
     func testAMissedTapSaysWhereThePointerIs() async throws {
         let phone = FakeGestures()
         phone.landed = CGPoint(x: 0.5, y: 0.958)
