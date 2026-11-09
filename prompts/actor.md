@@ -51,7 +51,7 @@ Actions:
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (ASCII; Chinese becomes pinyin, emoji are dropped; tap the input field first)
   key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
-  open APP                  (search Spotlight for the app by name; then tap the app in the results)
+  open APP                  (start the app by its name, from any screen; the result says whether it opened)
   home | back | wait
   done ANSWER               (the whole goal is reached and visible; ANSWER is the result for the user)
   fail REASON
