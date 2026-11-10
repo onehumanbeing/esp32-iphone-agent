@@ -30,6 +30,14 @@ import XCTest
         XCTAssertEqual(t.resolve("DO: tap 10 20"), "DO: tap 10 20")
     }
 
+    /// Spark's listing (treetext.candidates) numbers rows and cells too: #3 is the text after the row (#2).
+    func testSparkIDsCountRowsAndCells() {
+        let t = tree()
+        XCTAssertEqual(t.resolve("DO: tap #3", spark: true), "DO: tap 129 867")
+        XCTAssertEqual(t.resolve("DO: tap #1", spark: true), "DO: tap 370 196")
+        XCTAssertEqual(t.resolve("DO: tap #3"), "DO: tap #3", "the app's own listing has only 2 ids")
+    }
+
     func testBuildFindsAFilledButton() async throws {
         let made = await UITree.build(jpeg: Self.screen())
         let built = try XCTUnwrap(made)

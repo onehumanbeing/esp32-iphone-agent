@@ -315,7 +315,7 @@ extension Gestures {
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
             let built = tree != nil
             if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
-            let answer = tree?.resolve(reply.text) ?? reply.text
+            let answer = tree?.resolve(reply.text, spark: !built) ?? reply.text
             lastServed = reply.servedModel
             var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(text),
                                 "reply": .str(reply.text), "seconds": .num(seconds)]

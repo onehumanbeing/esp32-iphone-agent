@@ -265,9 +265,11 @@ struct UITree {
     // MARK: what the model sees
 
     /// handsy_trial.treetext.candidates minus layout rows / cells: what `#ID` numbers.
-    var elements: [UINode] {
-        let all = Self.walk(nodes).filter { Double(Self.area($0.box)) < 0.4 * Double(w * h) }
-        return all.prefix(150).filter { $0.role != "row" && $0.role != "cell" }
+    var elements: [UINode] { candidates.filter { $0.role != "row" && $0.role != "cell" } }
+
+    /// handsy_trial.treetext.candidates itself: what Spark's listing numbers, rows and cells included.
+    var candidates: [UINode] {
+        Array(Self.walk(nodes).filter { Double(Self.area($0.box)) < 0.4 * Double(w * h) }.prefix(150))
     }
 
     func point(_ n: UINode) -> (Int, Int) {
@@ -286,8 +288,11 @@ struct UITree {
     }
 
     /// "tap #12" -> "tap 503 871" (this frame's element 12); an unknown id is left as it is (the parser rejects it).
-    func resolve(_ reply: String) -> String {
-        let ids = elements
+    /// `spark`: the ids of Spark's listing, numbered over `candidates` (treetext.by_listing_id); the app's own
+    /// `listing` numbers `elements`. Resolving Spark's ids over `elements` was off by the rows/cells before the id
+    /// (2026-11-11).
+    func resolve(_ reply: String, spark: Bool = false) -> String {
+        let ids = spark ? candidates : elements
         let pattern = try! NSRegularExpression(pattern: "(?im)^(\\s*DO\\s*[:：]\\s*tap\\s+)#(\\d+)")
         var out = reply
         for m in pattern.matches(in: reply, range: NSRange(reply.startIndex..., in: reply)).reversed() {
