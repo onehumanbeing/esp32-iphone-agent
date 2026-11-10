@@ -18,14 +18,14 @@ import XCTest
         var sent: [String] = []
         let result = try await opener([home, spotlight, app]) { sent.append($0) }.open("Notes")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "type Notes", "key enter"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type Notes", "key enter"])
     }
 
     func testChineseNameIsTypedAsIsTheTyperCommitsIt() async throws {
         var sent: [String] = []
         let result = try await opener([home, spotlight, app], lines: ["时钟", "时钟"]) { sent.append($0) }.open("时钟")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "type 时钟", "key enter"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type 时钟", "key enter"])
     }
 
     func testANameSpotlightDoesNotKnowIsTriedUnderItsSystemName() async throws {
@@ -83,7 +83,7 @@ import XCTest
         var sent: [String] = []
         let result = try await opener([]) { sent.append($0) }.open("Notes")
         XCTAssertEqual(result, .unchecked)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "type Notes"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type Notes"])
     }
 
     func testListedNeedsTheNameBeyondTheSearchField() {

@@ -60,6 +60,9 @@ enum OpenResult: String {
             let homeFrame = await look()
             try await key("cmd+space")
             try await pause(0.7)
+            // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
+            try await key("cmd+a")
+            try await key("backspace")
             // a Chinese name goes in through the pinyin keyboard, committed (HanTyper)
             if pasting { try await key("cmd+v") } else { try await type(name) }
             guard let results = await look() else { return .unchecked }

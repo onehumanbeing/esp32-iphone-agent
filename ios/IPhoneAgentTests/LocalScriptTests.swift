@@ -59,7 +59,7 @@ import XCTest
         var sent: [String] = []
         let result = try await opener(language: "ja", paste: true, lines: { [$0, $0] }) { sent.append($0) }.open("メモ")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["paste メモ", "home", "key cmd+space", "key cmd+v", "key enter"])
+        XCTAssertEqual(sent, ["paste メモ", "home", "key cmd+space", "key cmd+a", "key backspace", "key cmd+v", "key enter"])
     }
 
     func testWithoutTheClipboardAKanaNameFallsBackToTheEnglishName() async throws {
