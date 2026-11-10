@@ -356,6 +356,7 @@ extension Gestures {
                     }
                     failures = 0
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
+                    try await checkLink(unchanged: stalls)
                     if try await touchless() {
                         guard try await askForHelp() else { return finish() }
                         stalls = 0

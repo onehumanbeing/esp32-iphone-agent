@@ -372,7 +372,7 @@ struct RunEnd: Equatable {
             else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
             else if why == Recovery.reason(.board) { reason = .boardLost }
-            else if why == BlindError().reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {
+            else if why == BlindError().reason || why == LinkCheck.reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {
                 reason = .blindMirroring
             } else { reason = .modelFail }  // the model itself said fail
         case "error": reason = .modelError

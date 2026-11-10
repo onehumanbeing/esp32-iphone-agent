@@ -15,6 +15,8 @@ import UIKit
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
     /// `ignoring`: where the pointer was and went (fractions); changes there alone are not a result.
     func afterAction(since: Double, ignoring: [CGPoint]) async
+    /// A frame captured from now on, not the shown one (LinkCheck): false when none arrives; nil = can't tell.
+    func freshFrame() async -> Bool?
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -48,6 +50,7 @@ extension ScreenSource {
     var changed: Double { updated }
     var stale: Bool { false }
     func afterAction(since: Double, ignoring spots: [CGPoint]) async { await settled(ignoring: spots) }
+    func freshFrame() async -> Bool? { nil }
 
     /// Wait until the screen stops changing. AirPlay keeps sending frames of a still screen (5 fps of tiny
     /// P-frames), so this watches when the image last changed, not when a frame last arrived: waiting on
@@ -267,14 +270,22 @@ extension ScreenSource {
 
     private var inStep: Bool { continuous() && mirroring && !broken && !frozen && frame != nil }
 
-    /// Ask the board for the current GOP and wait until it is decoded. Returns the latency in ms.
+    /// The stream's next frame (a still screen still sends an IDR every ~2 s), else one real snap, even in step.
+    func freshFrame() async -> Bool? {
+        if streamOn && mirroring, await fresh(since: now(), timeout: 4) != nil, !broken { return true }
+        do { try await snap(force: true) } catch { return false }
+        return !frozen
+    }
+
+    /// Ask the board for the current GOP and wait until it is decoded. Returns the latency in ms. `force`: even when
+    /// the stream is in step (where a snap is normally skipped).
     @discardableResult
-    func snap(timeout: Double? = nil, decodeWait: Double = 1) async throws -> Double {
+    func snap(timeout: Double? = nil, decodeWait: Double = 1, force: Bool = false) async throws -> Double {
         try Task.checkCancellation()
         guard let device, device.connected else { throw DeviceError(message: "board not connected") }
         let started = now(), previousFrame = updated
         StepWaits.snaps += 1
-        if inStep {
+        if inStep && !force {
             // Already in step: take a newer frame if the screen moves within a second, else the current one is it
             // (2026-10-20: a 14 s snap stalled calibration, a 24 s one the run start).
             _ = await fresh(since: started, timeout: 1)
