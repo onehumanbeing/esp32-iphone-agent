@@ -108,7 +108,10 @@ struct RootView: View {
             guard url.scheme == "iphoneagent", url.host == "run" else { return }
             let id = url.lastPathComponent
             if id.hasPrefix("rec-") { return }  // a recording: its draft opens by itself
-            if app.agent.running { app.tab = .agent } else { app.openReview(run: id) }
+            if app.agent.running {
+                app.live.opened()  // stale ("Paused by iOS — tap to continue"): the run sends the app away again
+                app.tab = .agent
+            } else { app.openReview(run: id) }
         }
     }
 

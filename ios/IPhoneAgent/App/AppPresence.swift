@@ -266,8 +266,9 @@ extension AppModel {
             pendingClipboard = nil
             DebugLog.write("clipboard: wrote \(text.count) chars for the agent")
         }
-        let ours = now() - agent.lastActed < 3 || now() - resumeAsked < 5
-        DebugLog.write("run: ESP32 Agent is in front (\(ours ? "after an agent action" : "opened by the user")); holding")
+        let stuckTap = live.takeStuckTap()  // the user tapped a stale Live Activity: "tap to continue"
+        let ours = stuckTap || now() - agent.lastActed < 3 || now() - resumeAsked < 5
+        DebugLog.write("run: ESP32 Agent is in front (\(stuckTap ? "tapped a stale Live Activity" : ours ? "after an agent action" : "opened by the user")); holding")
         let since = now()
         var away = false
         if ours { away = try await leaveApp() }

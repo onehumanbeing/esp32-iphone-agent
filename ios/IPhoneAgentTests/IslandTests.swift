@@ -101,4 +101,70 @@ import SwiftUI
         XCTAssertEqual(IslandStatus.acting(["action": .str("type"), "text": .str("0800")]).short, "Typing 0800")
         XCTAssertTrue(IslandStatus.thinking.waits)
     }
+
+    // MARK: - stale while iOS suspends the app
+
+    private typealias Live = LiveActivityController
+    private func state(_ phase: AgentActivityAttributes.Phase, finished: Bool = false) -> AgentActivityAttributes.ContentState {
+        AgentActivityAttributes.ContentState(mood: .thinking, step: 3, limit: 12, line: "", finished: finished, phase: phase)
+    }
+
+    func testRunningUpdatesGoStaleAfterThirtySeconds() {
+        let at = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(Live.staleAfter, 30)
+        XCTAssertEqual(Live.staleDate(for: state(.running), at: at), at.addingTimeInterval(30))
+    }
+
+    func testOnlyARunningRunCanGoStale() {
+        let at = Date()
+        for phase: AgentActivityAttributes.Phase in [.help, .paused, .countdown, .recording, .resuming] {
+            XCTAssertNil(Live.staleDate(for: state(phase), at: at), "\(phase)")
+            XCTAssertFalse(state(phase).stuck(true), "\(phase)")
+        }
+        XCTAssertNil(Live.staleDate(for: state(.running, finished: true), at: at))
+        XCTAssertFalse(state(.running, finished: true).stuck(true))
+        XCTAssertTrue(state(.running).stuck(true))
+        XCTAssertFalse(state(.running).stuck(false))
+    }
+
+    func testKeepAliveResendsOnlyARunningRunThatWentQuiet() {
+        XCTAssertFalse(Live.needsKeepAlive(nil, sentAgo: 100))
+        XCTAssertFalse(Live.needsKeepAlive(state(.running), sentAgo: Live.keepAliveEvery - 0.1))
+        XCTAssertTrue(Live.needsKeepAlive(state(.running), sentAgo: Live.keepAliveEvery))
+        XCTAssertFalse(Live.needsKeepAlive(state(.paused), sentAgo: 100))
+        XCTAssertFalse(Live.needsKeepAlive(state(.help), sentAgo: 100))
+        XCTAssertFalse(Live.needsKeepAlive(state(.running, finished: true), sentAgo: 100))
+    }
+
+    /// A live app refreshes at least every keepAliveEvery + keepAliveCheck; the stale date outlasts that with
+    /// room, and alone still outlasts the slowest normal step (20+ s), so a working run never looks stuck.
+    func testStaleDateOutlastsTheKeepAliveAndTheSlowestStep() {
+        XCTAssertGreaterThanOrEqual(Live.staleAfter, 2 * (Live.keepAliveEvery + Live.keepAliveCheck))
+        XCTAssertGreaterThan(Live.staleAfter, 25)
+    }
+
+    func testAStuckTapCountsOnlyAfterAStaleOpen() {
+        let live = LiveActivityController()
+        live.opened()  // no activity: nothing to continue
+        XCTAssertFalse(live.takeStuckTap())
+    }
+
+    func testStuckTextFitsAndIsTranslatedInTheAppAndTheWidget() throws {
+        XCTAssertLessThanOrEqual(StuckText.short.count, IslandStatus.compactLimit)
+        XCTAssertLessThanOrEqual(StuckText.minimal.count, 6)
+        let widget = try XCTUnwrap(Bundle.main.builtInPlugInsURL?.appendingPathComponent("AgentActivity.appex"))
+        let zh = ["Paused by iOS": "被 iOS 暂停", "Paused by iOS — tap to continue": "被 iOS 暂停了，点一下继续", "Stuck": "卡住"]
+        for base in [Bundle.main, try XCTUnwrap(Bundle(url: widget))] {
+            let lproj = try XCTUnwrap(base.path(forResource: "zh-Hans", ofType: "lproj"), base.bundlePath)
+            let bundle = try XCTUnwrap(Bundle(path: lproj))
+            for (en, translated) in zh {
+                XCTAssertEqual(bundle.localizedString(forKey: en, value: nil, table: nil), translated, base.bundlePath)
+            }
+        }
+    }
+
+    func testCrossedEyesRender() {
+        let face = AgentFace(mood: .thinking, animated: false, showsTab: false, crossed: true).frame(width: 44, height: 44)
+        XCTAssertNotNil(ImageRenderer(content: face).uiImage)  // smoke only; nothing is attached
+    }
 }

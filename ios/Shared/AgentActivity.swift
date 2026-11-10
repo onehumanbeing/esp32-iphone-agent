@@ -51,6 +51,13 @@ struct AgentActivityAttributes: ActivityAttributes {
             let full = labelFull.trimmingCharacters(in: .whitespacesAndNewlines)
             return full.isEmpty ? minimalStatusText : full
         }
+
+        /// Only a running run can go stale. Help, Pause, the countdowns and recordings wait for the user, not the
+        /// app, and a finished one has nothing left to update.
+        var canGoStale: Bool { phase == .running && !finished }
+
+        /// What the widget shows: the stuck face and line only when the system marked a running run stale.
+        func stuck(_ isStale: Bool) -> Bool { isStale && canGoStale }
     }
 
     var task: String
@@ -58,6 +65,14 @@ struct AgentActivityAttributes: ActivityAttributes {
     var name: String?  // the agent's name, as the user calls it
 
     static func url(run: String) -> URL { URL(string: "iphoneagent://run/\(run)")! }
+}
+
+/// What the Live Activity says once iOS has suspended the app mid-run: its updates stopped, the stale date
+/// passed and the system set `isStale`. Tapping it opens the app, which wakes the run.
+enum StuckText {
+    static var short: String { String(localized: "Paused by iOS") }
+    static var full: String { String(localized: "Paused by iOS — tap to continue") }
+    static var minimal: String { String(localized: "Stuck") }
 }
 
 /// What the Live Activity buttons and notification actions ask the app to do.

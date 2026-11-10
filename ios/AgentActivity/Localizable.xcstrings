@@ -976,6 +976,36 @@
           }
         }
       }
+    },
+    "Paused by iOS" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被 iOS 暂停"
+          }
+        }
+      }
+    },
+    "Paused by iOS — tap to continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被 iOS 暂停了，点一下继续"
+          }
+        }
+      }
+    },
+    "Stuck" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卡住"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

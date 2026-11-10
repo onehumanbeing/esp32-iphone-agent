@@ -7,6 +7,10 @@ import Foundation
 /// The face springs to a gesture's target when an action updates `look` and morphs on a mood change. The
 /// random idle gaze loop is kept but off: cosmetic updates make the whole island flicker.
 /// Updates go through a token bucket (burst 2, then 1 per second), so the system never sees more than ~1/s.
+///
+/// While a run goes, every update carries a stale date `staleAfter` ahead, and a keep-alive resends the state
+/// when nothing went out for `keepAliveEvery`. Suspended by iOS (only bluetooth-central keeps it alive), the
+/// app sends nothing, the date passes and the widget shows "×" eyes and "Paused by iOS — tap to continue".
 @MainActor final class LiveActivityController {
     typealias State = AgentActivityAttributes.ContentState
     private var activity: Activity<AgentActivityAttributes>?
@@ -17,10 +21,28 @@ import Foundation
     private var tokens = 2.0, refilled = 0.0
     private var flush: Task<Void, Never>?
     private var darting: Task<Void, Never>?
+    private var keepAlive: Task<Void, Never>?
+    private var sentAt = 0.0
+    private var freshUntil: Date?   // the stale date of the last update
+    private var staleSeen: Date?    // when an update found the previous one already stale
+    private var stuckTapAt: Date?   // the user opened the app from a stale activity
+
+    init() {
+        // A run that ended with its process (killed, crashed) left its activity behind: it would go stale and
+        // offer "tap to continue" for a run that is gone. Finished ones (kept for the review) stay.
+        Task { [weak self] in
+            for leftover in Activity<AgentActivityAttributes>.activities
+            where leftover.id != self?.activity?.id && !leftover.content.state.finished {
+                DebugLog.write("Live Activity: removed one left running by an earlier launch")
+                await leftover.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
 
     func start(task: String, runID: String, limit: Int, phase: AgentActivityAttributes.Phase = .running,
                since: Date = Date()) {
         end(nil)
+        stuckTapAt = nil
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return DebugLog.write("Live Activity: disabled in Settings") }
         let line: String, status: IslandStatus
         switch phase {
@@ -33,11 +55,12 @@ import Foundation
         apply(status, to: &state)
         do {
             activity = try Activity.request(attributes: AgentActivityAttributes(task: task, runID: runID, name: Settings.storedAgentName),
-                                            content: .init(state: state, staleDate: nil))
+                                            content: .init(state: state, staleDate: markSent(state)))
             last = state
             sent = state
             tokens = 1
             refilled = now()
+            startKeepAlive()
             DebugLog.write("Live Activity: started (\(phase.rawValue)) run \(runID)")
             if status.waits { startDarting() }
         } catch {
@@ -69,9 +92,8 @@ import Foundation
 
     /// Shows the outcome for a while, then the system removes it. Tapping it opens the review.
     func end(_ outcome: (mood: Mood, line: String)?) {
-        stopDarting()
-        flush?.cancel()
-        flush = nil
+        stopUpdates()
+        stuckTapAt = nil
         guard let activity else { return }
         var state = last ?? State(mood: .idle, step: 0, limit: 0, line: "")
         if let outcome {
@@ -100,9 +122,7 @@ import Foundation
         var matches = Activity<AgentActivityAttributes>.activities.filter { $0.attributes.runID == runID }
         if let activity, activity.attributes.runID == runID {
             matches.append(activity)
-            stopDarting()
-            flush?.cancel()
-            flush = nil
+            stopUpdates()
             self.activity = nil
             last = nil
             sent = nil
@@ -190,10 +210,88 @@ import Foundation
         refilled = t
     }
 
-    private func send() {
-        guard let activity, let state = last, state != sent else { return }
+    private func send(force: Bool = false) {
+        guard let activity, let state = last, force || state != sent else { return }
         tokens -= 1
         sent = state
-        Task { await activity.update(.init(state: state, staleDate: nil)) }
+        let content = ActivityContent(state: state, staleDate: markSent(state))
+        Task { await activity.update(content) }
+    }
+
+    private func stopUpdates() {
+        stopDarting()
+        flush?.cancel()
+        flush = nil
+        keepAlive?.cancel()
+        keepAlive = nil
+        freshUntil = nil
+        staleSeen = nil
+    }
+
+    // MARK: - stale while suspended
+
+    /// Updates come several times a step (look, think, act; at most ~1/s by the bucket) and stop only while the
+    /// model answers: about 14 s on average, 20+ s at worst, the free line up to its 75 s request timeout.
+    /// The keep-alive covers those long waits, so the date only has to outlast the keep-alive's longest gap
+    /// (`keepAliveEvery` + one check, 15 s) with room for a busy main thread. 30 s does that twice over and
+    /// alone still clears the slowest normal step; a suspension shorter than that recovers by itself unseen.
+    static let staleAfter: TimeInterval = 30
+    static let keepAliveEvery: TimeInterval = 10
+    static let keepAliveCheck: TimeInterval = 5
+
+    /// The stale date of an update sent at `date`: none outside a running run (waiting for the user, paused,
+    /// recording, finished), so those never show the stuck face.
+    nonisolated static func staleDate(for state: State, at date: Date) -> Date? {
+        state.canGoStale ? date.addingTimeInterval(staleAfter) : nil
+    }
+
+    /// Resend the unchanged state to push the stale date out: a run goes and nothing went out for a while.
+    nonisolated static func needsKeepAlive(_ state: State?, sentAgo: TimeInterval) -> Bool {
+        guard let state else { return false }
+        return state.canGoStale && sentAgo >= keepAliveEvery
+    }
+
+    /// The user tapped the Live Activity: the app is in front now. If the system was showing it stale (or the
+    /// update that woke the run cleared that moments ago), the tap meant "continue", not "show me the app".
+    func opened() {
+        let now = Date()
+        let staleNow = freshUntil.map { $0 <= now } ?? false
+        let justCleared = staleSeen.map { now.timeIntervalSince($0) < Self.keepAliveCheck * 2 } ?? false
+        guard activity != nil, staleNow || justCleared else { return }
+        stuckTapAt = now
+        DebugLog.write("Live Activity: opened while stale; the run goes on")
+    }
+
+    /// True once after `opened()` saw a stale activity, so the run sends the app away again by itself.
+    /// The model call the suspension cut short may take its whole timeout first, so the tap counts for 90 s.
+    func takeStuckTap() -> Bool {
+        defer { stuckTapAt = nil }
+        guard let at = stuckTapAt else { return false }
+        return Date().timeIntervalSince(at) < 90
+    }
+
+    /// The stale date of an update going out now; notes when the previous one had already passed.
+    private func markSent(_ state: State) -> Date? {
+        let date = Date()
+        if let freshUntil, freshUntil <= date {
+            staleSeen = date
+            DebugLog.write(String(format: "Live Activity: was stale for %.0f s", date.timeIntervalSince(freshUntil)))
+        }
+        sentAt = now()
+        freshUntil = Self.staleDate(for: state, at: date)
+        return freshUntil
+    }
+
+    private func startKeepAlive() {
+        keepAlive?.cancel()
+        keepAlive = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Self.keepAliveCheck * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                guard self.flush == nil, Self.needsKeepAlive(self.last, sentAgo: now() - self.sentAt) else { continue }
+                self.refill()
+                if self.tokens >= 1 { self.send(force: true) }
+            }
+        }
     }
 }

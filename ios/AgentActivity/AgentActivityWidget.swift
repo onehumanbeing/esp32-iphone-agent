@@ -23,10 +23,10 @@ struct AgentLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(AgentActivityAttributes.url(run: context.attributes.runID))
         } dynamicIsland: { context in
-            let s = context.state
+            let s = context.state, stuck = s.stuck(context.isStale)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Eyes(state: s).padding(4).frame(width: 44, height: 44).padding(.leading, 4)
+                    Eyes(state: s, stuck: stuck).padding(4).frame(width: 44, height: 44).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Counter(state: s).font(.headline).padding(.trailing, 4)
@@ -36,7 +36,7 @@ struct AgentLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Says(state: s, full: true).font(.subheadline.weight(.semibold))
+                        Says(state: s, full: true, stuck: stuck).font(.subheadline.weight(.semibold))
                         if let since = s.waitingSince, !s.finished {
                             Text(since, style: .timer).monospacedDigit().font(.footnote)
                                 .timerAccessibility("Waiting time")
@@ -56,13 +56,13 @@ struct AgentLiveActivity: Widget {
                 } else if s.phase == .countdown {
                     Image(systemName: "record.circle").foregroundStyle(.white)
                 } else {
-                    Eyes(state: s).padding(3).frame(width: 24, height: 24)
+                    Eyes(state: s, stuck: stuck).padding(3).frame(width: 24, height: 24)
                 }
             } compactTrailing: {
                 if (s.phase == .recording || s.phase.countsDown) && !s.finished {
                     Counter(state: s).font(.caption).frame(maxWidth: 44)
                 } else {
-                    Says(state: s, full: false).font(.caption.bold()).frame(width: 92, alignment: .trailing)
+                    Says(state: s, full: false, stuck: stuck).font(.caption.bold()).frame(width: 92, alignment: .trailing)
                 }
             } minimal: {
                 if s.phase == .recording {
@@ -71,7 +71,7 @@ struct AgentLiveActivity: Widget {
                     Counter(state: s).font(.caption2)
                 } else {
                     // Screen Mirroring shares the island during a run and leaves only this bubble: the face.
-                    AgentMinimalStatus(state: s)
+                    AgentMinimalStatus(state: s, stuck: stuck)
                 }
             }
             .widgetURL(AgentActivityAttributes.url(run: context.attributes.runID))
@@ -143,22 +143,25 @@ private struct Buttons: View {
 }
 
 /// The character's face without the USB tab. Widgets do not animate on their own, but between updates a
-/// new `look` springs toward the gesture's target and a new mood morphs the expression.
+/// new `look` springs toward the gesture's target and a new mood morphs the expression. Stuck: "×" eyes.
 private struct Eyes: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let state: AgentActivityAttributes.ContentState
+    var stuck = false
     var body: some View {
-        AgentFace(mood: state.mood, look: state.look, lookRange: 2.4, animated: false, showsTab: false)
+        AgentFace(mood: state.mood, look: state.look, lookRange: 2.4, animated: false, showsTab: false, crossed: stuck)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: state)
     }
 }
 
 /// What the character says ("Thinking…", "Tapping Clock", "Done!"), colored by how things stand.
+/// Stuck (iOS suspended the app): "Paused by iOS — tap to continue" instead.
 private struct Says: View {
     let state: AgentActivityAttributes.ContentState
     let full: Bool
+    var stuck = false
     var body: some View {
-        let text = full ? state.labelFull : state.label
+        let text = stuck ? (full ? StuckText.full : StuckText.short) : full ? state.labelFull : state.label
         Text(verbatim: text.isEmpty ? state.line : text)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
@@ -178,13 +181,13 @@ private struct LockScreenView: View {
     let context: ActivityViewContext<AgentActivityAttributes>
 
     var body: some View {
-        let s = context.state
+        let s = context.state, stuck = s.stuck(context.isStale)
         HStack(alignment: .top, spacing: 14) {
             if (s.phase == .recording || s.phase == .countdown) && !s.finished {
                 Image(systemName: s.phase == .recording ? "record.circle.fill" : "record.circle")
                     .font(.system(size: 40)).foregroundStyle(s.phase == .recording ? .red : .white).frame(width: 52)
             } else {
-                Eyes(state: s).frame(width: 52, height: 52)
+                Eyes(state: s, stuck: stuck).frame(width: 52, height: 52)
             }
             VStack(alignment: .leading, spacing: 6) {
                 if let name = context.attributes.name {
@@ -195,8 +198,8 @@ private struct LockScreenView: View {
                     Spacer()
                     Counter(state: s).font(.subheadline)
                 }
-                if !s.finished && !s.labelFull.isEmpty {
-                    Says(state: s, full: true).font(.subheadline.weight(.semibold))
+                if !s.finished && (stuck || !s.labelFull.isEmpty) {
+                    Says(state: s, full: true, stuck: stuck).font(.subheadline.weight(.semibold))
                 }
                 if s.phase != .running || s.finished {
                     Text(verbatim: s.line).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
