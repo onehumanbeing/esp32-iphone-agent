@@ -9593,6 +9593,16 @@
         }
       }
     },
+    "The iPhone screen or the board stopped responding. Check that the board has power and Screen Mirroring is on, then start again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone 屏幕或板子没有响应。请确认板子已通电、屏幕镜像已打开，然后重新开始。"
+          }
+        }
+      }
+    },
     "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model." : {
       "localizations" : {
         "zh-Hans" : {

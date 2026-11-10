@@ -46,6 +46,7 @@ import UIKit
     /// How far a move goes at a slower speed per report, relative to `speed`: (speed, ratio), measured at calibration.
     /// iOS accelerates the pointer by speed, so a short move or a correction (under one full report) falls short.
     private(set) var gain: [(Double, Double)] = []
+    var recalibration = Recalibration()  // a landing far off target calibrates again before the next tap
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
     private var link = 0  // device.links when the pointer was last homed
@@ -269,6 +270,7 @@ import UIKit
 
     /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
     private func learn(_ x: Double, _ y: Double, _ found: CGPoint) {
+        recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels)
         guard max(abs(Double(found.x) - x), abs(Double(found.y) - y)) <= Self.maxMiss else { return }
         remember("x", (fix(x, "x"), Double(found.x)))
         remember("y", (fix(y, "y"), Double(found.y)))
@@ -409,6 +411,7 @@ import UIKit
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
     func tap(_ x: Double, _ y: Double, aim: Bool = false) async throws {
+        if recalibration.tap() { try await recalibrate() }
         try await point(x, y, aim: aim)
         try await device.send("click")
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
