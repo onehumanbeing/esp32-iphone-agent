@@ -115,6 +115,72 @@ import XCTest
         XCTAssertFalse(try XCTUnwrap(actor.prompts.first).contains("Screen elements"))
     }
 
+    /// On-device tree timing (run on the phone, -O): Documents/treebench540 and treebench718 of the test host hold
+    /// public r1 frames (copied in with devicectl); skipped where they are absent (simulator, CI). Warm-up, then 30
+    /// builds per size: total/ocr/cv p50/p90 and the CV half stage by stage, printed as TREEBENCH lines and saved
+    /// to Documents/treebench-result.txt.
+    func testTreeBuildTimingOnDevice() async throws {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        var report: [String] = ["thermal \(ProcessInfo.processInfo.thermalState.rawValue)"]
+        func pct(_ xs: [Double]) -> String {
+            let s = xs.sorted()
+            return String(format: "p50 %.1f p90 %.1f max %.1f", s[s.count / 2], s[min(s.count - 1, s.count * 9 / 10)], s.last!)
+        }
+        func ms(_ t: Date) -> Double { Date().timeIntervalSince(t) * 1000 }
+        for name in ["treebench540", "treebench718"] {
+            let dir = docs.appendingPathComponent(name)
+            let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension == "jpg" }.sorted { $0.path < $1.path }
+            let frames = files.compactMap { try? Data(contentsOf: $0) }
+            if frames.isEmpty { continue }
+            for f in frames { _ = await UITree.build(jpeg: f) }  // warm-up
+            var total: [Double] = [], ocr: [Double] = [], cv: [Double] = [], els: [Double] = [], compact: [Double] = []
+            var stage: [String: [Double]] = [:], size = ""
+            for i in 0..<30 {
+                let jpeg = frames[i % frames.count]
+                let made = await UITree.build(jpeg: jpeg)
+                let t = try XCTUnwrap(made)
+                size = "\(t.w)x\(t.h)"
+                total.append(t.totalSeconds * 1000); ocr.append(t.ocrSeconds * 1000); cv.append(t.cvSeconds * 1000)
+                els.append(Double(t.elements.count)); compact.append(Double(t.candidates.filter { $0.role != "container" }.count))
+                // the CV half again, stage by stage (the calls of UITree.build(_:_:))
+                let image = try XCTUnwrap(CGImageSourceCreateWithData(jpeg as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+                var s = Date()
+                let img = try XCTUnwrap(Raster(image)); stage["1 raster (decode+RGB)", default: []].append(ms(s)); s = Date()
+                let W = img.w, H = img.h
+                let blurred = UITreeCV.blur3(img); stage["2 edge blur3", default: []].append(ms(s)); s = Date()
+                let lab = UITreeCV.labPlanes(blurred, w: W, h: H); stage["3 edge lab", default: []].append(ms(s)); s = Date()
+                var edges = Plane(w: W, h: H)
+                for ch in lab {
+                    let e = UITreeCV.canny(ch, low: 30, high: 90)
+                    for k in 0..<edges.v.count where e.v[k] != 0 { edges.v[k] = 255 }
+                }
+                stage["4 edge canny x3", default: []].append(ms(s)); s = Date()
+                let textBoxes = t.lines.map(\.box)
+                var leaves = t.lines.map { UINode("text", $0.box, label: $0.text) }
+                for (kind, b) in UITree.blobs(edges, textBoxes, W, H) where kind == "blob" {
+                    if Double(textBoxes.reduce(0) { $0 + UITree.inter(b, $1) }) < 0.5 * Double(UITree.area(b)) {
+                        leaves.append(UINode(UITree.classify(img, b, W), b))
+                    }
+                }
+                stage["5 blobs (mask, dilate3, close7, components) + classify", default: []].append(ms(s)); s = Date()
+                let rects = UITree.filledRects(edges, W, H).map { UINode("container", $0) }
+                stage["6 filledRects (close3, contours)", default: []].append(ms(s)); s = Date()
+                UITree.labelIcons(leaves)
+                var top = UITree.xyCut(UITree.prune(UITree.nest(rects, leaves), W, H), [0, 0, W, H])
+                UITree.finish(&top, W, H)
+                stage["7 labels, nest, prune, xyCut, finish", default: []].append(ms(s))
+            }
+            report.append("\(size), 30 builds over \(frames.count) frames: total \(pct(total)) ms; ocr \(pct(ocr)); cv \(pct(cv)); "
+                          + "elements \(pct(els)); compact \(pct(compact))")
+            for k in stage.keys.sorted() { report.append("  \(size) stage \(k): \(pct(stage[k]!)) ms") }
+        }
+        guard report.count > 1 else { throw XCTSkip("no Documents/treebench540 or treebench718 frames on this host") }
+        report.append("thermal \(ProcessInfo.processInfo.thermalState.rawValue)")
+        for line in report { print("TREEBENCH " + line) }
+        try report.joined(separator: "\n").write(to: docs.appendingPathComponent("treebench-result.txt"), atomically: true, encoding: .utf8)
+    }
+
     /// A white 540 x 1170 screen with one dark filled button.
     static func screen() -> Data {
         let ctx = CGContext(data: nil, width: 540, height: 1170, bitsPerComponent: 8, bytesPerRow: 0,
