@@ -63,8 +63,10 @@ extension Gestures {
     var gate: (() async throws -> Void)?
     /// True while `pausedBeforeGesture` is inside `gate`. A pause during a look (no gesture chosen yet) does not
     /// set it, so Continue still runs the action decided from the screen after the pause.
-    private(set) var droppingChosenGesture = false
-    private var chosenGestureDropped = false
+    var droppingChosenGesture = false
+    var chosenGestureDropped = false
+    /// The last round sent nothing because the person paused: it says nothing about the screen.
+    var roundDroppedByPause = false
     static let maxTokens = ["planner": 1500, "actor": 1000, "reader": 2000]
     private var job: Task<Void, Never>?
     var onFinish: (() -> Void)?
@@ -361,6 +363,7 @@ extension Gestures {
                         continue
                     }
                     failures = 0
+                    if roundDroppedByPause { roundDroppedByPause = false; continue }  // no gesture, no stall
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
                     try await checkLink(unchanged: stalls)
                     if try await touchless() {
@@ -415,22 +418,6 @@ extension Gestures {
         }
         await screen?.settled()
         return true
-    }
-
-    /// The gate in front of a gesture already chosen. True = the person paused there, so do not send it.
-    func pausedBeforeGesture() async throws -> Bool {
-        droppingChosenGesture = true
-        defer {
-            droppingChosenGesture = false
-            chosenGestureDropped = false
-        }
-        try await gate?()
-        return chosenGestureDropped
-    }
-
-    /// The pause hold waited. Counts only in front of a chosen gesture, not during a look.
-    func notePauseInterrupted() {
-        if droppingChosenGesture { chosenGestureDropped = true }
     }
 
     /// The actor asked before a risky step. True = the run is over (stopped).
@@ -501,6 +488,7 @@ extension Gestures {
             if name != "done" && name != "fail" {
                 if try await pausedBeforeGesture() {
                     if i == 0 { JevGate.hold = false }  // nothing was sent; the next look may use Jev
+                    roundDroppedByPause = i == 0
                     return false
                 }
                 guard !connectionChanged(since: acceptedLookLinks) else {

@@ -139,6 +139,7 @@
 		967BBE92D601A80A11C28BF7 /* RunViewAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE62DFCF20AF38CCC273FB57 /* RunViewAnnotations.swift */; };
 		96C08C1CFEECA69484811137 /* StatusChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BDA430E0C54DC956DE9366 /* StatusChips.swift */; };
 		C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 631717D96356AF58914A22AA /* LinkCheck.swift */; };
+		7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */; };
 		855A29556730B57A49684886 /* PointerRecalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */; };
 		99436D744F3606BF231E41C0 /* TouchCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E61E51B087F223ED985C56 /* TouchCheck.swift */; };
 		99D64CF9B896616382FC8A0E /* AgentActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A11E0FF01881451EBB3D18FF /* AgentActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -450,6 +451,7 @@
 		E37B39FEB9A7A965ED4A86B3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E4B0E258DD4494C631F0E77A /* TrialTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialTests.swift; sourceTree = "<group>"; };
 		631717D96356AF58914A22AA /* LinkCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCheck.swift; sourceTree = "<group>"; };
+		E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Pause.swift"; sourceTree = "<group>"; };
 		ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerRecalibration.swift; sourceTree = "<group>"; };
 		E4E61E51B087F223ED985C56 /* TouchCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCheck.swift; sourceTree = "<group>"; };
 		E7318AED24A07B92CBB7496E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -505,6 +507,7 @@
 				5CF9ED710411A6AA1F3F4BE5 /* Scripts.swift */,
 				2169FBFC7A60B9FC1FF1E724 /* StepText.swift */,
 				631717D96356AF58914A22AA /* LinkCheck.swift */,
+				E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */,
 				ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */,
 				E4E61E51B087F223ED985C56 /* TouchCheck.swift */,
 				6B92AE54E2CEB0DEA588E1E4 /* UITree.swift */,
@@ -1210,6 +1213,7 @@
 				493D5E857A8D5B323A25BA53 /* ThreadStore.swift in Sources */,
 				4C33F19F733F62B5A131BE9E /* TouchCalibration.swift in Sources */,
 				C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */,
+				7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */,
 				855A29556730B57A49684886 /* PointerRecalibration.swift in Sources */,
 				99436D744F3606BF231E41C0 /* TouchCheck.swift in Sources */,
 				C4F3ADB5189E27B999BDDF83 /* TouchProbe.swift in Sources */,
