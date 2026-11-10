@@ -55,6 +55,6 @@ xcodebuild test -scheme IPhoneAgent \
   CODE_SIGNING_ALLOWED=NO -only-testing:IPhoneAgentTests
 ```
 
-`LocalCopyTests` covers byte-exact receipts, expiry/cancellation, wrong-host preflight, JSON text preservation, action boundaries, unavailable-service behavior, duplicate paste after a lost acknowledgement/restore, permission handoff, ASCII routing and replay handoff. Generator tests check the seven local actions, read-back wiring, UUID references and binary plist encoding. Neither suite substitutes for a signed Shortcut and a real iPhone + board pass.
+`LocalCopyTests` covers byte-exact receipts, expiry/cancellation, wrong-host preflight, JSON text preservation, action boundaries, unavailable-service behavior, duplicate paste after a lost acknowledgement/restore, permission handoff, ASCII routing, replay handoff and releasing a long press after cancellation or a lost acknowledgement. Generator tests check the seven local actions, read-back wiring, UUID references and binary plist encoding; the iOS CI job runs them too. Neither suite substitutes for a signed Shortcut and a real iPhone + board pass.
 
 Based on ESP32 iPhone Agent by Henry Yuan. Keep the root LICENSE and NOTICE; credit the original project in derived demos and posts.

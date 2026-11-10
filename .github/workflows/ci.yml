@@ -35,6 +35,8 @@ jobs:
               - .github/workflows/ci.yml
               - ios/**
               - prompts/**                  # bundled into the app
+              - tools/make_local_copy_shortcut.py
+              - tools/test_make_local_copy_shortcut.py
               - server/hidagent/agent.py    # AgentTests checks prompts are verbatim from it
             firmware:
               - .github/workflows/ci.yml
@@ -75,6 +77,8 @@ jobs:
                   print(phones[0]["udid"]); print(phones[0]["name"], rt, file=sys.stderr); break
           ')
           echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+      - name: Check local copy Shortcut generator
+        run: python3 -m unittest discover -s ../tools -p 'test_*.py' -v
       - name: Build for testing (unsigned)
         run: |
           xcodebuild build-for-testing -scheme IPhoneAgent -destination "id=$SIM_UDID" \
