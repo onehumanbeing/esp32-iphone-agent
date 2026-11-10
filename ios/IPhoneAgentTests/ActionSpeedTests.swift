@@ -163,6 +163,37 @@ import XCTest
         }.jpegData(compressionQuality: 0.9)!
     }
 
+    // MARK: Home
+
+    /// The first frame after the key already shows another screen: no wait for a still screen, no flick.
+    func testHomeKeyThatLeavesTheAppIsSeenInTheFirstFrame() async throws {
+        let device = FakeDevice(), screen = FakeScreen()
+        screen.frame = ReplayTests.screen(CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.3))
+        screen.updated = now()
+        let pointer = Pointer(device: device, calibrationFile: calibrationFile(), screen: screen)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        device.onSend = { command in
+            guard command == "homescreen" else { return }
+            screen.frame = ReplayTests.screen(CGRect(x: 0.1, y: 0.6, width: 0.8, height: 0.3))
+            screen.updated = now()
+        }
+        let started = now()
+        try await pointer.goHome()
+        XCTAssertLessThan(now() - started, 0.5)  // was at least 0.6 s + a 0.3 s still screen
+        XCTAssertEqual(device.sent, ["homescreen"])
+    }
+
+    func testHomeFlickGoesAtTheBoardsTopSpeed() async throws {
+        let device = FakeDevice()
+        let pointer = Pointer(device: device, calibrationFile: calibrationFile())
+        pointer.boardPace = 3
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        try await pointer.homeSwipe()
+        let press = try XCTUnwrap(device.sent.firstIndex(of: "press"))
+        XCTAssertEqual(device.sent[press + 1], "move 0 -680 40")
+        XCTAssertEqual(device.sent.last, "release")
+    }
+
     // MARK: the steps list
 
     /// A reload reads again only the runs whose steps changed (the current one), not all of them every step.

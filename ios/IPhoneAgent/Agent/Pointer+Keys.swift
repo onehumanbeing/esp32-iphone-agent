@@ -83,8 +83,13 @@ extension Pointer {
     /// Leaving an app is a big change; a small one (a clock ticking, a caret) may be UI noise while the key did not
     /// take effect. `again`: the previous step was Home too and changed little, so flick even after a small change
     /// (only then: on the Home Screen the flick would open the App Switcher).
+    ///
+    /// The check looks at the first frame captured after the key, then at the screen once it was still for a moment
+    /// (2026-11-11: it waited for a 0.3 s still screen after at least 0.6 s, up to 2 s; with an app that kept moving
+    /// that was 2.2 s before the flick). Leaving an app shows as a big change in the first frames already.
     func goHome(again: Bool = false) async throws {
         let before = screen?.live == true ? screen?.frame : nil
+        let sent = now()
         do {
             try await device.send("homescreen")
         } catch let error as DeviceError where error.message.hasPrefix("err ") {
@@ -94,7 +99,8 @@ extension Pointer {
             return try await homeSwipe()
         }
         guard let screen, let before else { return }
-        await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
+        if let first = await screen.fresh(since: sent, timeout: 1.0), await Vision.off({ Vision.bigChange(before, first) }) { return }
+        await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
         let after = screen.frame
         if await Vision.off({ Vision.bigChange(before, after) }) { return }
         if !again, await Vision.off({ Vision.changed(before, after) }) { return }

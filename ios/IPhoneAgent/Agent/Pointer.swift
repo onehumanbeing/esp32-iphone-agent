@@ -22,6 +22,7 @@ import UIKit
     static let sameSpot = 0.03              // a far reading this close to the last far one, for targets
     static let apart = 0.1                  // this far apart, is something moving by itself, not the pointer
     static let watch = 0.3                  // s the screen is watched before a nudge, for what moves by itself
+    static let flickSpeed = 40              // the home flick's speed per report: the firmware's top (`move dx dy speed`)
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -541,7 +542,10 @@ import UIKit
         try await device.send("move 0 \(span.h / 10)")
         do {
             try await device.send("press")
-            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))")  // to the middle only (0.45) left the app card half-way (2026-10-19)
+            // to the middle only (0.45) left the app card half-way (2026-10-19). At the board's top speed per report
+            // (40, firmware pace 3): at the default 10 the stroke took 1.2 s (2026-11-11); a flick is fast anyway
+            let fast = (boardPace ?? pace) >= 3 ? " \(Self.flickSpeed)" : ""
+            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))" + fast)
         } catch {
             _ = try? await device.send("release")
             throw error
