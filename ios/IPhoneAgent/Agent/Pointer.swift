@@ -53,6 +53,8 @@ import UIKit
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
     private var lastFar: (target: CGPoint, found: CGPoint)?  // the last reading far off its target (measureSure)
+    /// The last measure's wiggle, for a second reading from its move back (`reread`).
+    private var wiggle: (after: Data, back: Double, shift: Double, quiet: [CGRect])?
     private var link = 0  // device.links when the pointer was last homed
     /// where the pointer really landed (seen on screen) for the fraction we aimed at, per axis; a line fit
     /// through them corrects every later move, so taps get better as the agent works
@@ -317,7 +319,11 @@ import UIKit
         func off(_ p: CGPoint, _ x: Double, _ y: Double) -> Double { max(abs(Double(p.x) - x), abs(Double(p.y) - y)) }
         guard let first = try await measure(x, y, model: false) else { return nil }
         guard off(first, x, y) > Self.maxMiss else { lastFar = nil; return first }
-        guard let again = try await measure(x, y, model: false), off(again, Double(first.x), Double(first.y)) <= Self.agree else {
+        // the second reading from the same wiggle's move back first, a whole new wiggle only if that shows nothing
+        // (2026-11-11: two wiggles took 2.5 s; the move back gives a reading from two other frames for ~0.4 s)
+        var reading = await reread(x, y)
+        if reading == nil { reading = try await measure(x, y, model: false) }
+        guard let again = reading, off(again, Double(first.x), Double(first.y)) <= Self.agree else {
             log(String(format: "pointer: far reading (%.3f, %.3f) not seen again; position unknown", first.x, first.y))
             pos = nil
             return nil
@@ -344,10 +350,14 @@ import UIKit
         guard let screen, let span else { return nil }
         let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
         let started = now()
+        wiggle = nil
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
-        // what moves by itself (a clock, a spinner) in a short look before the nudge can't be the pointer
+        // what moves by itself (a clock, a spinner) in a short look before the nudge can't be the pointer. The time
+        // the settled screen has already shown no change counts toward that look (2026-11-11: the full 0.3 s on top
+        // of every settle; the frame is the same one throughout, so the look sees the same)
         let base = screen.frame
-        try? await Task.sleep(nanoseconds: UInt64(Self.watch * 1e9))
+        let stillFor = now() - screen.changed
+        if stillFor < Self.watch { try? await Task.sleep(nanoseconds: UInt64((Self.watch - stillFor) * 1e9)) }
         let before = screen.frame, sent = now()
         // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
         let previousPosition = pos
@@ -358,6 +368,7 @@ import UIKit
             await screen.settled(quiet: 0.1, least: 0.05, most: 0.4)
             after = screen.frame
         }
+        let back = now()
         try await device.send("move \(-nudge) 0")
         pos = previousPosition
         let shift = Double(nudge) / Double(span.w)
@@ -366,16 +377,36 @@ import UIKit
             return nil
         }
         let looked = now()
-        let p = await Vision.off {
+        let (p, quiet) = await Vision.off {
             let quiet = Vision.motion(base, before)
-            return Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift, quiet: quiet)
-                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
+            return (Self.find(before, after, near: CGPoint(x: x, y: y), shift: shift, quiet: quiet), quiet)
         }
+        wiggle = (after, back, shift, quiet)
         // where a slow search spends its time (2026-11-07: taps took 9-26 s with seconds between commands)
         log(String(format: "pointer: measure %.1f s (settle %.1f, frames %.1f, search %.1f)%@", now() - started,
                    sent - started, looked - sent, now() - looked, p == nil ? ", not found" : ""))
         if let p { return p }
         return model ? await locate?(before) : nil
+    }
+
+    /// The pointer in `a`, moved by `shift` (fraction of width) in `b`: near the target, else anywhere.
+    nonisolated private static func find(_ a: Data, _ b: Data, near: CGPoint, shift: Double, quiet: [CGRect]) -> CGPoint? {
+        Vision.pointer(a, b, near: near, shift: shift, quiet: quiet)
+            ?? Vision.pointer(a, b, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
+    }
+
+    /// A second reading of where the last measure found the pointer, from its move back (the frame after the nudge
+    /// against one after the move back: two other frames, the pointer going the other way). Something that moved by
+    /// itself in the first pair rarely moves back the same way; the readings must still agree (measureSure).
+    private func reread(_ x: Double, _ y: Double) async -> CGPoint? {
+        guard let screen, let w = wiggle else { return nil }
+        wiggle = nil
+        guard await screen.fresh(since: w.back, timeout: 1.2) != nil else { return nil }
+        await screen.settled(quiet: 0.1, least: 0.05, most: 0.4)
+        guard let back = screen.frame else { return nil }
+        let p = await Vision.off { Self.find(w.after, back, near: CGPoint(x: x, y: y), shift: -w.shift, quiet: w.quiet) }
+        // found where it was after the nudge: where it was before it is one shift to the left
+        return p.map { CGPoint(x: $0.x - w.shift, y: $0.y) }
     }
 
     /// Calibration check without tapping: move to a known point and measure the miss (fraction of the screen).

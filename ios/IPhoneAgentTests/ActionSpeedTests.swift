@@ -115,6 +115,54 @@ import XCTest
         XCTAssertTrue(single.pending)
     }
 
+    /// The far reading is confirmed from the same wiggle's move back (one wiggle, not two); the next tap starts from
+    /// the corner instead of a recalibration. A screen still for a while is not watched another 0.3 s first.
+    func testAFarLandingIsConfirmedByTheMoveBackAndReHomes() async throws {
+        let device = FakeDevice(), screen = FakeScreen()
+        let pointer = Pointer(device: device, calibrationFile: calibrationFile(), screen: screen)
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
+        var ux = 240, uy = 400  // the pointer really is at (0.6, 0.5)
+        func show() {
+            screen.frame = Self.dot(CGPoint(x: Double(ux) / 400, y: Double(uy) / 800))
+            screen.updated = now()
+        }
+        show()
+        screen.updated = now() - 5  // the screen has been still
+        var nudged: Double?
+        let started = now()
+        device.onSend = { command in
+            let parts = command.split(separator: " ")
+            if command == "home" { (ux, uy) = (0, 0) }
+            guard parts.first == "move", parts.count >= 3, let dx = Int(parts[1]), let dy = Int(parts[2]) else { return }
+            if command == "move 12 0", nudged == nil { nudged = now() }
+            (ux, uy) = (ux + dx, uy + dy)
+            show()
+        }
+        let landed = await pointer.landing(0.2, 0.2)
+        let found = try XCTUnwrap(landed)
+        XCTAssertEqual(Double(found.x), 0.6, accuracy: 0.02)
+        XCTAssertEqual(Double(found.y), 0.5, accuracy: 0.02)
+        XCTAssertEqual(device.sent.filter { $0 == "move 12 0" }.count, 1)  // one wiggle gave both readings
+        XCTAssertLessThan(try XCTUnwrap(nudged) - started, 0.3)  // no extra watch on a still screen
+        XCTAssertFalse(pointer.recalibration.pending)
+        XCTAssertTrue(pointer.recalibration.rehomed)
+
+        device.sent = []
+        try await pointer.tap(0.2, 0.2)
+        XCTAssertEqual(device.sent.first { $0 != "release" }, "home")  // from the corner, no calibration probes
+        XCTAssertFalse(device.sent.contains("move 150 150"))
+    }
+
+    /// A pointer 6 px wide on a white 200 x 400 screen.
+    static func dot(_ p: CGPoint) -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 200, height: 400)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 400))
+            UIColor.darkGray.setFill()
+            context.fill(CGRect(x: p.x * 200 - 4, y: p.y * 400 - 4, width: 8, height: 8))
+        }.jpegData(compressionQuality: 0.9)!
+    }
+
     // MARK: the steps list
 
     /// A reload reads again only the runs whose steps changed (the current one), not all of them every step.
