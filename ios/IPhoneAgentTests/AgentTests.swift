@@ -391,7 +391,8 @@ import XCTest
                               actor: FakeModel { _ in "THINK: x\nDO: hand Pick one" }, planner: nil, trace: nil)
         skip.onHelp = { _ in helped += 1; return .stop }
         skip.onHand = { _ in .skip }
-        XCTAssertFalse(try await skip.step())
+        let skipped = try await skip.step()
+        XCTAssertFalse(skipped)
         XCTAssertEqual(helped, 0)
         XCTAssertEqual(skip.steps.map { $0["action"]?.str }, ["hand", "skipped"])
 
@@ -401,12 +402,14 @@ import XCTest
             XCTAssertEqual(reason, "Do this step yourself.")
             return .stop
         }
-        XCTAssertTrue(try await stop.step())
+        let stopped = try await stop.step()
+        XCTAssertTrue(stopped)
         XCTAssertEqual(stop.steps.last?["action"]?.str, "stopped")
 
         let alone = AgentLoop(phone: FakeGestures(), screen: FakeScreen(),
                                actor: FakeModel { _ in "THINK: x\nDO: hand Unlock" }, planner: nil, trace: nil)
-        XCTAssertTrue(try await alone.step())
+        let nobody = try await alone.step()
+        XCTAssertTrue(nobody)
         XCTAssertEqual(alone.steps.last?["reason"]?.str, "nobody to hand the phone to: Unlock")
     }
 
@@ -416,7 +419,8 @@ import XCTest
         let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
         var asked: [String] = []
         agent.onHand = { reason in asked.append(reason); return .resume }
-        XCTAssertFalse(try await agent.step())
+        let over = try await agent.step()
+        XCTAssertFalse(over)
         XCTAssertEqual(phone.calls, [])
         XCTAssertEqual(asked, ["Enter the password, passcode, or code yourself. I won't type it."])
         XCTAssertEqual(agent.steps.first?["action"]?.str, "hand")
@@ -458,10 +462,12 @@ import XCTest
         var asked = 0
         agent.onHand = { _ in asked += 1; return .resume }
         for _ in 0..<AgentLoop.maxHandoffs {
-            XCTAssertFalse(try await agent.step())
+            let over = try await agent.step()
+            XCTAssertFalse(over)
         }
         XCTAssertEqual(asked, AgentLoop.maxHandoffs)
-        XCTAssertTrue(try await agent.step())
+        let stopped = try await agent.step()
+        XCTAssertTrue(stopped)
         XCTAssertEqual(asked, AgentLoop.maxHandoffs)
         XCTAssertEqual(agent.steps.last?["action"]?.str, "stopped")
         XCTAssertEqual(agent.steps.last?["reason"]?.str, "handed the phone over too many times")
@@ -492,10 +498,12 @@ import XCTest
             gates += 1
             if gates == 2 { agent.markUserHadPhone() }
         }
-        XCTAssertFalse(try await agent.step())
+        let held = try await agent.step()
+        XCTAssertFalse(held)
         XCTAssertEqual(phone.calls, [])
         XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["takeover"])
-        XCTAssertFalse(try await agent.step())
+        let looked = try await agent.step()
+        XCTAssertFalse(looked)
         XCTAssertEqual(phone.calls, [])
         XCTAssertTrue(model.prompts[1].contains(AgentLoop.userHadPhoneReason))
     }
