@@ -9782,6 +9782,16 @@
           }
         }
       }
+    },
+    "Not repeated" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未重复同一步"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -28,6 +28,7 @@ enum StepText {
         case "help": return String(localized: "Asked for your help")
         case "takeover": return String(localized: "You took over")
         case "skipped": return String(localized: "Skipped")
+        case RepeatGuard.action: return String(localized: "Not repeated")
         case "confirm": return String(localized: "Asked you first")
         case "confirmed": return String(localized: "You said yes")
         case "note": return String(localized: "Note")
@@ -68,6 +69,7 @@ enum StepText {
         case "help", "takeover", "confirm": return "hand.raised"
         case "confirmed": return "checkmark.shield"
         case "skipped": return "forward"
+        case RepeatGuard.action: return "arrow.uturn.backward"
         case "note", "progress": return "text.bubble"
         case "read": return "doc.text.viewfinder"
         case "write": return "doc.on.clipboard"
@@ -80,7 +82,7 @@ enum StepText {
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
                                         "takeover", "skipped", "note", "reconnected", "resumed", "confirm", "confirmed",
-                                        "read", "progress", "remember", "learn", "ai done", "check"]
+                                        "read", "progress", "remember", "learn", "ai done", "check", RepeatGuard.action]
 }
 
 /// How a run ended.

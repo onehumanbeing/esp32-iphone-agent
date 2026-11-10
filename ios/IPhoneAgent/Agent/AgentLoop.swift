@@ -366,7 +366,7 @@ extension Gestures {
                         continue
                     }
                     failures = 0
-                    if roundDroppedByPause { roundDroppedByPause = false; continue }  // no gesture, no stall
+                    if roundDroppedByPause { continue }  // no gesture, no stall (the next look takes the flag)
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
                     try await checkLink(unchanged: stalls)
                     if try await stuck() {
@@ -460,7 +460,7 @@ extension Gestures {
     func step() async throws -> Bool {
         var timing = Metrics.Step()
         StepWaits.reset()
-        let acts = try await nextActions()
+        let acts = try await decide()  // nextActions, once more for a repeat that changed nothing
         JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
