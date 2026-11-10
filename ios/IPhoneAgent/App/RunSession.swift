@@ -106,6 +106,8 @@ extension AppModel {
             agent.planner = try await settings.client("planner")
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
             agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
+            agent.compactTree = settings.provider == .handsyTrial && TreeSource.current == .device  // Debug only
+            if settings.provider == .handsyTrial { DebugLog.write("tree source: \(agent.serverTree ? "server" : "device")") }
         } catch is CancellationError {
             return  // Cancel while waiting for the free line
         } catch {

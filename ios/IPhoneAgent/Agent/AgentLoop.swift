@@ -115,6 +115,8 @@ extension Gestures {
     var screenTree = false
     /// The free line: Spark builds the tree of the sent frame and lists it; the reply brings it back for `tap #ID`.
     var serverTree = false
+    /// The free line with Tree source › On-device (Debug): the phone's tree in Spark's compact listing and numbering.
+    var compactTree = false
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     private(set) var lastServed: String?
 
@@ -276,7 +278,13 @@ extension Gestures {
                 tree = await UITree.build(jpeg: sent)
                 if let tree { DebugLog.write("step " + tree.timingLine) }
             }
-            let text = prompt + (tree?.listing ?? "")
+            if role == "actor", screenTree {
+                let ms = { (s: Double) in Int((s * 1000).rounded()) }
+                StepWaits.tree = tree.map { "device total \(ms($0.totalSeconds)) ocr \(ms($0.ocrSeconds)) cv \(ms($0.cvSeconds))" }
+                    ?? (serverTree ? "server" : "none")
+            }
+            // the same place and format as Spark's: appended to the user text, after the prompt
+            let text = prompt + (tree.map { compactTree ? $0.compactListing : $0.listing } ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in
@@ -318,7 +326,8 @@ extension Gestures {
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
             let built = tree != nil
             if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
-            let answer = tree?.resolve(reply.text, spark: !built) ?? reply.text
+            // Spark and the compact listing number ids over all candidates (treetext.by_listing_id)
+            let answer = tree?.resolve(reply.text, spark: !built || compactTree) ?? reply.text
             lastServed = reply.servedModel
             var rec: JObject = ["role": .str(role), "model": .str(llm.model), "prompt": .str(text),
                                 "reply": .str(reply.text), "seconds": .num(seconds)]
@@ -326,6 +335,7 @@ extension Gestures {
                 rec["tree"] = .str("spark")
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             } else if let tree {
+                rec["tree"] = .str("device")
                 rec["tree_ms"] = .num(((tree.ocrSeconds + tree.cvSeconds) * 1000).rounded())
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }
@@ -480,6 +490,7 @@ extension Gestures {
             timing.settleMs = StepWaits.settle * 1000
             timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap
             timing.recordMs = StepWaits.record * 1000
+            timing.tree = StepWaits.tree
             timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs - timing.leadMs)
             StepWaits.reset()
             metrics?.step(timing)

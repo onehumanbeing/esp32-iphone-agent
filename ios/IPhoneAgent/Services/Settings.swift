@@ -310,8 +310,18 @@ import UIKit
         (try? JSONSerialization.jsonObject(with: Data(extraBody.utf8))) as? [String: Any] ?? [:]
     }
 
-    /// The free line builds the screen tree on Spark, unless Jev runs in the app (own TypeSafe key) and needs it here.
-    static func serverTree(_ provider: ModelProvider) -> Bool { provider == .handsyTrial && !JevConfig.ownActive }
+    /// The free line builds the screen tree on Spark, unless Jev runs in the app (own TypeSafe key) and needs it here,
+    /// or a Debug build picked Tree source › On-device.
+    static func serverTree(_ provider: ModelProvider, source: TreeSource = .current) -> Bool {
+        provider == .handsyTrial && !JevConfig.ownActive && source == .server
+    }
+
+    /// The actor's tree headers on the free line: Spark builds it (X-Handsy-Tree: slim), or the phone did and says so.
+    static func treeHeaders(_ role: String, _ provider: ModelProvider, source: TreeSource = .current) -> [String: String] {
+        guard role == "actor", provider == .handsyTrial else { return [:] }
+        if serverTree(provider, source: source) { return ["X-Handsy-Tree": "slim"] }
+        return source == .device ? ["X-Handsy-Tree-Source": "device"] : [:]
+    }
 
     /// role "planner" or "actor": its own model if set, else the shared one.
     func client(_ role: String) async throws -> LLMClient {
@@ -332,7 +342,7 @@ import UIKit
         let jev = { role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
             .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
-        let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
+        let tree = Self.treeHeaders(role, provider)
         // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
         let step = { role == "actor" ? StepReport.shared.take() : [:] }
         let headers: (() throws -> [String: String])? = freeLine
@@ -449,4 +459,19 @@ struct CustomEndpoint: Identifiable, Equatable {
         guard let url = URL(string: baseURL), let host = url.host else { return baseURL }
         return url.port.map { "\(host):\($0)" } ?? host
     }
+}
+
+/// Debug only: where the free line's actor tree is built. Settings › Developer › Tree source, `-tree-source device|server`,
+/// `iphoneagent://tree?source=device`. Release builds always use the server (Spark).
+enum TreeSource: String, CaseIterable {
+    case server, device
+    static let key = "treeSource"
+    static var current: TreeSource {
+        #if DEBUG
+        TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .server
+        #else
+        .server
+        #endif
+    }
+    static func set(_ source: TreeSource) { UserDefaults.standard.set(source.rawValue, forKey: key) }
 }

@@ -46,7 +46,8 @@ enum FrameMode: String {
     static var snaps = 0  // snaps asked for
     static var replied = 0.0  // when the actor's last reply arrived (AgentLoop.ask), for Metrics.Step.leadMs
     static var record = 0.0  // s the steps list took to update (AgentLoop.record)
-    static func reset() { moving = false; settle = 0; snaps = 0; replied = 0; record = 0 }
+    static var tree = ""  // the actor's tree this step: "server", "device total … ocr … cv …" (ms), "none"
+    static func reset() { moving = false; settle = 0; snaps = 0; replied = 0; record = 0; tree = "" }
 }
 
 extension ScreenSource {

@@ -100,6 +100,7 @@ struct DeveloperView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(MockMode.key) private var demoData = false
+    @AppStorage(TreeSource.key) private var treeSource = TreeSource.server.rawValue
     @State private var language = "ja-JP"
     @State private var testing = false
 
@@ -110,6 +111,16 @@ struct DeveloperView: View {
             } footer: {
                 Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
             }
+            #if DEBUG
+            Section {
+                Picker(selection: $treeSource) {
+                    Text(verbatim: "Server (Spark)").tag(TreeSource.server.rawValue)
+                    Text(verbatim: "On-device").tag(TreeSource.device.rawValue)
+                } label: { Text(verbatim: "Tree source") }
+            } footer: {
+                Text(verbatim: "Free line: where the screen tree for the actor is built. Takes effect on the next run.")
+            }
+            #endif
             RemoteLogSection()
             Section {
                 Picker("Phrase", selection: $language) {

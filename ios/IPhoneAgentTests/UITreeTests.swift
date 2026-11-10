@@ -106,6 +106,59 @@ import XCTest
         XCTAssertEqual(planned.first?.act["y"], .int(196))
     }
 
+    func testTreeSourceDefaultsToServerAndDeviceDropsTheTreeHeader() {
+        let saved = UserDefaults.standard.string(forKey: TreeSource.key)
+        defer { UserDefaults.standard.set(saved, forKey: TreeSource.key) }
+        UserDefaults.standard.removeObject(forKey: TreeSource.key)
+        XCTAssertEqual(TreeSource.current, .server)
+        XCTAssertTrue(Settings.serverTree(.handsyTrial))
+        XCTAssertEqual(Settings.treeHeaders("actor", .handsyTrial), ["X-Handsy-Tree": "slim"])
+        TreeSource.set(.device)
+        XCTAssertEqual(TreeSource.current, .device)
+        XCTAssertFalse(Settings.serverTree(.handsyTrial))
+        XCTAssertEqual(Settings.treeHeaders("actor", .handsyTrial), ["X-Handsy-Tree-Source": "device"])
+        XCTAssertEqual(Settings.treeHeaders("planner", .handsyTrial), [:])
+        XCTAssertEqual(Settings.treeHeaders("actor", .openRouter, source: .device), [:])
+    }
+
+    /// Spark numbers `tap #ID` over all candidates (rows too), like the compact listing.
+    func testCompactResolveNumbersOverCandidates() {
+        let t = tree()
+        XCTAssertEqual(t.resolve("DO: tap #2", spark: true), "DO: tap 500 867")
+        XCTAssertEqual(t.resolve("DO: tap #3", spark: true), "DO: tap 129 867")
+    }
+
+    func testOnDeviceTreeAppendsTheCompactListingAndResolvesOnThePhone() async throws {
+        let screen = FakeScreen()
+        screen.frame = Self.screen()
+        let actor = FakeModel { _ in "THINK: the button\nDO: tap #1" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)
+        agent.screenTree = true
+        agent.compactTree = true
+        let planned = try await agent.nextActions()
+        let prompt = try XCTUnwrap(actor.prompts.first)
+        let made = await UITree.build(jpeg: ModelImage.forModel(Self.screen()))
+        let built = try XCTUnwrap(made)
+        XCTAssertTrue(prompt.hasSuffix(built.compactListing), prompt)
+        XCTAssertFalse(prompt.contains("Screen elements (id, role"), "not the old listing")
+        let (x, y) = built.point(built.candidates[0])
+        XCTAssertEqual(planned.first?.act["x"], .int(x))
+        XCTAssertEqual(planned.first?.act["y"], .int(y))
+    }
+
+    /// The concurrent Lab-channel Canny passes give the same edge map as one after another.
+    func testEdgeMapMatchesSerialCanny() throws {
+        let src = try XCTUnwrap(CGImageSourceCreateWithData(Self.screen() as CFData, nil))
+        let img = try XCTUnwrap(Raster(try XCTUnwrap(CGImageSourceCreateImageAtIndex(src, 0, nil))))
+        var want = Plane(w: img.w, h: img.h)
+        for channel in UITreeCV.labPlanes(UITreeCV.blur3(img), w: img.w, h: img.h) {
+            let e = UITreeCV.canny(channel, low: 30, high: 90)
+            for i in 0..<want.v.count where e.v[i] != 0 { want.v[i] = 255 }
+        }
+        XCTAssertEqual(UITreeCV.edgeMap(img).v, want.v)
+        XCTAssertTrue(want.v.contains(255))
+    }
+
     func testOtherLinesSendThePromptAsBefore() async throws {
         let screen = FakeScreen()
         screen.frame = Self.screen()

@@ -13,6 +13,7 @@ import Foundation
         /// The rest of the step's time that no field above counts, and of the whole step the time the steps list
         /// took to update after each recorded step (`record`, on the main thread).
         var otherMs = 0.0, recordMs = 0.0
+        var tree = ""  // StepWaits.tree: where the actor's tree was built, and the phone's build ms
 
         /// The reply-to-HID split, the first gesture starting `at` (no reply time, e.g. a scripted step: left at 0).
         mutating func lead(replied: Double, decided: Double, gating: Double, at started: Double) {
@@ -95,7 +96,8 @@ import Foundation
         DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), LLM %.0f ms, HID %.0f ms, "
                               + "reply to HID %.0f ms (parse %.0f, gate %.0f, motion %.0f), other %.0f ms (record %.0f)",
                               stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.llmMs, s.hidMs,
-                              s.leadMs, s.parseMs, s.gateMs, s.motionMs, s.otherMs, s.recordMs))
+                              s.leadMs, s.parseMs, s.gateMs, s.motionMs, s.otherMs, s.recordMs)
+                       + (s.tree.isEmpty ? "" : ", tree \(s.tree)"))
     }
 
     /// Called every second by a timer; also detects suspension (a gap far longer than the tick).

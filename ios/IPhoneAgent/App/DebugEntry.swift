@@ -83,6 +83,9 @@ extension AppModel {
             say(statusSummary)
         case "bench":
             debugCommand("bench", kb: Int(arg("kb") ?? "") ?? 256)
+        case "tree":
+            guard let source = arg("source").flatMap(TreeSource.init(rawValue:)) else { return false }
+            setTreeSource(source)
         default:
             return false
         }
@@ -167,6 +170,12 @@ extension AppModel {
             + "model \(model); run \(run); screen \(Int(DeviceScreen.size.width))x\(Int(DeviceScreen.size.height))"
     }
 
+    /// Debug: -tree-source device|server, iphoneagent://tree?source=device (Settings › Developer › Tree source).
+    func setTreeSource(_ source: TreeSource) {
+        TreeSource.set(source)
+        say("debug: tree source \(source.rawValue) (next run)")
+    }
+
     /// Launch arguments, once at startup.
     func handleLaunchArguments(_ args: [String] = ProcessInfo.processInfo.arguments) {
         func value(after flag: String) -> String? {
@@ -210,6 +219,7 @@ extension AppModel {
         if args.contains("-test-model") { Task { await pingLLM() } }
         if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
         if let commands = value(after: "-hid") { harnessHID(commands) }  // harness/hid.sh
+        if let source = value(after: "-tree-source").flatMap(TreeSource.init(rawValue:)) { setTreeSource(source) }
         if args.contains("-treebench") { treeBench(Int(value(after: "-treebench") ?? "") ?? 30) }
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }

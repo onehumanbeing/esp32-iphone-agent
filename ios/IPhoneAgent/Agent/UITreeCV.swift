@@ -46,8 +46,13 @@ enum UITreeCV {
         let blurred = blur3(img)
         let lab = labPlanes(blurred, w: img.w, h: img.h)
         var out = Plane(w: img.w, h: img.h)
-        for channel in lab {
-            let e = canny(channel, low: 30, high: 90)
+        // the three channels at once: each Canny is independent (one after another ~12 ms at 540 px, 2026-11-11)
+        var edges = [Plane?](repeating: nil, count: lab.count)
+        edges.withUnsafeMutableBufferPointer { slots in
+            let slots = slots
+            DispatchQueue.concurrentPerform(iterations: lab.count) { slots[$0] = canny(lab[$0], low: 30, high: 90) }
+        }
+        for e in edges.compactMap({ $0 }) {
             for i in 0..<out.v.count where e.v[i] != 0 { out.v[i] = 255 }
         }
         return out
