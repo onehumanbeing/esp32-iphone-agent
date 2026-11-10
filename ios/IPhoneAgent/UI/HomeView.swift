@@ -423,7 +423,7 @@ struct HomeView: View {
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
         if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
-        if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
+        if !app.calibrator.hasValidCalibration { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil
     }

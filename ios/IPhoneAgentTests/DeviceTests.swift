@@ -352,6 +352,140 @@ import XCTest
         XCTAssertTrue(again.calibrated)
     }
 
+    func testScreenGeometryRoundTripsALandscapeLetterbox() {
+        let geometry = ScreenGeometry(screenAspect: 1180.0 / 820, frameAspect: 480.0 / 1040, orientation: 3)
+        let rect = geometry.contentRect
+        XCTAssertEqual(rect.minX, 0, accuracy: 1e-9)  // a tall frame on a wide screen: the screen is a band across it
+        XCTAssertGreaterThan(rect.minY, 0)
+        for point in [CGPoint(x: 0, y: 0), CGPoint(x: 0.5, y: 0.5), CGPoint(x: 1, y: 1)] {
+            let back = geometry.screenPoint(fromFrame: geometry.framePoint(fromScreen: point))
+            XCTAssertEqual(back.x, point.x, accuracy: 1e-9)
+            XCTAssertEqual(back.y, point.y, accuracy: 1e-9)
+        }
+        XCTAssertFalse(geometry.contains(framePoint: CGPoint(x: 0.5, y: 0.01)))
+        XCTAssertTrue(geometry.contains(framePoint: CGPoint(x: 0.5, y: 0.5)))
+    }
+
+    func testScreenGeometryRoundTripsAPillarbox() {
+        let geometry = ScreenGeometry(screenAspect: 0.5, frameAspect: 2, orientation: 1)
+        XCTAssertEqual(geometry.contentRect.minX, 0.375, accuracy: 1e-9)
+        XCTAssertEqual(geometry.contentRect.width, 0.25, accuracy: 1e-9)
+        let point = geometry.screenPoint(fromFrame: CGPoint(x: 0.45, y: 0.25))
+        XCTAssertEqual(point.x, 0.3, accuracy: 1e-9)
+        XCTAssertEqual(point.y, 0.25, accuracy: 1e-9)
+        XCTAssertFalse(geometry.contains(framePoint: CGPoint(x: 0.1, y: 0.5)))
+    }
+
+    func testIPadCalibrationKeepsItsOrientationAndRefusesAnother() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let portrait = ScreenGeometry(screenAspect: 0.7, frameAspect: 0.7, orientation: 1)
+        let landscape = ScreenGeometry(screenAspect: 1 / 0.7, frameAspect: 1 / 0.7, orientation: 3)
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        pointer.currentGeometry = { portrait }
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        let restored = Pointer(device: FakeDevice(), calibrationFile: file)
+        XCTAssertTrue(restored.matches(geometry: portrait))
+        XCTAssertFalse(restored.matches(geometry: landscape))
+        restored.currentGeometry = { landscape }
+        do {
+            try await restored.point(0.5, 0.5)
+            XCTFail("a rotated iPad must not move with the old calibration")
+        } catch {}
+        XCTAssertTrue((restored.device as? FakeDevice)?.sent.isEmpty ?? false)
+    }
+
+    /// iPad: each orientation keeps its own calibration; turning back loads it instead of asking again.
+    func testIPadKeepsOneCalibrationPerOrientation() throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = true
+        defer { DeviceKind.isPad = wasPad }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("calibration.json")
+        let portrait = ScreenGeometry(screenAspect: 0.695, frameAspect: 580.0 / 834, orientation: 1)
+        let landscape = ScreenGeometry(screenAspect: 1 / 0.695, frameAspect: 1200.0 / 834, orientation: 3)
+        let flipped = ScreenGeometry(screenAspect: 1 / 0.695, frameAspect: 1200.0 / 834, orientation: 4)
+        var current = portrait
+        let pointer = Pointer(device: FakeDevice(), calibrationFile: file)
+        pointer.currentGeometry = { current }
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // portrait: 400 x 800
+        current = landscape
+        pointer.adopt(current)
+        XCTAssertFalse(pointer.calibrated, "landscape has no calibration yet")
+        pointer.finishCalibration(x: 0.25, y: 0.5)  // landscape: 800 x 400
+        current = portrait
+        pointer.adopt(current)
+        XCTAssertEqual(pointer.span, Pointer.Span(w: 400, h: 800))
+        XCTAssertTrue(pointer.matches(geometry: portrait))
+        let later = Pointer(device: FakeDevice(), calibrationFile: file)  // after a relaunch
+        later.currentGeometry = { flipped }
+        later.adopt(flipped)  // landscape the other way round: the same calibration
+        XCTAssertEqual(later.span, Pointer.Span(w: 800, h: 400))
+        XCTAssertTrue(later.matches(geometry: flipped))
+    }
+
+    /// iPhone: the pointer sends exactly what it always sent (no geometry, no iPad homing, diagonal moves).
+    func testIPhonePointerCommandsAreUnchanged() async throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = false
+        defer { DeviceKind.isPad = wasPad }
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
+        try await pointer.point(0.75, 0.5)
+        try await pointer.reset()
+        XCTAssertEqual(device.sent, ["release", "home", "move 300 400", "release", "home"])
+        device.sent = []
+        try await pointer.probe(150, 150)
+        try await pointer.probe(150, 150, then: (80, 80, 4))
+        try await pointer.parkForManualCalibration()
+        XCTAssertEqual(device.sent, ["home", "move 150 150", "home", "move 150 150", "move 80 80 4",
+                                     "release", "home", "move 200 200"])
+    }
+
+    func testIPadPointerStepsOffTheTopEdgeBeforeHoming() async throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = true
+        defer { DeviceKind.isPad = wasPad }
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
+        try await pointer.reset()  // position unknown: it may rest at the top edge
+        try await pointer.reset()  // at home, on the top edge
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home", "release", "move 0 150", "home"])
+        device.sent = []
+        try await pointer.point(0.75, 0.5)  // a new link: released and homed first; then one axis at a time
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home", "move 0 400", "move 300 0"])
+        device.sent = []
+        try await pointer.reset()  // well below the edge: the flick into the corner arrives from below
+        XCTAssertEqual(device.sent, ["release", "home"])
+    }
+
+    func testIPadPointerMovesOneAxisAtATimeExceptMidDrag() async throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = true
+        defer { DeviceKind.isPad = wasPad }
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        try await pointer.point(0.75, 0.75)
+        device.sent = []
+        try await pointer.swipe(0.5, 0.5, 0.25, 0.25)
+        XCTAssertEqual(device.sent, ["move 0 -200", "move -100 0", "press", "move -100 -200", "release"])
+        try await pointer.reset()  // at home, on the top edge: the probe steps off it first
+        device.sent = []
+        try await pointer.probe(150, 350, then: (80, 0, 4))  // calibration probes go the agent's own way
+        XCTAssertEqual(device.sent, ["move 0 150", "home", "move 0 350", "move 150 0", "move 80 0 4"])
+    }
+
     func testNetConfigEncodingForTheModeSwitch() throws {
         let sta = try JSONEncoder().encode(NetConfig(mode: "sta", ssid: "Home", pass: "secret"))
         let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: sta) as? [String: String])

@@ -145,8 +145,15 @@ enum Actions {
     }
 }
 
-/// Screen points (fractions) the pointer passes through for one action.
-func pointerPath(_ act: JObject) -> [CGPoint] {
+/// Frame points (fractions) the pointer passes through for one action. home and back are fixed spots on the screen:
+/// `geometry` (iPad) places them on a letterboxed frame.
+func pointerPath(_ act: JObject, geometry: ScreenGeometry? = nil) -> [CGPoint] {
+    let path = pointerPathOnScreen(act)
+    guard let geometry, ["home", "back"].contains(act["action"]?.str) else { return path }
+    return path.map(geometry.framePoint(fromScreen:))
+}
+
+private func pointerPathOnScreen(_ act: JObject) -> [CGPoint] {
     func n(_ k: String) -> Double { act[k]?.double ?? 0 }
     func f(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x / 1000, y: y / 1000) }
     switch act["action"]?.str {

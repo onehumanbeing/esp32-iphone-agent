@@ -240,6 +240,13 @@ extension AppModel {
         }
     }
 
+    /// iPad: the calibration was made in another orientation or mirrored shape than the screen has now, so every
+    /// tap would land elsewhere. Never on iPhone (no geometry).
+    func validateRunGeometry() throws {
+        guard feed.geometry != nil, calibrator.rotated else { return }
+        throw BlindError(reason: String(localized: "The iPad was rotated since the pointer was calibrated. Stop, calibrate it in this orientation, and try again."))
+    }
+
     /// Before each look and gesture of a run. If the agent itself brought the app to the front (it tapped our
     /// Live Activity, a notification or an intent), or Continue was just tapped here, send the app away at once;
     /// if the user opened it, wait until they leave. The model never sees or taps this app's own screens.

@@ -296,22 +296,24 @@ struct ActPage: View {
     private var mouse: Bool { MockMode.on || board.status?.usb == "ok" }
     private var mirroring: Bool { MockMode.on || board.status?.ap == "streaming" }
 
+    private var calibrated: Bool { calibrator.hasValidCalibration }  // iPad: in this orientation
+
     var body: some View {
         VStack(spacing: Space.xl) {
-            PageHeader(mood: pointer.calibrated ? .success : calibrator.busy ? .acting : .idle,
+            PageHeader(mood: calibrated ? .success : calibrator.busy ? .acting : .idle,
                        title: "Let Me Use the Pointer",
                        message: "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed.")
-            if !pointer.calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
+            if !calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
             Panel {
                 CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)
                 Divider().padding(.vertical, Space.s)
                 CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
                 Divider().padding(.vertical, Space.s)
-                CheckRow(title: "Pointer calibrated", done: pointer.calibrated, active: mouse && mirroring && !pointer.calibrated,
+                CheckRow(title: "Pointer calibrated", done: calibrated, active: mouse && mirroring && !calibrated,
                          waiting: calibrator.busy,
                          detail: pointer.quality.map { "Accuracy \(CalibrationText.percent($0))" })
             }
-            if !pointer.calibrated {
+            if !calibrated {
                 Label("Recommended: calibrate before first use.", systemImage: "scope")
                     .font(.footnote.weight(.semibold)).foregroundStyle(Color.accentColor)
                 Text("Tip: in AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off.")

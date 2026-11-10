@@ -157,6 +157,7 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
+            try validateRunGeometry()
             try agent.start(task, traceStarted: true, resume: resume)
             mark("agent started")
             say("started: \(task)")

@@ -68,7 +68,7 @@ struct RunRow: View {
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Thumb(url: run.cover).frame(width: 52, height: 112)
+            if DeviceKind.isPad { Thumb(url: run.cover, fitted: true) } else { Thumb(url: run.cover).frame(width: 52, height: 112) }
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text(verbatim: run.task.isEmpty ? String(localized: "Untitled run") : run.task)
                     .font(.headline).lineLimit(2)
@@ -112,16 +112,37 @@ struct OutcomeLabel: View {
 /// A screenshot from disk, phone-shaped.
 struct Thumb: View {
     let url: URL?
+    /// iPad: shown whole at its own aspect ratio, 112 pt tall and at most 160 pt wide, so a landscape screenshot is
+    /// neither cropped nor spills over the row. Otherwise it fills the frame the caller gives it.
+    var fitted = false
 
     var body: some View {
+        let image = url.flatMap { UIImage(contentsOfFile: $0.path) }
+        if fitted {
+            let size = Self.fitted(image?.size)
+            content(image, fill: false).frame(width: size.width, height: size.height)
+        } else {
+            content(image, fill: true)
+        }
+    }
+
+    private func content(_ image: UIImage?, fill: Bool) -> some View {
         Group {
-            if let url, let img = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: img).resizable().scaledToFill()
+            if let image {
+                if fill { Image(uiImage: image).resizable().scaledToFill() } else { Image(uiImage: image).resizable() }
             } else {
-                Color(uiColor: .tertiarySystemFill).overlay(Image(systemName: "iphone").foregroundStyle(.tertiary))
+                Color(uiColor: .tertiarySystemFill)
+                    .overlay(Image(systemName: DeviceKind.isPad ? "ipad" : "iphone").foregroundStyle(.tertiary))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color(uiColor: .separator), lineWidth: 0.5))
+    }
+
+    /// The image's size at 112 pt tall, or at 160 pt wide if that is narrower; phone-shaped with no image.
+    static func fitted(_ image: CGSize?) -> CGSize {
+        let aspect = image.flatMap { $0.width > 0 && $0.height > 0 ? $0.width / $0.height : nil } ?? 52 / 112
+        let width = min(112 * aspect, 160)
+        return CGSize(width: width, height: width / aspect)
     }
 }

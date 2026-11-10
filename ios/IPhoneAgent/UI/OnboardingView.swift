@@ -37,6 +37,7 @@ struct OnboardingView: View {
             ScrollView {
                 pageContent
                     .padding(.horizontal, Space.xl)
+                    .padWidth(680)
                     .padding(.bottom, Space.xl)
                     .id(page)
                     .transition(.asymmetric(insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
@@ -126,7 +127,7 @@ struct OnboardingView: View {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return pointer.calibrated && !calibrator.busy
+        case .act: return calibrator.hasValidCalibration && !calibrator.busy
         case .brain: return app.modelOK == true
         }
     }
@@ -163,7 +164,7 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
-            if pointer.calibrated { return "Continue" }
+            if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
         case .brain:
@@ -177,7 +178,7 @@ struct OnboardingView: View {
         case .welcome: return accepted
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
-        case .act: return !calibrator.busy && (pointer.calibrated || actReady)
+        case .act: return !calibrator.busy && (calibrator.hasValidCalibration || actReady)
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }
@@ -194,7 +195,7 @@ struct OnboardingView: View {
             } else {
                 app.startJoin()
             }
-        case .act where !pointer.calibrated:
+        case .act where !calibrator.hasValidCalibration:
             calibrator.calibrate(why: String(localized: "first setup"))
         case .brain where app.modelOK != true:
             testing = true

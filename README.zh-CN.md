@@ -227,7 +227,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 ## 路线图
 
 - [x] 去掉电脑：板子负责镜像和点击，手机上的 App 负责思考
-- [ ] 横屏 App（坐标和校准目前按竖屏）
+- [x] iPad 竖屏和横屏（每个方向单独校准；有自己的一套提示词 `prompts/ipad/`）
+- [ ] iPhone 横屏 App（坐标和校准目前按竖屏）
 - [x] 中文输入（通过板子的键盘按拼音输入；ctrl+space 切换英文和拼音）
 - [ ] 更快：一次模型调用多个动作，只在需要时校正指针
 - [ ] 在 iOS App 内整理一份效果最好的模型推荐列表（[@asharthinks 的建议](https://x.com/asharthinks/status/2110740775030125019)）
@@ -238,7 +239,7 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 - 镜像画面为 480×1040、最高 5 fps；每一步要几秒，主要花在模型上。
 - iOS 不镜像部分界面（输入密码、Apple Pay、DRM 视频），Agent 看不到。手机锁屏后镜像会停止。
 - Agent 在板子热点上运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据；用家里的 Wi-Fi（局域网模式）时走那个网络上网。
-- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
+- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持 iPhone 横屏 App；iPad 旋转后需要重新校准（下次任务前 App 会自动校准），本 App 只全屏运行，不支持分屏或台前调度。
 
 遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://handsy.tech/zh/troubleshooting)。
 

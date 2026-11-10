@@ -63,8 +63,17 @@ struct BottomBar<Content: View>: View {
             .padding(.horizontal, Space.xl)
             .padding(.top, Space.m)
             .padding(.bottom, Space.s)
+            .padWidth(640)
             .frame(maxWidth: .infinity)
             .background(.bar)
+    }
+}
+
+extension View {
+    /// iPad: at most `width` wide and centred, so a page or a button doesn't stretch across a landscape screen.
+    /// An iPhone is never that wide: unchanged.
+    @ViewBuilder func padWidth(_ width: CGFloat) -> some View {
+        if DeviceKind.isPad { frame(maxWidth: width).frame(maxWidth: .infinity) } else { self }
     }
 }
 

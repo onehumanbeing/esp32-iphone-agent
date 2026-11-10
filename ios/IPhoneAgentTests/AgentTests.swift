@@ -368,6 +368,96 @@ import XCTest
     var capturedAt = 0.0
     var aspect = 0.46
     var stale = false
+    var geometry: ScreenGeometry?  // nil: an iPhone
+    var behind = false
+}
+
+/// iPad: the model's frame coordinates become screen coordinates, a rotation drops a look, and an action whose frame
+/// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
+@MainActor final class IPadAgentTests: XCTestCase {
+    func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let actor = FakeModel { _ in "THINK: target\nDO: tap 500 450" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.taps.first?.x ?? 0, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(phone.taps.first?.y ?? 0, 0.3, accuracy: 1e-9)
+    }
+
+    func testLetterboxPointIsRejectedInsteadOfClampedToTheScreenEdge() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let actor = FakeModel { _ in "THINK: black bar\nDO: tap 500 10" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        do {
+            _ = try await agent.step()
+            XCTFail("a point on the black bar must be refused")
+        } catch {}
+        XCTAssertTrue(phone.taps.isEmpty)
+    }
+
+    func testGeometryChangeDuringTheModelReplyDiscardsItsCoordinates() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let portrait = ScreenGeometry(screenAspect: 0.5, frameAspect: 0.5, orientation: 1)
+        let landscape = ScreenGeometry(screenAspect: 2, frameAspect: 2, orientation: 3)
+        screen.geometry = portrait
+        let actor = FakeModel { call in
+            if call == 1 {
+                screen.geometry = landscape
+                return "THINK: stale\nDO: tap 900 900"
+            }
+            return "THINK: fresh\nDO: tap 100 200"
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(actor.prompts.count, 2, "looked again after the rotation")
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.1, y: 0.2)])
+    }
+
+    func testRotationAtTheActionGateCannotRunTheOldReply() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 0.5, frameAspect: 0.5, orientation: 1)
+        let actor = FakeModel { _ in "THINK: stale\nDO: tap 500 500" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        var gates = 0
+        agent.gate = {
+            gates += 1
+            if gates == 2 { screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 2, orientation: 3) }
+        }
+        do {
+            _ = try await agent.step()
+            XCTFail("the old look must be invalidated")
+        } catch {}
+        XCTAssertTrue(phone.taps.isEmpty)
+    }
+
+    func testNoFrameAfterTheActionIsUnknownNotUnchanged() async throws {
+        let screen = FakeScreen()
+        screen.behind = true
+        let model = FakeModel { n in n == 1 ? "THINK: open it\nDO: tap 500 500" : "THINK: wait\nDO: wait" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(agent.steps.last?["stale"], .bool(true))
+        XCTAssertNil(agent.steps.last?["changed"])
+        screen.behind = false
+        _ = try await agent.step()
+        let second = try XCTUnwrap(model.prompts.last)
+        XCTAssertTrue(second.contains("-> no new screen image yet (effect unknown)"))
+        XCTAssertFalse(second.contains("did NOT change"))
+        XCTAssertTrue(second.hasSuffix(AgentLoop.staleNote))
+        XCTAssertFalse(model.prompts[0].contains("Note: no new screen image"), "the first look follows no action")
+        XCTAssertFalse(second.contains("\"stale\""), "the flag itself stays out of the history")
+    }
+
+    func testHomeAndBackMasksFollowTheLetterbox() {
+        let geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let home = pointerPath(["action": .str("home")], geometry: geometry)
+        XCTAssertEqual(home[0].y, geometry.contentRect.maxY - 0.005 * geometry.contentRect.height, accuracy: 1e-9)
+        XCTAssertEqual(pointerPath(["action": .str("home")]), [CGPoint(x: 0.5, y: 0.995), CGPoint(x: 0.5, y: 0.6)])
+        XCTAssertEqual(pointerPath(["action": .str("tap"), "x": .int(100), "y": .int(200)], geometry: geometry),
+                       [CGPoint(x: 0.1, y: 0.2)], "model coordinates are frame coordinates already")
+    }
 }
 
 @MainActor final class FakeDevice: HIDDevice {

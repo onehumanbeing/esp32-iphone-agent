@@ -103,7 +103,7 @@ import XCTest
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
         agent.hints = ["Type the time instead of scrolling"]
         await agent.run()
-        let rule = "\n" + AssistiveTouchSpots.rule
+        let rule = "\n" + AssistiveTouchSpots.rule()
         XCTAssertEqual(model.systems, [Prompts.actor + rule + "\n\nHints for this task:\n- Type the time instead of scrolling"])
         agent.hints = []
         XCTAssertEqual(agent.actorPrompt, Prompts.actor + rule)

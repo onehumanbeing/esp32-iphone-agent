@@ -271,7 +271,8 @@ runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for th
 ## Roadmap
 
 - [x] Drop the computer: the board mirrors and clicks, the app on the phone thinks
-- [ ] Landscape apps (coordinates and calibration assume portrait)
+- [x] iPad, portrait and landscape (calibrated per orientation; its own prompts in `prompts/ipad/`)
+- [ ] iPhone landscape apps (coordinates and calibration assume portrait)
 - [x] Chinese text input (typed as pinyin through the board's keyboard; ctrl+space switches English and pinyin)
 - [ ] Faster steps: several actions per model call, pointer checks only when needed
 - [ ] A curated list of models that work best with this setup, shown inside the iOS app ([suggested by @asharthinks](https://x.com/asharthinks/status/2110740775030125019))
@@ -286,7 +287,8 @@ runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for th
 - While the agent runs on the board's hotspot, the phone's Wi-Fi is that hotspot (no internet over it); the model is
   reached over cellular data. On a home Wi-Fi (LAN mode) the internet goes over that network.
 - Chinese is typed as pinyin through the board's keyboard (ctrl+space switches English and pinyin). The clipboard is
-  not used for this; emoji are dropped. Landscape apps are not supported yet.
+  not used for this; emoji are dropped. iPhone landscape apps are not supported yet; on iPad, rotating needs a new calibration (the app runs one before
+  the next run) and this app itself runs full screen, not in Split View or Stage Manager.
 
 If something doesn't work (no *ESP32 Agent* in Screen Mirroring, the board not connecting), see [troubleshooting](https://handsy.tech/troubleshooting).
 

@@ -17,6 +17,12 @@ extension AutoCalibrator {
 
     func touchCalibrate(full: Bool) async throws -> TouchResult {
         let probe = app.probe, device = app.board.commands, pointer = app.pointer
+        let geometry = app.feed.geometry  // iPad: a rotation mid-way makes the samples worthless (nil on iPhone)
+        if DeviceKind.isPad && geometry == nil { return .failed("no mirrored screen yet") }
+        func checkRotation() throws {
+            guard let geometry, !geometry.matches(app.feed.geometry) else { return }
+            throw DeviceError(message: String(localized: "The screen rotated during calibration. Try again."))
+        }
         var total = full ? Self.roughStops.count + Self.targets.count + 1 : 1
         var clicks = 0, hits = 0
         phase = .homing
@@ -24,13 +30,13 @@ extension AutoCalibrator {
 
         /// Home, move by (ux, uy), click and wait for the tap. Every probe starts from home, like the agent's moves.
         /// then: one more move first (the speed probes).
-        func click(_ ux: Int, _ uy: Int, then: String? = nil) async throws -> CGPoint? {
-            try await device.send("home")
-            try await device.send("move \(ux) \(uy)")
-            if let then { try await device.send(then) }
+        func click(_ ux: Int, _ uy: Int, then: (dx: Int, dy: Int, speed: Int?)? = nil) async throws -> CGPoint? {
+            try checkRotation()
+            try await pointer.probe(ux, uy, then: then)
             let sent = now()
             try await device.send("click")
             let p = await probe.tap(since: sent, timeout: Self.tapTimeout)
+            try checkRotation()
             clicks += 1
             progress = Progress(done: clicks, total: total)
             if let p {
@@ -51,8 +57,7 @@ extension AutoCalibrator {
             AssistiveTouchSpots.remember(x: fx, y: fy)
             _ = try? await device.send("key esc")
             if let (ex, ey) = empty {
-                _ = try? await device.send("home")
-                _ = try? await device.send("move \(ex) \(ey)")
+                _ = try? await pointer.probe(ex, ey)
                 _ = try? await device.send("click")
             }
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -118,6 +123,7 @@ extension AutoCalibrator {
         app.say(String(format: "probe fit: x = %.5f·u %+.3f, y = %.5f·u %+.3f, residual %.2f%% / %.2f%% (%@)",
                        lx.a, lx.b, ly.a, ly.b, lx.rms * 100, ly.rms * 100,
                        "\(Int(DeviceScreen.size.width))×\(Int(DeviceScreen.size.height)) pt @\(Int(DeviceScreen.scale))x"))
+        try checkRotation()
         pointer.applyProbe(x: lx, y: ly, samples: samples)
         if (pointer.boardPace ?? 1) >= 3 {
             total += Self.speeds.count + 2
@@ -142,15 +148,18 @@ extension AutoCalibrator {
 
 extension AutoCalibrator {
     /// The same diagonal move at each speed from (bx, by), against the full speed: the distance ratios.
-    func calibrateSpeeds(_ bx: Int, _ by: Int, click: (Int, Int, String?) async throws -> CGPoint?) async throws {
-        let d = Self.speedMove
-        guard let base = try await click(bx, by, nil), let full = try await click(bx, by, "move \(d) \(d)") else { return }
+    /// iPad: along x only. Its moves go one axis at a time (Pointer.travel), and iPadOS accelerates by overall speed,
+    /// so a diagonal probe would measure moves the agent never makes.
+    func calibrateSpeeds(_ bx: Int, _ by: Int,
+                         click: (Int, Int, (dx: Int, dy: Int, speed: Int?)?) async throws -> CGPoint?) async throws {
+        let d = Self.speedMove, dy = DeviceKind.isPad ? 0 : d
+        guard let base = try await click(bx, by, nil), let full = try await click(bx, by, (d, dy, nil)) else { return }
         let fx = full.x - base.x, fy = full.y - base.y
-        guard fx > 0.02, fy > 0.01 else { return app.say("speed probes: the full-speed move went nowhere") }
+        guard fx > 0.02, dy == 0 || fy > 0.01 else { return app.say("speed probes: the full-speed move went nowhere") }
         var measured: [(Double, Double)] = []
         for v in Self.speeds {
-            guard let p = try await click(bx, by, "move \(d) \(d) \(v)") else { continue }
-            measured.append((Double(v), ((p.x - base.x) / fx + (p.y - base.y) / fy) / 2))
+            guard let p = try await click(bx, by, (d, dy, v)) else { continue }
+            measured.append((Double(v), dy == 0 ? (p.x - base.x) / fx : ((p.x - base.x) / fx + (p.y - base.y) / fy) / 2))
         }
         app.pointer.applySpeeds(measured)
     }
@@ -161,7 +170,7 @@ extension AppModel {
     func locatePointer(_ jpeg: Data) async -> CGPoint? {
         guard !MockMode.on, settings.isConfigured, let client = try? await settings.client("actor") else { return nil }
         let system = "You find the mouse pointer on iPhone/iPad screenshots. The AssistiveTouch pointer is a small "
-            + "round dark grey translucent dot. During calibration the screen is white with a grid: thin lines every "
+            + "round dark grey translucent dot" + (DeviceKind.isPad ? " (on iPad, a grey circle that can stretch into a highlight over a button)" : "") + ". During calibration the screen is white with a grid: thin lines every "
             + "10% labelled 100-900 along the top and left edges, and coloured squares in the corners. Reply with JSON only: {\"x\": <0-1000>, \"y\": <0-1000>} for its centre, "
             + "relative to the screenshot (x left->right, y top->bottom), or {\"x\": null, \"y\": null} if there is none."
         guard let r = try? await client.chat(system: system, text: "Where is the pointer?", image: jpeg, maxTokens: 200,

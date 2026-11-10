@@ -19,6 +19,13 @@ import UIKit
     static let aimTolerance = 0.008         // screen fraction; a bigger miss is corrected before pressing
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
     static let agree = 0.02                 // a far reading is taken again; both must agree this closely
+    static let offTopEdge = 150             // mouse units the pointer steps down before homing on an iPad
+    /// The iPadOS pointer, unlike AssistiveTouch on iPhone: a pointer resting at the top edge that keeps pushing
+    /// up opens Notification Center (it looks like the Lock Screen), while a home flick arriving from lower down
+    /// does not; and it accelerates by overall speed, so a diagonal step goes ~27% further per unit on each axis
+    /// than a straight one (probe fits missed by 2-3%). So on iPad: step off the top edge before homing, and move
+    /// one axis at a time (drags keep their path). iPad Air M3, 2026-10-27: probe fit residual 2.4% -> 0.03%.
+    static var iPadPointer: Bool { DeviceKind.isPad }
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -33,12 +40,15 @@ import UIKit
     private struct Saved: Codable {
         var w: Int, h: Int, seen: [String: [[Double]]]?, quality: Double?, aspect: Double?, v: Int?, pace: Int?, ox: Double?, oy: Double?,
             gain: [[Double]]?
+        var geometry: ScreenGeometry?  // iPad: orientation and shape it was made in
     }
     static let speed = 10.0  // the board's speed per report (STEP), the probes' and every long move's
 
     let device: HIDDevice
     weak var screen: ScreenSource?
-    private let file: URL
+    /// Where the calibration is kept. iPad: one file per orientation (`adopt`), named after `baseFile`.
+    private var file: URL
+    private let baseFile: URL
     @Published private(set) var span: Span?  // mouse units needed to cross the full screen width / height
     /// Where home really leaves the pointer (screen fraction). Going left, then up the left edge, the rounded corner
     /// pushes it in to about x 0.14 (2026-11-06): steady, so it is part of the calibration, not learned drift.
@@ -54,6 +64,10 @@ import UIKit
     private(set) var seen: [String: [(Double, Double)]] = ["x": [], "y": []]
     @Published private(set) var quality: Double?  // pointer error at the last check, fraction of the screen
     private(set) var aspect: Double?  // frame width / height when calibrated
+    /// iPad: the screen's orientation and the mirrored shape when calibrated (nil on iPhone). Rotated, the mouse
+    /// axes meet other screen edges: the calibration no longer holds.
+    private(set) var geometry: ScreenGeometry?
+    var currentGeometry: () -> ScreenGeometry? = { nil }
     private(set) var pace = 1  // the board's move pacing ("pace") when calibrated; 1 = firmware before it answered
     /// The connected board's pacing; a calibration made under another one no longer fits (iOS accelerates by speed).
     @Published var boardPace: Int?
@@ -66,6 +80,7 @@ import UIKit
     init(device: HIDDevice, calibrationFile: URL, screen: ScreenSource? = nil) {
         self.device = device
         self.file = calibrationFile
+        self.baseFile = calibrationFile
         self.screen = screen
         if let data = try? Data(contentsOf: calibrationFile), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             load(saved)
@@ -74,7 +89,7 @@ import UIKit
 
     private func load(_ saved: Saved) {
         span = Span(w: saved.w, h: saved.h)
-        (quality, aspect, pace) = (saved.quality, saved.aspect, saved.pace ?? 1)
+        (quality, aspect, pace, geometry) = (saved.quality, saved.aspect, saved.pace ?? 1, saved.geometry)
         origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
         gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
         for axis in ["x", "y"] where saved.v == Self.samplesVersion {
@@ -87,7 +102,7 @@ import UIKit
 
     /// Back to a `snapshot`: the previous calibration, or none (issue #96: a ±49.8% check was kept and used).
     func restore(_ snapshot: Data?) {
-        (span, quality, aspect, pace, origin, gain) = (nil, nil, nil, 1, .zero, [])
+        (span, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
         (seen, pos) = (["x": [], "y": []], nil)
         if let snapshot, let saved = try? JSONDecoder().decode(Saved.self, from: snapshot) {
             load(saved)
@@ -99,6 +114,37 @@ import UIKit
 
     var calibrated: Bool { span != nil && (boardPace ?? pace) == pace }
 
+    /// iPad: the screen turned. Each orientation keeps its own calibration (calibration-portrait.json,
+    /// calibration-landscape.json): load the one for `current` if there is one, so turning back and forth calibrates
+    /// once per orientation, not after every turn. Nothing to do on iPhone, or while the calibration matches.
+    func adopt(_ current: ScreenGeometry?) {
+        guard Self.iPadPointer, let current, !matches(geometry: current) else { return }
+        let target = Self.file(for: current, base: baseFile)
+        guard target != file || calibrated else { return }  // this orientation has none: nothing to load again
+        file = target
+        (span, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
+        (seen, pos) = (["x": [], "y": []], nil)
+        if let data = try? Data(contentsOf: target), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
+            load(saved)
+            log("calibration: \(current.landscape ? "landscape" : "portrait") calibration loaded"
+                + (matches(geometry: current) ? "" : ", but for another mirrored shape"))
+        } else {
+            log("calibration: none yet for \(current.landscape ? "landscape" : "portrait")")
+        }
+    }
+
+    /// iPad: the orientation's own file beside `base`.
+    static func file(for geometry: ScreenGeometry, base: URL) -> URL {
+        let name = base.deletingPathExtension().lastPathComponent + (geometry.landscape ? "-landscape" : "-portrait")
+        return base.deletingLastPathComponent().appendingPathComponent(name).appendingPathExtension(base.pathExtension)
+    }
+
+    /// iPad: the calibration was made in this orientation and shape. False without a current geometry.
+    func matches(geometry current: ScreenGeometry?) -> Bool {
+        guard let current else { return false }
+        return geometry?.matches(current) == true
+    }
+
     private func remember(_ axis: String, _ sample: (Double, Double)) {
         seen[axis] = Array((seen[axis, default: []] + [sample]).suffix(12))  // deque(maxlen=12)
     }
@@ -107,14 +153,17 @@ import UIKit
     /// Returns true when it calibrated itself; otherwise the user taps the pointer (finishCalibration).
     /// `progress` gets 0 (homing), then 1, 2 (each probe).
     func startCalibration(progress: ((Int) -> Void)? = nil) async throws -> Bool {
+        let started = currentGeometry()
+        if Self.iPadPointer && started == nil { throw DeviceError(message: "No mirrored screen yet. Try again in a moment.") }
         pos = nil
         progress?(0)
-        try await device.send("home")
+        try await home(from: nil)
         var found: [(Int, Double, Double)] = []
         for (i, units) in Self.calibrationStops.enumerated() {
+            try checkRotation(since: started)
             progress?(i + 1)
             let step = units - (found.last?.0 ?? 0)
-            try await device.send("move \(step) \(step)")
+            try await travel(step, step, paced: false)
             guard let screen, screen.live, let p = try await findPointer() else { break }
             found.append((units, p.x, p.y))
         }
@@ -127,13 +176,14 @@ import UIKit
             log(found.count < 2 ? "calibration: pointer not found on screen, waiting for a tap"
                                 : "calibration: the pointer did not move between the probes, waiting for a tap")
             if found.count != 1 {  // the tap expects the pointer at calibrationMove
-                try await device.send("home")
-                try await device.send("move \(Self.calibrationMove) \(Self.calibrationMove)")
+                try await home(from: nil)
+                try await travel(Self.calibrationMove, Self.calibrationMove, paced: false)
             }
             return false
         }
+        try checkRotation(since: started)
         span = s
-        (quality, aspect) = (nil, screenAspect())
+        (quality, aspect, geometry) = (nil, screenAspect(), started)
         seen = ["x": [], "y": []]
         for (units, x, y) in found {  // where each stop landed, so moves are corrected for the offset too
             remember("x", (Double(units) / Double(s.w), x))
@@ -142,6 +192,12 @@ import UIKit
         save()
         log("calibration: span \(s.w) x \(s.h)")
         return true
+    }
+
+    /// iPad: the screen rotated since `started` (a calibration in progress would mix two orientations).
+    private func checkRotation(since started: ScreenGeometry?) throws {
+        guard let started, !started.matches(currentGeometry()) else { return }
+        throw DeviceError(message: String(localized: "The screen rotated during calibration. Try again."))
     }
 
     /// Wiggle the pointer and find it anywhere on screen (the span may still be unknown).
@@ -163,12 +219,15 @@ import UIKit
         if found == nil { found = await locate?(before) }
         guard let p = found else { return nil }
         if pixel == nil { log(String(format: "calibration: vision model found the pointer at (%.3f, %.3f)", p.x, p.y)) }
-        return 0.03 < p.x && p.x < 0.97 && 0.03 < p.y && p.y < 0.97 ? p : nil
+        guard 0.03 < p.x && p.x < 0.97 && 0.03 < p.y && p.y < 0.97 else { return nil }
+        guard let geometry = currentGeometry() else { return p }  // iPhone: the frame is the screen
+        return geometry.contains(framePoint: p) ? geometry.screenPoint(fromFrame: p) : nil
     }
 
     /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
     func finishCalibration(x: Double, y: Double) {
         (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
+        geometry = currentGeometry()
         guard let s = Span(w: Double(Self.calibrationMove) / x, h: Double(Self.calibrationMove) / y) else {
             log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
             return
@@ -187,7 +246,7 @@ import UIKit
         }
         span = s
         (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
-        (origin, gain) = (CGPoint(x: x.b, y: y.b), [])
+        (origin, gain, geometry) = (CGPoint(x: x.b, y: y.b), [], currentGeometry())
         seen = ["x": [], "y": []]
         for p in samples {
             remember("x", (p.ux / Double(s.w) + x.b, p.fx))
@@ -234,14 +293,18 @@ import UIKit
     /// Calibration plus the observed landings, so the correction survives a restart.
     private func save() {
         guard let span else { return }
+        if Self.iPadPointer, let geometry { file = Self.file(for: geometry, base: baseFile) }
         let saved = Saved(w: span.w, h: span.h, seen: seen.mapValues { $0.map { [$0.0, $0.1] } }, quality: quality,
                           aspect: aspect, v: Self.samplesVersion, pace: pace, ox: origin.x, oy: origin.y,
-                          gain: gain.map { [$0.0, $0.1] })
+                          gain: gain.map { [$0.0, $0.1] }, geometry: geometry)
         try? JSONEncoder().encode(saved).write(to: file)
     }
 
     func point(_ x: Double, _ y: Double, aim: Bool = false) async throws {
         guard calibrated else { throw DeviceError(message: "pointer not calibrated") }
+        if geometry != nil, !matches(geometry: currentGeometry()) {  // iPad, rotated since the calibration
+            throw DeviceError(message: String(localized: "The screen rotated since the pointer was calibrated. Calibrate it again."))
+        }
         try await moveTo(dx(x), dy(y))
         if aim && screen != nil { try await self.aim(x, y) }
     }
@@ -256,10 +319,9 @@ import UIKit
         learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
-        let (sx, sy) = paced(mx, my)
         let previousPosition = pos
         pos = nil
-        try await device.send("move \(sx) \(sy)")  // fix this miss right away
+        try await travel(mx, my)  // fix this miss right away (paced; on iPad one axis at a time)
         if let p = previousPosition { pos = (p.0 + mx, p.1 + my) }
     }
 
@@ -302,36 +364,45 @@ import UIKit
     /// model when the pixels don't show it (~20 s, rarely right); a tap's aim never waits for that.
     private func measure(_ x: Double, _ y: Double, model: Bool = true) async throws -> CGPoint? {
         guard let screen, let span else { return nil }
-        let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
+        // iPad: the target is on the screen, the search on the frame (letterboxed, maybe); nil geometry on iPhone
+        let geometry = currentGeometry(), rect = geometry?.contentRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+        let near = geometry?.framePoint(fromScreen: CGPoint(x: x, y: y)) ?? CGPoint(x: x, y: y)
+        // iPad: about 1.4% of the screen and paced (its calibrated width is ~1700 units, and a short move goes only
+        // half as far): 12 units moved the pointer ~2 px of a 720 px search and it was not found (2026-11-10)
+        let units = Self.iPadPointer ? max(Self.nudge, Int((Double(span.w) * 0.014).rounded())) : Self.nudge
+        let nudge = x < 0.9 ? units : -units  // stay clear of the screen edge
+        let sentNudge = Self.iPadPointer ? paced(nudge, 0).0 : nudge
         let started = now()
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
         let before = screen.frame, sent = now()
         // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
         let previousPosition = pos
         pos = nil
-        try await device.send("move \(nudge) 0")
+        try await device.send("move \(sentNudge) 0")
         var after = await screen.fresh(since: sent, timeout: 1.2)
         if after != nil {
             await screen.settled(quiet: 0.1, least: 0.05, most: 0.4)
             after = screen.frame
         }
-        try await device.send("move \(-nudge) 0")
+        try await device.send("move \(-sentNudge) 0")
         pos = previousPosition
-        let shift = Double(nudge) / Double(span.w)
+        let shift = Double(nudge) / Double(span.w) * rect.width
         guard let before, let after else {
             log(after == nil ? "pointer: no new frame after the nudge" : "pointer: no frame before the nudge")
             return nil
         }
         let looked = now()
+        let reach = CGPoint(x: 0.12 * rect.width, y: 0.08 * rect.height)  // Vision.pointer's default on iPhone
         let p = await Vision.off {
-            Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
+            Vision.pointer(before, after, near: near, shift: shift, reach: reach)
                 ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
         }
         // where a slow search spends its time (2026-11-07: taps took 9-26 s with seconds between commands)
         log(String(format: "pointer: measure %.1f s (settle %.1f, frames %.1f, search %.1f)%@", now() - started,
                    sent - started, looked - sent, now() - looked, p == nil ? ", not found" : ""))
-        if let p { return p }
-        return model ? await locate?(before) : nil
+        guard let found = p != nil ? p : model ? await locate?(before) : nil else { return nil }
+        guard let geometry else { return found }
+        return geometry.contains(framePoint: found) ? geometry.screenPoint(fromFrame: found) : nil
     }
 
     /// Calibration check without tapping: move to a known point and measure the miss (fraction of the screen).
@@ -353,6 +424,7 @@ import UIKit
     /// Demo data: pretend a calibration with this quality.
     func mockCalibrated(quality: Double) {
         span = span ?? Span(w: 400, h: 860)
+        geometry = currentGeometry()
         self.quality = quality
     }
 
@@ -369,28 +441,82 @@ import UIKit
         return abs(b) < 0.1 ? (t - b) / a : t
     }
 
-    private func moveTo(_ tx: Int, _ ty: Int, rehome: Bool = true) async throws {
+    private func moveTo(_ tx: Int, _ ty: Int, rehome: Bool = true, held: Bool = false) async throws {
         if link != device.links {  // new link: a dropped gesture may have left the button down
             try await device.send("release")
             (pos, link) = (nil, device.links)
         }
         if pos == nil || (rehome && moves >= Self.rehomeEvery) {
-            try await device.send("home")
+            let at = pos
+            pos = nil
+            try await home(from: at)
             (pos, moves) = ((0, 0), 0)
         }
         let (x, y) = pos!
         pos = nil  // unknown until the move succeeds
-        let (mx, my) = paced(tx - x, ty - y)
-        try await device.send("move \(mx) \(my)")
+        try await travel(tx - x, ty - y, held: held)
         (pos, moves) = ((tx, ty), moves + 1)
+    }
+
+    /// Slam the pointer into the top-left corner from `at` (nil: unknown). iPad: step off the top edge first when it
+    /// may rest there, or iPadOS opens Notification Center. Callers track `pos`.
+    private func home(from at: (Int, Int)?) async throws {
+        if Self.iPadPointer && (at?.1 ?? 0) < Self.offTopEdge {
+            try await device.send("move 0 \(Self.offTopEdge)")
+        }
+        try await device.send("home")
+    }
+
+    /// Move by (dx, dy) mouse units, paced (see `paced`). iPad: one axis at a time, vertical first (off the top
+    /// edge), each paced on its own, unless the button is held, where the path is the gesture.
+    private func travel(_ dx: Int, _ dy: Int, held: Bool = false, paced pace: Bool = true) async throws {
+        if Self.iPadPointer && !held && dx != 0 && dy != 0 {
+            let (_, py) = pace ? paced(0, dy) : (0, dy), (px, _) = pace ? paced(dx, 0) : (dx, 0)
+            try await device.send("move 0 \(py)")
+            try await device.send("move \(px) 0")
+        } else {
+            let (mx, my) = pace ? paced(dx, dy) : (dx, dy)
+            try await device.send("move \(mx) \(my)")
+        }
+    }
+
+    /// A calibration probe's move from home (TouchCalibration): the pointer is homed and moved by (ux, uy) mouse
+    /// units, unpaced, then `then` (another raw move) if given. iPhone: exactly `home`, `move ux uy`. iPad: the
+    /// agent's own way (off the top edge, one axis at a time), so the fit is for the moves the agent makes.
+    func probe(_ ux: Int, _ uy: Int, then: (dx: Int, dy: Int, speed: Int?)? = nil) async throws {
+        guard Self.iPadPointer else {
+            try await device.send("home")
+            try await device.send("move \(ux) \(uy)")
+            if let then { try await device.send("move \(then.dx) \(then.dy)" + (then.speed.map { " \($0)" } ?? "")) }
+            return
+        }
+        let at = pos
+        pos = nil
+        try await home(from: at)
+        try await travel(ux, uy, paced: false)
+        if let then {
+            // one axis per move here too (the speed probes go along x on iPad: AutoCalibrator.calibrateSpeeds)
+            let speed = then.speed.map { " \($0)" } ?? ""
+            if then.dy != 0 { try await device.send("move 0 \(then.dy)" + speed) }
+            if then.dx != 0 || then.dy == 0 { try await device.send("move \(then.dx) 0" + speed) }
+        }
     }
 
     /// Let go of the button and re-home the pointer, whatever state a gesture left.
     func reset() async throws {
+        let at = pos
         pos = nil
         try await device.send("release")
-        try await device.send("home")
+        try await home(from: at)
         (pos, moves) = ((0, 0), 0)
+    }
+
+    /// Manual calibration: from home to (calibrationMove, calibrationMove), where the user then taps the pointer.
+    func parkForManualCalibration() async throws {
+        try await reset()
+        guard Self.iPadPointer else { return _ = try await device.send("move \(Self.calibrationMove) \(Self.calibrationMove)") }
+        pos = nil
+        try await travel(Self.calibrationMove, Self.calibrationMove, paced: false)
     }
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
@@ -411,7 +537,7 @@ import UIKit
         do {
             try await device.send("press")
             for p in points.dropFirst() {
-                try await moveTo(dx(Double(p.x)), dy(Double(p.y)), rehome: false)  // never home mid-drag
+                try await moveTo(dx(Double(p.x)), dy(Double(p.y)), rehome: false, held: true)  // never home mid-drag
             }
             if hold { try await Task.sleep(nanoseconds: UInt64(Self.hold * 1e9)) }
         } catch {

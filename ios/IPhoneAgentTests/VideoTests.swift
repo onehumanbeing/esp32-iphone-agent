@@ -1,3 +1,4 @@
+import ImageIO
 import CoreVideo
 import XCTest
 @testable import IPhoneAgent
@@ -407,5 +408,45 @@ final class VideoReorderTests: XCTestCase {
         XCTAssertEqual(units.map(\.config), [true, false, false])
         XCTAssertEqual(units[1].data, Data(t.idr))
         XCTAssertEqual(a.drops, 0)
+    }
+}
+
+/// The model's copy: an iPhone's exactly as before (540 px wide); an iPad's within a pixel budget, untouched below it.
+final class ModelImageTests: XCTestCase {
+    func testIPhoneCopyIs540Wide() throws {
+        XCTAssertEqual(try Self.shrunk(718, 1560, nil)[0], 540, accuracy: 1)
+        XCTAssertEqual(try Self.shrunk(1080, 750, nil), [540, 375], "the width cap that left a landscape iPad unreadable")
+    }
+
+    func testIPadCopyKeepsAPixelBudget() throws {
+        let pad = ModelImage.padPixels
+        XCTAssertEqual(try Self.shrunk(1440, 1000, pad), [1258, 874])
+        XCTAssertEqual(try Self.shrunk(1000, 1440, pad), [874, 1258])
+        let small = try Self.jpeg(1200, 834)
+        XCTAssertEqual(ModelImage.shrink(small, maxPixels: pad), small, "within the budget: no second JPEG pass")
+        let stream = try Self.jpeg(720, 500)
+        XCTAssertEqual(ModelImage.shrink(stream, maxPixels: pad), stream)
+    }
+
+    static func shrunk(_ w: Int, _ h: Int, _ budget: Int?) throws -> [Int] {
+        let small = ModelImage.shrink(try jpeg(w, h), maxPixels: budget)
+        let src = try XCTUnwrap(CGImageSourceCreateWithData(small as CFData, nil))
+        let props = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any])
+        return [try XCTUnwrap(props[kCGImagePropertyPixelWidth] as? Int), try XCTUnwrap(props[kCGImagePropertyPixelHeight] as? Int)]
+    }
+
+    static func jpeg(_ w: Int, _ h: Int) throws -> Data {
+        let ctx = try XCTUnwrap(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        for i in 0..<40 {  // detail, so the smaller copy is smaller in bytes too and gets used
+            ctx.setFillColor(red: CGFloat(i % 7) / 7, green: CGFloat(i % 5) / 5, blue: CGFloat(i % 3) / 3, alpha: 1)
+            ctx.fill(CGRect(x: (i * 37) % w, y: (i * 53) % h, width: w / 5, height: h / 9))
+        }
+        let out = NSMutableData()
+        let dest = try XCTUnwrap(CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, try XCTUnwrap(ctx.makeImage()), [kCGImageDestinationLossyCompressionQuality: 1.0] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(dest))
+        return out as Data
     }
 }

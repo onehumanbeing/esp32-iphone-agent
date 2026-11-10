@@ -95,6 +95,8 @@
 	<string>ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.</string>
+	<key>NSSpeechRecognitionUsageDescription~ipad</key>
+	<string>With Listen to iPad audio on, ESP32 Agent turns the sound your iPad plays while mirroring into text, on this iPad, so the agent can follow videos and calls.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -115,6 +117,13 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>

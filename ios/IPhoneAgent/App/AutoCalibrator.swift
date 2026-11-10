@@ -58,8 +58,18 @@ import UIKit
         let p = app.pointer
         guard p.calibrated else { return true }
         if let aspect = p.aspect, abs(aspect - DeviceScreen.aspect) > 0.02 { return true }
+        if rotated { return true }
         return p.drift > Self.tolerance
     }
+
+    /// iPad: the screen was rotated (or the mirrored shape changed) since the calibration. Never on iPhone.
+    var rotated: Bool {
+        guard DeviceKind.isPad, !MockMode.on, let current = app.feed.geometry else { return false }
+        return !app.pointer.matches(geometry: current)
+    }
+
+    /// The calibration can be used now. iPhone: calibrated, as always; iPad: and made in this orientation.
+    var hasValidCalibration: Bool { app.pointer.calibrated && !rotated }
 
     /// Show the Calibrate button: due, and everything it needs is up.
     var offer: Bool { (needed || MockMode.on && !app.pointer.calibrated) && (MockMode.on || boardReady && mirroring) && !busy && !boardOpen }
@@ -73,8 +83,12 @@ import UIKit
     /// Before a run: calibrate if needed and wait for it. True when the pointer is calibrated.
     func ensureCalibrated() async -> Bool {
         while busy { try? await Task.sleep(nanoseconds: 200_000_000) }
-        if !app.pointer.calibrated && boardReady { await run(why: String(localized: "before a run")) }
-        return app.pointer.calibrated
+        app.pointer.adopt(app.feed.geometry)  // iPad: this orientation's saved calibration
+        if !hasValidCalibration && boardReady {
+            if DeviceKind.isPad && app.feed.geometry == nil { _ = try? await app.feed.currentFrame(maxAge: 5, wait: 5) }
+            await run(why: String(localized: "before a run"))
+        }
+        return hasValidCalibration
     }
 
     /// One automatic calibration, on the board when the app is in front.
@@ -86,6 +100,7 @@ import UIKit
         progress = nil
         toast = false
         if DeviceScreen.foreground { openBoard() }
+        app.pointer.adopt(app.feed.geometry)  // iPad: the snapshot below is this orientation's
         previous = app.pointer.snapshot()
         let job = Task { await runOnce() }
         current = job
@@ -147,6 +162,7 @@ import UIKit
         do {
             try await app.feed.stream(true)
             defer { if !app.agent.running { Task { try? await app.feed.stream(false) } } }
+            if DeviceKind.isPad { _ = try await app.feed.currentFrame(maxAge: 5, wait: 5) }  // the geometry needs a frame
             let ok = try await app.pointer.startCalibration { [weak self] i in
                 self?.phase = [.homing, .probeA, .probeB][min(i, 2)]
             }
@@ -171,6 +187,7 @@ import UIKit
             app.say(String(format: "calibration: check off by ±%.1f%%, not kept", error * 100))
             return failed(Self.rejectedText)
         }
+        if rotated { return failed(String(localized: "The screen rotated during calibration. Try again.")) }  // iPad
         previous = nil
         link = app.board.commands.links
         progress = nil
@@ -219,15 +236,18 @@ import UIKit
         phase = .needsTap
         current?.cancel()
         current = Task {
+            let geometry = app.feed.geometry  // nil on iPhone
             do {
-                try await app.pointer.reset()
-                try await app.board.commands.send("move \(Pointer.calibrationMove) \(Pointer.calibrationMove)")
+                try await app.pointer.parkForManualCalibration()
             } catch {
                 return failed(error.localizedDescription)
             }
             let since = now()
             while !Task.isCancelled && phase == .needsTap {
                 if let p = await app.probe.tap(since: since, timeout: 1) {
+                    if let geometry, !geometry.matches(app.feed.geometry) {
+                        return failed(String(localized: "The screen rotated during calibration. Try again."))
+                    }
                     app.say(String(format: "calibration: tapped the pointer at (%.3f, %.3f)", p.x, p.y))
                     app.pointer.finishCalibration(x: p.x, y: p.y)
                     return finished(app.pointer.quality ?? 0.01)

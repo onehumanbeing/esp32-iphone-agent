@@ -56,7 +56,7 @@ enum JevRules {
     static let accept = 0.7
 
     static let rules = """
-        Advance the user's goal on this iPhone screen using one supported operation.
+        Advance the user's goal on this \(DeviceKind.name) screen using one supported operation.
         The screen was parsed from a screenshot: elements are OCR text lines, detected icons/images/controls,
         filled shapes (buttons, fields, cards) and layout groups (rows, cells, empty areas), with their position.
         Icons have no names; an icon's label is the text next to it when there is one.

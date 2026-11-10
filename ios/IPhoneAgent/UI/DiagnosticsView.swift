@@ -36,6 +36,9 @@ struct DiagnosticsView: View {
                 row("IDR interval (board / app)", "\(board.status?.idr.map { "\($0) ms" } ?? "–") / \(f(metrics.idrIntervalMs)) ms")
                 row("GOP buffered", board.status?.gop.map { "\($0 / 1024) KB" } ?? "–")
                 row("Resolution", board.status.map { "\($0.w ?? 0) x \($0.h ?? 0)" } ?? "–")
+                if DeviceKind.isPad {  // the iPad fits its screen into that display: the frames have the screen's shape
+                    row("Frames", feed.size.width > 0 ? "\(Int(feed.size.width)) x \(Int(feed.size.height))" : "–")
+                }
                 row("Decoded fps", f(metrics.fps, "%.1f"))
                 row("Decode", f(metrics.decodeMs, "%.1f") + " ms")
                 row("Snap -> decoded", f(metrics.snapMs) + " ms")

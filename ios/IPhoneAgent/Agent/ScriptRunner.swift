@@ -130,7 +130,7 @@ extension AgentLoop {
         guard let model = planner ?? actor else { throw LLMError(message: "no model") }
         let prompt = "Is this true on the current screen: \(condition)?" + (notebook.isEmpty ? "" : "\n\n" + notebook.summary())
             + "\nReply YES or NO, then one short reason."
-        let (reply, seconds, frame) = try await ask("judge", model, "You check an iPhone screenshot against a condition.", prompt)
+        let (reply, seconds, frame) = try await ask("judge", model, "You check an \(DeviceKind.name) screenshot against a condition.", prompt)
         let yes = reply.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().hasPrefix("YES")
         record(frame, ["action": .str("check"), "reason": .str("\(condition) → \(yes ? "yes" : "no")"), "think_s": .num(seconds)])
         return yes

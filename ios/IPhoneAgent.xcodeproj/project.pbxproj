@@ -81,6 +81,7 @@
 		63B0CAE819339D8FC103AC8B /* VideoFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9615E8664A5DC600B1B97E0 /* VideoFeed.swift */; };
 		63CB6644E6517C6B12F3E0AB /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1C25AC81D9FBF6073FDD1851 /* Localizable.xcstrings */; };
 		65CCD8D450C5FCE21BDA48E7 /* Notebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CDABB93A11C0AD55A52E4F /* Notebook.swift */; };
+		6612CB4DC76FA963E918DD3E /* DeviceKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE7BB3B9372105D2D898461 /* DeviceKind.swift */; };
 		66CADEEED2A075ECD5070131 /* BoardCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C2C2C9EBE006E896050646 /* BoardCommands.swift */; };
 		66FF53FA94FA33D156EC22A8 /* AudioDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5CBA27F1415DE0D415647B1 /* AudioDecoder.swift */; };
 		6787B6280DD3923D995F8611 /* AgentIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0278B11885CA8C4A96C96531 /* AgentIntents.swift */; };
@@ -365,6 +366,7 @@
 		99381FBF82EA7EB76556866E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		9E49E4897714D436F985C230 /* UITreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeTests.swift; sourceTree = "<group>"; };
 		9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessLink.swift; sourceTree = "<group>"; };
+		9FE7BB3B9372105D2D898461 /* DeviceKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceKind.swift; sourceTree = "<group>"; };
 		A11E0FF01881451EBB3D18FF /* AgentActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AgentActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2A0229ED6EF9D83865BC9D6 /* ThreadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadStore.swift; sourceTree = "<group>"; };
 		A3F73FBA51B3C953AECABE20 /* Firmware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Firmware.swift; sourceTree = "<group>"; };
@@ -447,6 +449,7 @@
 				87AE5159FF1E2C627E4ECC7A /* Breaker.swift */,
 				4E2922DB7E8B844E6C11E8D1 /* ChatContext.swift */,
 				8E677990F3420C8F264848AE /* Deciders.swift */,
+				9FE7BB3B9372105D2D898461 /* DeviceKind.swift */,
 				11AC34B2265506C543C662F5 /* JevStep.swift */,
 				3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */,
 				FCC7FAA4989F36E7F9B4C021 /* JSON.swift */,
@@ -1047,6 +1050,7 @@
 				5A6AA718FC12DB193AE6EC8E /* DecidersSheets.swift in Sources */,
 				5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */,
 				68077AF9C3654AB753B261BA /* DeviceCaps.swift in Sources */,
+				6612CB4DC76FA963E918DD3E /* DeviceKind.swift in Sources */,
 				CE7F2614189EEA971E33548A /* DiagnosticReport.swift in Sources */,
 				9BA8ABE4398546618D6AE675 /* DiagnosticsView.swift in Sources */,
 				CDED8BE062846ACCCC32B80F /* Firmware.swift in Sources */,
@@ -1386,7 +1390,7 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -1452,7 +1456,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};

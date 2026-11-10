@@ -89,6 +89,7 @@ import UIKit
     var runStarted = Date()
     var runUsage = ModelUsage()
     private var settingsSink: AnyCancellable?
+    private var geometrySink: AnyCancellable?
     var videoSink: AnyCancellable?
     var videoDir: URL?
     private(set) lazy var calibrator = AutoCalibrator(app: self)
@@ -120,6 +121,13 @@ import UIKit
         board.commands.log = say
         pointer.log = say
         pointer.screenAspect = { DeviceScreen.aspect }
+        pointer.currentGeometry = { [weak self] in self?.feed.geometry }  // nil on iPhone
+        if DeviceKind.isPad {  // turned: the orientation's own calibration, if it has one
+            geometrySink = feed.$size.removeDuplicates().receive(on: RunLoop.main).sink { [weak self] _ in
+                guard let self else { return }
+                pointer.adopt(feed.geometry)
+            }
+        }
         pointer.locate = { [weak self] jpeg in await self?.locatePointer(jpeg) }
         // Lines come from any thread (a firmware check, MetricKit's crash report): hop to the main actor when
         // needed instead of asserting, which crashed build 24 and then every launch that got the report.
@@ -216,6 +224,7 @@ import UIKit
         agent.gate = { [weak self] in
             try await self?.holdWhileInFront()
             try await self?.holdWhilePaused()
+            try self?.validateRunGeometry()
         }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }

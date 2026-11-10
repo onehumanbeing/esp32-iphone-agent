@@ -10,7 +10,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
-    TARGETED_DEVICE_FAMILY: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"  # iPhone and iPad (a Wi-Fi-only iPad uses the board over the LAN)
 targets:
   IPhoneAgent:
     type: application
@@ -47,9 +47,11 @@ targets:
             CFBundleURLSchemes: [iphoneagent]
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
         NSBluetoothAlwaysUsageDescription: ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.
         NSLocalNetworkUsageDescription: ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
         NSSpeechRecognitionUsageDescription: With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
+        NSSpeechRecognitionUsageDescription~ipad: With Listen to iPad audio on, ESP32 Agent turns the sound your iPad plays while mirroring into text, on this iPad, so the agent can follow videos and calls.
         NSBonjourServices: [_esp32agent._tcp, _handsy-harness._tcp]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
