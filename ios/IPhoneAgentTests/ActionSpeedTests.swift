@@ -46,6 +46,52 @@ import XCTest
         XCTAssertEqual(step.gateMs, 100, accuracy: 1)
     }
 
+    // MARK: screens that keep moving
+
+    func testChangesOnlyWhereTheScreenMovedByItselfAreNotAChangeWhenBusy() {
+        let v = VisionTests()
+        let busy = CGRect(x: 280 / v.W, y: 280 / v.H, width: 160 / v.W, height: 64 / v.H)
+        XCTAssertTrue(Vision.changed(v.screen(spinner: 40), v.screen(spinner: 230)))
+        XCTAssertFalse(Vision.changed(v.screen(spinner: 40), v.screen(spinner: 230), busy: [busy]))
+        XCTAssertTrue(Vision.changed(v.screen(spinner: 40), v.screen(button: true, spinner: 230), busy: [busy]))
+    }
+
+    /// A spinner going on through the wait does not hold it to `most` when it was seen moving before the gesture.
+    func testSettledEndsOnAScreenThatOnlyMovesWhereItMovedBefore() async {
+        let v = VisionTests()
+        let busy = CGRect(x: 280 / v.W, y: 280 / v.H, width: 160 / v.W, height: 64 / v.H)
+        func took(_ frames: [Data], busy: [CGRect]) async -> Double {
+            let screen = CyclingScreen(frames), start = now()
+            let feed = Task { while !Task.isCancelled { screen.changed = now(); try? await Task.sleep(nanoseconds: 100_000_000) } }
+            await screen.settled(quiet: 0.5, least: 0.3, most: 2, busy: busy)
+            feed.cancel()
+            return now() - start
+        }
+        let spinning = [v.screen(spinner: 40), v.screen(spinner: 230)]
+        let quick = await took(spinning, busy: [busy])
+        XCTAssertLessThan(quick, 1.3)
+        let capped = await took(spinning, busy: [])
+        XCTAssertGreaterThan(capped, 1.9)  // without the spot: as before
+        let content = await took([v.screen(spinner: 40), v.screen(button: true, spinner: 230)], busy: [busy])
+        XCTAssertGreaterThan(content, 1.9)  // new content elsewhere still counts
+    }
+
+    /// No landing check (a pointer wiggle) on a screen that kept moving through a whole wait this step.
+    func testNoLandingCheckWhileTheScreenKeepsMoving() async {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = VisionTests().screen()
+        phone.landed = CGPoint(x: 0.5, y: 0.52)
+        let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)
+        agent.record(nil, ["action": .str("tap"), "x": .int(500), "y": .int(500)])
+        var spots: [CGPoint] = []
+        StepWaits.moving = true
+        _ = await agent.tapResult(screen.frame, &spots, [])
+        XCTAssertNil(agent.steps.last?["landed"])
+        StepWaits.moving = false
+        _ = await agent.tapResult(screen.frame, &spots, [])
+        XCTAssertNotNil(agent.steps.last?["landed"])
+    }
+
     // MARK: the steps list
 
     /// A reload reads again only the runs whose steps changed (the current one), not all of them every step.
@@ -74,4 +120,20 @@ import XCTest
         XCTAssertEqual(store.runs.map(\.task), ["New", "Old A"])
         XCTAssertEqual(store.runs.first?.steps.count, 1)
     }
+}
+
+/// Every read of `frame` shows the next of `frames` (like VideoTests' still screen).
+@MainActor private final class CyclingScreen: ScreenSource {
+    var live = true
+    let frames: [Data]
+    private var reads = 0
+    var frame: Data? {
+        reads += 1
+        return frames[(reads - 1) % frames.count]
+    }
+    var updated = 0.0
+    var changed = now() - 10
+    var capturedAt = 0.0
+    var aspect = 0.46
+    init(_ frames: [Data]) { self.frames = frames }
 }

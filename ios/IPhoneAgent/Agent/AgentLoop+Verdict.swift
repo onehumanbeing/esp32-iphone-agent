@@ -37,7 +37,9 @@ extension AgentLoop {
         let (frame, mask) = (screen?.frame, spots)
         if await Vision.off({ Vision.bigChange(seen, frame, ignore: mask) }) { return true }
         let small = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: quiet) }
-        guard let landed = await noteLanding() else { return small }
+        // Not on a screen that keeps moving (a map, a video: StepWaits.moving): there the wiggle's diff is mostly the
+        // screen's own motion, and each look took 1.8-2.4 s, often "not found" (2026-11-11, a Maps run).
+        guard !StepWaits.moving, let landed = await noteLanding() else { return small }
         spots.append(landed)
         pointerAt = landed  // the next tap's mask starts where the pointer really is
         let (later, all) = (screen?.frame, spots)

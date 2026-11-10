@@ -62,11 +62,13 @@ enum Vision {
     /// `ignore` lists screen points (fractions) where the pointer was or went: those spots are masked, so pointer
     /// moves never count. The status bar (clock) is ignored too.
     /// `quiet`: spots (fractions) that changed on their own before the gesture (`motion`); the fine pass skips them.
+    /// `busy`: the same kind of spots, skipped by both passes (a wait for the screen to settle, VideoFeed.settled:
+    /// there a moving spot alone must not count, however much it changes).
     static func changed(_ before: Data?, _ after: Data?, ignore: [CGPoint] = [], quiet: [CGRect] = [],
-                        threshold: Double = 1.0) -> Bool {
+                        busy: [CGRect] = [], threshold: Double = 1.0) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }
-        let counts = kept(ignore)
+        let counts = kept(ignore, busy: busy)
         if coarse(a, b, counts, threshold) { return true }  // a big change: new screen, scrolled list
         let w = a.width / 2, h = a.height / 2  // fine pass for small changes, at half resolution
         let hit = hits(gray(a, w, h), gray(b, w, h), counts, quiet: quiet)
@@ -166,12 +168,13 @@ enum Vision {
         return coarse(a, b, kept(ignore), 1.0)
     }
 
-    /// Pixel i of a w x h bitmap counts: below the status bar and away from every `ignore` point.
-    private static func kept(_ ignore: [CGPoint]) -> (Int, Int, Int) -> Bool {
+    /// Pixel i of a w x h bitmap counts: below the status bar, away from every `ignore` point, outside `busy`.
+    private static func kept(_ ignore: [CGPoint], busy: [CGRect] = []) -> (Int, Int, Int) -> Bool {
         { i, w, h in
             let x = Double(i % w), y = Double(i / w), r2 = pow(0.05 * Double(w), 2)
             return y > topMask * Double(h)
                 && ignore.allSatisfy { pow(x - $0.x * Double(w), 2) + pow(y - $0.y * Double(h), 2) > r2 }
+                && !busy.contains { $0.contains(CGPoint(x: (x + 0.5) / Double(w), y: (y + 0.5) / Double(h))) }
         }
     }
 

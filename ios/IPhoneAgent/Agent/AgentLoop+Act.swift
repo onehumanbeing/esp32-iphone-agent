@@ -40,11 +40,12 @@ extension AgentLoop {
         return out
     }
 
-    /// Wait for the result of the last gesture.
-    func settle(ignoring spots: [CGPoint] = []) async -> Double {
+    /// Wait for the result of the last gesture. `busy`: what moved by itself while the model looked (`motion`);
+    /// changes there alone don't keep the wait going (2026-11-11: a map or a video kept every settle to its cap).
+    func settle(ignoring spots: [CGPoint] = [], busy: [CGRect] = []) async -> Double {
         let started = now()
         onDoing?(.looking)
-        await screen?.afterAction(since: lastActed, ignoring: spots)
+        await screen?.afterAction(since: lastActed, ignoring: spots, busy: busy)
         return (now() - started) * 1000
     }
 

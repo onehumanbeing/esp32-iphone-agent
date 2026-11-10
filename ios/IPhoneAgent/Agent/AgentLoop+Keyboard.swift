@@ -156,7 +156,7 @@ extension HIDDevice {
             try await device.send("key eject")
         }
         let sent = now()
-        await screen.afterAction(since: sent, ignoring: [])
+        await screen.afterAction(since: sent, ignoring: [], busy: [])
         let (restored, _) = try await classify(after: sent)
         guard restored == .visible else { throw uncertain }
     }

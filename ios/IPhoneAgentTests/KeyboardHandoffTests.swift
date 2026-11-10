@@ -290,7 +290,7 @@ import XCTest
     let aspect = 0.5
 
     func refresh() { if !freeze { capturedAt = now() } }
-    func afterAction(since: Double, ignoring: [CGPoint]) async { refresh() }
+    func afterAction(since: Double, ignoring: [CGPoint], busy: [CGRect]) async { refresh() }
 
     static func picture(_ color: UIColor) -> Data {
         UIGraphicsImageRenderer(size: CGSize(width: 32, height: 64)).image { context in

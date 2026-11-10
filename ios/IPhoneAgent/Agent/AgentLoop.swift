@@ -516,7 +516,7 @@ extension Gestures {
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
                 if earlierTap, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
                     let checked = now()
-                    timing.frameMs += await settle(ignoring: spots)
+                    timing.frameMs += await settle(ignoring: spots, busy: await still())
                     let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
                     let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask) }
                     DebugLog.write(String(format: "step: target check before tap %d took %.1f s", i + 1, now() - checked))
@@ -538,7 +538,7 @@ extension Gestures {
             if name == "done" || name == "fail" { return true }
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key" || following == "clear") {  // a missed tap never opened the field
-                timing.frameMs += await settle(ignoring: spots)
+                timing.frameMs += await settle(ignoring: spots, busy: await still())
                 if !(try await tapChanged(seen, &spots, quiet: await still(), confirmed: confirmed)) {
                     verdict(false)
                     return false  // skip the rest; the actor looks again
@@ -546,7 +546,7 @@ extension Gestures {
             }
         }
         timing.motionMs = (await quiet?.value.s ?? 0) * 1000
-        timing.frameMs += await settle(ignoring: spots)
+        timing.frameMs += await settle(ignoring: spots, busy: await still())
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
         let (frame, mask, moving) = (screen?.frame, spots, await still())
