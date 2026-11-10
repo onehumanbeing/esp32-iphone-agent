@@ -12,6 +12,7 @@ struct ModelCall {
     var props: [String: Any] {
         var p: [String: Any] = ["role": role, "model": model, "ok": reply != nil, "image_kb": imageKB]
         if let error { p["error"] = ModelRequestFailure.kind(error) }
+        if let reason = (error as? LLMError)?.reason { p["error_reason"] = reason }  // e.g. the free line's refusal
         guard let r = reply else { return p }
         p["total_s"] = Self.round(r.total)
         if let s = r.firstToken { p["first_token_s"] = Self.round(s) }

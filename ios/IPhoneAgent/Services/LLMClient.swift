@@ -67,12 +67,16 @@ struct LLMError: LocalizedError {
     let message: String
     var status = 0  // the HTTP status, when the server answered with an error
     var kind: String?  // for usage stats, e.g. "rate_limit_day"
+    var reason: String?  // free line: the server's exact reason (or the transport failure), for logs and usage stats
     var errorDescription: String? { message }
 
+    /// Free line, mid-run: anything on the line's side reads as busy, never as the app failing.
+    static var lineBusy: String {
+        String(localized: "Handsy Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off.")
+    }
+
     /// The free line ended this run (its lease): the run stops instead of retrying.
-    static let trialRunEnded = LLMError(
-        message: String(localized: "Handsy Free ended this run (idle too long or out of time). Start it again when you're ready."),
-        status: 503, kind: "trial_run_ended")
+    static let trialRunEnded = LLMError(message: lineBusy, status: 503, kind: "trial_run_ended")
 }
 
 /// Client for any OpenAI-compatible chat endpoint (vision models). Port of llm.py, with streaming:
@@ -199,25 +203,16 @@ struct LLMError: LocalizedError {
             }
         } catch {
             DebugLog.write(String(format: "llm ✗ %@ after %.1f s: %@", model, now() - started, error.localizedDescription))
-            throw error
+            throw Trial.isTrial(baseURL.absoluteString) ? Self.freeLineError(error) : error
         }
         guard (200..<300).contains(status), var result else {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
-            if Trial.isTrial(baseURL.absoluteString) && Self.trialUsedUp(errorText) {  // free line: its runs are used up
-                throw LLMError(message: TrialError.usedUp.localizedDescription, status: status, kind: "rate_limit_day")
-            }
-            if Trial.isTrial(baseURL.absoluteString) && Self.trialRunEnded(errorText) {
-                Trial.shared.runEnded()
-                throw LLMError.trialRunEnded
-            }
-            if status == 401 && Trial.isTrial(baseURL.absoluteString) {  // token refused: the next run enrolls again
-                Trial.shared.tokenRefused()
-                throw LLMError.trialRunEnded
+            if Trial.isTrial(baseURL.absoluteString), let refused = Self.freeLineError(status: status, errorText: errorText) {
+                if status == 401 { Trial.shared.tokenRefused() }  // token refused: the next run enrolls again
+                else if refused.kind == LLMError.trialRunEnded.kind { Trial.shared.runEnded() }
+                throw refused
             }
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
-            if status == 503 && Trial.isTrial(baseURL.absoluteString) {  // the free line took the run back or is full
-                throw LLMError(message: String(localized: "Handsy Free is busy or ended this run. Tap Retry in a moment."), status: status)
-            }
             throw LLMError(message: "LLM HTTP \(status): \(errorText.prefix(300))", status: status)
         }
         result.total = now() - started
@@ -243,9 +238,43 @@ struct LLMError: LocalizedError {
 
     /// The free line refused because the free runs (or today's) are used up: final too, never asked again.
     nonisolated static func trialUsedUp(_ errorText: String) -> Bool {
-        guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],
-              let reason = body["reason"] as? String else { return false }
-        return ["quota", "rate_limit_day"].contains(reason)
+        ["quota", "rate_limit_day"].contains(trialReason(errorText))
+    }
+
+    nonisolated static func trialReason(_ errorText: String) -> String? {
+        let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any]
+        return body?["reason"] as? String
+    }
+
+    /// Free line, an HTTP refusal: used up (all or today's) keeps its own text; the run ended by the server, a
+    /// refused token and any 5xx read as busy. Nil: the request's own fault (400) or a per-minute limit (429).
+    nonisolated static func freeLineError(status: Int, errorText: String) -> LLMError? {
+        let reason = trialReason(errorText)
+        switch reason {
+        case "quota": return LLMError(message: TrialError.usedUp.localizedDescription, status: status, kind: "rate_limit_day", reason: reason)
+        case "rate_limit_day":
+            return LLMError(message: TrialError.usedUpToday.localizedDescription, status: status, kind: "rate_limit_day", reason: reason)
+        default: break
+        }
+        if trialRunEnded(errorText) || status == 401 {
+            var ended = LLMError.trialRunEnded
+            ended.reason = reason ?? "http_\(status)"
+            return ended
+        }
+        guard status >= 500 else { return nil }
+        return LLMError(message: LLMError.lineBusy, status: status, reason: reason ?? "http_\(status)")
+    }
+
+    /// Free line, no answer: a timeout, a dropped connection, a stream cut or its error event read as busy too.
+    nonisolated static func freeLineError(_ error: Error) -> Error {
+        if let e = error as? URLError, e.code != .cancelled {
+            return LLMError(message: LLMError.lineBusy, kind: e.code == .timedOut ? "timeout" : "network",
+                            reason: "url_\(e.code.rawValue)")
+        }
+        if let e = error as? LLMError, e.status == 0, e.reason != nil {  // from the stream (not consent or setup)
+            return LLMError(message: LLMError.lineBusy, kind: e.kind, reason: e.reason)
+        }
+        return error
     }
 
     static func rateLimitError(_ errorText: String, openRouter: Bool) -> LLMError {
@@ -380,7 +409,7 @@ struct LLMError: LocalizedError {
         // A stream cut before its end (no [DONE], no finish_reason) is a lost reply, not a short one.
         guard done || result.finishReason != nil else {
             DebugLog.write("llm: stream ended early after \(result.text.count) chars")
-            throw LLMError(message: "the model's reply stream ended before it finished")
+            throw LLMError(message: "the model's reply stream ended before it finished", reason: "stream_cut")
         }
         result.rawChars = result.text.count
         return (status, result, "")
@@ -412,7 +441,8 @@ struct LLMError: LocalizedError {
     private static func checkError(_ json: [String: Any]) throws {
         guard let error = json["error"] else { return }
         let message = (error as? [String: Any])?["message"] as? String ?? (error as? String) ?? "Provider error"
-        throw LLMError(message: String(message.prefix(300)))
+        let code = (error as? [String: Any])?["code"].map { "\($0)" }  // e.g. the free line's "busy"
+        throw LLMError(message: String(message.prefix(300)), reason: code ?? "stream_error")
     }
 
     /// finish_reason and usage, from whichever event carries them.

@@ -181,6 +181,59 @@ import XCTest
         XCTAssertFalse(LLMClient.trialUsedUp("daily quota"))
     }
 
+    func testLineSideFailuresReadAsBusy() {
+        let busy = LLMError.lineBusy
+        for (status, body) in [(503, #"{"status": "busy", "reason": "spark_overheat"}"#),
+                               (503, #"{"status": "busy", "reason": "all_slots_in_use"}"#),
+                               (503, #"{"status": "busy", "reason": "global_cooldown"}"#),
+                               (502, "bad gateway"), (500, ""),
+                               (503, #"{"status": "busy", "reason": "lease_idle"}"#),
+                               (503, #"{"status": "busy", "reason": "admin_paused"}"#), (401, "")] {
+            let e = LLMClient.freeLineError(status: status, errorText: body)
+            XCTAssertEqual(e?.message, busy, body)
+            XCTAssertNotNil(e?.reason, body)  // the exact cause stays for logs and usage stats
+        }
+        XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "lease_idle"}"#)?.reason,
+                       "lease_idle")
+        XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"reason": "lease_idle", "status": "busy"}"#)?.kind,
+                       LLMError.trialRunEnded.kind)  // ends the run
+        XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "quota"}"#)?.message,
+                       TrialError.usedUp.localizedDescription)
+        XCTAssertEqual(LLMClient.freeLineError(status: 429, errorText: #"{"status": "busy", "reason": "rate_limit_day"}"#)?.message,
+                       TrialError.usedUpToday.localizedDescription)
+        XCTAssertNil(LLMClient.freeLineError(status: 400, errorText: #"{"error": {"message": "bad max_tokens"}}"#))
+
+        let timeout = LLMClient.freeLineError(URLError(.timedOut))
+        XCTAssertEqual(timeout.localizedDescription, busy)
+        XCTAssertTrue(ModelRequestFailure.isTimeout(timeout))  // the agent still retries it once
+        XCTAssertEqual(ModelRequestFailure.message(timeout), busy)
+        XCTAssertEqual(LLMClient.freeLineError(URLError(.networkConnectionLost)).localizedDescription, busy)
+        XCTAssertTrue(LLMClient.freeLineError(URLError(.cancelled)) is URLError)
+        let event = LLMError(message: "Handsy Free is busy", reason: "busy"), consent = LLMError(message: "Allow first")
+        XCTAssertEqual(LLMClient.freeLineError(event).localizedDescription, busy)
+        XCTAssertEqual(LLMClient.freeLineError(consent).localizedDescription, "Allow first")  // the user's own step
+        XCTAssertEqual(LLMError.trialRunEnded.message, busy)
+    }
+
+    func testClaimRefusalsReadAsBusyExceptTheirOwn() {
+        for reason in ["all_slots_in_use", "queue_full", "spark_hot", "gpu_budget_hour", "telemetry_stale",
+                       "global_cooldown", "recording_fault", "overflow_full", nil] {
+            XCTAssertEqual(TrialError.refused(status: 503, reason: reason).localizedDescription,
+                           TrialError.busy.localizedDescription, reason ?? "-")
+        }
+        XCTAssertEqual(TrialError.refused(status: 503, reason: "quota").localizedDescription, TrialError.usedUp.localizedDescription)
+        XCTAssertEqual(TrialError.refused(status: 429, reason: "rate_limit_day").localizedDescription,
+                       TrialError.usedUpToday.localizedDescription)
+        XCTAssertEqual(TrialError.refused(status: 429, reason: nil).localizedDescription, TrialError.cooldown.localizedDescription)
+        XCTAssertTrue(TrialError.cooldown.ownText)
+        XCTAssertFalse(TrialError.busy.ownText)
+        for text in [TrialError.busy, .waiting(0)].compactMap(\.errorDescription) + [LLMError.lineBusy] {
+            for word in ["idle", "time", "error", "GPU", "temperature", "server", "slow"] {
+                XCTAssertFalse(text.localizedCaseInsensitiveContains(word), "\(text): \(word)")
+            }
+        }
+    }
+
     func testStepHeaderIsShortNumericAndCapped() {
         var step = Metrics.Step(frameMs: 1140, llmMs: 2310, hidMs: 420)
         step.settleMs = 3940

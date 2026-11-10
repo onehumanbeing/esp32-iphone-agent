@@ -96,10 +96,9 @@ extension AppModel {
         } catch {
             Analytics.capture("run_blocked", ["reason": "model_client"])
             say("LLM: \(error.localizedDescription)")
-            if case TrialError.usedUp = error { blocked(error.localizedDescription) }
-            else if settings.provider == .handsyTrial {
-                blocked(String(localized: "Handsy Free is busy. Try again in a minute, or switch to your own model."))
-            } else { blocked(error.localizedDescription) }
+            if (error as? TrialError)?.ownText == true { blocked(error.localizedDescription) }
+            else if settings.provider == .handsyTrial { blocked(TrialError.busy.localizedDescription) }  // the line's side
+            else { blocked(error.localizedDescription) }
             return
         }
         guard !Task.isCancelled else { return }

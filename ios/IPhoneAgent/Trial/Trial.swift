@@ -73,9 +73,10 @@ import UIKit
                     tokenRefused()  // asks once more as a new install; the next run enrolls again
                     state = try await call("GET", "/trial/status")
                 }
+                usedUpToday = state.reason == "rate_limit_day"
                 switch (state.status, state.reason) {
                 case ("free", _): status = .free
-                case ("busy", "quota"): status = .usedUp
+                case ("busy", "quota"), ("busy", "rate_limit_day"): status = .usedUp
                 case ("busy", _): status = .busy
                 default: status = .waiting  // "waiting" or a newer status: Start waits in line
                 }
@@ -86,7 +87,7 @@ import UIKit
         if let app, app.settings.provider == .handsyTrial, lease == nil {
             let usable = status == .free || status == .waiting
             app.modelOK = usable
-            app.modelError = usable ? nil : (status == .usedUp ? TrialError.usedUp : TrialError.busy).localizedDescription
+            app.modelError = usable ? nil : (status == .usedUp ? usedUpError : TrialError.busy).localizedDescription
         }
         return status
     }
@@ -99,7 +100,7 @@ import UIKit
     func precheck() async throws {
         switch await refresh() {
         case .free, .waiting, .unknown: return
-        case .usedUp: throw TrialError.usedUp
+        case .usedUp: throw usedUpError
         case .unavailable: throw TrialError.unavailable
         case .busy: throw TrialError.busy
         }
@@ -123,7 +124,7 @@ import UIKit
             } catch TrialError.waiting(let ms) where Date() < waitUntil {
                 if !waited { onWait?() }
                 waited = true
-                app?.homeHint = String(localized: "Waiting for Handsy Free…")
+                app?.homeHint = TrialError.waiting(0).localizedDescription
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
             } catch TrialError.unenrolled where !enrolledAgain {
                 enrolledAgain = true
@@ -132,6 +133,8 @@ import UIKit
             } catch {
                 DebugLog.write(String(format: "trial: no lease after %.1f s: %@", Date().timeIntervalSince(asked),
                                       lastRefusal ?? error.localizedDescription))
+                if error is URLError { throw TrialError.busy }  // the line didn't answer: busy, as for a refusal
+                if let e = error as? TrialError, !e.ownText { throw TrialError.busy }  // waited too long, refused
                 throw error
             }
         }
@@ -147,6 +150,8 @@ import UIKit
     private var claimedAt = Date()
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
     private var lastRefusal: String?
+    private var usedUpToday = false  // .usedUp only for today (rate_limit_day), not all the free runs
+    private var usedUpError: TrialError { usedUpToday ? .usedUpToday : .usedUp }
 
     /// Every 10 s off the main actor: a main thread busy for 30 s (screen tree, a stuck UI) let the lease idle
     /// out while the run was still going.
@@ -357,7 +362,8 @@ import UIKit
             // Client contract: 503 "busy" is final; "waiting", an unknown status or none means ask again later.
             let hint = try? JSONDecoder().decode(Hint.self, from: data)
             if code == 503, hint?.status != "busy" { throw TrialError.waiting(hint?.retry_after_ms ?? 2000) }
-            throw hint?.reason == "quota" ? TrialError.usedUp : TrialError.busy
+            lastRefusal = "HTTP \(code) \(hint?.reason ?? "-")"  // the exact cause, for the log; users see TrialError
+            throw TrialError.refused(status: code, reason: hint?.reason)
         }
         if T.self == Empty.self, let empty = Empty() as? T { return empty }
         return try JSONDecoder().decode(T.self, from: data)
@@ -430,14 +436,36 @@ struct RunEnd: Equatable {
 }
 
 enum TrialError: LocalizedError {
-    case busy, usedUp, unavailable, unsupported, runsOnly
+    case busy, usedUp, usedUpToday, cooldown, unavailable, unsupported, runsOnly
     case unenrolled  // 401: the server doesn't know this install's token; enroll again
     case waiting(Int)  // milliseconds until asking again
+
+    /// A refusal: the free runs (all, or today's) used up and this install's few seconds between runs keep their
+    /// own text; any other reason is on the line's side, so the user reads "busy" (the log keeps the reason).
+    static func refused(status: Int, reason: String?) -> TrialError {
+        switch reason {
+        case "quota": return .usedUp
+        case "rate_limit_day": return .usedUpToday
+        case let r? where r.hasSuffix("cooldown") && r != "global_cooldown": return .cooldown
+        default: return status == 429 ? .cooldown : .busy
+        }
+    }
+
+    /// Not the line's side (used up, a few seconds between runs, this phone or build): shown as is, never as busy.
+    var ownText: Bool {
+        switch self {
+        case .usedUp, .usedUpToday, .cooldown, .unsupported, .runsOnly: return true
+        default: return false
+        }
+    }
+
     var errorDescription: String? {
         switch self {
-        case .waiting: return String(localized: "Waiting for Handsy Free…")
+        case .waiting: return String(localized: "Handsy Free is busy — waiting in line…")
         case .usedUp: return String(localized: "You've used the free runs on this iPhone. Add your own model to keep going.")
-        case .busy: return String(localized: "Handsy Free is busy or your free runs are used up. Try again in a few minutes, or use your own model.")
+        case .usedUpToday: return String(localized: "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model.")
+        case .cooldown: return String(localized: "Handsy Free needs a few seconds between runs. Try again in a moment.")
+        case .busy: return String(localized: "Handsy Free is busy right now — lots of people are using it. Please try again in a moment.")
         case .unavailable, .unenrolled: return String(localized: "Handsy Free isn't available on this phone right now. Use your own model instead.")
         case .unsupported: return String(localized: "Handsy Free needs the App Store version on a real iPhone.")
         case .runsOnly: return String(localized: "Handsy Free only runs tasks. Use your own model for tests and intent analysis.")

@@ -9173,12 +9173,12 @@
         }
       }
     },
-    "Handsy Free is busy or your free runs are used up. Try again in a few minutes, or use your own model." : {
+    "Handsy Free is busy right now — lots of people are using it. Please try again in a moment." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免费线路正忙，或你的免费次数已用完。请几分钟后再试，或使用你自己的模型。"
+            "value" : "免费线路繁忙，使用的人比较多，请稍后再试。"
           }
         }
       }
@@ -9213,32 +9213,12 @@
         }
       }
     },
-    "Waiting for Handsy Free…" : {
+    "Handsy Free is busy — waiting in line…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在排队等免费线路…"
-          }
-        }
-      }
-    },
-    "Handsy Free is busy. Try again in a minute, or switch to your own model." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路正忙。请稍后再试，或切换到你自己的模型。"
-          }
-        }
-      }
-    },
-    "Handsy Free is busy or ended this run. Tap Retry in a moment." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路正忙，或已结束本次运行。请稍后点「重试」。"
+            "value" : "线路繁忙，正在排队…"
           }
         }
       }
@@ -9573,12 +9553,12 @@
         }
       }
     },
-    "Handsy Free ended this run (idle too long or out of time). Start it again when you're ready." : {
+    "Handsy Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy Free 已结束这次运行（空闲太久或时间用完），准备好后再开始一次。"
+            "value" : "免费线路繁忙，这次运行已暂停。稍后点「继续」接着跑。"
           }
         }
       }
@@ -9609,6 +9589,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 然后点「继续执行」。"
+          }
+        }
+      }
+    },
+    "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天这台 iPhone 的免费次数已用完，请明天再试，或添加你自己的模型。"
+          }
+        }
+      }
+    },
+    "Handsy Free needs a few seconds between runs. Try again in a moment." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路两次运行之间需要间隔几秒，请稍后再试。"
           }
         }
       }
