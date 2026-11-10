@@ -204,6 +204,29 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(reopened.apiKey, "gemini-key")
     }
 
+    func testClearingKeyDoesNotResurrectIt() throws {
+        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
+        let name = "clear-key-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        let gemini = ModelProvider.gemini.baseURL
+        defer {
+            defaults.removePersistentDomain(forName: name)
+            Keychain.set("", for: "llm-endpoint-" + gemini)
+        }
+        let settings = Settings(defaults: defaults, info: [:])
+        settings.selectProvider(.gemini)
+        settings.apiKey = "gemini-key"
+        settings.selectProvider(.others)   // saveCurrent() stores the key under the gemini endpoint
+        settings.selectProvider(.gemini)
+        XCTAssertEqual(settings.apiKey, "gemini-key")  // the key really was persisted
+
+        settings.apiKey = ""                // the user clears it
+        settings.selectProvider(.others)   // saveCurrent() must drop the stored copy
+        settings.selectProvider(.gemini)
+        XCTAssertEqual(settings.apiKey, "")
+        XCTAssertFalse(settings.isConfigured(.gemini))
+    }
+
     func testSeveralCustomEndpointsAreKept() {
         let name = "custom-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!

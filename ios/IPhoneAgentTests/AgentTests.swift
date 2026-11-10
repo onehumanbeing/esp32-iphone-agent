@@ -424,6 +424,44 @@ import XCTest
                        " -> screen did NOT change; the pointer is at 500 958 (37 below the target)")
         XCTAssertNil(Actions.key(agent.steps.last!)["landed"])
     }
+
+    /// Pause holds at the gesture gate. Continue must not send a tap chosen for the screen from before the pause.
+    func testPauseBeforeAChosenGestureDropsItAndLooksAgain() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { n in n == 1 ? "THINK: tap\nDO: tap 10 20\nDO: type hi" : "THINK: now\nDO: wait" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gestureGates = 0
+        agent.gate = {
+            guard agent.droppingChosenGesture else { return }  // a pause during the look does not drop the decision
+            gestureGates += 1
+            if gestureGates == 1 { agent.notePauseInterrupted() }
+        }
+        let dropped = try await agent.step()
+        XCTAssertFalse(dropped)
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertTrue(agent.steps.isEmpty)
+        let looked = try await agent.step()
+        XCTAssertFalse(looked)
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "wait")
+    }
+
+    /// The first gesture of a batch ran; a pause before the next one sends nothing further.
+    func testPauseBetweenGesturesDropsTheRest() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: tap then type\nDO: tap 10 20\nDO: type hi" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gestureGates = 0
+        agent.gate = {
+            guard agent.droppingChosenGesture else { return }
+            gestureGates += 1
+            if gestureGates == 2 { agent.notePauseInterrupted() }
+        }
+        let dropped = try await agent.step()
+        XCTAssertFalse(dropped)
+        XCTAssertEqual(phone.calls, ["tap"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["tap"])
+    }
 }
 
 // MARK: - fakes

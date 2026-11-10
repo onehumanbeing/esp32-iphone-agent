@@ -448,7 +448,9 @@ extension AppModel {
     }
 
     /// Each frame is written at once, so a run that stops or fails early still has its video.
+    /// While paused the person has the phone; those frames are not part of the run.
     func saveVideoFrame(_ jpeg: Data?) {
+        guard !paused else { return }
         guard let jpeg, let dir = videoDir else { return }
         try? jpeg.write(to: dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg"))
     }

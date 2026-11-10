@@ -188,7 +188,7 @@ import UIKit
 
     /// Remember the live configuration under its provider (or custom endpoint) and its key under its endpoint.
     func saveCurrent() {
-        if !apiKey.isEmpty { Keychain.set(apiKey, for: "llm-endpoint-" + baseURL) }
+        Keychain.set(apiKey, for: "llm-endpoint-" + baseURL)  // an empty key removes this endpoint's saved key
         guard provider == .others else { return defaults.set(currentProfile, forKey: Self.profileKey(provider)) }
         guard isConfigured else { return }  // a blank new endpoint isn't kept
         let id = activeCustomID
