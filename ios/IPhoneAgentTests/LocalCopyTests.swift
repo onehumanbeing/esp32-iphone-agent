@@ -228,6 +228,19 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("wait"))
     }
 
+    func testLongPressReleasesEvenWhenThePressAcknowledgementIsLost() async {
+        let device = LocalInputTestDevice()
+        device.failPress = true
+        do { try await LocalCopyTrigger.press(device, wait: {}); XCTFail() }
+        catch { XCTAssertEqual(device.commands, ["press", "release"]) }
+    }
+
+    func testLongPressReleasesWhenCancelledWhileHolding() async {
+        let device = LocalInputTestDevice()
+        do { try await LocalCopyTrigger.press(device, wait: { throw CancellationError() }); XCTFail() }
+        catch { XCTAssertEqual(device.commands, ["press", "release"]) }
+    }
+
 }
 
 @MainActor private final class LocalInputTestJev: JevStepping {
@@ -236,4 +249,17 @@ import XCTest
         calls += 1
         return JevAnswer(accept: true, do: "type 你好")
     }
+}
+
+@MainActor private final class LocalInputTestDevice: HIDDevice {
+    var links = 1
+    var connected = true
+    var commands: [String] = []
+    var failPress = false
+    func send(_ command: String) async throws -> String {
+        commands.append(command)
+        if command == "press", failPress { throw DeviceError(message: "press acknowledgement lost") }
+        return "ok"
+    }
+    func waitConnected(_ timeout: TimeInterval) async -> Bool { connected }
 }

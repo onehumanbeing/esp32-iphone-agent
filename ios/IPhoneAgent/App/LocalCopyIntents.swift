@@ -41,7 +41,22 @@ struct CompleteLocalInputIntent: LiveActivityIntent {
     }
 }
 
-enum LocalCopyTrigger { case configured, openShortcut }
+enum LocalCopyTrigger {
+    case configured, openShortcut
+
+    @MainActor static func press(_ device: HIDDevice,
+                                wait: () async throws -> Void = { try await Task.sleep(for: .milliseconds(900)) }) async throws {
+        do {
+            try await device.send("press")
+            try await wait()
+        } catch {
+            // A lost press acknowledgement may still have left the phone's mouse button down.
+            _ = try? await device.send("release")
+            throw error
+        }
+        try await device.send("release")
+    }
+}
 
 extension AppModel {
     var localInputIssue: String? {
@@ -60,7 +75,7 @@ extension AppModel {
     /// original editor, and paste once. Never reopen an app or ask the model to reconstruct the insertion point.
     func typeWithLocalShortcut(_ text: String) async throws -> (field: String, value: String) {
         guard LocalCopyConfig.verified else {
-            return ("typed", "nothing typed: finish Settings > Unicode Input: import Handsy Local Copy, bind its trigger and pass Test Copy. Do not retry input until setup is complete.")
+            return ("typed", "nothing typed: finish Settings > Unicode Input: import Handsy Local Copy, bind its trigger and pass Test Board Trigger. Do not retry input until setup is complete.")
         }
         guard appIsBackgrounded, feed.live, !feed.stale, let before = feed.frame else {
             return ("typed", "nothing typed: the destination editor must be visible with a current screen")
@@ -120,10 +135,7 @@ extension AppModel {
             let p = LocalCopyConfig.point
             DebugLog.write(String(format: "local copy: long press at %.1f%%, %.1f%%", p.x * 100, p.y * 100))
             try await pointer.point(p.x, p.y, aim: true)
-            try await pointer.device.send("press")
-            do { try await Task.sleep(for: .milliseconds(900)) }
-            catch { _ = try? await pointer.device.send("release"); throw error }
-            try await pointer.device.send("release")
+            try await LocalCopyTrigger.press(pointer.device)
         } else { try await pointer.key(LocalCopyConfig.combo) }
         while let pending = localCopy.pending, pending.packet.id == id, now() < pending.expires {
             try Task.checkCancellation()
