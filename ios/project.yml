@@ -16,7 +16,11 @@ targets:
     type: application
     platform: iOS
     sources:
-      - IPhoneAgent
+      - path: IPhoneAgent
+        excludes: [LocalCopyAssets]
+      - path: IPhoneAgent/LocalCopyAssets
+        type: folder
+        buildPhase: resources
       - Shared
       # Siri AI Developer Preview: a Skills bundle Siri reads for multi-step guidance. Copying the
       # folder keeps Skills.skillsbundle/ as a bundle in the app instead of a loose folder.

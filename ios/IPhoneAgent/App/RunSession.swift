@@ -191,6 +191,7 @@ extension AppModel {
 
     /// Emergency stop: cancel the agent and release the mouse button.
     func stopAgent() async {
+        localCopy.cancel()
         startupTask?.cancel()
         if startingAgent && calibrator.busy { calibrator.cancel() }
         answerHelp(.stop)
@@ -307,6 +308,7 @@ extension AppModel {
     }
 
     func agentFinished() {
+        localCopy.cancel()
         ended()
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
         Task { try? await feed.stream(false); prewarmStream() }  // back on only if the app is open

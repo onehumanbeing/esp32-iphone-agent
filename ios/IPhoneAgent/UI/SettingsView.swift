@@ -20,6 +20,10 @@ struct SettingsView: View {
                             value: board.connected ? "\(board.name) · \(Firmware.version(of: board.status))" : String(localized: "Not connected"))
                     }
                     CalibrationRow(app: app, calibrator: app.calibrator, pointer: app.pointer)
+                    NavigationLink { LocalCopySettingsView(app: app) } label: {
+                        row("Unicode Input", "text.cursor", .purple,
+                            value: LocalCopyConfig.verified ? String(localized: "Ready") : nil)
+                    }
                     Button { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) } label: {
                         HStack {
                             SettingsLabel(title: "Language", symbol: "globe", color: .indigo)

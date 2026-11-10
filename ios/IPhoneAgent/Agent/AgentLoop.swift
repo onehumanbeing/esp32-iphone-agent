@@ -88,6 +88,9 @@ extension Gestures {
     var learned: [String] = []
     /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
     var onWrite: ((String) async throws -> Bool)?
+    var onUnicodeInput: ((String) async throws -> (field: String, value: String))?
+    var localInput: LocalInput?
+    var pasteApprovalReader: (Data) async -> Bool = PasteApproval.read
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
     private var helpAsked = 0
@@ -121,6 +124,8 @@ extension Gestures {
         if running { throw DeviceError(message: "agent already running") }
         guard screen?.live == true else { throw DeviceError(message: "no phone screen: start Screen Mirroring first") }
         let resuming = resume && task == self.task && !steps.isEmpty
+        // A resumed run may still have an unknown paste result; never forget its single-use guard.
+        if !resuming { localInput = nil }
         JevGate.hold = false
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
@@ -148,6 +153,8 @@ extension Gestures {
     func restore(task: String, steps: [JObject]) {
         guard !running else { return }
         self.task = task; self.steps = steps; shots = [:]
+        localInput = steps.contains { $0["pasted"] != nil || $0["action"]?.str == "local_paste_attempt" }
+            ? LocalInput(state: .attempted) : nil
         plan = steps.last { $0["action"]?.str == "plan" }?["plan"]?.str ?? ""
         notebook = Notebook(); learned = []
     }
@@ -159,6 +166,7 @@ extension Gestures {
     func clear() throws {
         if running { throw DeviceError(message: "stop the agent first") }
         task = ""; plan = ""; steps = []; shots = [:]
+        localInput = nil
         acceptedLookLinks = nil
     }
 
@@ -247,12 +255,22 @@ extension Gestures {
                 acceptedLookLinks = restoredLinks
             }
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
+            if role == "actor", localInput?.state == .attempted, let frame = screen.frame,
+               await pasteApprovalReader(frame) {
+                let reason = "iOS is asking to allow paste. Handle this prompt yourself, then Continue. The agent will not grant permission or send another paste."
+                record(frame, ["action": .str("help"), "reason": .str(reason)])
+                guard let onHelp, await onHelp(reason) == .resume else { throw CancellationError() }
+                try Task.checkCancellation()
+                continue
+            }
             let frame = screen.frame, frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
             // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
             var tree: UITree?
             if role == "actor", screenTree, !serverTree, let sent { tree = await UITree.build(jpeg: sent) }
-            let text = prompt + (tree?.listing ?? "")
+            let local = role == "actor" ? localInput?.prompt ?? "" : ""
+            if !local.isEmpty { JevGate.hold = true }
+            let text = prompt + local + (tree?.listing ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in
@@ -452,6 +470,11 @@ extension Gestures {
                 if name == "write" { return false }
                 continue
             }
+            if name == "done", let localInput, localInput.state != .attempted {
+                record(planned.shot, ["action": .str("wait"),
+                                     "reason": .str("Local input did not send a paste. Resolve its error or fail; copying alone is not completion.")])
+                return false
+            }
             if name == "done" { attachNotebook(&act) }
             if name != "done" && name != "fail" {
                 try await gate?()
@@ -476,7 +499,7 @@ extension Gestures {
                         return false
                     }
                 }
-                try await perform(act, aim: earlierTap)
+                if let result = try await perform(act, aim: earlierTap) { act[result.field] = .str(result.value) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
@@ -486,6 +509,12 @@ extension Gestures {
             }
             record(planned.shot, act)
             if name == "done" || name == "fail" { return true }
+            if Actions.localInputBoundary(act) {
+                timing.frameMs += await settle(ignoring: spots)
+                let (frame, mask) = (screen?.frame, spots)
+                verdict(await Vision.off { Vision.changed(seen, frame, ignore: mask) })
+                return false  // never execute the rest of a batch after local copy/paste
+            }
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
@@ -559,7 +588,7 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "landed"]
+                                   "replay", "jev", "landed", "typed", "pasted"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
@@ -588,6 +617,8 @@ extension Gestures {
     static func effect(_ s: JObject) -> String {
         guard let changed = s["changed"]?.bool else { return "" }
         var out = changed ? " -> screen changed" : " -> screen did NOT change"
+        if let typed = s["typed"]?.str { out += "; \(typed)" }
+        if let pasted = s["pasted"]?.str { out += "; \(pasted)" }
         if case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
            let x = s["x"]?.double, let y = s["y"]?.double {
             let dx = Int(lx - x), dy = Int(ly - y)
@@ -599,7 +630,8 @@ extension Gestures {
         return out
     }
 
-    func perform(_ a: JObject, aim: Bool = false) async throws {
+    @discardableResult
+    func perform(_ a: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
         guard let phone else { throw DeviceError(message: "no phone") }
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
@@ -607,14 +639,22 @@ extension Gestures {
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
-        case "type": try await phone.type(a["text"]?.str ?? "")
-        case "key": try await phone.key(a["combo"]?.str ?? "")
+        case "type":
+            let text = a["text"]?.str ?? ""
+            if LocalInput.needsClipboard(text) { return try await typeLocally(text) }
+            try await phone.type(text)
+        case "key":
+            if Actions.isPaste(a), localInput != nil {
+                return ("typed", "no extra paste sent: inspect the previous local input result before new input")
+            }
+            try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome()
         case "open": try await phone.openApp(a["app"]?.str ?? "")
         case "back": try await phone.goBack()
         case "wait": break
         case let other: throw Actions.ParseError(message: "unknown action \(other ?? "nil")")
         }
+        return nil
     }
 
     /// Show a run without running it (demo data).

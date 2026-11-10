@@ -195,6 +195,13 @@
 		F7E73EABE70603DF30BE6233 /* AgentLoop+Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */; };
 		FBF6EC7B8825C2E162524CFA /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE9690A776BF887AFFFAE39 /* MemoryView.swift */; };
 		FC0BD528A254726D869FDF5B /* ModelRequestFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96A8E3AF04195B586F10EDC4 /* ModelRequestFailure.swift */; };
+		543AA78E1E2930CF174EB4EF /* LocalInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2F01676D47B6BDE3385177C /* LocalInput.swift */; };
+		F54FE287FAC9C533DEEC712A /* PasteApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A570ACA3DFA540FD3B54D3 /* PasteApproval.swift */; };
+		C0B9CB864B95FB4FD793E259 /* LocalCopySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A77FD4A5B2B184955FCE15 /* LocalCopySession.swift */; };
+		B2E164A0E2CEFBE31D9FB46A /* LocalCopyIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D206BB418FDBA48DFCCA77F /* LocalCopyIntents.swift */; };
+		529C8A6CE0AE62F198458078 /* LocalCopySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE4E349B08991719863BC21 /* LocalCopySettingsView.swift */; };
+		E86DD605C61B4CA0FFF533B9 /* LocalCopyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08449DD458F859BF220C2969 /* LocalCopyTests.swift */; };
+		6B6F2805E1F2D2FC19A1AD19 /* LocalCopyAssets in Resources */ = {isa = PBXBuildFile; fileRef = 67D741816BED5B32A9B09B76 /* LocalCopyAssets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -427,12 +434,21 @@
 		FB11B5F5922F634BEEA3CA38 /* BoardLogDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDump.swift; sourceTree = "<group>"; };
 		FC828B72EC4D19C789358D07 /* UITreeCV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeCV.swift; sourceTree = "<group>"; };
 		FCC7FAA4989F36E7F9B4C021 /* JSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSON.swift; sourceTree = "<group>"; };
+		D2F01676D47B6BDE3385177C /* LocalInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalInput.swift; sourceTree = "<group>"; };
+		08A570ACA3DFA540FD3B54D3 /* PasteApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteApproval.swift; sourceTree = "<group>"; };
+		46A77FD4A5B2B184955FCE15 /* LocalCopySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCopySession.swift; sourceTree = "<group>"; };
+		3D206BB418FDBA48DFCCA77F /* LocalCopyIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCopyIntents.swift; sourceTree = "<group>"; };
+		7BE4E349B08991719863BC21 /* LocalCopySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCopySettingsView.swift; sourceTree = "<group>"; };
+		08449DD458F859BF220C2969 /* LocalCopyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCopyTests.swift; sourceTree = "<group>"; };
+		67D741816BED5B32A9B09B76 /* LocalCopyAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LocalCopyAssets; path = IPhoneAgent/LocalCopyAssets; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		0753133D3A6ABA1AE76560A5 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
+				08A570ACA3DFA540FD3B54D3 /* PasteApproval.swift */,
+				D2F01676D47B6BDE3385177C /* LocalInput.swift */,
 				458E8069AA8BE0B721C9AD7A /* Actions.swift */,
 				17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */,
 				6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */,
@@ -511,6 +527,7 @@
 		3C577534E113D39F4ACCDA56 /* IPhoneAgentTests */ = {
 			isa = PBXGroup;
 			children = (
+				08449DD458F859BF220C2969 /* LocalCopyTests.swift */,
 				DCDFF66F3082E46B88130ABC /* AgentTests.swift */,
 				5DAABB20E9733B875E7D123D /* AudioTests.swift */,
 				74060C297931361BA5916910 /* BoardLogDumpTests.swift */,
@@ -557,6 +574,7 @@
 		587F0A7B34E5140D82A4CAAC /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				7BE4E349B08991719863BC21 /* LocalCopySettingsView.swift */,
 				E948F0EBC262C7ABF8E413E5 /* AboutView.swift */,
 				55E12AC1F4CB0EEE97D0424C /* AIConsentView.swift */,
 				A5AF33659891C2EFF70D356A /* BoardProximityIllustration.swift */,
@@ -611,6 +629,7 @@
 		69ABF23BB7D5C10E752A0434 /* IPhoneAgent */ = {
 			isa = PBXGroup;
 			children = (
+				67D741816BED5B32A9B09B76 /* LocalCopyAssets */,
 				6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */,
 				F960AA3F536A5DF20F8E908A /* Assets.xcassets */,
 				5754C9233BF0BA12F8EB78D7 /* Info.plist */,
@@ -649,6 +668,8 @@
 		7CA15ABF933E415D7A5C913F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				3D206BB418FDBA48DFCCA77F /* LocalCopyIntents.swift */,
+				46A77FD4A5B2B184955FCE15 /* LocalCopySession.swift */,
 				B260480A536241A2B9043EE1 /* AgentShortcuts.swift */,
 				08C142F7A438B5EC2A82FA99 /* AppDeparture.swift */,
 				43A1CAA88BC5B551B872615F /* AppModel.swift */,
@@ -916,6 +937,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6B6F2805E1F2D2FC19A1AD19 /* LocalCopyAssets in Resources */,
 				D5D197473F9BD99FD38F6231 /* AppShortcuts.xcstrings in Resources */,
 				180133912100FC228377AE9A /* Assets.xcassets in Resources */,
 				85678CC068CF3297ECF345DF /* InfoPlist.xcstrings in Resources */,
@@ -966,6 +988,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E86DD605C61B4CA0FFF533B9 /* LocalCopyTests.swift in Sources */,
 				7D859BE4F1E945FE96CD8C61 /* AgentTests.swift in Sources */,
 				D8139D919517804094B91D55 /* AudioTests.swift in Sources */,
 				462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */,
@@ -996,6 +1019,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				529C8A6CE0AE62F198458078 /* LocalCopySettingsView.swift in Sources */,
+				B2E164A0E2CEFBE31D9FB46A /* LocalCopyIntents.swift in Sources */,
+				C0B9CB864B95FB4FD793E259 /* LocalCopySession.swift in Sources */,
+				F54FE287FAC9C533DEEC712A /* PasteApproval.swift in Sources */,
+				543AA78E1E2930CF174EB4EF /* LocalInput.swift in Sources */,
 				D35EDAC063CFA9E85BB88201 /* AIConsent.swift in Sources */,
 				16394A944A52D59633E95DBE /* AIConsentView.swift in Sources */,
 				0A553429560D1697C678A682 /* AboutView.swift in Sources */,

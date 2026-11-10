@@ -9,7 +9,7 @@ enum Actions {
 
     /// Bookkeeping keys that are not part of the action itself.
     static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay", "jev",
-                                     "landed"]
+                                     "landed", "typed", "pasted"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
@@ -30,6 +30,12 @@ enum Actions {
         let name = head.lowercased()
         guard let keys = actions[name] else { throw ParseError(message: "unknown action: \(line.prefix(100))") }
         if let first = keys.first, textArgs.contains(first) {
+            if name == "type", rest.trimmingCharacters(in: .whitespaces).hasPrefix("\"") {
+                guard let text = try? JSONDecoder().decode(String.self, from: Data(rest.utf8)) else {
+                    throw ParseError(message: "quoted type text must be a valid JSON string; escape newlines as \\n")
+                }
+                return ["action": .str(name), first: .str(text)]
+            }
             let text = rest.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
             return ["action": .str(name), first: .str(text)]
         }
@@ -75,9 +81,9 @@ enum Actions {
         for a in acts {
             let name = a["action"]?.str
             // `read` copies the screen the model looked at: only before any gesture
-            if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
+            if !out.isEmpty && (ending.contains(name) || name == "read" || isPaste(a) || typed && name != "key") { break }
             out.append(a)
-            if ending.contains(name) || name == "open" || isKeyboardSwitch(a) { break }
+            if ending.contains(name) || name == "open" || isKeyboardSwitch(a) || localInputBoundary(a) { break }
             typed = typed || name == "type"
         }
         return out
@@ -86,6 +92,14 @@ enum Actions {
     static func isKeyboardSwitch(_ a: JObject) -> Bool {
         guard a["action"]?.str == "key", let combo = a["combo"]?.str?.lowercased() else { return false }
         return combo.replacingOccurrences(of: " ", with: "") == "ctrl+space"
+    }
+
+    static func isPaste(_ a: JObject) -> Bool {
+        a["action"]?.str == "key" && a["combo"]?.str?.lowercased().replacingOccurrences(of: " ", with: "") == "cmd+v"
+    }
+
+    static func localInputBoundary(_ a: JObject) -> Bool {
+        a["action"]?.str == "type" && LocalInput.needsClipboard(a["text"]?.str ?? "") || isPaste(a)
     }
 
     /// Split an optional EN: / ZH: plan reply; a plain reply is used for both.

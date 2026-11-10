@@ -52,6 +52,7 @@ extension AgentLoop {
         guard try await onWrite(notebook.text) else {
             return "could not put the notebook on the clipboard: type the items instead"
         }
+        localInput = nil  // an explicit notebook write staged a different clipboard operation
         return "the clipboard holds all \(notebook.items.count) items: open the target app, tap the text field, "
             + "then key cmd+v and check the result"
     }
