@@ -92,6 +92,29 @@ import XCTest
         XCTAssertNotNil(agent.steps.last?["landed"])
     }
 
+    // MARK: a far landing
+
+    func testAFirstConfirmedFarLandingReHomesAndOnlyASecondOneCalibrates() {
+        let pixels = CGSize(width: 1000, height: 2000), target = CGPoint(x: 0.2, y: 0.2), far = CGPoint(x: 0.6, y: 0.5)
+        var r = Recalibration()
+        XCTAssertTrue(r.measured(target, far, pixels: pixels, confirmed: true))  // re-home
+        XCTAssertFalse(r.pending)
+        XCTAssertFalse(r.measured(target, far, pixels: pixels, confirmed: true))  // far again: calibrate
+        XCTAssertTrue(r.pending)
+        XCTAssertTrue(r.tap())
+        XCTAssertFalse(r.rehomed)
+
+        var near = Recalibration()  // a good landing in between: the next far one re-homes again
+        XCTAssertTrue(near.measured(target, far, pixels: pixels, confirmed: true))
+        near.measured(target, CGPoint(x: 0.201, y: 0.2), pixels: pixels, confirmed: false)
+        XCTAssertTrue(near.measured(target, far, pixels: pixels, confirmed: true))
+        XCTAssertFalse(near.pending)
+
+        var single = Recalibration()  // one reading only (not past maxMiss): as before
+        XCTAssertFalse(single.measured(target, CGPoint(x: 0.2, y: 0.26), pixels: pixels))
+        XCTAssertTrue(single.pending)
+    }
+
     // MARK: the steps list
 
     /// A reload reads again only the runs whose steps changed (the current one), not all of them every step.

@@ -262,23 +262,30 @@ import UIKit
             return
         }
         let fx = Double(found.x), fy = Double(found.y)
-        learn(x, y, found)
+        let rehome = learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
         let (sx, sy) = paced(mx, my)
         let previousPosition = pos
         pos = nil
         try await device.send("move \(sx) \(sy)")  // fix this miss right away
-        if let p = previousPosition { pos = (p.0 + mx, p.1 + my) }
+        // a far miss means the tracked position was off, not only this move: the next gesture starts from the corner
+        if let p = previousPosition, !rehome { pos = (p.0 + mx, p.1 + my) }
     }
 
     /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
-    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) {
-        recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels)
-        guard max(abs(Double(found.x) - x), abs(Double(found.y) - y)) <= Self.maxMiss else { return }
+    /// True = re-home before the next gesture instead of calibrating again (Recalibration).
+    @discardableResult
+    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) -> Bool {
+        // a reading past maxMiss comes back from measureSure only when a second reading agreed with it
+        let far = max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss
+        let rehome = recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels, confirmed: far)
+        if rehome { log("pointer: far landing seen twice; re-homing, calibrating again only if the next one is far too") }
+        guard !far else { return rehome }
         remember("x", (fix(x, "x"), Double(found.x)))
         remember("y", (fix(y, "y"), Double(found.y)))
         save()
+        return rehome
     }
 
     /// After a tap at (x, y) that changed nothing: where the pointer really is (pixels only, no model), learned
