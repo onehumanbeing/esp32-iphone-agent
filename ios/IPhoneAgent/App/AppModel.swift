@@ -505,22 +505,28 @@ import UIKit
     }
 
     /// Ping the LLM every 2 s for `seconds` (switch to another app meanwhile) and report what survived.
+    /// The free line is shared: there it asks the line's status every 10 s instead, never a model call or a lease.
     func backgroundTest(seconds: Double = 600) async {
         let id = UIApplication.shared.beginBackgroundTask(withName: "bgtest")
         defer { UIApplication.shared.endBackgroundTask(id) }
-        guard let client = try? await settings.client("actor") else { return say("background test: no model") }
+        let freeLine = settings.provider == .handsyTrial
+        let client = freeLine ? nil : try? await settings.client("actor")
+        guard freeLine || client != nil else { return say("background test: no model") }
         let started = now()
         var ok = 0, failed = 0, decodedBefore = metrics.decodeErrors
         say("background test: \(Int(seconds)) s, switch to another app now")
         try? await feed.stream(true)
         while now() - started < seconds && !Task.isCancelled {
-            do { _ = try await client.chat(system: "Reply with OK.", text: "ping", image: nil, maxTokens: 600, temperature: 0); ok += 1 }
-            catch { failed += 1 }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            var reached = false
+            if let client {
+                reached = (try? await client.chat(system: "Reply with OK.", text: "ping", image: nil, maxTokens: 600, temperature: 0)) != nil
+            } else { reached = await Trial.shared.reachable() }
+            if reached { ok += 1 } else { failed += 1 }
+            try? await Task.sleep(nanoseconds: freeLine ? 10_000_000_000 : 2_000_000_000)
         }
         try? await feed.stream(false)
         decodedBefore = metrics.decodeErrors - decodedBefore
-        say("background test: LLM \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
+        say("background test: \(freeLine ? "free line status" : "LLM") \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
             + "suspensions \(metrics.suspensions), background alive \(Int(metrics.backgroundAlive)) s")
     }
 }

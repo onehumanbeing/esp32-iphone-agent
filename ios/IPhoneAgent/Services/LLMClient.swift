@@ -85,7 +85,7 @@ struct LLMError: LocalizedError {
     let model: String
     let baseURL: URL
     private let apiKey: String
-    private let extra: [String: Any]
+    let extra: [String: Any]
     private let headers: (() throws -> [String: String])?  // extra per-request headers (e.g. the free line's lease)
     private(set) var tokenParam: String
     private var auto: Bool
@@ -115,13 +115,20 @@ struct LLMError: LocalizedError {
         // "auto": send max_tokens; switch for good if the server asks for max_completion_tokens
         if Self.tokenParams.contains(tokenParam) { (self.tokenParam, auto) = (tokenParam, false) }
         else { (self.tokenParam, auto) = ("max_tokens", true) }
-        let slow = self.baseURL.host?.hasSuffix("openrouter.ai") == true  // free models queue and route
+        let limits = Self.timeouts(baseURL: self.baseURL, freeLine: Trial.isTrial(trimmed))
         self.session = session ?? {
             let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = slow ? 60 : 30  // no byte for this long = hung; the agent retries
-            config.timeoutIntervalForResource = slow ? 180 : 90
+            config.timeoutIntervalForRequest = limits.request  // no byte for this long = hung; the agent retries
+            config.timeoutIntervalForResource = limits.resource
             return URLSession(configuration: config)
         }()
+    }
+
+    /// Free models on OpenRouter queue and route; the free line can take up to about a minute before its first
+    /// byte when its GPU is shared, so it waits longer than that.
+    static func timeouts(baseURL: URL, freeLine: Bool) -> (request: Double, resource: Double) {
+        if freeLine { return (75, 180) }
+        return baseURL.host?.hasSuffix("openrouter.ai") == true ? (60, 180) : (30, 90)
     }
 
     func chat(system: String, text: String, image: Data? = nil, maxTokens: Int = 600,
@@ -161,8 +168,13 @@ struct LLMError: LocalizedError {
         let kb = images.reduce(0) { $0 + $1.count } / 1024
         DebugLog.write("llm → \(model) @ \(endpointOrigin): \(images.count) image(s) \(kb) KB, \(text.count) chars")
         var status = 0, result: ChatResult?, errorText = ""
+        // free line: one id per model call, kept by its retries below, so the gateway can tell a retry from a new call
+        let requestID = UUID().uuidString.lowercased()
+        func send(_ body: [String: Any]) async throws -> (Int, ChatResult?, String) {
+            try await post(body, maxTokens: maxTokens, started: started, requestID: requestID)
+        }
         do {
-            (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
+            (status, result, errorText) = try await send(body)
             // A 400 names one refused parameter at a time: a model may refuse both, in either order.
             for _ in 0..<2 where status == 400 {
                 if auto && errorText.contains("max_completion_tokens") {
@@ -172,18 +184,18 @@ struct LLMError: LocalizedError {
                     body["temperature"] = nil
                     DebugLog.write("llm: \(model) rejects an explicit temperature; retrying without it")
                 } else { break }
-                (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
+                (status, result, errorText) = try await send(body)
             }
             // A busy upstream: once more. A per-minute rate limit: wait as told (Retry-After, at most 20 s), up
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             for attempt in 0..<2 where [429, 502, 503, 504].contains(status) {
                 if status == 429 && Self.dailyLimit(errorText) { break }
-                if status == 503 && Self.trialRunEnded(errorText) { break }  // final: asking again can't help
+                if Self.trialRunEnded(errorText) || Self.trialUsedUp(errorText) { break }  // final: asking again can't help
                 if status != 429 && attempt > 0 { break }
                 let wait = status == 429 ? min(retryAfter ?? 5, 20) : 3
                 DebugLog.write(String(format: "llm: HTTP %d, retrying in %.0f s", status, wait))
                 try await Task.sleep(for: .seconds(wait))
-                (status, result, errorText) = try await post(body, maxTokens: maxTokens, started: started)
+                (status, result, errorText) = try await send(body)
             }
         } catch {
             DebugLog.write(String(format: "llm ✗ %@ after %.1f s: %@", model, now() - started, error.localizedDescription))
@@ -191,11 +203,18 @@ struct LLMError: LocalizedError {
         }
         guard (200..<300).contains(status), var result else {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
-            if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
-            if status == 503 && Trial.isTrial(baseURL.absoluteString) && Self.trialRunEnded(errorText) {
+            if Trial.isTrial(baseURL.absoluteString) && Self.trialUsedUp(errorText) {  // free line: its runs are used up
+                throw LLMError(message: TrialError.usedUp.localizedDescription, status: status, kind: "rate_limit_day")
+            }
+            if Trial.isTrial(baseURL.absoluteString) && Self.trialRunEnded(errorText) {
                 Trial.shared.runEnded()
                 throw LLMError.trialRunEnded
             }
+            if status == 401 && Trial.isTrial(baseURL.absoluteString) {  // token refused: the next run enrolls again
+                Trial.shared.tokenRefused()
+                throw LLMError.trialRunEnded
+            }
+            if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
             if status == 503 && Trial.isTrial(baseURL.absoluteString) {  // the free line took the run back or is full
                 throw LLMError(message: String(localized: "Handsy Free is busy or ended this run. Tap Retry in a moment."), status: status)
             }
@@ -220,6 +239,13 @@ struct LLMError: LocalizedError {
         guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],
               body["status"] as? String == "busy", let reason = body["reason"] as? String else { return false }
         return reason.hasPrefix("lease_") || ["admin_paused", "run_mismatch", "task_call_limit"].contains(reason)
+    }
+
+    /// The free line refused because the free runs (or today's) are used up: final too, never asked again.
+    nonisolated static func trialUsedUp(_ errorText: String) -> Bool {
+        guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],
+              let reason = body["reason"] as? String else { return false }
+        return ["quota", "rate_limit_day"].contains(reason)
     }
 
     static func rateLimitError(_ errorText: String, openRouter: Bool) -> LLMError {
@@ -284,7 +310,7 @@ struct LLMError: LocalizedError {
         return (json?["data"] as? [[String: Any]]) ?? (json?["models"] as? [[String: Any]]) ?? []
     }
 
-    private func post(_ body: [String: Any], maxTokens: Int, started: Double) async throws
+    private func post(_ body: [String: Any], maxTokens: Int, started: Double, requestID: String) async throws
         -> (Int, ChatResult?, String) {
         try AIConsent.check(baseURL.absoluteString)
         var body = body
@@ -303,7 +329,10 @@ struct LLMError: LocalizedError {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
-        for (name, value) in try headers?() ?? [:] { request.setValue(value, forHTTPHeaderField: name) }
+        if let headers {  // free line: its lease, and this call's id
+            for (name, value) in try headers() { request.setValue(value, forHTTPHeaderField: name) }
+            request.setValue(requestID, forHTTPHeaderField: "X-Request-ID")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (bytes, response) = try await session.bytes(for: request)
@@ -327,11 +356,11 @@ struct LLMError: LocalizedError {
         }
         var result = ChatResult(text: "", firstToken: nil, total: 0)
         result.responseSeconds = responseSeconds
-        var reportedReceiving = false
+        var reportedReceiving = false, done = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-            if payload == "[DONE]" { break }
+            if payload == "[DONE]" { done = true; break }
             guard let json = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
             try Self.checkError(json)
             if let tree = Self.tree(json) { result.tree = tree; continue }
@@ -347,6 +376,11 @@ struct LLMError: LocalizedError {
             guard let piece = delta?["content"] as? String, !piece.isEmpty else { continue }
             if result.firstToken == nil { result.firstToken = now() - started }
             result.text += piece
+        }
+        // A stream cut before its end (no [DONE], no finish_reason) is a lost reply, not a short one.
+        guard done || result.finishReason != nil else {
+            DebugLog.write("llm: stream ended early after \(result.text.count) chars")
+            throw LLMError(message: "the model's reply stream ended before it finished")
         }
         result.rawChars = result.text.count
         return (status, result, "")

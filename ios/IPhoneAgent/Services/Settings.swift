@@ -313,9 +313,12 @@ import UIKit
 
     /// role "planner" or "actor": its own model if set, else the shared one.
     func client(_ role: String) async throws -> LLMClient {
-        let own = role == "planner" ? plannerModel : actorModel
+        // free line: its one model with the gateway's own parameters. Advanced overrides (models, token
+        // parameter, Extra body) are for one's own endpoint; the gateway refuses them.
+        let freeLine = provider == .handsyTrial
+        let own = freeLine ? Trial.model : role == "planner" ? plannerModel : actorModel
         let model = own.isEmpty ? try await resolvedModel() : own
-        var extra = extra
+        var extra = freeLine ? [:] : extra
         if provider == .openRouter, model.hasSuffix(":free"), extra["models"] == nil {
             // When that free model's providers are rate-limited or down, OpenRouter tries two other free vision models.
             let others = freeModels.filter { $0 != model && $0.hasSuffix(":free") }.sorted().prefix(2)
@@ -330,10 +333,11 @@ import UIKit
         let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
         // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
         let step = { role == "actor" ? StepReport.shared.take() : [:] }
-        let headers: (() throws -> [String: String])? = provider == .handsyTrial
+        let headers: (() throws -> [String: String])? = freeLine
             ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
                 .merging(step()) { a, _ in a } } : nil
-        return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
+        return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
+                         tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.

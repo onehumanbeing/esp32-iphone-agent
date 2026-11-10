@@ -80,6 +80,107 @@ import XCTest
         }
     }
 
+    // MARK: - free-line requests
+
+    private func stubbed(headers: (() throws -> [String: String])? = nil) -> LLMClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        StubProtocol.seen = []
+        StubProtocol.headers = []
+        return LLMClient(baseURL: "http://test/v1", model: "m", session: URLSession(configuration: config), headers: headers)
+    }
+
+    private func delta(_ text: String, finish: String? = nil) -> String {
+        let end = finish.map { ", \"finish_reason\": \"\($0)\"" } ?? ""
+        return "data: {\"choices\": [{\"delta\": {\"content\": \"\(text)\"}\(end)}]}\n\n"
+    }
+
+    func testStreamCutBeforeItsEndIsAnError() async throws {
+        let llm = stubbed()
+        let cut = delta("DO: ta"), finished = delta("DO: wait", finish: "stop")
+        StubProtocol.respond = { _ in (200, "text/event-stream", cut) }  // no [DONE], no finish_reason
+        do { _ = try await llm.chat(system: "s", text: "t"); XCTFail("a cut stream passed as a reply") } catch {
+            XCTAssertTrue(error is LLMError)
+        }
+        XCTAssertEqual(StubProtocol.seen.count, 1)
+
+        StubProtocol.respond = { _ in (200, "text/event-stream", finished) }
+        let reply = try await llm.chat(system: "s", text: "t")  // ended by its finish_reason
+        XCTAssertEqual(reply.text, "DO: wait")
+
+        StubProtocol.respond = { _ in
+            (200, "text/event-stream", #"data: {"error": {"code": "busy", "message": "Handsy Free is busy"}}"# + "\n\n")
+        }
+        do { _ = try await llm.chat(system: "s", text: "t"); XCTFail("expected the gateway's error") } catch {
+            XCTAssertEqual(error.localizedDescription, "Handsy Free is busy")  // its own error, not the cut stream
+        }
+    }
+
+    func testRetriesOfOneCallKeepTheirRequestID() async throws {
+        let llm = stubbed(headers: { ["X-Run-ID": "run-1"] })
+        StubProtocol.respond = { body in
+            body["temperature"] == nil
+                ? (200, "application/json", #"{"choices": [{"message": {"content": "DO: wait"}}]}"#)
+                : (400, "application/json", #"{"error": {"message": "Unsupported value: 'temperature'."}}"#)
+        }
+        _ = try await llm.chat(system: "s", text: "t")
+        _ = try await llm.chat(system: "s", text: "next step")
+        let ids = StubProtocol.headers.map { $0["X-Request-ID"] }
+        XCTAssertEqual(ids.count, 3)
+        XCTAssertNotNil(ids[0])
+        XCTAssertEqual(ids[0], ids[1])  // the retry without temperature: the same call
+        XCTAssertNotEqual(ids[1], ids[2])  // a new call
+
+        let own = stubbed()
+        _ = try await own.chat(system: "s", text: "t")
+        XCTAssertNil(StubProtocol.headers.last?["X-Request-ID"])  // own endpoints get no free-line headers
+    }
+
+    func testFreeLineWaitsLongerThanItsWorstCase() {
+        let url = URL(string: "https://free.example/v1")!
+        XCTAssertGreaterThanOrEqual(LLMClient.timeouts(baseURL: url, freeLine: true).request, 75)
+        XCTAssertEqual(LLMClient.timeouts(baseURL: url, freeLine: false).request, 30)
+        XCTAssertEqual(LLMClient.timeouts(baseURL: URL(string: "https://openrouter.ai/api/v1")!, freeLine: false).request, 60)
+    }
+
+    func testFreeLineIgnoresAdvancedOverrides() async throws {
+        let settings = Settings(defaults: UserDefaults(suiteName: UUID().uuidString)!, info: [:])
+        settings.selectProvider(.handsyTrial)
+        settings.plannerModel = "my-model"
+        settings.actorModel = "my-model"
+        settings.tokenParam = "max_completion_tokens"
+        settings.extraBody = #"{"max_tokens": 8192, "temperature": 1, "top_p": 0.5}"#
+        for role in ["planner", "actor"] {
+            let client = try await settings.client(role)
+            XCTAssertEqual(client.model, Trial.model)
+            XCTAssertTrue(client.extra.isEmpty)
+            XCTAssertEqual(client.tokenParam, "max_tokens")
+        }
+        settings.selectProvider(.openAI)  // an own endpoint keeps them
+        settings.actorModel = "my-model"
+        settings.extraBody = #"{"top_p": 0.5}"#
+        let own = try await settings.client("actor")
+        XCTAssertEqual(own.model, "my-model")
+        XCTAssertEqual(own.extra["top_p"] as? Double, 0.5)
+    }
+
+    func testFinalRefusalsAreNeverAskedAgain() async {
+        let llm = stubbed()
+        for (status, body) in [(503, #"{"status": "busy", "reason": "quota"}"#),
+                               (429, #"{"status": "busy", "reason": "rate_limit_day"}"#),
+                               (503, #"{"status": "busy", "reason": "lease_idle"}"#),
+                               (503, #"{"status": "busy", "reason": "task_call_limit"}"#),
+                               (401, #"{"detail": "unknown device"}"#)] {
+            StubProtocol.seen = []
+            StubProtocol.respond = { _ in (status, "application/json", body) }
+            do { _ = try await llm.chat(system: "s", text: "t"); XCTFail(body) } catch {}
+            XCTAssertEqual(StubProtocol.seen.count, 1, body)
+        }
+        XCTAssertTrue(LLMClient.trialUsedUp(#"{"status": "busy", "reason": "quota"}"#))
+        XCTAssertFalse(LLMClient.trialUsedUp(#"{"status": "busy", "reason": "queue_full"}"#))
+        XCTAssertFalse(LLMClient.trialUsedUp("daily quota"))
+    }
+
     func testStepHeaderIsShortNumericAndCapped() {
         var step = Metrics.Step(frameMs: 1140, llmMs: 2310, hidMs: 420)
         step.settleMs = 3940

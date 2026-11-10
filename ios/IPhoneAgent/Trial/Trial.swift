@@ -68,7 +68,11 @@ import UIKit
         if lease == nil {  // during our own run the line is ours, the server says busy
             do {
                 guard DCAppAttestService.shared.isSupported else { throw TrialError.unsupported }
-                let state: Hint = try await call("GET", "/trial/status", token: token)
+                let state: Hint
+                do { state = try await call("GET", "/trial/status", token: token) } catch TrialError.unenrolled {
+                    tokenRefused()  // asks once more as a new install; the next run enrolls again
+                    state = try await call("GET", "/trial/status")
+                }
                 switch (state.status, state.reason) {
                 case ("free", _): status = .free
                 case ("busy", "quota"): status = .usedUp
@@ -104,7 +108,7 @@ import UIKit
     /// Claim the run's lease, waiting in line up to `wait` seconds (onWait: the first time it has to wait).
     func begin(wait: TimeInterval = 600, onWait: (() -> Void)? = nil) async throws {
         end(nil)
-        let token = try await enrolledToken()
+        var token = try await enrolledToken(), enrolledAgain = false
         struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
@@ -121,6 +125,10 @@ import UIKit
                 waited = true
                 app?.homeHint = String(localized: "Waiting for Handsy Free…")
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
+            } catch TrialError.unenrolled where !enrolledAgain {
+                enrolledAgain = true
+                tokenRefused()
+                token = try await enrolledToken()
             } catch {
                 DebugLog.write(String(format: "trial: no lease after %.1f s: %@", Date().timeIntervalSince(asked),
                                       lastRefusal ?? error.localizedDescription))
@@ -183,14 +191,32 @@ import UIKit
     /// A model call was refused because the server ended this run's lease: the run has to stop.
     func runEnded() { if lease != nil { leaseLost = true } }
 
+    /// The server no longer knows this install's token (401): forget it, so the next request enrolls again
+    /// (App Attest) instead of being refused with it every time. A run under way ends: its lease came with that token.
+    func tokenRefused() {
+        guard token != nil else { return }
+        DebugLog.write("trial: device token refused; enrolling again")
+        Keychain.set("", for: "trial-device-token")
+        jevTicketCache = nil
+        runEnded()
+    }
+
+    /// Settings › Diagnostics: can the line be reached? Asks its status only, never takes a run.
+    func reachable() async -> Bool {
+        guard Self.available else { return false }
+        let state: Hint? = try? await call("GET", "/trial/status", token: token)
+        return state != nil
+    }
+
     /// After a run (or a failed start): give the line back, saying why the run ended (old gateways ignore the
     /// body); the server also ends it on its own when idle. In its own background task: the run's ends right after,
     /// and a DELETE that never went out left the lease to idle out 30 s later.
     func end(_ runEnd: RunEnd?) {
         keepAlive?.cancel()
         keepAlive = nil
-        guard let lease, let token else { return }
+        guard let lease else { return }
         self.lease = nil
+        guard let token else { return }  // refused (401): nothing to release it with, it idles out on the server
         var runEnd = runEnd ?? RunEnd(reason: .other, stage: .running)
         if leaseLost, runEnd.reason != .done { runEnd.reason = .leaseLost }
         let held = Date().timeIntervalSince(claimedAt), id = String(lease.id.prefix(8))
@@ -222,17 +248,15 @@ import UIKit
         guard let lease, let token else { throw TrialError.runsOnly }
         guard !leaseLost else { throw LLMError.trialRunEnded }  // ended on the server: no request would be served
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
-                "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run,
-                "X-Request-ID": UUID().uuidString.lowercased()]
+                "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }
 
     /// Send a diagnostics report (gzip). Same App Attest enrollment as the free line, so only this app can
     /// send one; it never uses a free run. Returns the report id to quote to the developer.
     func sendReport(_ gzip: Data) async throws -> String {
         guard Self.available else { throw TrialError.unavailable }
-        let token = try await enrolledToken()
         struct Sent: Decodable { let report_id: String }
-        let sent: Sent = try await call("POST", "/trial/report", token: token, gzip: gzip)
+        let sent: Sent = try await enrolled { try await self.call("POST", "/trial/report", token: $0, gzip: gzip) }
         return sent.report_id
     }
 
@@ -241,15 +265,22 @@ import UIKit
     func jevTicket() async throws -> String {
         if let ticket = jevTicketCache, ticket.until > Date() { return ticket.value }
         guard Self.available else { throw TrialError.unavailable }
-        let token = try await enrolledToken()
         struct Ticket: Decodable { let jev_ticket: String; let expires_in: Int }
-        let got: Ticket = try await call("POST", "/trial/jev-ticket", token: token)
+        let got: Ticket = try await enrolled { try await self.call("POST", "/trial/jev-ticket", token: $0) }
         jevTicketCache = (got.jev_ticket, Date().addingTimeInterval(Double(got.expires_in) - 60))
         return got.jev_ticket
     }
     private var jevTicketCache: (value: String, until: Date)?
 
     // MARK: enrollment (once per install)
+
+    /// A request with the install's token; refused with 401, the token is forgotten and enrolled once more.
+    private func enrolled<T>(_ request: (String) async throws -> T) async throws -> T {
+        do { return try await request(try await enrolledToken()) } catch TrialError.unenrolled {
+            tokenRefused()
+            return try await request(try await enrolledToken())
+        }
+    }
 
     /// The candidate token is saved before registering, so a lost reply is recovered by asking the status
     /// with it; App Attest never attests the same key twice (each attempt makes a new key).
@@ -322,7 +353,7 @@ import UIKit
         let (data, response) = try await session.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(code) else {
-            if code == 401 { throw TrialError.unavailable }
+            if code == 401 { throw token == nil ? TrialError.unavailable : TrialError.unenrolled }  // a token it doesn't know
             // Client contract: 503 "busy" is final; "waiting", an unknown status or none means ask again later.
             let hint = try? JSONDecoder().decode(Hint.self, from: data)
             if code == 503, hint?.status != "busy" { throw TrialError.waiting(hint?.retry_after_ms ?? 2000) }
@@ -400,13 +431,14 @@ struct RunEnd: Equatable {
 
 enum TrialError: LocalizedError {
     case busy, usedUp, unavailable, unsupported, runsOnly
+    case unenrolled  // 401: the server doesn't know this install's token; enroll again
     case waiting(Int)  // milliseconds until asking again
     var errorDescription: String? {
         switch self {
         case .waiting: return String(localized: "Waiting for Handsy Free…")
         case .usedUp: return String(localized: "You've used the free runs on this iPhone. Add your own model to keep going.")
         case .busy: return String(localized: "Handsy Free is busy or your free runs are used up. Try again in a few minutes, or use your own model.")
-        case .unavailable: return String(localized: "Handsy Free isn't available on this phone right now. Use your own model instead.")
+        case .unavailable, .unenrolled: return String(localized: "Handsy Free isn't available on this phone right now. Use your own model instead.")
         case .unsupported: return String(localized: "Handsy Free needs the App Store version on a real iPhone.")
         case .runsOnly: return String(localized: "Handsy Free only runs tasks. Use your own model for tests and intent analysis.")
         }
