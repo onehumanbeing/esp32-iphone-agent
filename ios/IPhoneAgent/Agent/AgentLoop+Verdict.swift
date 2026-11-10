@@ -46,8 +46,9 @@ extension AgentLoop {
 
     /// TouchCheck after a round: true = the board's pointer is not reaching the iPhone (a fail step is recorded, the
     /// check armed again for after the user's fix). One probe, only early in a run (TouchCheck.note).
-    func touchless() async throws -> Bool {
-        guard let last = steps.last, touchCheck.note(last) == .probe else { return false }
+    /// `big`: the round changed the screen a lot.
+    func touchless(big: Bool) async throws -> Bool {
+        guard let last = steps.last, touchCheck.note(last, big: big) == .probe else { return false }
         try await gate?()
         let seen = await phone?.pointerSeen(near: pointerAt)
         DebugLog.write("touch check: \(TouchCheck.rounds) pointer rounds changed nothing; the probe "

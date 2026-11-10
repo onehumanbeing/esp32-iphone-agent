@@ -56,7 +56,7 @@ extension AgentLoop {
             return try await phone.type(text).map { ("typed", $0) }
         case "clear": return try await phone.clearField().map { ("cleared", $0) }
         case "key": try await phone.key(a["combo"]?.str ?? "")
-        case "home": try await phone.goHome()
+        case "home": try await phone.goHome(again: homeAgain)
         case "open": return ("opened", try await phone.openApp(a["app"]?.str ?? "").rawValue)
         case "back": try await phone.goBack()
         case "wait": break

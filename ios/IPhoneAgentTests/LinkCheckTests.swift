@@ -38,7 +38,7 @@ import XCTest
     }
 
     private func run(fresh: Bool?, maxStalls: Int = 12) async -> (AgentLoop, StillScreen, FakeGestures) {
-        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }  // the screen never changes
+        let model = SystemRecorder { n in "THINK: try\nDO: tap \(100 + 50 * (n % 16)) 500" }  // the screen never changes
         let screen = StillScreen(), phone = FakeGestures()
         screen.fresh = fresh
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil, maxStalls: maxStalls)

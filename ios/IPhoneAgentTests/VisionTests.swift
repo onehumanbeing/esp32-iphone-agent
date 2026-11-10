@@ -127,6 +127,19 @@ final class VisionTests: XCTestCase {
         XCTAssertEqual(found.y * H, 136, accuracy: 3)
     }
 
+    func testSomethingMovingByItselfIsNeverThePointer() throws {
+        // a pointer-sized element that moves on its own (a clock hand) also moves during the nudge
+        let base = screen(pointer: (250, 500)), before = screen(pointer: (262, 500)), after = screen(pointer: (274, 500))
+        XCTAssertNotNil(Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.46), shift: 12 / W))
+        let quiet = Vision.motion(base, before)
+        XCTAssertNil(Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.46), shift: 12 / W, quiet: quiet))
+        // what moved elsewhere leaves the real pointer findable
+        let elsewhere = Vision.motion(screen(spinner: 230), screen(spinner: 90))
+        let found = try XCTUnwrap(Vision.pointer(screen(pointer: (262, 856)), screen(pointer: (274, 856)),
+                                                 near: CGPoint(x: 0.5, y: 0.8), shift: 12 / W, quiet: elsewhere))
+        XCTAssertEqual(found.x * W, 262, accuracy: 3)
+    }
+
     func testChangedAtLooksOnlyAroundThePoint() {
         let before = screen(), after = screen(button: true)  // the button covers x 150-351, y 400-601
         XCTAssertTrue(Vision.changed(before, after, at: CGPoint(x: 250 / W, y: 500 / H)))

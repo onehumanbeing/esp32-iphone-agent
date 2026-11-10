@@ -202,8 +202,9 @@ enum Vision {
     ///
     /// Only the pointer moved between the two frames, so the changed pixels within `reach` of `near` are the
     /// pointer at both spots; their centroid sits shift/2 to the right of the first one. nil if unclear.
+    /// `quiet`: spots (fractions) that moved by themselves just before (`motion`); never the pointer.
     static func pointer(_ before: Data, _ after: Data, near: CGPoint, shift: Double,
-                        reach: CGPoint = CGPoint(x: 0.12, y: 0.08)) -> CGPoint? {
+                        reach: CGPoint = CGPoint(x: 0.12, y: 0.08), quiet: [CGRect] = []) -> CGPoint? {
         guard let ia = image(before), let ib = image(after), ia.width == ib.width, ia.height == ib.height else {
             return nil
         }
@@ -214,9 +215,12 @@ enum Vision {
         let top = max(Int(0.05 * Double(h)), Int((ny - ry) * Double(h)))  // skip the status bar
         let right = min(w, Int((nx + rx) * Double(w))), bottom = min(h, Int((ny + ry) * Double(h)))
         guard right > left, bottom > top else { return nil }
+        let still = quiet.map { CGRect(x: $0.minX * Double(w), y: $0.minY * Double(h), width: $0.width * Double(w),
+                                       height: $0.height * Double(h)) }
         var hits: [(Int, Int)] = []
         for y in top..<bottom {
-            for x in left..<right where abs(Int(a.px[y * w + x]) - Int(b.px[y * w + x])) > 30 {
+            for x in left..<right where abs(Int(a.px[y * w + x]) - Int(b.px[y * w + x])) > 30
+                && !still.contains(where: { $0.contains(CGPoint(x: x, y: y)) }) {
                 hits.append((x - left, y - top))
             }
         }

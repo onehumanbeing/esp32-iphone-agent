@@ -55,6 +55,7 @@ struct HelpPanel: View {
     private var limit: Bool { reason == AgentLoop.stepLimitReason }
     private var stalled: Bool { reason.hasPrefix(AgentLoop.stallReason) }
     private var touchless: Bool { reason == TouchCheck.reason }
+    private var repeating: Bool { reason == NoProgress.reason }  // a stall too (its prefix): the same buttons
 
     var body: some View {
         Section {
@@ -89,6 +90,7 @@ struct HelpPanel: View {
 
     private var title: Text {
         if limit { return Text("That's \(app.agent.maxSteps) steps") }
+        if repeating { return Text("I keep repeating the same step") }
         if stalled { return Text("The screen hasn't changed in a while") }
         if touchless { return Text("My taps aren't reaching the iPhone") }
         return Text(verbatim: reason)
@@ -97,6 +99,7 @@ struct HelpPanel: View {
     private var detail: LocalizedStringKey? {
         if app.takingOver { return "Do the step yourself, then tap Continue." }
         if touchless { return "\(TouchCheck.advice) Then tap Keep Going." }
+        if repeating { return "\(NoProgress.advice) Then tap Keep Going." }
         if limit { return "A safety limit. If the run is still getting somewhere, keep going." }
         if stalled { return "My taps may be missing. Do this step yourself, or let me try again." }
         return nil

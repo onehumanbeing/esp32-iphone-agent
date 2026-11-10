@@ -19,6 +19,9 @@ import UIKit
     static let aimTolerance = 0.008         // screen fraction; a bigger miss is corrected before pressing
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
     static let agree = 0.02                 // a far reading is taken again; both must agree this closely
+    static let sameSpot = 0.03              // a far reading this close to the last far one, for targets
+    static let apart = 0.1                  // this far apart, is something moving by itself, not the pointer
+    static let watch = 0.3                  // s the screen is watched before a nudge, for what moves by itself
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -49,6 +52,7 @@ import UIKit
     var recalibration = Recalibration()  // a landing far off target calibrates again before the next tap
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
+    private var lastFar: (target: CGPoint, found: CGPoint)?  // the last reading far off its target (measureSure)
     private var link = 0  // device.links when the pointer was last homed
     /// where the pointer really landed (seen on screen) for the fraction we aimed at, per axis; a line fit
     /// through them corrects every later move, so taps get better as the agent works
@@ -305,13 +309,26 @@ import UIKit
     private func measureSure(_ x: Double, _ y: Double) async throws -> CGPoint? {
         func off(_ p: CGPoint, _ x: Double, _ y: Double) -> Double { max(abs(Double(p.x) - x), abs(Double(p.y) - y)) }
         guard let first = try await measure(x, y, model: false) else { return nil }
-        guard off(first, x, y) > Self.maxMiss else { return first }
+        guard off(first, x, y) > Self.maxMiss else { lastFar = nil; return first }
         guard let again = try await measure(x, y, model: false), off(again, Double(first.x), Double(first.y)) <= Self.agree else {
             log(String(format: "pointer: far reading (%.3f, %.3f) not seen again; position unknown", first.x, first.y))
             pos = nil
             return nil
         }
+        defer { lastFar = (CGPoint(x: x, y: y), again) }
+        if let last = lastFar, Self.stuckReading(again, target: CGPoint(x: x, y: y), last: last) {
+            log(String(format: "pointer: far reading (%.3f, %.3f) stays put while targets move; not the pointer", again.x, again.y))
+            pos = nil
+            return nil
+        }
         return again
+    }
+
+    /// A far reading at the spot of the last far reading although the targets are far apart: the pointer went
+    /// elsewhere, so it is something that moves on screen by itself (e.g. a clock), not the pointer.
+    static func stuckReading(_ found: CGPoint, target: CGPoint, last: (target: CGPoint, found: CGPoint)) -> Bool {
+        func off(_ a: CGPoint, _ b: CGPoint) -> Double { max(abs(Double(a.x - b.x)), abs(Double(a.y - b.y))) }
+        return off(found, last.found) <= sameSpot && off(target, last.target) > apart
     }
 
     /// Wiggle the pointer and find it on screen, near the target first, then anywhere. model: ask the vision
@@ -321,6 +338,9 @@ import UIKit
         let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
         let started = now()
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
+        // what moves by itself (a clock, a spinner) in a short look before the nudge can't be the pointer
+        let base = screen.frame
+        try? await Task.sleep(nanoseconds: UInt64(Self.watch * 1e9))
         let before = screen.frame, sent = now()
         // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
         let previousPosition = pos
@@ -340,8 +360,9 @@ import UIKit
         }
         let looked = now()
         let p = await Vision.off {
-            Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
-                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
+            let quiet = Vision.motion(base, before)
+            return Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift, quiet: quiet)
+                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
         }
         // where a slow search spends its time (2026-11-07: taps took 9-26 s with seconds between commands)
         log(String(format: "pointer: measure %.1f s (settle %.1f, frames %.1f, search %.1f)%@", now() - started,
@@ -441,102 +462,6 @@ import UIKit
     func scroll(_ x: Double, _ y: Double, lines: Int) async throws {
         try await point(x, y)
         try await device.send("scroll \(lines) 0")
-    }
-
-    /// The board types printable ASCII (one key per character). Chinese goes in as toneless pinyin through
-    /// the pinyin keyboard, word by word, each committed and read back (HanTyper); accented Latin letters
-    /// through Option keys (Accents); emoji are dropped. Other scripts (kana, Hangul, Cyrillic …) are not typed at
-    /// all: the agent pastes them (Scripts, AgentLoop.pasteInstead). The clipboard is no route from here: iOS
-    /// refuses a background app's write (a Mac's Universal Clipboard text got pasted instead, 2026-10-20).
-    /// Returns nil when all went in, else a note for the model (what did not, and what is left).
-    @discardableResult
-    func type(_ text: String) async throws -> String? {
-        if Scripts.needsPaste(text) { return "nothing typed: the board cannot type this script; \"\(text)\" is left" }
-        let han = HanTyper.isHan(text)
-        let typed = han ? Self.typeable(text) : Accents.plan(text).typed
-        if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
-        guard !typed.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII and accented Latin letters)") }
-        let layout = try await matchKeyboard(pinyin: han)
-        let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
-                             toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
-            guard let screen = self?.screen, screen.live else { return nil }
-            await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
-            guard let image = screen.frame.flatMap(Vision.image) else { return nil }
-            return HanTyper.Seen(words: await UITreeOCR.lines(image), height: image.height)
-        })
-        // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
-        let note = try await typer.type(text, checkLetters: han || layout == .none)
-        if let note { log("type: \(note)") }
-        return note
-    }
-
-    /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
-    /// letters; models rarely notice (2026-11-03 runs). Read the keyboard off the screen and switch (ctrl+space).
-    /// The layout it ended on (.none: no keyboard on screen, as with the board as a hardware keyboard: HanTyper
-    /// then tells the layouts apart by whether typed letters bring up candidates).
-    @discardableResult
-    private func matchKeyboard(pinyin: Bool) async throws -> KeyboardLayout {
-        guard let screen, screen.live else { return .none }
-        var layout = KeyboardLayout.none
-        for _ in 0..<2 {
-            guard let frame = screen.frame else { return .none }
-            layout = await KeyboardLayout.read(frame)
-            if layout == .none || (layout == .pinyin) == pinyin { return layout }
-            log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
-            try await toggleKeyboard()
-        }
-        return layout == .none || (layout == .pinyin) == pinyin ? layout : .none
-    }
-
-    /// ctrl+space (pinyin <-> English), waited for until the screen shows it.
-    private func toggleKeyboard() async throws {
-        let sent = now()
-        try await key("ctrl+space")
-        guard let screen, screen.live else { return }
-        _ = await screen.fresh(since: sent, timeout: 1.5)
-        await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
-    }
-
-    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
-    /// `trim` false keeps spaces at the ends (a piece of a longer text).
-    nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
-        guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
-        var out = ""
-        for ch in text {
-            let s = String(ch)
-            let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
-            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
-                .applyingTransform(.stripDiacritics, reverse: false) ?? s
-            let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
-            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
-        }
-        return trim ? out.trimmingCharacters(in: .whitespaces) : out
-    }
-    /// Models write "delete" for the Mac's backspace key; the board knows it as "backspace" (2026-11-02 log).
-    func key(_ combo: String) async throws {
-        let keys = combo.split(separator: "+").map { $0 == "delete" ? "backspace" : String($0) }
-        try await device.send("key \(keys.joined(separator: "+"))")
-    }
-    /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
-    /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
-    /// a rest: resting opens the app switcher). An acknowledged key that left the screen as it was gets the flick
-    /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
-    func goHome() async throws {
-        let before = screen?.live == true ? screen?.frame : nil
-        do {
-            try await device.send("homescreen")
-        } catch let error as DeviceError where error.message.hasPrefix("err ") {
-            // 开发板明确拒绝时可尝试旧固件的快捷键，回执超时则交给上层重新观察。
-            try await key("cmd+h")
-            try await Task.sleep(nanoseconds: 350_000_000)
-            return try await homeSwipe()
-        }
-        guard let screen, let before else { return }
-        await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
-        let after = screen.frame
-        if await Vision.off({ Vision.changed(before, after) }) { return }
-        log("home: the Home key left the screen unchanged; flicking up from the home bar")
-        try await homeSwipe()
     }
 
     /// Spotlight (cmd+space) with the app's name typed, opened and read back by AppOpener: tapping Home's Search

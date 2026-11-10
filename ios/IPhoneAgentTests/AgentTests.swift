@@ -525,7 +525,8 @@ import XCTest
     var typeNote: String?
     func type(_ text: String) async throws -> String? { calls.append("type"); return typeNote }
     func key(_ combo: String) async throws { calls.append("key") }
-    func goHome() async throws { calls.append("home") }
+    var homeAgain: [Bool] = []
+    func goHome(again: Bool) async throws { calls.append("home"); homeAgain.append(again) }
     var openResult = OpenResult.opened
     func openApp(_ name: String) async throws -> OpenResult { calls.append("open \(name)"); return openResult }
     func goBack() async throws { calls.append("back") }

@@ -9622,6 +9622,26 @@
           }
         }
       }
+    },
+    "I keep repeating the same step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我一直在重复同一步"
+          }
+        }
+      }
+    },
+    "The same action keeps leaving the screen as it was. Check that the pointer shows on the iPhone (AssistiveTouch on, the board connected)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一个操作一直没有让屏幕变化。请确认 iPhone 上能看到指针（辅助触控已打开，板子已连接）。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

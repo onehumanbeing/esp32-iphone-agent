@@ -127,7 +127,7 @@ import UIKit
     func drag(_ points: [CGPoint], hold: Bool) async throws {}
     func type(_ text: String) async throws -> String? { nil }
     func key(_ combo: String) async throws {}
-    func goHome() async throws {}
+    func goHome(again: Bool) async throws {}
     func openApp(_ name: String) async throws -> OpenResult { .opened }
     func goBack() async throws {}
     func reset() async throws {}

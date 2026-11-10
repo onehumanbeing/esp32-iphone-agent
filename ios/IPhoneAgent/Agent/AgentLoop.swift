@@ -16,7 +16,8 @@ struct BlindError: LocalizedError {
     func type(_ text: String) async throws -> String?
     func key(_ combo: String) async throws
     func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
-    func goHome() async throws
+    /// again: the previous step was Home too and changed little (Pointer.goHome).
+    func goHome(again: Bool) async throws
     func openApp(_ name: String) async throws -> OpenResult
     func goBack() async throws
     func reset() async throws
@@ -57,6 +58,7 @@ extension Gestures {
     @Published private(set) var running = false
     var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
     var touchCheck = TouchCheck()  // gestures acknowledged by the board but not reaching the iPhone
+    var progress = NoProgress()  // the same action repeated while the screen stays much the same
     /// When the last gesture ended: the model never decides on a frame from before it.
     var lastActed = 0.0
     /// Awaited before every look and every gesture (the app holds the run while its own UI is in front).
@@ -142,7 +144,7 @@ extension Gestures {
         StepReport.shared.clear()
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
-        touchCheck = TouchCheck()
+        (touchCheck, progress) = (TouchCheck(), NoProgress())
         lastActed = 0
         helpAsked = 0
         droppingChosenGesture = false
@@ -366,7 +368,7 @@ extension Gestures {
                     if roundDroppedByPause { roundDroppedByPause = false; continue }  // no gesture, no stall
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
                     try await checkLink(unchanged: stalls)
-                    if try await touchless() {
+                    if try await stuck() {
                         guard try await askForHelp() else { return finish() }
                         stalls = 0
                     }
@@ -588,12 +590,5 @@ extension Gestures {
         self.plan = plan
         self.steps = steps
         self.running = running
-    }
-
-    /// Python's str() of a value in an f-string (None for a missing key).
-    private func pyStr(_ v: JValue?) -> String {
-        guard let v else { return "None" }
-        if case .str(let s) = v { return s }
-        return PyJSON.dumps(v)
     }
 }

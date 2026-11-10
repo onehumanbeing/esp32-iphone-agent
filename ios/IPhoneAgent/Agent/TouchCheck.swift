@@ -18,13 +18,25 @@ struct TouchCheck {
     private(set) var armed = true
     private(set) var unchanged = 0
 
-    /// After a round: its last step (action, changed, landed).
-    mutating func note(_ step: JObject) -> Next {
+    /// After a round: its last step (action, changed, landed) and whether the round changed the screen a lot.
+    /// Only a big change or the pointer seen on the target shows it works: a small change may be something moving
+    /// by itself, and a far reading may be such a thing taken for the pointer.
+    mutating func note(_ step: JObject, big: Bool) -> Next {
         guard armed, let action = step["action"]?.str, Self.pointerActions.contains(action),
-              case .bool(let changed)? = step["changed"] else { return .wait }
-        if changed || step["landed"] != nil { armed = false; return .wait }  // the pointer works
+              step["changed"]?.bool != nil else { return .wait }
+        if big || Self.landedOnTarget(step) { armed = false; return .wait }  // the pointer works
         unchanged += 1
         return unchanged >= Self.rounds ? .probe : .wait
+    }
+
+    /// Units (0-1000) a landing may miss the target by and still show the pointer (Pointer.maxMiss).
+    static let onTarget = 60.0
+
+    /// The landing check saw the pointer within `onTarget` of the tap's target.
+    static func landedOnTarget(_ s: JObject) -> Bool {
+        guard case .arr(let p)? = s["landed"], p.count == 2, let lx = p[0].double, let ly = p[1].double,
+              let x = s["x"]?.double, let y = s["y"]?.double else { return false }
+        return max(abs(lx - x), abs(ly - y)) <= onTarget
     }
 
     /// The probe's answer: true = the pointer is not reaching the iPhone (stop and say so); nil = could not tell.

@@ -49,6 +49,7 @@
 		2CF6A30C3D72E05EEBC6FFED /* IslandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54BC007EE5C64A13CDEE9EE /* IslandTests.swift */; };
 		701DB1C5BDCDD4E8B1216F2C /* LinkCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */; };
 		2D5F3E3546B0DF18896126D2 /* TouchCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF617B736D526076BF940A68 /* TouchCheckTests.swift */; };
+		01525448B3D1AD4DFB9CDCE1 /* NoProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */; };
 		2E0528FB2EE598C85BE46D6B /* JevTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD41B01C484BEC1A52E74719 /* JevTests.swift */; };
 		3055C34496B3D24F2DEEAD81 /* SettingsBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4E31A88D64486C0F1629C9 /* SettingsBackup.swift */; };
 		3298C81AB2EC4CBBC912ACFC /* BoardProximityIllustration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5AF33659891C2EFF70D356A /* BoardProximityIllustration.swift */; };
@@ -140,6 +141,8 @@
 		96C08C1CFEECA69484811137 /* StatusChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BDA430E0C54DC956DE9366 /* StatusChips.swift */; };
 		C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 631717D96356AF58914A22AA /* LinkCheck.swift */; };
 		7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */; };
+		5CC305035C1C48ED032C19D4 /* Pointer+Keys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */; };
+		7F507E00732D8B71CA6C8BB7 /* AgentLoop+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */; };
 		855A29556730B57A49684886 /* PointerRecalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */; };
 		99436D744F3606BF231E41C0 /* TouchCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E61E51B087F223ED985C56 /* TouchCheck.swift */; };
 		99D64CF9B896616382FC8A0E /* AgentActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A11E0FF01881451EBB3D18FF /* AgentActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -428,6 +431,7 @@
 		CDEC662BD901F01994E23515 /* ScriptSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptSection.swift; sourceTree = "<group>"; };
 		75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCheckTests.swift; sourceTree = "<group>"; };
 		CF617B736D526076BF940A68 /* TouchCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCheckTests.swift; sourceTree = "<group>"; };
+		0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoProgressTests.swift; sourceTree = "<group>"; };
 		CFB37456C763ADFEF9E577A2 /* IslandStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandStatus.swift; sourceTree = "<group>"; };
 		D17A722B1C48BF8FBF8B4222 /* OnboardingDemos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDemos.swift; sourceTree = "<group>"; };
 		D222722DF7856F9253B9784E /* IntentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetailView.swift; sourceTree = "<group>"; };
@@ -452,6 +456,8 @@
 		E4B0E258DD4494C631F0E77A /* TrialTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrialTests.swift; sourceTree = "<group>"; };
 		631717D96356AF58914A22AA /* LinkCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCheck.swift; sourceTree = "<group>"; };
 		E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Pause.swift"; sourceTree = "<group>"; };
+		2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Pointer+Keys.swift"; sourceTree = "<group>"; };
+		D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Progress.swift"; sourceTree = "<group>"; };
 		ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerRecalibration.swift; sourceTree = "<group>"; };
 		E4E61E51B087F223ED985C56 /* TouchCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCheck.swift; sourceTree = "<group>"; };
 		E7318AED24A07B92CBB7496E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -508,6 +514,8 @@
 				2169FBFC7A60B9FC1FF1E724 /* StepText.swift */,
 				631717D96356AF58914A22AA /* LinkCheck.swift */,
 				E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */,
+				2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */,
+				D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */,
 				ADFBFF990EF574958CAC841D /* PointerRecalibration.swift */,
 				E4E61E51B087F223ED985C56 /* TouchCheck.swift */,
 				6B92AE54E2CEB0DEA588E1E4 /* UITree.swift */,
@@ -595,6 +603,7 @@
 				0884D2AF849046D0FA2E62C1 /* StoreTests.swift */,
 				75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */,
 				CF617B736D526076BF940A68 /* TouchCheckTests.swift */,
+				0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */,
 				E4B0E258DD4494C631F0E77A /* TrialTests.swift */,
 				9E49E4897714D436F985C230 /* UITreeTests.swift */,
 				44E6D0770452B562B5CA484E /* VideoTests.swift */,
@@ -1060,6 +1069,7 @@
 				0638DE7546BE2E3578EAE3D6 /* StoreTests.swift in Sources */,
 				701DB1C5BDCDD4E8B1216F2C /* LinkCheckTests.swift in Sources */,
 				2D5F3E3546B0DF18896126D2 /* TouchCheckTests.swift in Sources */,
+				01525448B3D1AD4DFB9CDCE1 /* NoProgressTests.swift in Sources */,
 				E45965E6B985C29D7DDC83BB /* TrialTests.swift in Sources */,
 				90690C50BC27D749B19F7BA7 /* UITreeTests.swift in Sources */,
 				8FCFB9340A6E3F74CE629FBF /* VideoTests.swift in Sources */,
@@ -1214,6 +1224,8 @@
 				4C33F19F733F62B5A131BE9E /* TouchCalibration.swift in Sources */,
 				C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */,
 				7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */,
+				5CC305035C1C48ED032C19D4 /* Pointer+Keys.swift in Sources */,
+				7F507E00732D8B71CA6C8BB7 /* AgentLoop+Progress.swift in Sources */,
 				855A29556730B57A49684886 /* PointerRecalibration.swift in Sources */,
 				99436D744F3606BF231E41C0 /* TouchCheck.swift in Sources */,
 				C4F3ADB5189E27B999BDDF83 /* TouchProbe.swift in Sources */,

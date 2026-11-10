@@ -3,40 +3,50 @@ import XCTest
 
 /// The board acknowledges gestures but the iPhone takes no pointer from it: found early, the run asks with what to check.
 @MainActor final class TouchCheckTests: XCTestCase {
-    private func step(_ action: String, changed: Bool, landed: Bool = false) -> JObject {
-        var s: JObject = ["action": .str(action), "changed": .bool(changed)]
-        if landed { s["landed"] = .arr([.int(500), .int(500)]) }
+    private func step(_ action: String, changed: Bool, landed: Int? = nil) -> JObject {
+        var s: JObject = ["action": .str(action), "changed": .bool(changed), "x": .num(500), "y": .num(500)]
+        if let landed { s["landed"] = .arr([.int(landed), .int(500)]) }
         return s
     }
 
     func testPointerRoundsThatChangeNothingAskForOneProbe() {
         var check = TouchCheck()
-        XCTAssertEqual(check.note(step("tap", changed: false)), .wait)
-        XCTAssertEqual(check.note(step("key", changed: false)), .wait, "keys go through the keyboard, not the pointer")
-        XCTAssertEqual(check.note(step("swipe", changed: false)), .wait)
-        XCTAssertEqual(check.note(step("type", changed: true)), .wait, "a keyboard change says nothing about the pointer")
-        XCTAssertEqual(check.note(step("back", changed: false)), .probe)
+        XCTAssertEqual(check.note(step("tap", changed: false), big: false), .wait)
+        XCTAssertEqual(check.note(step("key", changed: false), big: false), .wait, "keys go through the keyboard, not the pointer")
+        XCTAssertEqual(check.note(step("swipe", changed: false), big: false), .wait)
+        XCTAssertEqual(check.note(step("type", changed: true), big: true), .wait, "a keyboard change says nothing about the pointer")
+        XCTAssertEqual(check.note(step("back", changed: false), big: false), .probe)
         XCTAssertTrue(check.probed(false))
         XCTAssertFalse(check.armed)
-        XCTAssertEqual(check.note(step("tap", changed: false)), .wait, "one verdict per run")
+        XCTAssertEqual(check.note(step("tap", changed: false), big: false), .wait, "one verdict per run")
     }
 
     func testAnySignThePointerWorksDisarmsIt() {
         var changed = TouchCheck()
-        _ = changed.note(step("tap", changed: false))
-        _ = changed.note(step("tap", changed: true))
+        _ = changed.note(step("tap", changed: false), big: false)
+        _ = changed.note(step("tap", changed: true), big: true)
         XCTAssertFalse(changed.armed)
         var landed = TouchCheck()
-        _ = landed.note(step("tap", changed: false, landed: true))
-        XCTAssertFalse(landed.armed, "the landing check saw the pointer")
+        _ = landed.note(step("tap", changed: false, landed: 530), big: false)
+        XCTAssertFalse(landed.armed, "the landing check saw the pointer on the target")
         var unsure = TouchCheck()
         XCTAssertFalse(unsure.probed(nil), "a probe that could not tell never stops the run")
         XCTAssertFalse(unsure.probed(true))
     }
 
+    func testASmallChangeOrAFarReadingIsNoSignThePointerWorks() {
+        var check = TouchCheck()
+        XCTAssertEqual(check.note(step("tap", changed: true), big: false), .wait, "e.g. a clock ticking")
+        XCTAssertEqual(check.note(step("tap", changed: false, landed: 900), big: false), .wait,
+                       "a reading far off the target may be something else on screen")
+        XCTAssertTrue(check.armed)
+        XCTAssertEqual(check.note(step("tap", changed: true), big: false), .probe)
+    }
+
     private func run(visible: Bool?, maxStalls: Int = 12, answers: [AgentLoop.HelpChoice] = [.stop])
         async -> (agent: AgentLoop, phone: FakeGestures, asked: [String]) {
-        let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }  // the fake screen never changes
+        // the fake screen never changes; taps move around, so NoProgress (one spot again and again) stays out of it
+        let model = SystemRecorder { n in "THINK: try\nDO: tap \(100 + 50 * (n % 16)) 500" }
         let screen = FakeScreen(), phone = FakeGestures()
         screen.frame = AgentTests.jpeg()
         phone.pointerVisible = visible
