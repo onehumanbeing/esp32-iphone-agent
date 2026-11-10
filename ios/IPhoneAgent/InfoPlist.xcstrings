@@ -2,6 +2,22 @@
   "sourceLanguage" : "en",
   "version" : "1.0",
   "strings" : {
+    "NSScreenCaptureUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this iPhone screen so the agent can see and operate it during tasks."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享此 iPhone 的屏幕，让智能体在执行任务时查看并操作屏幕。"
+          }
+        }
+      }
+    },
     "CFBundleDisplayName" : {
       "localizations" : {
         "en" : {

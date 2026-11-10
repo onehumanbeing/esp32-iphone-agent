@@ -62,7 +62,7 @@ import UIKit
     }
 
     /// Show the Calibrate button: due, and everything it needs is up.
-    var offer: Bool { (needed || MockMode.on && !app.pointer.calibrated) && (MockMode.on || boardReady && mirroring) && !busy && !boardOpen }
+    var offer: Bool { (needed || MockMode.on && !app.pointer.calibrated) && (MockMode.on || boardReady && (app.onDeviceCapture || mirroring)) && !busy && !boardOpen }
 
     /// Open the board and calibrate automatically (Calibrate button, Settings, debug entry).
     func calibrate(why: String = String(localized: "requested")) {
@@ -139,14 +139,19 @@ import UIKit
     /// The fallback: find the pointer in the mirrored video.
     private func videoCalibrate(noTaps: Bool) async {
         let diagnosis = noTaps ? Self.noTapsText : nil
-        guard mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }
-        guard FrameMode.current == .stream else {  // the video finder needs the live stream
+        guard app.onDeviceCapture || mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }
+        guard app.onDeviceCapture || FrameMode.current == .stream else {  // the video finder needs the live stream
             app.say("calibration: video fallback skipped in snap mode")
             return failed(diagnosis ?? String(localized: "Pointer not found on screen."))
         }
         do {
-            try await app.feed.stream(true)
-            defer { if !app.agent.running { Task { try? await app.feed.stream(false) } } }
+            let ownsCapture = app.onDeviceCapture && !app.startingAgent && !app.agent.running
+            defer {
+                if ownsCapture { app.finishScreen() }
+                else if !app.onDeviceCapture && !app.agent.running { Task { try? await app.feed.stream(false) } }
+            }
+            if app.onDeviceCapture { try await app.prepareLocalCapture() }
+            else { try await app.feed.stream(true) }
             let ok = try await app.pointer.startCalibration { [weak self] i in
                 self?.phase = [.homing, .probeA, .probeB][min(i, 2)]
             }
@@ -158,7 +163,9 @@ import UIKit
             }
             finished(error)
         } catch {
-            if !Task.isCancelled { failed(diagnosis ?? error.localizedDescription) }
+            if !Task.isCancelled {
+                failed(error is ScreenCaptureError ? error.localizedDescription : diagnosis ?? error.localizedDescription)
+            }
         }
     }
 

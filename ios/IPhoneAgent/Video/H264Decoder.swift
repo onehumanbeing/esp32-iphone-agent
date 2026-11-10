@@ -31,8 +31,9 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     /// still screen, 2026-11-02) made a JPEG and a SwiftUI redraw per frame, 48 s of CPU, and iOS killed the app.
     /// The live stream is ≤5 fps, so it is not thinned.
     static let emitGap = 0.15
-    private var lastEmit = 0.0
-    private var held: (CVImageBuffer, Double, AccessUnit)?
+    private lazy var throttle = FrameThrottle<(CVImageBuffer, Double, AccessUnit)>(queue: queue, interval: Self.emitGap) { [weak self] value in
+        self?.emitNow(value.0, ms: value.1, unit: value.2)
+    }
 
     /// Decode one access unit (call on `queue`).
     func decode(_ unit: AccessUnit) {
@@ -95,20 +96,10 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     }
 
     func emitThinned(_ image: CVImageBuffer, ms: Double, unit: AccessUnit) {
-        let wait = lastEmit + Self.emitGap - CFAbsoluteTimeGetCurrent()
-        guard wait > 0 else { return emitNow(image, ms: ms, unit: unit) }
-        let flushPending = held != nil
-        held = (image, ms, unit)
-        guard !flushPending else { return }
-        queue.asyncAfter(deadline: .now() + wait) { [weak self] in
-            guard let self, let (image, ms, unit) = self.held else { return }
-            self.emitNow(image, ms: ms, unit: unit)
-        }
+        throttle.submit((image, ms, unit))
     }
 
     private func emitNow(_ image: CVImageBuffer, ms: Double, unit: AccessUnit) {
-        held = nil
-        lastEmit = CFAbsoluteTimeGetCurrent()
         if let frame = jpeg(image, ms: ms, unit: unit) { onFrame?(frame) }
     }
 

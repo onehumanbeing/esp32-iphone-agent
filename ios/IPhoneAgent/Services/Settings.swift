@@ -456,3 +456,17 @@ struct CustomEndpoint: Identifiable, Equatable {
         return url.port.map { "\(host):\($0)" } ?? host
     }
 }
+
+/// Persisted capture preference; unavailable devices always use AirPlay.
+enum CaptureBackend: String {
+    case airPlay, onDevice
+    static let key = "captureBackend"
+    @MainActor static var onDeviceAvailable: Bool {
+        guard #available(iOS 27.0, *) else { return false }
+        return ScreenCaptureFeed.isAvailable
+    }
+    @MainActor static var current: CaptureBackend {
+        guard onDeviceAvailable else { return .airPlay }
+        return CaptureBackend(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .airPlay
+    }
+}

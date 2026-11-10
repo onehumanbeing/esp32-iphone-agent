@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(AskMode.key) private var askMode = AskMode.current
 
     var body: some View {
+        let captureAvailable = CaptureBackend.onDeviceAvailable
         NavigationStack {
             List {
                 Section {
@@ -30,6 +31,35 @@ struct SettingsView: View {
                     .tint(.primary)
                 } footer: {
                     Text("ESP32 Agent follows your iPhone's language. To change it just for this app, open Settings › ESP32 Agent › Language.")
+                }
+                Section {
+                    Group {
+                        if captureAvailable {
+                            Picker(selection: Binding(get: { app.captureBackend }, set: { app.setCaptureBackend($0) })) {
+                                Text("AirPlay").tag(CaptureBackend.airPlay)
+                                Text("On-device capture").tag(CaptureBackend.onDevice)
+                            } label: {
+                                SettingsLabel(title: "Screen capture", symbol: "rectangle.inset.filled", color: .blue)
+                            }
+                        } else {
+                            Button { app.setCaptureBackend(.airPlay) } label: {
+                                HStack {
+                                    SettingsLabel(title: "Screen capture", symbol: "rectangle.inset.filled", color: .blue)
+                                    Spacer()
+                                    Text("AirPlay").foregroundStyle(.secondary)
+                                }
+                            }
+                            .tint(.primary)
+                        }
+                    }
+                    .accessibilityIdentifier("capture-backend")
+                    .disabled(app.agent.running || app.startingAgent || app.recorder.busy || app.calibrator.busy)
+                } footer: {
+                    Text(!captureAvailable
+                         ? "Screen recording is unavailable on this device. Use AirPlay instead."
+                         : app.onDeviceCapture
+                         ? "Screen sharing is requested when a task or recording starts, or when calibration needs it. The board still controls the phone through USB."
+                         : "Use Screen Mirroring to send the screen to the board over Wi-Fi.")
                 }
                 Section {
                     Button { UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!) } label: {

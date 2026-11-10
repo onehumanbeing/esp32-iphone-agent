@@ -5,13 +5,19 @@ import SwiftUI
 struct StatusChips: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
+    @ObservedObject var screen: TaskScreen
     @ObservedObject var pointer: Pointer
     @ObservedObject var calibrator: AutoCalibrator
 
     var body: some View {
         FlowLayout(spacing: Space.s) {
             chip("Board", "cable.connector", ok: board.connected, page: .connect)
-            chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
+            if app.onDeviceCapture {
+                chip("On-device capture", "rectangle.on.rectangle", ok: screen.live, page: nil)
+                    .accessibilityIdentifier("home-capture-source")
+            } else {
+                chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
+            }
             chip("Mouse", "cursorarrow", ok: board.connected && board.status?.usb == "ok", page: .act)
             chip(calibrator.busy ? "Calibrating" : "Pointer", "scope", ok: pointer.calibrated, busy: calibrator.busy, page: .act)
             chip(app.settings.provider == .handsyTrial && app.modelOK == false
@@ -22,10 +28,11 @@ struct StatusChips: View {
     }
 
     private func chip(_ title: LocalizedStringKey, _ symbol: String, ok: Bool, busy: Bool = false,
-                      page: SetupPage) -> some View {
+                      page: SetupPage?) -> some View {
         Button {
             Haptics.tick()
-            app.setupPage = page
+            if let page { app.setupPage = page }
+            else { app.tab = .settings }
         } label: {
             HStack(spacing: 5) {
                 if busy {
