@@ -90,7 +90,16 @@ extension Gestures {
     var onWrite: ((String) async throws -> Bool)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
+    /// The actor handed the phone over (`hand`, or a refused secret). Nil falls back to `onHelp`.
+    var onHand: ((String) async -> HelpChoice)?
     private var helpAsked = 0
+    /// How many times this run has handed the phone over. Past `maxHandoffs` the run stops.
+    private var hands = 0
+    static let maxHandoffs = 4
+    /// The person paused, or opened this app, since the last look. The next look says so.
+    private(set) var userHadPhone = false
+    /// Shown to the model (and kept in the trace) when they had the phone. English, like the other step reasons.
+    static let userHadPhoneReason = "the user had the phone and may have changed the screen; check it before assuming the last action worked"
     /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
     private var acceptedLookLinks: Int?
     private enum InvalidatedLook: Error { case connectionChanged }
@@ -131,6 +140,8 @@ extension Gestures {
         pointerAt = .zero
         lastActed = 0
         helpAsked = 0
+        hands = 0
+        userHadPhone = false
         acceptedLookLinks = nil
         replay.restart()
         if !traceStarted { trace?.start(task: task) }
@@ -229,6 +240,7 @@ extension Gestures {
         var reconnectDeadline = reconnectUntil
         while true {
             try await gate?()
+            if let note = takeUserHandoffNote() { prompt += note }
             // a stale frame (the stream broke after the last action) is fetched again, never sent
             let forceRestore = connectionChanged(since: acceptedLookLinks) || screen?.stale == true
             if (forceRestore || screen?.live == false) && reconnectDeadline == nil {
@@ -240,6 +252,7 @@ extension Gestures {
                 let note = "\n\nNote: the connection was lost and restored; re-check the screen before acting."
                 if !prompt.hasSuffix(note) { prompt += note }
                 try await gate?()  // the user may have opened this app while it was paused
+                if let note = takeUserHandoffNote() { prompt += note }
                 if connectionChanged(since: restoredLinks) {
                     acceptedLookLinks = restoredLinks
                     continue
@@ -397,6 +410,55 @@ extension Gestures {
         return true
     }
 
+    /// The person paused from the island, or opened this app. The next look is told.
+    func markUserHadPhone() { userHadPhone = true }
+
+    /// Record that they had the phone, once. The note is for a prompt whose history was already built.
+    func takeUserHandoffNote() -> String? {
+        guard userHadPhone else { return nil }
+        userHadPhone = false
+        record(nil, ["action": .str("takeover"), "reason": .str(Self.userHadPhoneReason)])
+        return "\n\nNote: \(Self.userHadPhoneReason)."
+    }
+
+    /// A `hand`, or a type/key that would send a secret. Nil = this round acts as usual.
+    private func handoffReason(_ acts: [Planned]) -> String? {
+        let thought = acts[0].act["thought"]?.str ?? ""
+        if acts.contains(where: { $0.act["action"]?.str == "hand" }) {
+            let said = SecretGuard.redact(acts.first { $0.act["action"]?.str == "hand" }?.act["reason"]?.str ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return said.isEmpty ? String(localized: "Do this step yourself.") : said
+        }
+        guard acts.contains(where: { SecretGuard.isSecretEntry($0.act, thought: thought) }) else { return nil }
+        return String(localized: "Enter the password, passcode, or code yourself. I won't type it.")
+    }
+
+    /// Wait while the person has the phone. True = the run is over.
+    private func handed(_ reason: String) async throws -> Bool {
+        hands += 1
+        if hands > Self.maxHandoffs {
+            record(nil, ["action": .str("stopped"), "reason": .str("handed the phone over too many times")])
+            return true
+        }
+        guard let ask = onHand ?? onHelp else {
+            record(nil, ["action": .str("stopped"), "reason": .str("nobody to hand the phone to: \(reason)")])
+            return true
+        }
+        let choice = await ask(reason)
+        try Task.checkCancellation()
+        switch choice {
+        case .stop:
+            record(nil, ["action": .str("stopped")])
+            return true
+        case .resume:
+            record(nil, ["action": .str("takeover"), "reason": .str("the user did this part by hand: \(reason)")])
+        case .skip:
+            record(nil, ["action": .str("skipped"), "reason": .str("the user skipped: \(reason)")])
+        }
+        await screen?.settled()
+        return false
+    }
+
     /// The actor asked before a risky step. True = the run is over (stopped).
     private func confirm(_ reason: String) async throws -> Bool {
         guard let onConfirm, (askMode ?? .current).asks(reason) else {
@@ -434,11 +496,19 @@ extension Gestures {
     func step() async throws -> Bool {
         var timing = Metrics.Step()
         let acts = try await nextActions()
-        JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
         defer { metrics?.step(timing) }
+        if let reason = handoffReason(acts) {
+            JevGate.hold = false  // no gestures this round; the next look may use Jev
+            var handStep: JObject = ["action": .str("hand"), "reason": .str(reason)]
+            let thought = SecretGuard.redact(acts[0].act["thought"]?.str ?? "")
+            if !thought.isEmpty { handStep["thought"] = .str(thought) }
+            record(acts[0].shot, handStep)
+            return try await handed(reason)
+        }
+        JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         for (i, planned) in acts.enumerated() {
             var act = planned.act
             let name = act["action"]?.str ?? ""
@@ -455,6 +525,7 @@ extension Gestures {
             if name == "done" { attachNotebook(&act) }
             if name != "done" && name != "fail" {
                 try await gate?()
+                if takeUserHandoffNote() != nil { return false }  // they had the phone; look again before this gesture
                 guard !connectionChanged(since: acceptedLookLinks) else {
                     throw InvalidatedLook.connectionChanged
                 }

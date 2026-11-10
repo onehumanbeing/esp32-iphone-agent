@@ -7,7 +7,7 @@ extension AppModel {
         guard agent.running, help == nil, !paused else { return }
         paused = true
         DebugLog.write("run: paused from the Live Activity")
-        live.update(mood: .listening, step: moveCount, line: String(localized: "Paused. Tap Continue and I'll go on from here."),
+        live.update(mood: .listening, step: moveCount, line: String(localized: "Paused. The phone is yours. Tap Continue and I'll go on from here."),
                     phase: .paused, status: .paused)
     }
 
@@ -28,6 +28,7 @@ extension AppModel {
             try Task.checkCancellation()
             try await Task.sleep(nanoseconds: 300_000_000)
         }
+        agent.markUserHadPhone()  // the next look must not treat their changes as the last action's result
         _ = await feed.fresh(since: since, timeout: 3)
         await feed.settled()
     }

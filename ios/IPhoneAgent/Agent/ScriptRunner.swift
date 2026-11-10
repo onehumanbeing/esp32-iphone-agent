@@ -70,6 +70,7 @@ extension AgentLoop {
     private func move(_ step: Replay.Step) async throws -> Bool {
         let seen = screen?.frame
         try await gate?()
+        if takeUserHandoffNote() != nil { return false }  // they had the phone; the model repairs from the screen now
         var act = step.action
         onDoing?(.acting(act))
         let started = now()

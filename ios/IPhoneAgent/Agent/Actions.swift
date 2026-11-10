@@ -15,7 +15,7 @@ enum Actions {
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
-        "home": [], "back": [], "wait": [], "open": ["app"],
+        "home": [], "back": [], "wait": [], "open": ["app"], "hand": ["reason"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
@@ -69,6 +69,9 @@ enum Actions {
     /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
     /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
+        // `hand` gives the phone to the person. Anything batched with it (a typed passcode, a tap) is dropped:
+        // one DO line, and the secret is never sent.
+        if let hand = acts.first(where: { $0["action"]?.str == "hand" }) { return [hand] }
         let ending: Set<String?> = ["done", "fail", "confirm", "write"]
         var out: [JObject] = []
         var typed = false
@@ -142,6 +145,44 @@ enum Actions {
         let ns = s as NSString
         return regex(p, multiline: true).matches(in: s, range: NSRange(location: 0, length: ns.length))
             .map { ns.substring(with: $0.range(at: 1)) }
+    }
+}
+
+/// A password, passcode, PIN or one-time code is entered by the person, never by a `type` or digit `key`.
+/// "pin" is a whole word, so "typing" and "shopping" do not count.
+enum SecretGuard {
+    private static let phrases = ["password", "passcode", "pass code", "pin", "one-time code", "one time code",
+                                  "otp", "verification code", "2fa"]
+    private static let cjk = ["密码", "验证码"]
+
+    static func mentionsSecret(_ text: String) -> Bool {
+        if cjk.contains(where: { text.contains($0) }) { return true }
+        let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        return phrases.contains { phrase in
+            folded.range(of: "\\b\(NSRegularExpression.escapedPattern(for: phrase))\\b", options: .regularExpression) != nil
+        }
+    }
+
+    /// True when this action would send a secret. A thought that mentions one blocks the typing in that turn;
+    /// an alarm time ("type 0700") does not, because its thought does not.
+    static func isSecretEntry(_ action: JObject, thought: String) -> Bool {
+        switch action["action"]?.str {
+        case "type":
+            let text = action["text"]?.str?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !text.isEmpty else { return false }
+            return mentionsSecret(thought) || mentionsSecret(text)
+        case "key":
+            let combo = action["combo"]?.str?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !combo.isEmpty, combo.allSatisfy(\.isNumber) else { return false }
+            return mentionsSecret(thought)
+        default:
+            return false
+        }
+    }
+
+    /// Digit runs long enough to be a code, so a reason cannot carry one into the trace or onto the screen.
+    static func redact(_ reason: String) -> String {
+        reason.replacingOccurrences(of: #"\d{4,}"#, with: "••••", options: .regularExpression)
     }
 }
 

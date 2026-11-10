@@ -12,7 +12,7 @@ final class PromptTests: XCTestCase {
 
     func testActionsTheParserKnowsAreDocumented() {
         for verb in ["tap X Y", "swipe X1", "path X1", "circle X Y R", "type TEXT", "key COMBO", "home | back | wait",
-                     "PLAN:", "done ANSWER", "fail REASON"] {
+                     "PLAN:", "done ANSWER", "fail REASON", "hand REASON"] {
             XCTAssertTrue(Prompts.actor.contains(verb), verb)
         }
     }

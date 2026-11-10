@@ -77,7 +77,7 @@ extension AppModel {
         Bundle.main.url(forResource: "mock-frame", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
     }
 
-    /// Plays the demo steps as a run: trace and video on disk, Live Activity, one "needs your help" pause,
+    /// Plays the demo steps as a run: trace and video on disk, Live Activity, one handoff for a passcode,
     /// notifications, then the review.
     func mockRun(_ task: String) {
         guard !agent.running else { return }
@@ -92,12 +92,12 @@ extension AppModel {
                 self?.doing(.thinking)  // the island's eyes dart while the "model" thinks, then look at the target
                 try? await Task.sleep(nanoseconds: 2_400_000_000)
                 guard let self, !Task.isCancelled, self.agent.running else { break }
-                if i == 6 {  // a demo of the help pause
-                    let fail: JObject = ["action": .str("fail"), "reason": .str("A passcode prompt appeared.")]
-                    self.traces.write(kind: "step", fail)
-                    shown.append(fail)
+                if i == 6 {  // a demo of handing the phone over for a passcode
+                    let hand: JObject = ["action": .str("hand"), "reason": .str("A passcode prompt appeared.")]
+                    self.traces.write(kind: "step", hand)
+                    shown.append(hand)
                     self.agent.showMock(task: task, plan: Self.mockPlan, steps: shown, running: true)
-                    let choice = await self.needsHelp("A passcode prompt appeared.")
+                    let choice = await self.needsHelp("A passcode prompt appeared.", handoff: true)
                     let rec: JObject = ["action": .str(choice == .stop ? "stopped" : choice == .skip ? "skipped" : "takeover")]
                     self.traces.write(kind: "step", rec)
                     shown.append(rec)

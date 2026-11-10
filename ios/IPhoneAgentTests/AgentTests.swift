@@ -339,6 +339,166 @@ import XCTest
                        " -> screen did NOT change; the pointer is at 500 958 (37 below the target)")
         XCTAssertNil(Actions.key(agent.steps.last!)["landed"])
     }
+
+    // MARK: - handing the phone to the person
+
+    func testParseHandAndDropsAnythingBatchedWithIt() throws {
+        let hand = try Actions.parseActions("THINK: Locked.\nDO: hand Unlock the iPhone")
+        XCTAssertEqual(hand[0]["action"]?.str, "hand")
+        XCTAssertEqual(hand[0]["reason"]?.str, "Unlock the iPhone")
+        XCTAssertEqual(hand[0]["thought"]?.str, "Locked.")
+        let batched = try Actions.parseActions("THINK: code\nDO: type 123456\nDO: hand Unlock")
+        XCTAssertEqual(batched.map { $0["action"]?.str }, ["hand"])
+        XCTAssertEqual(batched[0]["reason"]?.str, "Unlock")
+        XCTAssertEqual(batched[0]["thought"]?.str, "code")
+        XCTAssertEqual(try Actions.parseActions("THINK: x\nDO: hand").first?["reason"]?.str, "")
+    }
+
+    func testSecretGuardAllowsAnAlarmTimeAndRefusesAPasscode() {
+        XCTAssertFalse(SecretGuard.mentionsSecret("typing the alarm time"))
+        XCTAssertFalse(SecretGuard.mentionsSecret("shopping list"))
+        XCTAssertTrue(SecretGuard.mentionsSecret("enter the PIN"))
+        XCTAssertTrue(SecretGuard.mentionsSecret("输入密码"))
+        XCTAssertFalse(SecretGuard.isSecretEntry(["action": .str("type"), "text": .str("0700")],
+                                                  thought: "Type the time into the wheel."))
+        XCTAssertTrue(SecretGuard.isSecretEntry(["action": .str("type"), "text": .str("123456")],
+                                                 thought: "The passcode screen is up, so I type it."))
+        XCTAssertTrue(SecretGuard.isSecretEntry(["action": .str("key"), "combo": .str("1")],
+                                                 thought: "enter the passcode one digit at a time"))
+        XCTAssertFalse(SecretGuard.isSecretEntry(["action": .str("key"), "combo": .str("enter")],
+                                                  thought: "submit the passcode"))
+        XCTAssertEqual(SecretGuard.redact("the code is 123456"), "the code is ••••")
+    }
+
+    func testAHandWaitsAndGoesOnWhenTheUserContinues() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: Locked.\nDO: hand Unlock the iPhone" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var asked: [String] = []
+        agent.onHand = { reason in asked.append(reason); return .resume }
+        let over = try await agent.step()
+        XCTAssertFalse(over)
+        XCTAssertEqual(asked, ["Unlock the iPhone"])
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["hand", "takeover"])
+        XCTAssertEqual(agent.steps.last?["reason"]?.str, "the user did this part by hand: Unlock the iPhone")
+    }
+
+    func testHandPrefersOnHandAndCanBeSkippedOrStopped() async throws {
+        let phone = FakeGestures()
+        var helped = 0
+        let skip = AgentLoop(phone: phone, screen: FakeScreen(),
+                              actor: FakeModel { _ in "THINK: x\nDO: hand Pick one" }, planner: nil, trace: nil)
+        skip.onHelp = { _ in helped += 1; return .stop }
+        skip.onHand = { _ in .skip }
+        XCTAssertFalse(try await skip.step())
+        XCTAssertEqual(helped, 0)
+        XCTAssertEqual(skip.steps.map { $0["action"]?.str }, ["hand", "skipped"])
+
+        let stop = AgentLoop(phone: FakeGestures(), screen: FakeScreen(),
+                              actor: FakeModel { _ in "THINK: x\nDO: hand" }, planner: nil, trace: nil)
+        stop.onHand = { reason in
+            XCTAssertEqual(reason, "Do this step yourself.")
+            return .stop
+        }
+        XCTAssertTrue(try await stop.step())
+        XCTAssertEqual(stop.steps.last?["action"]?.str, "stopped")
+
+        let alone = AgentLoop(phone: FakeGestures(), screen: FakeScreen(),
+                               actor: FakeModel { _ in "THINK: x\nDO: hand Unlock" }, planner: nil, trace: nil)
+        XCTAssertTrue(try await alone.step())
+        XCTAssertEqual(alone.steps.last?["reason"]?.str, "nobody to hand the phone to: Unlock")
+    }
+
+    func testTypingAPasscodeNeverReachesThePhone() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: The passcode screen is up, so I type it.\nDO: type 123456\nDO: key enter" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var asked: [String] = []
+        agent.onHand = { reason in asked.append(reason); return .resume }
+        XCTAssertFalse(try await agent.step())
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertEqual(asked, ["Enter the password, passcode, or code yourself. I won't type it."])
+        XCTAssertEqual(agent.steps.first?["action"]?.str, "hand")
+        XCTAssertFalse(agent.steps.contains { $0["text"]?.str == "123456" })
+        let spelled = AgentLoop(phone: FakeGestures(), screen: FakeScreen(),
+                                 actor: FakeModel { _ in "THINK: The passcode is 123456, so I type it.\nDO: type 123456" },
+                                 planner: nil, trace: nil)
+        spelled.onHand = { _ in .resume }
+        _ = try await spelled.step()
+        XCTAssertEqual(spelled.steps.first?["thought"]?.str, "The passcode is ••••, so I type it.")
+        XCTAssertFalse(PyJSON.dumps(spelled.steps[0]).contains("123456"))
+    }
+
+    func testACodeInTheHandReasonIsRedacted() async throws {
+        let model = FakeModel { _ in "THINK: x\nDO: hand the code is 123456" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var asked = ""
+        agent.onHand = { reason in asked = reason; return .resume }
+        _ = try await agent.step()
+        XCTAssertEqual(asked, "the code is ••••")
+        XCTAssertEqual(agent.steps.first?["reason"]?.str, "the code is ••••")
+        XCTAssertFalse(PyJSON.dumps(agent.steps[0]).contains("123456"))
+    }
+
+    func testAnAlarmTimeIsStillTyped() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: Type the time into the wheel.\nDO: type 0700" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var asked = 0
+        agent.onHand = { _ in asked += 1; return .stop }
+        _ = try await agent.step()
+        XCTAssertEqual(phone.calls, ["type"])
+        XCTAssertEqual(asked, 0)
+    }
+
+    func testTooManyHandoffsStopTheRun() async throws {
+        let model = FakeModel { _ in "THINK: Locked.\nDO: hand Unlock" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var asked = 0
+        agent.onHand = { _ in asked += 1; return .resume }
+        for _ in 0..<AgentLoop.maxHandoffs {
+            XCTAssertFalse(try await agent.step())
+        }
+        XCTAssertEqual(asked, AgentLoop.maxHandoffs)
+        XCTAssertTrue(try await agent.step())
+        XCTAssertEqual(asked, AgentLoop.maxHandoffs)
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "stopped")
+        XCTAssertEqual(agent.steps.last?["reason"]?.str, "handed the phone over too many times")
+    }
+
+    func testAPauseBeforeTheLookIsToldToTheModel() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: tap\nDO: tap 10 10" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gates = 0
+        agent.gate = {
+            gates += 1
+            if gates == 1 { agent.markUserHadPhone() }
+        }
+        _ = try await agent.step()
+        XCTAssertEqual(phone.calls, ["tap"])
+        XCTAssertTrue(model.prompts[0].contains("Note: \(AgentLoop.userHadPhoneReason)"))
+        XCTAssertEqual(agent.steps.first?["action"]?.str, "takeover")
+        XCTAssertFalse(agent.userHadPhone)
+    }
+
+    func testAPauseBeforeTheGestureIsNotActedOn() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { n in n == 1 ? "THINK: tap\nDO: tap 10 10" : "THINK: check\nDO: wait" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gates = 0
+        agent.gate = {
+            gates += 1
+            if gates == 2 { agent.markUserHadPhone() }
+        }
+        XCTAssertFalse(try await agent.step())
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["takeover"])
+        XCTAssertFalse(try await agent.step())
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertTrue(model.prompts[1].contains(AgentLoop.userHadPhoneReason))
+    }
 }
 
 // MARK: - fakes

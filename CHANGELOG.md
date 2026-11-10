@@ -4,6 +4,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App: when a screen asks for a password, passcode, Face ID, or a one-time code, the agent hands you the phone
+  (`hand`) and does not type it. Pause leaves the phone with you; the next look is told you may have changed
+  the screen. Mirror frames are not saved while you have the phone.
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.

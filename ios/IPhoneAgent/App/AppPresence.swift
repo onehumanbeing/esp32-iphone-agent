@@ -267,6 +267,7 @@ extension AppModel {
                 }
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
+            agent.markUserHadPhone()  // they opened this app; the screen behind it may not be the one the model left
         }
         _ = await feed.fresh(since: since, timeout: 3)  // a frame of the screen that is in front now
         await feed.settled()
