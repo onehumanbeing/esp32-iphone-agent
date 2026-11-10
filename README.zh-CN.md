@@ -88,7 +88,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
    └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀────────────────────┘
 ```
 
-- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。
+- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。也可以在引导页或 设置 › 开发板 里把板子切到家里的 Wi-Fi（存在板子上）：手机和板子共用路由器，不需要蜂窝数据。板子只支持 2.4 GHz，开了客户端隔离或拦截 mDNS 的路由器会让「屏幕镜像」搜不到板子；热点模式在哪里都能用。
 - **手：USB HID。** 板子是标准 USB 鼠标和键盘。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
@@ -109,7 +109,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 |---|---|
 | **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元；海外可在 [Amazon](https://amzn.to/3U6QKiz)\* 购买。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
 | **USB-C 线** | 短的 USB-C 对 USB-C 线，例如 [Anker 60W，1 英尺，2 条装](https://amzn.to/4yvNyvi)\*。 |
-| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用）。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
+| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用），或者一个板子能加入的 2.4 GHz 家庭 Wi-Fi。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的模型：云端 API 或自己部署。 |
 | **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。用 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装 App 的话，App 这部分不需要 Xcode。 |
 
@@ -237,7 +237,7 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 - **AirPlay 源必须是 iPhone。** 不支持从 macOS 屏幕镜像：握手看起来正常，但板子收不到视频。
 - 镜像画面为 480×1040、最高 5 fps；每一步要几秒，主要花在模型上。
 - iOS 不镜像部分界面（输入密码、Apple Pay、DRM 视频），Agent 看不到。手机锁屏后镜像会停止。
-- Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
+- Agent 在板子热点上运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据；用家里的 Wi-Fi（局域网模式）时走那个网络上网。
 - 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
 
 遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://handsy.tech/zh/troubleshooting)。

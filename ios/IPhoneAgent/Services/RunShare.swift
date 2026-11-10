@@ -128,7 +128,8 @@ extension AppModel {
     /// Everything that identifies this setup and must never be exported.
     var shareRedactor: Redactor {
         let secrets = [settings.apiKey, settings.baseURL, URL(string: settings.baseURL)?.host ?? "",
-                       board.net?.ssid ?? "", board.net?.pass ?? "", hotspotSSID ?? "", manualHotspot?.pass ?? ""]
+                       board.net?.ssid ?? "", board.net?.pass ?? "", hotspotSSID ?? "", manualHotspot?.pass ?? "",
+                       lanSSID ?? ""]
         return Redactor(secrets: secrets.filter { !$0.isEmpty })
     }
 

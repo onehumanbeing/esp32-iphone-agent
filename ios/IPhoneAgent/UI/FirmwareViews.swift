@@ -152,11 +152,13 @@ struct FirmwareSheet: View {
                 Text(verbatim: blocker).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
             } else if !onBoardWiFi {
                 Text(joinText).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                Button { app.startJoin() } label: {
-                    HStack { Text("Join the Board's Wi-Fi"); if app.join.busy { ProgressView().tint(Color(.systemBackground)) } }
+                if !app.lanMode {  // LAN: the phone joins the router itself; there is no board hotspot to join
+                    Button { app.startJoin() } label: {
+                        HStack { Text("Join the Board's Wi-Fi"); if app.join.busy { ProgressView().tint(Color(.systemBackground)) } }
+                    }
+                    .buttonStyle(BigButton(tint: .primary, ink: Color(.systemBackground)))
+                    .disabled(app.join.busy)
                 }
-                .buttonStyle(BigButton(tint: .primary, ink: Color(.systemBackground)))
-                .disabled(app.join.busy)
             } else {
                 Label("On the board's Wi-Fi", systemImage: "checkmark.circle").font(.footnote).foregroundStyle(.secondary)
                 Button("Update Now") { updater.install() }
@@ -172,6 +174,9 @@ struct FirmwareSheet: View {
     }
 
     private var joinText: String {
+        if app.lanMode {
+            return String(localized: "The update goes over Wi-Fi. Join the network the board is on (Settings › Board), then try again.")
+        }
         if case .failed(let reason) = app.join { return reason }
         return String(localized: "The update goes over the board's Wi-Fi. Join it first; the internet keeps working over cellular.")
     }

@@ -9522,6 +9522,426 @@
           }
         }
       }
+    },
+    "Board left the Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板离开了 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Board on your Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板已连上你的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Board's Hotspot" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板热点"
+          }
+        }
+      }
+    },
+    "Board's Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Change Wi-Fi Network…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换 Wi-Fi 网络…"
+          }
+        }
+      }
+    },
+    "Check Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Checking This Device…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查本设备…"
+          }
+        }
+      }
+    },
+    "Connect the Board to This Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让开发板连接这个 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Home Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家里的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Home Wi-Fi (LAN)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家里的 Wi-Fi（局域网）"
+          }
+        }
+      }
+    },
+    "Local Network permission" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地网络权限"
+          }
+        }
+      }
+    },
+    "Local Network permission is off, so the screen comes over slow BLE. Allow it in Settings › ESP32 Agent › Local Network." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地网络权限已关闭，画面只能走较慢的蓝牙。请在 设置 › ESP32 Agent › 本地网络 里允许。"
+          }
+        }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        }
+      }
+    },
+    "Password (empty if none)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码（没有就留空）"
+          }
+        }
+      }
+    },
+    "Remember this network's password" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住这个网络的密码"
+          }
+        }
+      }
+    },
+    "Same network, but the board doesn't show up in Screen Mirroring: the router may isolate devices from each other or block mDNS (common on office and hotel networks). The board's own hotspot always works — switch in Settings › Board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在同一个网络，但「屏幕镜像」里找不到开发板：路由器可能隔离了设备之间的访问，或拦截了 mDNS（办公室和酒店网络很常见）。开发板自己的热点总能用，可在 设置 › 开发板 里切换。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring goes to the board over your Wi-Fi network." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像通过你的 Wi-Fi 网络传给开发板。"
+          }
+        }
+      }
+    },
+    "Switch Back to the Board's Hotspot" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切回开发板热点"
+          }
+        }
+      }
+    },
+    "The Board Is Joining the Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板正在连接 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "The board and this device share your Wi-Fi network. If the board stops showing up in Screen Mirroring, the router may isolate devices from each other or block mDNS — switch back to the board's hotspot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板和本设备共用你的 Wi-Fi 网络。如果「屏幕镜像」里找不到开发板了，可能是路由器隔离了设备或拦截了 mDNS，请切回开发板热点。"
+          }
+        }
+      }
+    },
+    "The board couldn't join \"%@\". Check the password, and that this network has a 2.4 GHz band." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没能连上“%@”。请检查密码，并确认这个网络有 2.4 GHz 频段。"
+          }
+        }
+      }
+    },
+    "The board disconnected. Reconnect it and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了。请重新连接后再试。"
+          }
+        }
+      }
+    },
+    "The board is not on the Wi-Fi. Check the network and password in Settings › Board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没有连上 Wi-Fi。请在 设置 › 开发板 里检查网络和密码。"
+          }
+        }
+      }
+    },
+    "The board is off the Wi-Fi. Check the network in ESP32 Agent › Settings › Board; the run goes on when it is back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了 Wi-Fi。请在 ESP32 Agent › 设置 › 开发板 里检查网络，连上后任务会继续。"
+          }
+        }
+      }
+    },
+    "The board is off the Wi-Fi. Check the network in Settings › Board" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了 Wi-Fi。请在 设置 › 开发板 里检查网络"
+          }
+        }
+      }
+    },
+    "The board is on \"%@\" now. Join \"%@\" on this device, or a network on the same router." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板现在在“%@”上。请让本设备加入“%@”，或同一路由器下的其他网络。"
+          }
+        }
+      }
+    },
+    "The board only supports 2.4 GHz Wi-Fi. If the router's 2.4 GHz and 5 GHz bands share one name, that name works. If they differ, enter the 2.4 GHz one — this device can stay on 5 GHz." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板只支持 2.4 GHz Wi-Fi。如果路由器的 2.4 GHz 和 5 GHz 用同一个名称，填这个名称即可；如果名称不同，请填 2.4 GHz 的那个，本设备可以继续连 5 GHz。"
+          }
+        }
+      }
+    },
+    "The board restarted or lost the Wi-Fi. Waiting for it to rejoin…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板重启了或断开了 Wi-Fi，正在等它重新连上…"
+          }
+        }
+      }
+    },
+    "The mirrored image is stale: a busy 2.4 GHz band or router rate limiting can starve it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像画面没有更新：2.4 GHz 频段拥挤或路由器限速都可能让画面卡住。"
+          }
+        }
+      }
+    },
+    "The update goes over Wi-Fi. Join the network the board is on (Settings › Board), then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新通过 Wi-Fi 进行。请加入开发板所在的网络（设置 › 开发板），然后再试。"
+          }
+        }
+      }
+    },
+    "This device and the board are on different networks; Screen Mirroring won't find the board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备和开发板不在同一个网络，「屏幕镜像」找不到开发板。"
+          }
+        }
+      }
+    },
+    "This device has no cellular data, so the board shares your Wi-Fi instead of opening its own hotspot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备没有蜂窝数据，所以开发板会连接你的 Wi-Fi，而不是开自己的热点。"
+          }
+        }
+      }
+    },
+    "This device on it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备已连上"
+          }
+        }
+      }
+    },
+    "This takes up to a minute — the board restarts its Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多需要一分钟，开发板会重启它的 Wi-Fi。"
+          }
+        }
+      }
+    },
+    "Trouble finding the board later? The router may isolate devices from each other or block mDNS (common on office and hotel networks). The board's own hotspot always works." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "之后找不到开发板？路由器可能隔离了设备之间的访问，或拦截了 mDNS（办公室和酒店网络很常见）。开发板自己的热点总能用。"
+          }
+        }
+      }
+    },
+    "Use a Home Wi-Fi Network Instead…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用家里的 Wi-Fi 网络…"
+          }
+        }
+      }
+    },
+    "Video channel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频通道"
+          }
+        }
+      }
+    },
+    "Waiting for the board to rejoin the Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等开发板重新连上 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "Wi-Fi name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi 名称"
+          }
+        }
+      }
+    },
+    "Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi…"
+          }
+        }
+      }
+    },
+    "the board did not rejoin the Wi-Fi in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板 5 分钟内没有重新连上 Wi-Fi"
+          }
+        }
+      }
+    },
+    "LAN" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "局域网"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

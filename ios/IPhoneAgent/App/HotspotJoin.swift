@@ -21,8 +21,10 @@ extension AppModel {
 
     /// The board restarted (a firmware update, a crash) while the phone was on its Wi-Fi: its access point went
     /// away, and iOS moves to another known network and doesn't come back by itself (2026-10-19). Join it again
-    /// once its access point is up, unless the phone found its way back meanwhile.
+    /// once its access point is up, unless the phone found its way back meanwhile. LAN mode: the board rejoins
+    /// the router by itself and the phone never left its network, so there is nothing to redo.
     func rejoinAfterReboot() {
+        guard !lanMode else { return }
         Task { [weak self] in
             for _ in 0..<4 {  // the access point needs a few seconds after boot
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -95,10 +97,17 @@ extension AppModel {
         say("hotspot: joined \(ssid)")
     }
 
-    /// On the board's hotspot, for the See page. The board counts its clients: while it reports, that count is
-    /// the truth (joining by hand is seen without the hotspot entitlement, and leaving, e.g. Wi-Fi turned
-    /// off, undoes the check). Before that: joined in-app or confirmed by hand, and not on another network.
+    /// On the board's network, for the See page. Hotspot mode: the board counts its clients: while it reports,
+    /// that count is the truth (joining by hand is seen without the hotspot entitlement, and leaving, e.g.
+    /// Wi-Fi turned off, undoes the check). Before that: joined in-app or confirmed by hand, and not on another
+    /// network. LAN mode: the board on the router plus a reachable video channel or a matching phone SSID.
     func onBoardHotspot(manual: Bool) -> Bool {
+        if lanMode {
+            if board.connected, board.status?.net == "sta" {
+                return wifiVideo.active || board.status?.ap == "streaming" || phoneOnBoardLAN
+            }
+            return manual || lanJoin == .joined
+        }
         if board.connected, let s = board.status, let sta = s.sta { return sta > 0 || s.ap == "streaming" }
         return otherWiFi == nil && (manual || join == .joined || hotspotSSID != nil)
     }
@@ -117,6 +126,15 @@ extension AppModel {
     /// or left (Wi-Fi turned off, another network): then the join is undone so the page asks again.
     func refreshHotspot() async {
         guard !MockMode.on else { return }
+        if lanMode {
+            let current = await Hotspot.currentSSID()
+            let boardSSID = lanSSID ?? board.net?.ssid
+            let on = board.status?.net == "sta" && (wifiVideo.active || (current != nil && current == boardSSID))
+            if phoneOnBoardLAN != on { phoneOnBoardLAN = on }
+            if board.status?.net == "sta", let s = board.net?.ssid, lanSSID != s { lanSSID = s }
+            return
+        }
+        if phoneOnBoardLAN { phoneOnBoardLAN = false }
         // The board says no client and the phone isn't on its network either (the count lags a join by a few s).
         // iOS reads back only networks this app configured, so a fall-back to home Wi-Fi reads as no network.
         if join == .joined || hotspotSSID != nil, board.connected, board.status?.sta == 0, board.status?.ap != "streaming",

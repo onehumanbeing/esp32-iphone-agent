@@ -2,8 +2,9 @@ import XCTest
 @testable import IPhoneAgent
 
 @MainActor final class RecoveryTests: XCTestCase {
-    private func link(_ connected: Bool = true, sta: Int? = 1, ap: String? = "streaming", frameAt: Double = 0) -> Recovery.Link {
-        Recovery.Link(connected: connected, sta: sta, ap: ap, frameAt: frameAt)
+    private func link(_ connected: Bool = true, sta: Int? = 1, ap: String? = "streaming", net: String? = nil,
+                      frameAt: Double = 0) -> Recovery.Link {
+        Recovery.Link(connected: connected, sta: sta, ap: ap, net: net, frameAt: frameAt)
     }
 
     func testStagesAfterABoardReboot() {
@@ -62,6 +63,20 @@ import XCTest
         XCTAssertEqual(r.next(link(frameAt: 0), at: 21), .wait(.init(part: .frames, ask: false)))
         XCTAssertEqual(r.next(link(frameAt: 0), at: 40), .wait(.init(part: .frames, ask: false)))
         XCTAssertEqual(r.next(link(frameAt: 0), at: 41), .wait(.init(part: .frames, ask: true)))
+    }
+
+    func testLanModeHotspotPartMeansTheBoardLeftTheWiFi() {
+        var r = Recovery(at: 0)
+        // LAN mode: sta 0 = the board lost the router, not the phone leaving a hotspot.
+        XCTAssertEqual(r.next(link(sta: 0, net: "none"), at: 0), .wait(.init(part: .hotspot, ask: false, lan: true)))
+        XCTAssertEqual(r.next(link(sta: 0, net: "none"), at: 30), .wait(.init(part: .hotspot, ask: true, lan: true)))
+        let stage = Recovery.Stage(part: .hotspot, ask: true, lan: true)
+        XCTAssertTrue(stage.line.contains("ESP32 Agent › Settings › Board"))
+        XCTAssertFalse(stage.line.contains("Join the board's Wi-Fi"))
+        XCTAssertTrue(Recovery.reason(.hotspot, lan: true).contains("the board"))
+        XCTAssertTrue(Recovery.reason(.hotspot).contains("the iPhone"))
+        // The same stage without lan keeps the hotspot wording.
+        XCTAssertTrue(Recovery.Stage(part: .hotspot, ask: true).line.contains("Join the board's Wi-Fi"))
     }
 
     func testTheStatusLabelsSayWhatIsMissing() {

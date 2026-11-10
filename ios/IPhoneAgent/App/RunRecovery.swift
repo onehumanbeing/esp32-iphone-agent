@@ -8,6 +8,7 @@ extension AppModel {
     func wireRecovery() {
         agent.link = { [unowned self] in
             Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+                          net: board.status?.net,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
                           stalled: feed.frozen)
         }
@@ -32,7 +33,9 @@ extension AppModel {
             return
         }
         let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated, stalled: feed.frozen)
+                                 net: board.status?.net,
+                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
+                                 stalled: feed.frozen)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -61,7 +64,7 @@ extension AppModel {
         DebugLog.write("recover: \(stage.logLine)")
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
-        if stage.ask { notifier.post(kind(stage.part), title: title(stage.part), body: stage.line, run: runID) }
+        if stage.ask { notifier.post(kind(stage.part), title: title(stage), body: stage.line, run: runID) }
     }
 
     /// Live again: the board may have rebooted (stream off, button state unknown) and the screen moved on.
@@ -83,10 +86,10 @@ extension AppModel {
         }
     }
 
-    private func title(_ part: Recovery.Part) -> String {
-        switch part {
+    private func title(_ stage: Recovery.Stage) -> String {
+        switch stage.part {
         case .board: return String(localized: "Board disconnected")
-        case .hotspot: return String(localized: "iPhone left the board's Wi-Fi")
+        case .hotspot: return stage.lan ? String(localized: "Board left the Wi-Fi") : String(localized: "iPhone left the board's Wi-Fi")
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")
         case .frames: return String(localized: "Waiting for a screen image")
         }

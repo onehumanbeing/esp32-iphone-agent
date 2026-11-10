@@ -137,6 +137,7 @@ struct DeveloperView: View {
 struct BoardSettingsView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
+    @State private var lanSheet = false
 
     var body: some View {
         List {
@@ -175,26 +176,48 @@ struct BoardSettingsView: View {
                 }
             }
             Section {
-                Button { app.startJoin() } label: {
-                    HStack {
-                        Text("Join the Board's Wi-Fi")
-                        Spacer()
-                        if app.join.busy { ProgressView() }
+                if app.lanMode {
+                    ValueRow(title: "Mode", value: String(localized: "Home Wi-Fi (LAN)"))
+                    if let ssid = app.lanSSID ?? board.net?.ssid { ValueRow(title: "Network", value: ssid) }
+                    Button { lanSheet = true } label: { Text("Change Wi-Fi Network…") }
+                        .disabled(!board.connected || app.lanJoin.busy)
+                    Button { app.switchToHotspot() } label: {
+                        HStack {
+                            Text("Switch Back to the Board's Hotspot")
+                            Spacer()
+                            if app.lanJoin.busy { ProgressView() }
+                        }
                     }
-                }
-                .disabled(app.join.busy)
-                if let ssid = app.hotspotSSID { ValueRow(title: "Network", value: ssid) }
-                if let net = app.manualHotspot, let pass = net.pass {
-                    if let ssid = net.ssid { ValueRow(title: "Network", value: ssid) }
-                    ValueRow(title: "Password", value: pass)
-                    Button { UIPasteboard.general.string = pass; Haptics.success() } label: { Text("Copy Wi-Fi Password") }
-                    Button { UIPasteboard.general.string = pass; Hotspot.openWiFiSettings() } label: { Text("Open Settings") }
+                    .disabled(!board.connected || app.lanJoin.busy)
+                } else {
+                    Button { app.startJoin() } label: {
+                        HStack {
+                            Text("Join the Board's Wi-Fi")
+                            Spacer()
+                            if app.join.busy { ProgressView() }
+                        }
+                    }
+                    .disabled(app.join.busy)
+                    if let ssid = app.hotspotSSID { ValueRow(title: "Network", value: ssid) }
+                    if let net = app.manualHotspot, let pass = net.pass {
+                        if let ssid = net.ssid { ValueRow(title: "Network", value: ssid) }
+                        ValueRow(title: "Password", value: pass)
+                        Button { UIPasteboard.general.string = pass; Haptics.success() } label: { Text("Copy Wi-Fi Password") }
+                        Button { UIPasteboard.general.string = pass; Hotspot.openWiFiSettings() } label: { Text("Open Settings") }
+                    }
+                    Button { lanSheet = true } label: { Text("Use a Home Wi-Fi Network Instead…") }
+                        .disabled(!board.connected || app.lanJoin.busy)
                 }
             } header: {
                 Text("Wi-Fi")
             } footer: {
-                Text("Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
+                if app.lanMode {
+                    Text("The board and this device share your Wi-Fi network. If the board stops showing up in Screen Mirroring, the router may isolate devices from each other or block mDNS — switch back to the board's hotspot.")
+                } else {
+                    Text("Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
+                }
             }
+            .sheet(isPresented: $lanSheet) { LanSheet(app: app) }
             FirmwareSection(app: app, updater: app.firmware, board: board)
             if board.pairedID != nil {
                 Section {

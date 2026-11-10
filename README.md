@@ -98,7 +98,9 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
 - **Eyes — AirPlay to the board.** The board opens its own Wi-Fi hotspot and appears in the phone's Screen Mirroring
   list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over Wi-Fi
   (TCP, port 7201). BLE carries commands and status. The phone keeps using cellular data for the model while it is
-  on the board's hotspot.
+  on the board's hotspot. Or switch the board to your home Wi-Fi (onboarding and Settings › Board, stored on the
+  board): phone and board share the router, and no cellular data is needed. The board is 2.4 GHz-only, and routers
+  with client isolation or blocked mDNS hide it from Screen Mirroring; the hotspot always works.
 - **Hands — USB HID.** The board is a standard USB mouse and keyboard. With AssistiveTouch on, the mouse moves an
   on-screen pointer, so a click is a tap and a drag is a swipe.
 - **Brain — the app.** The app decodes the stream, sends screenshots to any OpenAI-compatible vision model, and runs
@@ -129,7 +131,7 @@ Picking a board, cables and adapters, or stuck during setup: [setup guide](https
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
 | **USB-C cable** | Short USB-C to USB-C, e.g. [Anker 60W, 1 ft, 2-pack](https://amzn.to/4yvNyvi)\*. |
-| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot). USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
+| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images: a cloud API or your own server. |
 | **Mac with Xcode** | Only to flash the board and build the app once. Not needed at run time. With the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app, Xcode is not needed for the app. |
 
@@ -281,8 +283,8 @@ runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for th
 - The screen is mirrored at 480×1040, up to 5 fps; each step takes a few seconds, most of it the model.
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them. Mirroring stops
   when the phone locks.
-- While the agent runs, the phone's Wi-Fi is the board's hotspot (no internet over it); the model is reached over
-  cellular data.
+- While the agent runs on the board's hotspot, the phone's Wi-Fi is that hotspot (no internet over it); the model is
+  reached over cellular data. On a home Wi-Fi (LAN mode) the internet goes over that network.
 - Chinese is typed as pinyin through the board's keyboard (ctrl+space switches English and pinyin). The clipboard is
   not used for this; emoji are dropped. Landscape apps are not supported yet.
 

@@ -377,6 +377,14 @@ import UIKit
     /// Set when one-tap join failed: the user joins in Settings with the shown password.
     @Published var manualHotspot: NetConfig?
 
+    /// Switching the board between its hotspot and the home Wi-Fi (state machine in LanJoin.swift).
+    @Published var lanJoin = LanJoinState.idle
+    var lanJoinTask: Task<Void, Never>?
+    /// The network the board is configured for in LAN mode (net read returns the station's credentials there).
+    @Published var lanSSID: String?
+    /// The phone can reach the board over the LAN (same network name, or the video channel is up).
+    @Published var phoneOnBoardLAN = false
+
     func bench(kb: Int = 256) async {
         do {
             let reply = try await board.commands.send("bench \(kb)")

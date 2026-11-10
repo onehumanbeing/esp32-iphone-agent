@@ -352,6 +352,17 @@ import XCTest
         XCTAssertTrue(again.calibrated)
     }
 
+    func testNetConfigEncodingForTheModeSwitch() throws {
+        let sta = try JSONEncoder().encode(NetConfig(mode: "sta", ssid: "Home", pass: "secret"))
+        let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: sta) as? [String: String])
+        XCTAssertEqual(obj, ["mode": "sta", "ssid": "Home", "pass": "secret"])  // nil ip/vtok are omitted
+        let open = try JSONEncoder().encode(NetConfig(mode: "sta", ssid: "Cafe"))
+        let openObj = try XCTUnwrap(JSONSerialization.jsonObject(with: open) as? [String: String])
+        XCTAssertEqual(openObj, ["mode": "sta", "ssid": "Cafe"])  // no pass: an open network
+        let back = try JSONEncoder().encode(NetConfig(mode: "ap"))
+        XCTAssertEqual(String(data: back, encoding: .utf8), #"{"mode":"ap"}"#)
+    }
+
     func testPointerRehomesEveryTenGestures() async throws {
         let device = FakeDevice()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
