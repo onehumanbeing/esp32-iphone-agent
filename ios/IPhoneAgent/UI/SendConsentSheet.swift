@@ -9,31 +9,12 @@ struct SendConsentSheet: View {
     var onAgree: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
-    private var host: String { AIConsent.host(settings.baseURL) }
-    private var freeLine: Bool { Trial.isTrial(settings.baseURL) }
-    private var jevOwnKey: Bool { JevConsent.target != JevConsent.handsy }
-
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    VStack(spacing: Space.s) {
-                        Image(systemName: "hand.raised").font(.system(size: 36, weight: .light)).foregroundStyle(Palette.ink)
-                        Text("Nothing leaves this iPhone until you agree.")
-                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-                }
-                if model { modelPart }
-                if jev { jevPart }
-                Section {
-                    Text("Screenshots may show anything on your screen, so avoid private tasks. Withdraw anytime in Settings › Privacy.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    if let url = jev && !jevOwnKey ? Trial.privacyURL : nil {
-                        Link("Privacy policy", destination: url).font(.footnote)
-                    }
-                }
+                SendConsentHero()
+                SendConsentParts(settings: settings, model: model, jev: jev)
+                SendConsentFooter(policy: jev && JevConsent.target == JevConsent.handsy ? Trial.privacyURL : nil)
             }
             .listSectionSpacing(Space.l)
             .navigationTitle(model && jev ? "Allow Sending to Both?" : "Allow Sending?")
@@ -50,6 +31,43 @@ struct SendConsentSheet: View {
             }
         }
         .interactiveDismissDisabled()
+    }
+
+    private func agree() {
+        settings.grantConsent(model: model, jev: jev)
+        onAgree()
+        dismiss()
+    }
+}
+
+/// The top of a consent sheet: nothing is sent before the yes.
+struct SendConsentHero: View {
+    var body: some View {
+        Section {
+            VStack(spacing: Space.s) {
+                Image(systemName: "hand.raised").font(.system(size: 36, weight: .light)).foregroundStyle(Palette.ink)
+                Text("Nothing leaves this iPhone until you agree.")
+                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
+        }
+    }
+}
+
+/// What a run sends and to whom: the model's host and/or Jev, for the current configuration.
+struct SendConsentParts: View {
+    @ObservedObject var settings: Settings
+    var model: Bool
+    var jev: Bool
+
+    private var host: String { AIConsent.host(settings.baseURL) }
+    private var freeLine: Bool { Trial.isTrial(settings.baseURL) }
+    private var jevOwnKey: Bool { JevConsent.target != JevConsent.handsy }
+
+    var body: some View {
+        if model { modelPart }
+        if jev { jevPart }
     }
 
     @ViewBuilder private var modelPart: some View {
@@ -94,19 +112,18 @@ struct SendConsentSheet: View {
         }
         .listRowSeparator(.hidden)
     }
+}
 
-    private func agree() {
-        if model {
-            AIConsent.grant(settings.baseURL)
-            Analytics.capture("ai_consent", ["granted": true])
+/// The bottom of a consent sheet: a warning about screenshots, withdraw, and a privacy policy.
+struct SendConsentFooter: View {
+    var policy: URL?
+
+    var body: some View {
+        Section {
+            Text("Screenshots may show anything on your screen, so avoid private tasks. Withdraw anytime in Settings › Privacy.")
+                .font(.footnote).foregroundStyle(.secondary)
+            if let policy { Link("Privacy policy", destination: policy).font(.footnote) }
         }
-        if jev {
-            JevConsent.grant()
-            Analytics.capture("jev_consent", ["granted": true])
-        }
-        settings.consentChanged()
-        onAgree()
-        dismiss()
     }
 }
 

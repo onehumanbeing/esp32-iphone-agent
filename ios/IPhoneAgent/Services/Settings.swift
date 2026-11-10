@@ -346,10 +346,11 @@ import UIKit
     /// Nil means the plain model. The free line does this on its server instead (see `client`).
     /// What a run still needs a yes for: the model's host, Jev (when it is on).
     var pendingConsent: (model: Bool, jev: Bool) {
-        let freeLine = provider == .handsyTrial
-        let jev = Trial.available && Deciders.load(freeLine: freeLine, defaults: defaults).isOn(.jev)
-        return (!AIConsent.granted(baseURL), jev && JevConsent.needed(freeLine: freeLine))
+        (!AIConsent.granted(baseURL), jevOn && JevConsent.needed(freeLine: provider == .handsyTrial))
     }
+
+    /// Jev decides steps on this line (on by default on the free line, off on one's own model).
+    var jevOn: Bool { Trial.available && Deciders.load(freeLine: provider == .handsyTrial, defaults: defaults).isOn(.jev) }
 
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
         let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key

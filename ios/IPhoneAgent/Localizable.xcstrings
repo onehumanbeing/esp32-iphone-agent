@@ -9822,6 +9822,26 @@
           }
         }
       }
+    },
+    "Agree and Continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同意并继续"
+          }
+        }
+      }
+    },
+    "Once a model is set up, you'll be asked before a run sends anything to it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置好模型后，任务向它发送任何内容前都会先征得你的同意。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

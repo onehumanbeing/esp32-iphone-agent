@@ -44,14 +44,23 @@ struct UsageStatsSection: View {
     }
 }
 
-/// First launch, before setup: what is kept, the sharing switch and the usage-stats switch (both off by default).
+/// First launch, before setup: one sheet for what a run sends and to whom (the model and Jev as set up now),
+/// what is kept here, and the two switches (both off). Agree and Continue records the same yes as
+/// SendConsentSheet; Not Now records none, so the first run asks again. See FirstConsent.
 struct ConsentSheet: View {
+    @ObservedObject var settings: Settings
     @AppStorage(RunShare.keepKey) private var keep = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let parts = FirstConsent.parts(settings)
         NavigationStack {
             List {
+                SendConsentHero()
+                SendConsentParts(settings: settings, model: parts.model, jev: parts.jev)
+                if !parts.model && !parts.jev {
+                    Section { Text("Once a model is set up, you'll be asked before a run sends anything to it.").font(.subheadline) }
+                }
                 PrivacyLists()
                 Section {
                     Toggle("Keep run data for sharing", isOn: $keep)
@@ -59,10 +68,22 @@ struct ConsentSheet: View {
                     Text("Lets you export redacted runs from Settings › Privacy to share with the community. You can change this anytime.")
                 }
                 UsageStatsSection()
+                SendConsentFooter(policy: AboutView.privacyPolicy)
             }
+            .listSectionSpacing(Space.l)
             .navigationTitle("Your Data")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Continue") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Not Now") { FirstConsent.notNow(); dismiss() } }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button { FirstConsent.agree(settings); dismiss() } label: {
+                    Text("Agree and Continue").font(.headline).frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal).padding(.vertical, Space.s)
+                .background(.bar)
             }
         }
         .interactiveDismissDisabled()

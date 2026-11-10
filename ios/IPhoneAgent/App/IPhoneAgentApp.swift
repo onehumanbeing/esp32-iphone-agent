@@ -83,7 +83,7 @@ struct RootView: View {
                 .id(page)  // a fresh setup (its own page state) for every start page, e.g. "Run setup again"
             }
         }
-        .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet() } }
+        .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet(settings: settings) } }
         .sheet(item: Binding(get: { app.aiConsentRun.map(PendingRun.init) }, set: { app.aiConsentRun = $0?.task })) { pending in
             SendConsentSheet(settings: settings, model: settings.pendingConsent.model, jev: settings.pendingConsent.jev) {
                 Task { await app.startAgent(pending.task) }
@@ -91,7 +91,7 @@ struct RootView: View {
         }
         .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
         .onAppear {
-            if privacyAsked { setUp() } else { consent = true }  // what is kept, before setup
+            if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
         }
         .onOpenURL { url in
