@@ -37,7 +37,10 @@ enum UITreeOCR {
         name.unicodeScalars.allSatisfy(\.isASCII) || HanTyper.isHan(name) || device.count > chinese.count ? device : nil
     }
 
-    static func lines(_ image: CGImage, languages: [String]? = chinese, whole: Bool = false) async -> [(text: String, box: [Int])] {
+    /// `cells`: a word that is a run of Han characters is cut into the candidate-bar cells it spans (HanTyper.cells):
+    /// Vision reads the pinyin keyboard's tight candidate bar as one word ("北方北方人北房被杯背倍北").
+    static func lines(_ image: CGImage, languages: [String]? = chinese, whole: Bool = false,
+                      cells: Bool = false) async -> [(text: String, box: [Int])] {
         let w = Double(image.width), h = Double(image.height)
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
@@ -51,13 +54,25 @@ enum UITreeOCR {
                           !top.string.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
                     let text = top.string
                     let words = text.split(whereSeparator: \.isWhitespace)
-                    guard words.count > 1, languages != nil, !whole else { return [(text, pixels(o.boundingBox))] }  // whole lines for the language
-                    let boxes = words.map { word -> (text: String, box: [Int])? in
-                        guard let r = try? top.boundingBox(for: word.startIndex..<word.endIndex) else { return nil }
-                        return (String(word), pixels(r.boundingBox))
+                    guard words.count > 1 || cells, languages != nil, !whole else { return [(text, pixels(o.boundingBox))] }  // whole lines for the language
+                    var split: [(text: String, box: [Int])] = []
+                    for word in words {
+                        guard let r = try? top.boundingBox(for: word.startIndex..<word.endIndex) else { split = []; break }
+                        let box = pixels(r.boundingBox)
+                        if cells, HanTyper.isHan(String(word)) {
+                            let chars = word.indices.map { i -> HanTyper.Glyph in
+                                let b = (try? top.boundingBox(for: i..<word.index(after: i)))
+                                    .map { pixels($0.boundingBox) } ?? [0, 0, 0, 0]
+                                return HanTyper.Glyph(char: word[i], x0: b[0], x1: b[2], height: b[3] - b[1])
+                            }
+                            if let found = HanTyper.cells(chars) {
+                                split += found.map { ($0.text, [$0.x0, box[1], $0.x1, box[3]]) }
+                                continue
+                            }
+                        }
+                        split.append((String(word), box))
                     }
-                    let split = boxes.compactMap { $0 }
-                    return split.count == words.count ? split : [(text, pixels(o.boundingBox))]
+                    return split.isEmpty ? [(text, pixels(o.boundingBox))] : split
                 }
                 done.resume(returning: lines)
             }

@@ -46,4 +46,23 @@ import UIKit
         let named = await UITreeOCR.lines(image, languages: UITreeOCR.chinese, whole: true).map(\.text)
         XCTAssertTrue(named.contains("今天") && named.contains("金天") && named.contains("App Store"), "\(named)")
     }
+
+    /// The pinyin keyboard's candidate bar: tight cells that Vision reads as one word without spaces. With `cells`
+    /// the typer gets them one by one (北 among them: "not among the candidates for bei", 2026-11-11).
+    func testTheTightCandidateBarIsReadCellByCell() async {
+        let bar = ["北方", "北方人", "北房", "被", "杯", "背", "倍", "北"]
+        let size = CGSize(width: 718, height: 1560)
+        let image = UIGraphicsImageRenderer(size: size, format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }()).image { ctx in
+            UIColor(white: 0.82, alpha: 1).setFill(); ctx.fill(CGRect(origin: .zero, size: size))
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 32), .foregroundColor: UIColor.black]
+            var x: CGFloat = 18
+            for word in bar {
+                (word as NSString).draw(at: CGPoint(x: x, y: 1022), withAttributes: attributes)
+                x += (word as NSString).size(withAttributes: attributes).width + 30
+            }
+        }.cgImage!
+        let whole = await UITreeOCR.lines(image).map(\.text)
+        let cells = await UITreeOCR.lines(image, cells: true).map(\.text)
+        XCTAssertTrue(bar.allSatisfy(cells.contains), "cells \(cells), lines \(whole)")
+    }
 }

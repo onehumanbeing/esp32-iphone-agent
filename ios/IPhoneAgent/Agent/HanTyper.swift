@@ -5,9 +5,9 @@ import NaturalLanguage
 /// toneless pinyin and the keyboard's candidates turn it into characters. A whole sentence's first candidate is
 /// often not the sentence (wrong words, or pinyin left uncommitted in the field), so the text goes in short words
 /// (≤ 4 characters): the word's pinyin, then the candidate that reads as the word (space for the first, its digit
-/// otherwise), checked on the next look. A word not among the candidates is retried once character by character.
-/// Bounded: each piece is typed at most twice (once more after one ctrl+space, or split into characters, which
-/// are never split again); anything that does not check out is cleared (only the uncommitted pinyin, never text
+/// otherwise), checked on the next look. A word not among the candidates is retried in pairs of characters (3 or
+/// 4 of them), then character by character. Bounded: a piece is typed once more after one ctrl+space, and split
+/// at most twice (characters are never split again); anything that does not check out is cleared (only the uncommitted pinyin, never text
 /// already in the field) and the typing stops with a note for the model.
 @MainActor struct HanTyper {
     struct Seen {
@@ -117,7 +117,7 @@ import NaturalLanguage
                     guard word.count > 1 else {
                         return stop("\"\(word)\" is not among the candidates for \(pinyin) (cleared)", piece)
                     }
-                    queue.insert(contentsOf: word.map { Piece.han(String($0)) }, at: queue.startIndex)
+                    queue.insert(contentsOf: Self.halves(word).map(Piece.han), at: queue.startIndex)
                     last = seen.seen; lastRow = Set(seen.row)
                     continue
                 }
@@ -151,6 +151,38 @@ import NaturalLanguage
     static func choice(_ word: String, in candidates: [String]) -> Int? {
         if let at = candidates.prefix(9).firstIndex(of: word) { return at }
         return word.count > 1 && candidates.first?.hasPrefix(word) == true ? 0 : nil
+    }
+
+    /// A word not among the candidates in smaller ones: pairs of characters for 3 or 4, else characters.
+    static func halves(_ word: String) -> [String] {
+        let size = word.count > 2 ? 2 : 1
+        return stride(from: 0, to: word.count, by: size).map { String(word.dropFirst($0).prefix(size)) }
+    }
+
+    struct Glyph { var char: Character; var x0, x1, height: Int }
+    /// What OCR makes of the chevron at the candidate bar's end that opens the full list (2026-11-11 trace: "<", "：v").
+    static let barTail = Set("<>vV∨^：:﹀…·.")
+
+    /// The candidates in one OCR word of the candidate bar; nil when the word is not a run of Han characters (bar
+    /// the chevron at its end). Vision reads the bar's tight cells as one word ("北方北方人北房被杯背倍北" for
+    /// beifang, 2026-11-11 trace), its box for each character spanning that character's share of the bar: a cell's
+    /// last character takes the gap to the next cell and comes out about 1.6 to 2 times as wide as high, the other
+    /// characters about square. Plain text cut here does no harm: the candidate row is told apart by its new words.
+    static func cells(_ glyphs: [Glyph]) -> [(text: String, x0: Int, x1: Int)]? {
+        var run = glyphs[...]
+        while let last = run.last, run.count > glyphs.count - 2, !isHan(String(last.char)), barTail.contains(last.char) {
+            run.removeLast()
+        }
+        guard run.count >= 2, run.allSatisfy({ isHan(String($0.char)) && $0.height > 0 && $0.x1 > $0.x0 }) else { return nil }
+        var out: [(text: String, x0: Int, x1: Int)] = [], text = "", x0 = run.first!.x0
+        for (i, g) in zip(run.indices, run) {
+            text.append(g.char)
+            if (g.x1 - g.x0) * 10 > g.height * 13 || i == run.indices.last {
+                out.append((text, x0, g.x1))
+                (text, x0) = ("", g.x1)
+            }
+        }
+        return out
     }
 
     /// "今天天气不错, ok" → han 今天, han 天气, han 不错, plain ", ok": Han runs cut into words of ≤ 4.
@@ -192,7 +224,9 @@ import NaturalLanguage
     }
 
     /// Indexes (left to right) of the candidate row: the row in the lower part of the screen with the most Han
-    /// words that were not on the screen before, plus the other Han words on that row.
+    /// words that were not on the screen before, plus the other Han words on that row. Only words all of Han
+    /// characters count, and the bar counts by its cells (`cells`): read as one word, the bar lost to a search
+    /// suggestion row ("…美容S P A会所": two new Han words) or a stray 个 read off a key (2026-11-11 trace).
     static func candidateRow(_ now: Seen, before: Seen, ignoring: Set<Int> = []) -> [Int] {
         var old: [String: Int] = [:]
         // the previous candidate row is gone once new pinyin is typed: its words do not count as old
@@ -201,16 +235,21 @@ import NaturalLanguage
         func size(_ i: Int) -> Int { max(1, now.words[i].box[3] - now.words[i].box[1]) }
         let han = now.words.indices.filter { i in
             let t = now.words[i].text
-            return now.words[i].box.count == 4 && isHan(t) && !keyLabels.contains(t) && center(i) > now.height * 35 / 100
+            return now.words[i].box.count == 4 && !t.isEmpty && t.allSatisfy({ isHan(String($0)) }) && !keyLabels.contains(t)
+                && center(i) > now.height * 35 / 100
         }
         var fresh: [Int] = []
         for i in han {
             if old[now.words[i].text, default: 0] > 0 { old[now.words[i].text]! -= 1 } else { fresh.append(i) }
         }
         func sameRow(_ a: Int, _ b: Int) -> Bool { abs(center(a) - center(b)) * 2 < max(size(a), size(b)) }
+        func tally(_ i: Int) -> (words: Int, chars: Int) {
+            let row = fresh.filter { sameRow($0, i) }
+            return (row.count, row.reduce(0) { $0 + now.words[$1].text.count })
+        }
         guard let anchor = fresh.max(by: { a, b in
-            let (na, nb) = (fresh.filter { sameRow($0, a) }.count, fresh.filter { sameRow($0, b) }.count)
-            return na != nb ? na < nb : center(a) < center(b)  // most new words, then the lowest
+            let (ta, tb) = (tally(a), tally(b))
+            return ta != tb ? ta < tb : center(a) < center(b)  // most new words, then characters, then the lowest
         }) else { return [] }
         return han.filter { sameRow($0, anchor) }.sorted { now.words[$0].box[0] < now.words[$1].box[0] }
     }

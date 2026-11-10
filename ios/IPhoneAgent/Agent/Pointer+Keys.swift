@@ -21,7 +21,7 @@ extension Pointer {
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
             guard let image = screen.frame.flatMap(Vision.image) else { return nil }
-            return HanTyper.Seen(words: await UITreeOCR.lines(image), height: image.height)
+            return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
         let note = try await typer.type(text, checkLetters: han || layout == .none)

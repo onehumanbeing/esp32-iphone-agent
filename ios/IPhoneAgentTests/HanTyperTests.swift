@@ -14,6 +14,9 @@ import XCTest
     var decoys: [String: [String]] = [:], only: [String: [String]] = [:]
     var association = ["的", "了", "是"]  // what the row shows after a commit
     var committed = false
+    /// The bar as Vision reads it on a device: one word run together, per-character boxes as wide as a cell's share
+    /// (a cell's last character takes the gap), plus a search suggestion row and a stray 个 off a key.
+    var barAsOneWord = false
 
     init(knowing text: String) {
         let chars = Array(text)
@@ -57,8 +60,26 @@ import XCTest
     var seen: HanTyper.Seen {
         var words: [(text: String, box: [Int])] = [(field + composing, [20, 280, 700, 320])]
         let row = !composing.isEmpty ? candidates(composing) : committed ? association : []
-        for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
-        return HanTyper.Seen(words: words, height: 1554)
+        guard barAsOneWord else {
+            for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
+            return HanTyper.Seen(words: words, height: 1554)
+        }
+        if !composing.isEmpty { words += [("銚丽人女子美容S", [90, 560, 300, 590]), ("P", [310, 560, 330, 590]), ("A会所", [340, 560, 440, 590])] }
+        var glyphs: [HanTyper.Glyph] = [], x = 15
+        for w in row {
+            for (i, ch) in w.enumerated() {
+                let width = i == w.count - 1 ? 64 : 34
+                glyphs.append(HanTyper.Glyph(char: ch, x0: x, x1: x + width, height: 36))
+                x += width
+            }
+        }
+        if let cells = HanTyper.cells(glyphs) {
+            words += cells.map { ($0.text, [$0.x0, 1022, $0.x1, 1058]) }
+        } else if !row.isEmpty {
+            words.append((row.joined(), [15, 1022, x, 1058]))
+        }
+        words += [("个", [29, 1290, 65, 1316]), ("选定", [332, 1380, 387, 1410])]
+        return HanTyper.Seen(words: words, height: 1560)
     }
 
     func typer(screen: Bool = true) -> HanTyper {
@@ -172,5 +193,63 @@ import XCTest
                                         ("今天", [20, 1402, 80, 1442]), ("空格", [300, 1500, 400, 1540])], height: 1554)
         XCTAssertEqual(HanTyper.candidateRow(now, before: before).map { now.words[$0].text }, ["今天", "金天"])
         XCTAssertEqual(HanTyper.candidateRow(before, before: before), [])
+    }
+
+    /// The device bar read as one word (2026-11-11 trace): 北方 and 锅贴 are found among its cells.
+    func testTheBarReadAsOneWordStillGivesItsCandidates() async throws {
+        let ime = FakeIME(knowing: "北方锅贴")
+        ime.barAsOneWord = true
+        ime.only["beifang"] = ["北方", "北方人", "北房", "被"]
+        let note = try await ime.typer().type("北方锅贴")
+        XCTAssertNil(note)
+        XCTAssertEqual(ime.field, "北方锅贴")
+        XCTAssertEqual(ime.composing, "")
+    }
+
+    func testACharacterIsPickedByItsNumberFromTheBarReadAsOneWord() async throws {
+        let ime = FakeIME(knowing: "北")
+        ime.barAsOneWord = true
+        ime.only["bei"] = ["被", "杯", "背", "倍", "北", "贝"]
+        let note = try await ime.typer().type("北")
+        XCTAssertNil(note)
+        XCTAssertEqual(ime.field, "北")
+        XCTAssertTrue(ime.sent.contains("type 5"), "\(ime.sent)")
+    }
+
+    /// Per-character boxes Vision gave for the bar on the device frames (718 px wide), cut into cells.
+    func testCellsCutTheBarAtItsWideCharacters() {
+        func glyphs(_ text: String, _ widths: [Int], height: Int) -> [HanTyper.Glyph] {
+            var x = 15
+            return zip(text, widths).map { ch, w in defer { x += w }; return HanTyper.Glyph(char: ch, x0: x, x1: x + w, height: height) }
+        }
+        let beifang = HanTyper.cells(glyphs("北方北方人北房被杯背倍北", [36, 62, 31, 35, 58, 36, 63, 67, 67, 67, 63, 63], height: 36))
+        XCTAssertEqual(beifang?.map(\.text), ["北方", "北方人", "北房", "被", "杯", "背", "倍", "北"])
+        let bei = HanTyper.cells(glyphs("被杯背倍北贝呗备悲辈", [67, 68, 67, 63, 72, 63, 68, 63, 68, 46], height: 34))
+        XCTAssertEqual(bei?.map(\.text), ["被", "杯", "背", "倍", "北", "贝", "呗", "备", "悲", "辈"])
+        let idle = HanTyper.cells(glyphs("我你可以好这个嗯不对他<", [67, 68, 33, 59, 68, 38, 59, 68, 63, 68, 55, 29], height: 34))
+        XCTAssertEqual(idle?.map(\.text), ["我", "你", "可以", "好", "这个", "嗯", "不", "对", "他"], "the chevron is dropped")
+        XCTAssertNil(HanTyper.cells(glyphs("美容S", [36, 36, 20], height: 36)), "a Latin letter: not the bar")
+        XCTAssertNil(HanTyper.cells(glyphs("北", [63], height: 36)))
+    }
+
+    func testTheCandidateRowSkipsMixedSuggestionsAndStrayCharacters() {
+        let before = HanTyper.Seen(words: [], height: 1560)
+        let now = HanTyper.Seen(words: [("銚丽人女子美容S", [90, 1000, 300, 1030]), ("A会所", [340, 1000, 440, 1030]),
+                                        ("锅贴", [15, 1100, 115, 1136]), ("个", [29, 1290, 65, 1316])], height: 1560)
+        XCTAssertEqual(HanTyper.candidateRow(now, before: before).map { now.words[$0].text }, ["锅贴"],
+                       "a tie in new words goes to the row with more characters, not a stray one lower down")
+    }
+
+    /// A 3- or 4-character word missing from the candidates goes in as pairs before single characters.
+    func testAMissingLongWordGoesInByPairsFirst() async throws {
+        XCTAssertEqual(HanTyper.halves("北方锅贴"), ["北方", "锅贴"])
+        XCTAssertEqual(HanTyper.halves("天安门"), ["天安", "门"])
+        XCTAssertEqual(HanTyper.halves("北方"), ["北", "方"])
+        let ime = FakeIME(knowing: "天安门")
+        ime.only["tiananmen"] = ["天安们"]
+        let note = try await ime.typer().type("天安门")
+        XCTAssertNil(note)
+        XCTAssertEqual(ime.field, "天安门")
+        XCTAssertFalse(ime.sent.contains("type tian"), "天安 goes in as a pair: \(ime.sent)")
     }
 }
