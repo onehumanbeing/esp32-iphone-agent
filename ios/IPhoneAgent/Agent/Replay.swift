@@ -92,6 +92,7 @@ struct Replay {
     static func decide(_ step: Step, screen: Data?) -> Decision {
         let name = step.action["action"]?.str ?? ""
         guard replayable.contains(name) else { return .handOver("not a move") }
+        if Actions.localInputBoundary(step.action) { return .handOver("local input requires a fresh result check") }
         guard step.sure else { return .handOver("unsure") }
         if name == "type", (step.action["text"]?.str ?? "").isEmpty { return .handOver("unknown text") }
         guard let frame = step.frame else { return .handOver("no reference screen") }

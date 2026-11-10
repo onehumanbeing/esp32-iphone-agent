@@ -28,6 +28,8 @@ hardware/dist/
 
 # Cloudflare CLI local cache (account id/name)
 .cloudflare/
+# Generated Shortcut embeds the local app's signing identity.
+ios/IPhoneAgent/LocalCopyAssets/Handsy Local Copy.shortcut
 hardware/tests/sim/cli_sim
 hardware/tests/sim/cli_sim.dSYM/
 hardware/tests/sim/*.o

@@ -76,6 +76,7 @@ import UIKit
     /// Text the agent's `write` wants on the clipboard; written the next time the app is in front (ClipboardHop).
     var pendingClipboard: String?
     var clipboardWritten = false
+    @Published var localCopy = LocalCopySession()
     let live = LiveActivityController()
     let notifier = Notifier()
     private(set) lazy var recorder = DemoRecorder(app: self)
@@ -198,6 +199,7 @@ import UIKit
             prewarmStream()
         }
         board.onLinkDown = { [weak self] in
+            if self?.localCopy.pending?.requiresBoard != false { self?.localCopy.cancel() }
             self?.pointer.boardPace = nil
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
@@ -219,6 +221,10 @@ import UIKit
         }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
+        agent.onUnicodeInput = { [weak self] text in
+            guard let self else { throw DeviceError(message: "Input service unavailable") }
+            return try await self.typeWithLocalShortcut(text)
+        }
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         Trial.shared.attach(self)  // free line
         AgentRequests.handle = { [weak self] request in await self?.handle(request) ?? AgentRequests.unavailable }

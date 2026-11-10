@@ -73,7 +73,7 @@ extension AgentLoop {
         var act = step.action
         onDoing?(.acting(act))
         let started = now()
-        try await perform(act)
+        if let result = try await perform(act) { act[result.field] = .str(result.value) }
         lastActed = now()
         act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
         let spots = [pointerAt] + pointerPath(act)

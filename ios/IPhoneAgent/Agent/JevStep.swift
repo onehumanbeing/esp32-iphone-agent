@@ -109,6 +109,10 @@ struct JevAnswer: Decodable, Equatable {
         func model() async throws -> ChatResult {
             try await inner.chat(system: system, text: text, image: image, maxTokens: maxTokens, temperature: temperature)
         }
+        // Local copy/paste outcomes need the full actor's inspection, including when the main model fails.
+        if text.contains(LocalInput.promptMarker) {
+            return mode == .jevOnly ? jevReply(nil, since: started) : try await model()
+        }
         guard let input = JevStepInput.parse(text, image: image) else {  // not a step prompt (or no JPEG)
             return mode == .jevOnly ? jevReply(nil, since: started) : try await model()
         }

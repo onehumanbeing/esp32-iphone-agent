@@ -159,6 +159,7 @@ enum JevRules {
             return !name.isEmpty && name.count <= 60 ? "open \(name)" : nil
         case "TYPE":
             guard matches(typeStep, text), let q = groups(quoted, text) else { return nil }
+            guard !LocalInput.needsClipboard(q[1]) else { return nil }  // the actor must preserve the whole original field
             return "type \(q[1])"
         case "HOME", "BACK", "WAIT":
             return op.lowercased()
