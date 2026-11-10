@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 #if DEBUG
 /// Explicit developer input, separate from UserDefaults' temporary argument overrides.
@@ -301,6 +302,8 @@ extension AppModel {
             let stills = live ? [] : ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.pathExtension == "jpg" }.sorted { $0.path < $1.path }.compactMap { try? Data(contentsOf: $0) }
             guard live || !stills.isEmpty else { return say("treebench: no mirroring and no Documents/treebench/*.jpg") }
+            UIApplication.shared.isIdleTimerDisabled = true  // auto-lock suspends the app mid-bench
+            defer { UIApplication.shared.isIdleTimerDisabled = false }
             say("treebench: \(n) builds on \(live ? "live mirrored frames" : "\(stills.count) still frames (no mirroring)"), "
                 + "thermal \(ProcessInfo.processInfo.thermalState.rawValue)")
             var stats: [String: [(tree: UITree, cpu: Double)]] = [:]
