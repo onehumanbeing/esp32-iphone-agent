@@ -6,6 +6,19 @@ import Foundation
         var frameMs = 0.0, llmMs = 0.0, hidMs = 0.0
         var settleMs = 0.0  // of frameMs (and any other wait): time in `settled`
         var snap = false  // a snap was asked for (or the run is in snap mode)
+        /// From the actor's reply to the first gesture command, which neither LLM nor HID counted (2026-11-11: 0.04-2.4 s
+        /// a step, 0.9 s on average, in one 14-step run), and its parts: the reply handled and the plan recorded
+        /// (`parse`), the pause gate (`gate`), the look at what moved by itself (`motion`).
+        var leadMs = 0.0, parseMs = 0.0, gateMs = 0.0, motionMs = 0.0
+        /// The rest of the step's time that no field above counts, and of the whole step the time the steps list
+        /// took to update after each recorded step (`record`, on the main thread).
+        var otherMs = 0.0, recordMs = 0.0
+
+        /// The reply-to-HID split, the first gesture starting `at` (no reply time, e.g. a scripted step: left at 0).
+        mutating func lead(replied: Double, decided: Double, gating: Double, at started: Double) {
+            guard replied > 0, started >= replied else { return }
+            (leadMs, parseMs, gateMs) = ((started - replied) * 1000, max(0, decided - replied) * 1000, (started - gating) * 1000)
+        }
 
         /// The free line's `X-Handsy-Step` value: this step's timing in seconds, and `gap`, from its model reply to
         /// the next request. Numbers only, each capped, so the value stays short.
@@ -79,8 +92,10 @@ import Foundation
     func step(_ s: Step) {
         steps = Array((steps + [s]).suffix(40))
         stepCount += 1
-        DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), LLM %.0f ms, HID %.0f ms",
-                              stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.llmMs, s.hidMs))
+        DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), LLM %.0f ms, HID %.0f ms, "
+                              + "reply to HID %.0f ms (parse %.0f, gate %.0f, motion %.0f), other %.0f ms (record %.0f)",
+                              stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.llmMs, s.hidMs,
+                              s.leadMs, s.parseMs, s.gateMs, s.motionMs, s.otherMs, s.recordMs))
     }
 
     /// Called every second by a timer; also detects suspension (a gap far longer than the tick).

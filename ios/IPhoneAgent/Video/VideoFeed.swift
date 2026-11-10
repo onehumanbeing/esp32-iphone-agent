@@ -43,7 +43,9 @@ enum FrameMode: String {
     static var moving = false
     static var settle = 0.0  // s spent in `settled`
     static var snaps = 0  // snaps asked for
-    static func reset() { moving = false; settle = 0; snaps = 0 }
+    static var replied = 0.0  // when the actor's last reply arrived (AgentLoop.ask), for Metrics.Step.leadMs
+    static var record = 0.0  // s the steps list took to update (AgentLoop.record)
+    static func reset() { moving = false; settle = 0; snaps = 0; replied = 0; record = 0 }
 }
 
 extension ScreenSource {

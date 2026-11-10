@@ -174,8 +174,29 @@ struct Run: Identifiable, Equatable {
 
     init(traces: TraceStore) { self.traces = traces }
 
+    /// Runs read before, by folder, with their steps.jsonl's size and date then: a reload reads only what changed.
+    /// 2026-11-11: every recorded step (several a round, during a run) parsed all 30 runs' steps again on the main
+    /// thread, between the model's reply and the first gesture.
+    private var cache: [URL: (stamp: Stamp, run: Run?)] = [:]
+    struct Stamp: Equatable { let size: Int, date: Date }
+
     func reload(limit: Int = 30) {
-        runs = traces.runs().prefix(limit).compactMap(Self.load)
+        var kept: [URL: (stamp: Stamp, run: Run?)] = [:]
+        runs = traces.runs().prefix(limit).compactMap { folder in
+            let stamp = Self.stamp(folder)
+            let run: Run?
+            if let stamp, let old = cache[folder], old.stamp == stamp { run = old.run } else { run = Self.load(folder) }
+            if let stamp { kept[folder] = (stamp, run) }
+            return run
+        }
+        cache = kept
+    }
+
+    static func stamp(_ folder: URL) -> Stamp? {
+        let path = folder.appendingPathComponent("steps.jsonl").path
+        guard let a = try? FileManager.default.attributesOfItem(atPath: path), let size = a[.size] as? NSNumber,
+              let date = a[.modificationDate] as? Date else { return nil }
+        return Stamp(size: size.intValue, date: date)
     }
 
     static func load(_ folder: URL) -> Run? {

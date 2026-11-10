@@ -185,7 +185,9 @@ extension Gestures {
         if let shot { shots[steps.count] = shot }
         steps.append(JObject([("t", .num(now())), ("shot", .bool(shot != nil))]).merging(step))
         trace?.write(kind: "step", step)
+        let listed = now()
         onStep?()
+        StepWaits.record += now() - listed  // measured: the steps list reloads on the main thread (2026-11-11)
     }
 
     /// The board or mirroring went away mid-run: pause ("waiting for the board") until the screen is live
@@ -307,6 +309,7 @@ extension Gestures {
                                      reconnectUntil: reconnectDeadline)
             }
             let seconds = ((now() - started) * 100).rounded() / 100
+            if role == "actor" { StepWaits.replied = now() }
             metrics?.llm(first: reply.firstToken, total: reply.total)
             if role == "actor" { StepReport.shared.replied() }
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
@@ -459,17 +462,22 @@ extension Gestures {
     /// One see-think-act round (one or more actions). Returns true when the task is over.
     func step() async throws -> Bool {
         var timing = Metrics.Step()
+        let began = now()
         StepWaits.reset()
         let acts = try await decide()  // nextActions, once more for a repeat that changed nothing
+        let decided = now()
         JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
-        var quiet: [CGRect]?  // what moved on its own while the model looked: not a result of these gestures
+        var quiet: Task<(rects: [CGRect], s: Double), Never>?  // what moved on its own while the model looked (motion)
+        func still() async -> [CGRect] { await quiet?.value.rects ?? [] }  // not a result of these gestures
         let confirmed = steps.last { $0["action"]?.str != "plan" }?["action"]?.str == "confirmed"  // a risky round
         defer {
             timing.settleMs = StepWaits.settle * 1000
             timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap
+            timing.recordMs = StepWaits.record * 1000
+            timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs - timing.leadMs)
             StepWaits.reset()
             metrics?.step(timing)
             StepReport.shared.finished(timing)
@@ -489,6 +497,7 @@ extension Gestures {
             }
             if name == "done" { attachNotebook(&act) }
             if name != "done" && name != "fail" {
+                let gating = now()
                 if try await pausedBeforeGesture() {
                     if i == 0 { JevGate.hold = false }  // nothing was sent; the next look may use Jev
                     roundDroppedByPause = i == 0
@@ -498,11 +507,9 @@ extension Gestures {
                     throw InvalidatedLook.connectionChanged
                 }
                 onDoing?(.acting(act))  // the thought (on the first act) names the target
-                if quiet == nil {
-                    let ahead = screen?.frame  // the screen just before acting
-                    quiet = await Vision.off { Vision.motion(seen, ahead) }
-                }
+                if quiet == nil { quiet = Self.motion(seen, screen?.frame) }  // the screen just before acting
                 let started = now()
+                if timing.leadMs == 0 { timing.lead(replied: StepWaits.replied, decided: decided, gating: gating, at: started) }
                 // after a tap in the same round the pointer moved again unseen: find it before pressing
                 let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
@@ -532,28 +539,22 @@ extension Gestures {
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key" || following == "clear") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots)
-                if !(try await tapChanged(seen, &spots, quiet: quiet ?? [], confirmed: confirmed)) {
+                if !(try await tapChanged(seen, &spots, quiet: await still(), confirmed: confirmed)) {
                     verdict(false)
                     return false  // skip the rest; the actor looks again
                 }
             }
         }
+        timing.motionMs = (await quiet?.value.s ?? 0) * 1000
         timing.frameMs += await settle(ignoring: spots)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        let (frame, mask, still) = (screen?.frame, spots, quiet ?? [])
+        let (frame, mask, moving) = (screen?.frame, spots, await still())
         let changed: Bool
-        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: still, confirmed: confirmed) }
-        else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: still) } }
+        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed) }
+        else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
         verdict(changed)
         return false
-    }
-
-    func settle(ignoring spots: [CGPoint] = []) async -> Double {
-        let started = now()
-        onDoing?(.looking)
-        await screen?.afterAction(since: lastActed, ignoring: spots)
-        return (now() - started) * 1000
     }
 
     func nextActions() async throws -> [Planned] {

@@ -40,6 +40,25 @@ extension AgentLoop {
         return out
     }
 
+    /// Wait for the result of the last gesture.
+    func settle(ignoring spots: [CGPoint] = []) async -> Double {
+        let started = now()
+        onDoing?(.looking)
+        await screen?.afterAction(since: lastActed, ignoring: spots)
+        return (now() - started) * 1000
+    }
+
+    /// What changed on its own between the frame the model saw and the one just before the first gesture, and how
+    /// long finding it took. Started as the gesture goes out, not awaited before it (2026-11-11): it decodes two full
+    /// frames, and only the waits and the verdict after the gesture use it.
+    static func motion(_ seen: Data?, _ ahead: Data?) -> Task<(rects: [CGRect], s: Double), Never> {
+        Task.detached(priority: .userInitiated) {
+            let started = now()
+            let rects = Vision.motion(seen, ahead)
+            return (rects, now() - started)
+        }
+    }
+
     /// What `open` found, or what `type` could not type: a field for the step (nil for every other action).
     @discardableResult
     func perform(_ a: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
