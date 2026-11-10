@@ -58,6 +58,8 @@ struct ModelLaunchConfiguration {
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
+///   iphoneagent://display?try=1040x720,1440x1000   (Debug: advertise each size for one mirroring session, log what
+///                                                  iOS streams, then go back to the default; ?reset=1 stops)
 /// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
@@ -82,6 +84,13 @@ extension AppModel {
             say(statusSummary)
         case "bench":
             debugCommand("bench", kb: Int(arg("kb") ?? "") ?? 256)
+        #if DEBUG
+        case "display":
+            startDisplayTrial(arg("reset") != nil ? [] : (arg("try") ?? "").split(separator: ",").compactMap {
+                let p = $0.split(separator: "x").compactMap { Int($0) }
+                return p.count == 2 ? (p[0], p[1]) : nil
+            })
+        #endif
         default:
             return false
         }
@@ -340,3 +349,41 @@ extension AppModel {
         return false
     }
 }
+
+#if DEBUG
+extension AppModel {
+    /// Which stream iOS sends for an advertised AirPlay display: the board's size is set now, and each new mirroring
+    /// session logs what arrived (frames, AirPlay rate, the board's GOP and heap) after 12 s, then moves on to the next
+    /// size; after the last, back to the default. The display applies from the next Screen Mirroring start.
+    func startDisplayTrial(_ sizes: [(w: Int, h: Int)]) {
+        displayTrials = Array(sizes.dropFirst())
+        DeviceCaps.mirrorDisplayOverride = sizes.first
+        let want = DeviceCaps.mirrorDisplay
+        DebugLog.write(sizes.isEmpty ? "display test: off, back to \(want.w)x\(want.h)"
+                       : "display test: advertising \(want.w)x\(want.h); restart Screen Mirroring (\(sizes.count) size(s) to go)")
+        mirrorDisplayAsked = false
+        if let s = board.status {
+            if sizes.isEmpty, !DeviceKind.isPad, s.w != want.w || s.h != want.h {  // an iPhone back to its default
+                Task { _ = try? await board.commands.send("res \(want.w) \(want.h)") }
+            } else {
+                matchMirrorDisplay(s)
+            }
+        }
+    }
+
+    /// A mirroring session started: during a test, report it once the stream has run a while, then go on.
+    func displayTrialSession() {
+        guard let tried = DeviceCaps.mirrorDisplayOverride else { return }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
+            guard let self, DeviceCaps.mirrorDisplayOverride.map({ $0 == tried }) == true else { return }
+            let s = self.board.status
+            DebugLog.write("display test: advertised \(tried.w)x\(tried.h) -> frames \(Int(self.feed.size.width))x\(Int(self.feed.size.height)), "
+                + String(format: "AirPlay %.0f kbps %.1f fps, GOP %d KB, heap %d KB, overflows %d", s?.kbps ?? 0, s?.fps ?? 0,
+                         (s?.gop ?? 0) / 1024, (s?.heap ?? 0) / 1024, s?.ovf ?? 0)
+                + ", screen \(Int(DeviceScreen.size.width))x\(Int(DeviceScreen.size.height)) pt")
+            self.startDisplayTrial(self.displayTrials)
+        }
+    }
+}
+#endif

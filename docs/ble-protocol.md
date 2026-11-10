@@ -26,7 +26,7 @@ Existing HID commands, unchanged semantics from the old TCP protocol:
 New:
 - `stream on|off` — continuously forward every access unit over `video` (default off).
 - `snap` — send SPS/PPS + every AU since the last IDR (the current GOP), then reply `ok`.
-- `res W H` — AirPlay resolution advertised in `/info` (default 480 1040), stored in NVS; takes effect on the next mirroring session.
+- `res W H` — AirPlay resolution advertised in `/info` (default 480 1040), stored in NVS; takes effect on the next mirroring session. An iPhone streams 718×1560 from 480 1040. An iPad fits its screen into the display (480 1040 gives only 720×500), so the app sets a landscape display of the iPad's shape, 1200 px long (1200 834 on an 11" iPad); an iPhone puts a board left in such a wider-than-tall display back to 480 1040.
 - `fps N` — max fps advertised (default 5), stored in NVS.
 - `bench KB` — send KB kilobytes of filler on `video` with the `bench` flag, then reply `ok <ms>`.
 - `unpair` — erase all bonds and restart advertising.

@@ -120,3 +120,34 @@ final class VisionTests: XCTestCase {
         XCTAssertFalse(once.take())
     }
 }
+
+/// An iPad's 1200 px frame is searched at 720 px (Vision.pointerWidth): still found, in the frame's fractions.
+final class LargeFramePointerTests: XCTestCase {
+    func testPointerIsFoundOnAnIPadFrame() throws {
+        let w = 1200, h = 834
+        func frame(_ x: Double) throws -> Data {
+            let ctx = try XCTUnwrap(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+            ctx.setFillColor(CGColor(red: 0.2, green: 0.3, blue: 0.5, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.setFillColor(CGColor(red: 0.8, green: 0.8, blue: 0.8, alpha: 1))
+            ctx.fillEllipse(in: CGRect(x: x - 12, y: Double(h) - 600 - 12, width: 25, height: 25))  // y 600 from the top
+            let out = NSMutableData()
+            let dest = try XCTUnwrap(CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil))
+            CGImageDestinationAddImage(dest, try XCTUnwrap(ctx.makeImage()), [kCGImageDestinationLossyCompressionQuality: 0.75] as CFDictionary)
+            XCTAssertTrue(CGImageDestinationFinalize(dest))
+            return out as Data
+        }
+        let found = try XCTUnwrap(Vision.pointer(try frame(700), try frame(712), near: CGPoint(x: 0.6, y: 0.7),
+                                                 shift: 12 / Double(w)))
+        XCTAssertEqual(found.x * Double(w), 700, accuracy: 6)
+        XCTAssertEqual(found.y * Double(h), 600, accuracy: 6)
+    }
+
+    func testIPadDisplayIs1200LongInTheScreensShape() {
+        XCTAssertTrue(DeviceCaps.padDisplay(nativeSize: CGSize(width: 1640, height: 2360)) == (1200, 834))  // 11", Air
+        XCTAssertTrue(DeviceCaps.padDisplay(nativeSize: CGSize(width: 2360, height: 1640)) == (1200, 834))  // either way
+        XCTAssertTrue(DeviceCaps.padDisplay(nativeSize: CGSize(width: 2064, height: 2752)) == (1200, 900))  // 13" Pro
+        XCTAssertTrue(DeviceCaps.phoneDisplay == (480, 1040))
+    }
+}
