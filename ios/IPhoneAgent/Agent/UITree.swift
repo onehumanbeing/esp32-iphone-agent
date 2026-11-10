@@ -35,12 +35,13 @@ struct UITree {
     let w: Int, h: Int
     let nodes: [UINode]
     var lines: [(text: String, box: [Int])] = []  // the OCR input, for parity checks against tree.py
-    var ocrSeconds = 0.0, cvSeconds = 0.0
+    var ocrSeconds = 0.0, cvSeconds = 0.0, totalSeconds = 0.0  // total: JPEG in to tree out
 
     static let ocrPad = 3
 
     /// The tree of one frame (the 540-wide JPEG the model sees).
     static func build(jpeg: Data) async -> UITree? {
+        let start = Date()
         guard let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         let t0 = Date()
@@ -51,6 +52,7 @@ struct UITree {
         tree.lines = lines
         tree.ocrSeconds = t1.timeIntervalSince(t0)
         tree.cvSeconds = Date().timeIntervalSince(t1)
+        tree.totalSeconds = Date().timeIntervalSince(start)
         return tree
     }
 
@@ -288,6 +290,27 @@ struct UITree {
     }
 
     /// "tap #12" -> "tap 503 871" (this frame's element 12); an unknown id is left as it is (the parser rejects it).
+    /// The free line's compact list, byte for byte treetext.listing(compact=True): no plain containers, labels
+    /// cut at 40, ids numbered over `candidates`.
+    var compactListing: String {
+        let lines = candidates.enumerated().compactMap { i, n -> String? in
+            guard n.role != "container" else { return nil }
+            let (x, y) = point(n)
+            let label = String(String.UnicodeScalarView((n.label ?? "").unicodeScalars.prefix(40)))
+            return "#\(i + 1) \(n.role) \"\(label)\" at \(x) \(y)"
+        }
+        return "\n\nScreen elements parsed from the screenshot (id, role, label, center x y in 0-1000):\n"
+            + lines.joined(separator: "\n") + "\nTo tap one of these you may write: tap #ID"
+    }
+
+    /// One log line per build: size, total/ocr/cv ms and element counts (listed, compact, all nodes).
+    var timingLine: String {
+        let ms = { (s: Double) in Int((s * 1000).rounded()) }
+        return "tree: \(w)x\(h) total \(ms(totalSeconds)) ms ocr \(ms(ocrSeconds)) cv \(ms(cvSeconds)), "
+            + "\(elements.count) elements, \(candidates.filter { $0.role != "container" }.count) compact, "
+            + "\(Self.walk(nodes).count) nodes, \(lines.count) ocr lines"
+    }
+
     /// `spark`: the ids of Spark's listing, numbered over `candidates` (treetext.by_listing_id); the app's own
     /// `listing` numbers `elements`. Resolving Spark's ids over `elements` was off by the rows/cells before the id
     /// (2026-11-11).

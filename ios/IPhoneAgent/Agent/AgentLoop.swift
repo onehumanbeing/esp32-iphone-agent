@@ -272,7 +272,10 @@ extension Gestures {
             let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
             // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
             var tree: UITree?
-            if role == "actor", screenTree, !serverTree, let sent { tree = await UITree.build(jpeg: sent) }
+            if role == "actor", screenTree, !serverTree, let sent {
+                tree = await UITree.build(jpeg: sent)
+                if let tree { DebugLog.write("step " + tree.timingLine) }
+            }
             let text = prompt + (tree?.listing ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting

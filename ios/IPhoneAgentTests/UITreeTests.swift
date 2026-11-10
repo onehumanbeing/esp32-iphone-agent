@@ -22,6 +22,25 @@ import XCTest
         XCTAssertTrue(listing.hasSuffix("To tap one of these you may write: tap #ID"))
     }
 
+    /// Byte for byte the gateway's treetext.listing(compact=True) on a tree its tree.py built (public r1 frame
+    /// open_whiteboard/1 at 540 px, Mac Vision lines as the OCR): scripts/uitree/compact_fixture.py.
+    func testCompactListingMatchesTheGateway() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/uitree-compact-r1-open_whiteboard-1.json")
+        let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let tree = try XCTUnwrap(UITree(json: JSONSerialization.data(withJSONObject: fixture["tree"]!)))
+        let want = try XCTUnwrap(fixture["compact"] as? String)
+        XCTAssertEqual(Data(tree.compactListing.utf8), Data(want.utf8), tree.compactListing)
+        XCTAssertTrue(want.contains(" row ") && !want.contains(" container "), "the fixture exercises both rules")
+    }
+
+    func testCompactListingKeepsRowsCutsLabelsAndNumbersOverAllNodes() {
+        let listing = tree().compactListing
+        XCTAssertEqual(listing, "\n\nScreen elements parsed from the screenshot (id, role, label, center x y in 0-1000):\n"
+                       + "#1 button \"Sign in\" at 370 196\n#2 row \"\" at 500 867\n"
+                       + "#3 text \"" + String(repeating: "长", count: 40) + "\" at 129 867\nTo tap one of these you may write: tap #ID")
+    }
+
     func testResolveTapID() {
         let t = tree()
         XCTAssertEqual(t.resolve("THINK: sign in\nDO: tap #1"), "THINK: sign in\nDO: tap 370 196")
