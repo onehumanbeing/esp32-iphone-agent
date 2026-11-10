@@ -95,7 +95,7 @@ struct SettingsView: View {
     }
 }
 
-/// Settings › Developer: demo data, and checks that need no other app (the phone audio round trip).
+/// Settings › Developer: demo data, the remote debug log, and checks that need no other app (the phone audio round trip).
 struct DeveloperView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
@@ -110,6 +110,7 @@ struct DeveloperView: View {
             } footer: {
                 Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
             }
+            RemoteLogSection()
             Section {
                 Picker("Phrase", selection: $language) {
                     ForEach(AudioTest.phrases.keys.sorted(), id: \.self) { Text(verbatim: SpeechLanguages.name($0)).tag($0) }

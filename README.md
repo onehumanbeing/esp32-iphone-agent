@@ -266,6 +266,9 @@ into the app, which installs it on the board (rolls back by itself if the new im
 runs a task and `harness/logs.sh` pulls the log. BLE from the Mac is only for the one-time `net sta`. Setup
 (Lightning iPhones: camera adapter), security: [harness/README.md](harness/README.md).
 
+Phone out of reach (e.g. on cellular): the optional, off-by-default [remote debug log](docs/remote-debug-log.md)
+uploads the app's text log to a server you run.
+
 ## Roadmap
 
 - [x] Drop the computer: the board mirrors and clicks, the app on the phone thinks
