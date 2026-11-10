@@ -263,7 +263,6 @@ extension AppModel {
         videoDir = nil
         help = nil
         takingOver = false
-        handingOff = false
         recovering = nil
         notifier.clearHelp()
         notifier.clearLinkAsks()
@@ -353,28 +352,17 @@ extension AppModel {
 
     // MARK: - needs your help
 
-    /// The agent is stuck, asks before a risky step, or hands the phone over: pause, tell the user
-    /// (Live Activity + a notification whose buttons answer it) and wait for their choice.
-    /// handoff: the person does this part (a passcode, Face ID, a code). The run is already their turn.
-    func needsHelp(_ reason: String, confirm: Bool = false, handoff: Bool = false) async -> AgentLoop.HelpChoice {
+    /// The agent is stuck, or asks before a risky step: pause, tell the user (Live Activity + a notification
+    /// whose buttons answer it) and wait for their choice.
+    func needsHelp(_ reason: String, confirm: Bool = false) async -> AgentLoop.HelpChoice {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
-        handingOff = handoff
-        takingOver = handoff
-        runMood = (confirm || handoff) ? .listening : .failure
-        if handoff {
-            live.update(mood: .listening, step: moveCount, line: String(localized: "Your turn: \(help ?? "")"),
-                        phase: .help, status: .yourTurn)
-            notifier.post(.takeover, title: String(localized: "Your turn"),
-                          body: String(localized: "\(help ?? "") Do this yourself, then tap Continue. I won't type a password or code."),
-                          run: runID)
-        } else if confirm {
-            let line = String(localized: "OK to do this? \(help ?? "")")
-            live.update(mood: .listening, step: moveCount, line: line, phase: .help, status: .confirm)
+        runMood = confirm ? .listening : .failure
+        let line = confirm ? String(localized: "OK to do this? \(help ?? "")") : String(localized: "Needs your help: \(help ?? "")")
+        live.update(mood: runMood ?? .failure, step: moveCount, line: line, phase: .help, status: confirm ? .confirm : .help)
+        if confirm {
             notifier.post(.confirm, title: String(localized: "OK to go on?"),
                           body: String(localized: "\(help ?? "") Press and hold for Continue, Skip or Stop."), run: runID)
         } else {
-            let line = String(localized: "Needs your help: \(help ?? "")")
-            live.update(mood: .failure, step: moveCount, line: line, phase: .help, status: .help)
             notifier.post(.help, title: String(localized: "Needs your help"),
                           body: String(localized: "\(help ?? "") Press and hold for Take Over, Skip or Stop."), run: runID)
         }
@@ -387,7 +375,6 @@ extension AppModel {
         helpWait = nil
         help = nil
         takingOver = false
-        handingOff = false
         notifier.clearHelp()
         runMood = choice == .stop ? .idle : .thinking
         live.update(mood: runMood ?? .thinking, step: moveCount, line: String(localized: "Going on from here…"), phase: .running,
@@ -450,9 +437,9 @@ extension AppModel {
     }
 
     /// Each frame is written at once, so a run that stops or fails early still has its video.
+    /// While paused the person has the phone; those frames are not part of the run.
     func saveVideoFrame(_ jpeg: Data?) {
-        // While the person has the phone, a passcode keypad can flash the key they pressed. Leave that out of the run.
-        guard !paused, !handingOff else { return }
+        guard !paused else { return }
         guard let jpeg, let dir = videoDir else { return }
         try? jpeg.write(to: dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg"))
     }

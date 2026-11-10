@@ -56,8 +56,6 @@ import UIKit
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
     var recoverySince = Date()
     @Published var takingOver = false
-    /// The agent handed the phone over (a passcode, Face ID, or a step only the person can do).
-    @Published var handingOff = false
     @Published var paused = false  // Pause on the Dynamic Island: the run holds before its next look
     @Published var startingAgent = false
     @Published var notice: String?  // a one-off message, e.g. how many intents a file added
@@ -214,7 +212,6 @@ import UIKit
         agent.onDoing = { [weak self] d in self?.doing(d) }
         agent.onModelCall = { [weak self] call in self?.modelCalled(call) }
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
-        agent.onHand = { [weak self] reason in await self?.needsHelp(reason, handoff: true) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
         agent.gate = { [weak self] in
             try await self?.holdWhileInFront()

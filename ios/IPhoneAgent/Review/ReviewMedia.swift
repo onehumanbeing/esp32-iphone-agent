@@ -47,7 +47,7 @@ struct ReviewTimeline: View {
         if s.uncertain { return .yellow }
         switch s.name {
         case "done": return Palette.ok
-        case "fail", "error", "hiccup", "help", "hand": return Palette.stop
+        case "fail", "error", "hiccup", "help": return Palette.stop
         case "plan", "replan (stuck)", "stopped", "takeover", "skipped": return Color(uiColor: .systemGray2)
         default: return i <= index ? Color.accentColor : Color(uiColor: .systemGray3)
         }

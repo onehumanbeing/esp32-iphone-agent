@@ -69,8 +69,7 @@ extension AgentLoop {
     /// A recorded move, done without the model. False = the screen did not change.
     private func move(_ step: Replay.Step) async throws -> Bool {
         let seen = screen?.frame
-        try await gate?()
-        if takeUserHandoffNote() != nil { return false }  // they had the phone; the model repairs from the screen now
+        if try await pausedBeforeGesture() { return false }  // they paused; don't replay this move on a new screen
         var act = step.action
         onDoing?(.acting(act))
         let started = now()

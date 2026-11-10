@@ -54,7 +54,7 @@ import UserNotifications
         content.body = body
         content.categoryIdentifier = kind.rawValue
         content.userInfo = ["run": run]
-        let urgent: Set<Kind> = [.help, .confirm, .takeover, .mirroring, .board, .wifi]  // the run waits for the user
+        let urgent: Set<Kind> = [.help, .confirm, .mirroring, .board, .wifi]  // the run waits for the user
         content.sound = urgent.contains(kind) ? .default : nil
         content.interruptionLevel = urgent.contains(kind) ? .timeSensitive : .active
         center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.confirm.rawValue, Kind.takeover.rawValue])

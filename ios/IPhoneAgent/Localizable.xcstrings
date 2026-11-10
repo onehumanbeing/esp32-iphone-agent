@@ -141,12 +141,12 @@
         }
       }
     },
-    "Paused. The phone is yours. Tap Continue and I'll go on from here." : {
+    "Paused. Tap Continue and I'll go on from here." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已暂停。手机先给你用。点继续，我就从这里接着做。"
+            "value" : "已暂停。点继续，我就从这里接着做。"
           }
         }
       }
@@ -2382,26 +2382,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示与亮度"
-          }
-        }
-      }
-    },
-    "Do this step yourself." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请你自己完成这一步。"
-          }
-        }
-      }
-    },
-    "Do this yourself. I won't see or type a password, passcode, or code. Tap Continue when you're done." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请你自己来。我不会看到或输入密码、锁屏密码或验证码。做完后点“继续”。"
           }
         }
       }
@@ -5847,46 +5827,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密钥仅保存在这台 iPhone 的钥匙串中，只会发送给此端点。"
-          }
-        }
-      }
-    },
-    "Your turn: %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轮到你了：%@"
-          }
-        }
-      }
-    },
-    "%@ Do this yourself, then tap Continue. I won't type a password or code." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 请你自己完成，然后点“继续”。我不会输入密码或验证码。"
-          }
-        }
-      }
-    },
-    "Enter the password, passcode, or code yourself. I won't type it." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请你自己输入密码、锁屏密码或验证码。我不会输入。"
-          }
-        }
-      }
-    },
-    "Handed you the phone" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把手机交给你"
           }
         }
       }

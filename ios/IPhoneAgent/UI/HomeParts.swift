@@ -82,11 +82,7 @@ struct HelpPanel: View {
             }
             .padding(.vertical, Space.xs)
         } header: {
-            if app.handingOff {
-                Text("Your turn")
-            } else {
-                Text("Needs your help")
-            }
+            Text("Needs your help")
         }
     }
 
@@ -97,7 +93,6 @@ struct HelpPanel: View {
     }
 
     private var detail: LocalizedStringKey? {
-        if app.handingOff { return "Do this yourself. I won't see or type a password, passcode, or code. Tap Continue when you're done." }
         if app.takingOver { return "Do the step yourself, then tap Continue." }
         if limit { return "A safety limit. If the run is still getting somewhere, keep going." }
         if stalled { return "My taps may be missing. Do this step yourself, or let me try again." }
