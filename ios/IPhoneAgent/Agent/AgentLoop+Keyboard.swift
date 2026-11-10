@@ -10,6 +10,46 @@ enum HandoffRelease {
     }
 }
 
+/// Hands input back after a run: release held buttons and keys, then (if asked) the keyboard check.
+@MainActor struct InputHandoff {
+    struct Result { var release: HandoffRelease?, notice: String? }
+
+    let device: HIDDevice
+    var checkKeyboard = false
+    /// Stop was pressed or the setting turned off: a keyboard check cut short needs no notice.
+    var userCancelled: () -> Bool = { false }
+    var log: (String) -> Void = { _ in }
+    var trace: ((JObject) -> Void)?
+
+    /// In its own task, so a cancelled caller still releases input (release commands ignore cancellation too).
+    func run(keyboard: @escaping @MainActor () async throws -> Void) async -> Result {
+        await Task { @MainActor in await handOff(keyboard) }.value
+    }
+
+    private func handOff(_ keyboard: () async throws -> Void) async -> Result {
+        var release: HandoffRelease?
+        do {
+            release = try await device.releaseForHandoff()
+            guard release == .allInputs else {
+                log("input handoff: only the left mouse button release was confirmed")
+                trace?(["released": .bool(false), "confirmed": .str("leftMouseButton")])
+                return Result(release: release)
+            }
+            if checkKeyboard { try await keyboard() }
+            trace?(["released": .bool(true)])
+            return Result(release: release)
+        } catch {
+            let released = release == .allInputs
+            log("input handoff: \(error.localizedDescription)")
+            trace?(["released": .bool(released), "error": .str(error.localizedDescription)])
+            if released && userCancelled() { return Result(release: release) }
+            return Result(release: release, notice: released
+                ? String(localized: "Check the on-screen keyboard before typing.")
+                : String(localized: "Check that the mouse and keyboard are released."))
+        }
+    }
+}
+
 extension HIDDevice {
     /// Older firmware can confirm only that the left mouse button was released.
     func releaseForHandoff() async throws -> HandoffRelease {
@@ -57,6 +97,7 @@ extension HIDDevice {
     static func restore(device: HIDDevice, screen: ScreenSource, model: ChatModel?,
                         enabled: () -> Bool = { true },
                         stillInTargetApp: () -> Bool = { true },
+                        onCall: (ModelCall) -> Void = { _ in },
                         refresh: () async throws -> Void) async throws {
         guard enabled() else { return }
         let uncertain = DeviceError(message: String(localized: "The software keyboard state could not be verified."))
@@ -77,12 +118,23 @@ extension HIDDevice {
             return jpeg
         }
 
+        func call(_ reply: ChatResult?, _ error: Error?, _ image: Data) -> ModelCall {
+            ModelCall(role: "keyboard", model: model.model, reply: reply, error: error, imageKB: image.count / 1024)
+        }
+
         func classify(after boundary: Double = 0) async throws -> (State, Data) {
             try checkLink()
             try await refresh()
             let seen = try current(after: boundary)
-            let reply = try await model.chat(system: prompt, text: "判断当前截图的键盘和输入焦点。", image: seen,
+            let reply: ChatResult
+            do {
+                reply = try await model.chat(system: prompt, text: "判断当前截图的键盘和输入焦点。", image: seen,
                                              maxTokens: 80, temperature: 0)
+            } catch {  // counted with the run's calls, like the agent's own requests
+                if !Task.isCancelled { onCall(call(nil, error, seen)) }
+                throw error
+            }
+            onCall(call(reply, nil, seen))
             try checkLink()
             guard let state = State(rawValue: reply.text.trimmingCharacters(in: .whitespacesAndNewlines)) else { throw uncertain }
             // The user may have taken over while the model was responding.

@@ -66,6 +66,7 @@ import UIKit
     @Published var departing = false  // the character's take-off before a run
     var startupTask: Task<Void, Never>?
     var returningInput = false
+    @Published var stopping = false  // Stop was tapped; input is being handed back
     var handoffStop = AsyncStream<Void>.makeStream()
     var lastPartialReleaseNoticeLink: Int?
     var runModelRevision = 0

@@ -366,7 +366,11 @@ struct HomeView: View {
 
     private var bottomBar: some View {
         BottomBar {
-            if app.startingAgent {
+            if app.stopping {  // Stop was tapped: wait for input to be handed back
+                Button {} label: { Label("Stopping…", systemImage: "stop.fill") }
+                    .buttonStyle(BigButton(tint: Palette.stop))
+                    .disabled(true)
+            } else if app.startingAgent {
                 Button { Task { await app.stopAgent() } } label: { Label("Cancel", systemImage: "xmark") }
                     .buttonStyle(BigButton(tint: Palette.stop))
             } else if agent.running {

@@ -1,5 +1,11 @@
 import Foundation
 
+/// The screen feed is gone; acting now would be guessing.
+struct BlindError: LocalizedError {
+    var reason = "lost the phone screen: reconnect Screen Mirroring"
+    var errorDescription: String? { reason }
+}
+
 /// Self-healing after a lost link: which part is missing (board, hotspot, mirroring, fresh image), when to ask the user,
 /// and when to give up. Pure: the caller polls it with the link state and the time.
 struct Recovery {

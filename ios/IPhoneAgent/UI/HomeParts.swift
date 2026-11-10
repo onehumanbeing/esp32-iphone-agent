@@ -129,8 +129,11 @@ struct RecoveryPanel: View {
             }
             HStack {
                 Spacer()
-                Button(role: .destructive) { Task { await app.stopAgent() } } label: { Label("Stop", systemImage: "stop.fill") }
-                    .buttonStyle(.bordered)
+                Button(role: .destructive) { Task { await app.stopAgent() } } label: {
+                    Label(app.stopping ? LocalizedStringKey("Stopping…") : "Stop", systemImage: "stop.fill")
+                }
+                .buttonStyle(.bordered)
+                .disabled(app.stopping)
             }
         } header: {
             if stage.part == .frames {

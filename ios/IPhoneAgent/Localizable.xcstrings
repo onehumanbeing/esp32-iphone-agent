@@ -5055,6 +5055,16 @@
         }
       }
     },
+    "Stopping…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在停止…"
+          }
+        }
+      }
+    },
     "Stops the running task and lets go of the screen." : {
       "localizations" : {
         "zh-Hans" : {

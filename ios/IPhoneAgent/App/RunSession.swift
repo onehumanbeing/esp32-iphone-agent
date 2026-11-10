@@ -34,6 +34,7 @@ extension AppModel {
         guard !startingAgent, !agent.running else { return }
         startingAgent = true
         handoffStop = AsyncStream<Void>.makeStream()
+        runUsage = ModelUsage()  // a failed start counts its keyboard check too
         tab = .agent
         startupBoardIssue = false
         lastRunDoing = nil
@@ -187,7 +188,7 @@ extension AppModel {
             }
             Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
                                     firmware: board.status?.fw?.description))  // free line
-            Analytics.capture("run_ended", ModelUsage().props.merging([
+            Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
                 "seconds": Int(now() - t0), "from_intent": currentIntent != nil
             ]) { $1 })
@@ -213,8 +214,10 @@ extension AppModel {
         }
     }
 
-    /// Wait for whichever task owns input to finish cleanup.
+    /// Wait for whichever task owns input to finish cleanup ("Stopping…" until then).
     func stopAgent() async {
+        stopping = true
+        defer { stopping = false }
         handoffStop.continuation.finish()
         let startup = startupTask
         startup?.cancel()
@@ -232,46 +235,27 @@ extension AppModel {
         returningInput = true
         defer { returningInput = false }
         let deadline = ContinuousClock.now + .seconds(30)
-        let job = Task { @MainActor in
-            var released = false
-            do {
-                let link = board.commands.links
-                let release = try await board.commands.releaseForHandoff()
-                if let message = release.notice(on: link, lastShown: &lastPartialReleaseNoticeLink) {
-                    notice = message
-                }
-                guard release == .allInputs else {
-                    say("input handoff: only the left mouse button release was confirmed")
-                    if traceStarted { traces.write(kind: "handoff", ["released": .bool(false), "confirmed": .str("leftMouseButton")]) }
-                    return
-                }
-                released = true
-                if checkKeyboard && appIsBackgrounded && settings.restoreKeyboardAfterRun {
-                    guard board.connected, board.commands.links == link else { throw DeviceError(message: "board reconnected") }
-                    try await KeyboardHandoff.finish(by: deadline, stop: handoffStop.stream) {
-                        try await KeyboardHandoff.restore(device: self.board.commands, screen: self.feed, model: self.agent.actor,
-                                                          enabled: { self.settings.restoreKeyboardAfterRun },
-                                                          stillInTargetApp: {
-                            self.appIsBackgrounded && self.runModelRevision == self.settings.configurationRevision
-                                && !self.settings.pendingConsent.model
-                        }) {
-                            _ = try await self.feed.currentFrame(maxAge: 0)
-                        }
-                    }
-                }
-                if traceStarted { traces.write(kind: "handoff", ["released": .bool(true)]) }
-            } catch {
-                let message = released
-                    ? String(localized: "Check the on-screen keyboard before typing.")
-                    : String(localized: "Check that the mouse and keyboard are released.")
-                notice = message
-                say("input handoff: \(error.localizedDescription)")
-                if traceStarted {
-                    traces.write(kind: "handoff", ["released": .bool(released), "error": .str(error.localizedDescription)])
+        let link = board.commands.links
+        let handoff = InputHandoff(device: board.commands, checkKeyboard: checkKeyboard,
+                                   userCancelled: { self.stopping || !self.settings.restoreKeyboardAfterRun },
+                                   log: { self.say($0) },
+                                   trace: traceStarted ? { self.traces.write(kind: "handoff", $0) } : nil)
+        let result = await handoff.run {
+            guard self.appIsBackgrounded && self.settings.restoreKeyboardAfterRun else { return }
+            guard self.board.connected, self.board.commands.links == link else { throw DeviceError(message: "board reconnected") }
+            try await KeyboardHandoff.finish(by: deadline, stop: self.handoffStop.stream) {
+                try await KeyboardHandoff.restore(device: self.board.commands, screen: self.feed, model: self.agent.actor,
+                                                  enabled: { self.settings.restoreKeyboardAfterRun },
+                                                  stillInTargetApp: {
+                    self.appIsBackgrounded && self.runModelRevision == self.settings.configurationRevision
+                        && !self.settings.pendingConsent.model
+                }, onCall: { self.modelCalled($0) }) {
+                    _ = try await self.feed.currentFrame(maxAge: 0)
                 }
             }
         }
-        await job.value
+        if let message = result.release?.notice(on: link, lastShown: &lastPartialReleaseNoticeLink) { notice = message }
+        if let message = result.notice { notice = message }
     }
 
     /// A run began: the character thinks, the Live Activity appears, the video starts.

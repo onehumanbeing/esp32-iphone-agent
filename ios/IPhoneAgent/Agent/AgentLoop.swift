@@ -1,11 +1,5 @@
 import Foundation
 
-/// The screen feed is gone; acting now would be guessing.
-struct BlindError: LocalizedError {
-    var reason = "lost the phone screen: reconnect Screen Mirroring"
-    var errorDescription: String? { reason }
-}
-
 /// What AgentLoop does on the phone (Pointer, or a fake in tests).
 @MainActor protocol Gestures: AnyObject {
     var device: HIDDevice { get }

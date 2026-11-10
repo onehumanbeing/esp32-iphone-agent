@@ -196,6 +196,90 @@ import XCTest
             XCTAssertEqual(board.lines.count, command == "reset" ? 2 : 1)
         }
     }
+
+    func testKeyboardChecksCountAsModelCalls() async throws {
+        let device = FakeDevice(), screen = HandoffScreen()
+        device.onSend = { _ in screen.frame = HandoffScreen.picture(.white) }
+        var usage = ModelUsage()
+        let model = FakeModel { $0 == 1 ? "HIDDEN_FOCUSED" : "VISIBLE" }
+        try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+                                          onCall: { usage.add($0); XCTAssertEqual($0.role, "keyboard") },
+                                          refresh: screen.refresh)
+        XCTAssertEqual(usage.calls, 2)
+        XCTAssertEqual(usage.failures, 0)
+
+        model.error = LLMError(message: "down")
+        usage = ModelUsage()
+        do { try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+                                               onCall: { usage.add($0) }, refresh: screen.refresh) } catch {}
+        XCTAssertEqual(usage.calls, 1)
+        XCTAssertEqual(usage.failures, 1)
+    }
+
+    func testStopHandsInputBackBeforeTheRunEnds() async throws {
+        let board = ResetBoard(nil), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let screen = FakeScreen(), model = SlowModel()
+        screen.frame = AgentTests.jpeg()
+        model.delay = 10_000_000_000
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: nil, trace: nil)
+        var result: InputHandoff.Result?
+        agent.beforeFinish = { [unowned agent] in
+            result = await InputHandoff(device: channel).run {}
+            XCTAssertTrue(agent.running, "The run holds until input is back")
+        }
+        try agent.start("Wait")
+        agent.stop()
+        await agent.waitUntilStopped()
+        XCTAssertFalse(agent.running)
+        XCTAssertEqual(board.commands, ["reset"])
+        XCTAssertEqual(result?.release, .allInputs)
+        XCTAssertNil(result?.notice)
+    }
+
+    func testCancelledCallerStillReleasesInput() async {
+        let board = ResetBoard(nil), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let caller = Task { @MainActor () -> InputHandoff.Result in
+            try? await Task.sleep(for: .seconds(10))  // cancelled below
+            return await InputHandoff(device: channel).run {}
+        }
+        caller.cancel()
+        let result = await caller.value
+        XCTAssertEqual(board.commands, ["reset"])
+        XCTAssertEqual(result.release, .allInputs)
+        XCTAssertNil(result.notice)
+    }
+
+    func testStopOrSettingOffNeedsNoKeyboardNotice() async {
+        for userCancelled in [true, false] {
+            let stop = AsyncStream<Void>.makeStream()
+            stop.continuation.finish()
+            let device = FakeDevice(), screen = HandoffScreen(), model = SlowModel()
+            model.delay = 10_000_000_000
+            let handoff = InputHandoff(device: device, checkKeyboard: true, userCancelled: { userCancelled })
+            let result = await handoff.run {
+                try await KeyboardHandoff.finish(by: .now + .seconds(4), stop: stop.stream, stopGrace: .milliseconds(20)) {
+                    try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+                }
+            }
+            XCTAssertEqual(device.sent, ["reset"])
+            XCTAssertEqual(result.release, .allInputs)
+            XCTAssertEqual(result.notice, userCancelled ? nil : String(localized: "Check the on-screen keyboard before typing."))
+        }
+    }
+
+    func testFailedReleaseIsAlwaysReported() async {
+        let board = ResetBoard("err phone usb asleep (unlock the phone)"), channel = CommandChannel(transport: board)
+        board.channel = channel
+        var keyboardChecked = false
+        let result = await InputHandoff(device: channel, checkKeyboard: true, userCancelled: { true }).run {
+            keyboardChecked = true
+        }
+        XCTAssertFalse(keyboardChecked)
+        XCTAssertNil(result.release)
+        XCTAssertEqual(result.notice, String(localized: "Check that the mouse and keyboard are released."))
+    }
 }
 
 @MainActor private final class HandoffScreen: ScreenSource {
