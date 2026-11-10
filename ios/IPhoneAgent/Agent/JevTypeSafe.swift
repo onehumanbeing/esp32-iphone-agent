@@ -54,7 +54,7 @@ import Foundation
 /// step.ts in Swift: which plan step is due, its operation, a box per step; the DO line when Jev is sure.
 enum JevRules {
     typealias Step = (key: String, text: String)
-    static let accept = 0.7  // Handsy's server without a tuned minimum
+    static let accept = 0.7  // the server's minimum for every operation but TAP (TAP: the user's setting)
 
     static let rules = """
         Advance the user's goal on this iPhone screen using one supported operation.
@@ -188,9 +188,20 @@ enum JevRules {
     }
     private static let tapAt = re(#""action":\s*"tap",\s*"x":\s*(\d+),\s*"y":\s*(\d+)"#)
 
-    /// As the server: TAP = min(p(op), box confidence), else p(op); accept at `accept` or more. WAIT is left to
-    /// the model, which sees more of what the screen is waiting for.
-    static func reply(steps: [Step], response: [String: Any], history: String? = nil, accept: Double = JevRules.accept) -> JevAnswer? {
+    /// The least p a step needs, per operation, as the server's: TAP at the user's `threshold`, 0.1 more right after
+    /// a round that left the screen unchanged (the last tap may have missed); every other operation at least
+    /// `accept`. WAIT is never taken (see `reply`).
+    static func acceptFloor(_ op: String, threshold: Double, history: String?) -> Double {
+        guard op == "TAP" else { return max(threshold, accept) }
+        let last = history?.components(separatedBy: "\n").last { $0.contains(" -> screen ") }
+        let raised = threshold + (last?.contains(" -> screen did NOT change") == true ? 0.1 : 0)
+        return (raised * 100).rounded() / 100  // as the server: two decimals
+    }
+
+    /// As the server: TAP = min(p(op), box confidence), else p(op); accept at `acceptFloor` or more. WAIT is left
+    /// to the model, which sees more of what the screen is waiting for.
+    static func reply(steps: [Step], response: [String: Any], history: String? = nil,
+                      accept threshold: Double = JevConfig.defaultThreshold) -> JevAnswer? {
         let a = response["answers"] as? [String: Any] ?? [:]
         guard let step = validChoice(a["step"], steps.map { "step \($0.key)" } + ["done", "other"]),
               let op = validChoice(a["operation"], Array(operations.keys)) else { return nil }
@@ -198,6 +209,7 @@ enum JevRules {
         let text = steps.first { $0.key == key }?.text ?? ""
         let no = { (reason: String) in JevAnswer(accept: false, step_text: text, reason: reason) }
         var prob = op.probabilities[op.choice] ?? 0
+        let accept = acceptFloor(op.choice, threshold: threshold, history: history)
         func sure(_ line: String) -> JevAnswer {
             JevAnswer(accept: prob >= accept, do: line, step_text: text, prob: prob, reason: prob >= accept ? nil : "low_confidence")
         }

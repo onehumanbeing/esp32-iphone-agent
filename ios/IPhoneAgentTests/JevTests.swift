@@ -278,6 +278,32 @@ import XCTest
         XCTAssertEqual(wait?.taken, false)
     }
 
+    func testTypeSafeFloorsPerOperationAsTheServer() {
+        let steps = JevRules.planSteps("1. Open Notes\n2. Tap New note\n3. Type \"milk\"")
+        let ids = ["step 1", "step 2", "step 3", "done", "other"], ops = Array(JevRules.operations.keys)
+        let op = { (op: String, step: String, p: Double, history: String?) -> JevAnswer? in
+            let probs = Dictionary(uniqueKeysWithValues: ops.map { ($0, $0 == op ? p : (1 - p) / Double(ops.count - 1)) })
+            let box: [String: Any] = ["confidence": 0.99, "box": ["top": 0.1, "bottom": 0.2, "left": 0.4, "right": 0.6]]
+            return JevRules.reply(steps: steps, response: ["answers": [
+                "step": self.choice(step, ids), "operation": ["choice": op, "confidence": p, "probabilities": probs], "box_2": box]],
+                history: history)
+        }
+        XCTAssertEqual(op("TAP", "step 2", 0.58, nil)?.taken, true, "TAP: the user's setting, default 0.55")
+        XCTAssertEqual(op("OPEN", "step 1", 0.65, nil)?.taken, false, "OPEN, TYPE, HOME, BACK: at least 0.7")
+        XCTAssertEqual(op("OPEN", "step 1", 0.72, nil)?.taken, true)
+        XCTAssertEqual(op("TYPE", "step 3", 0.65, nil)?.taken, false)
+        XCTAssertEqual(op("TYPE", "step 3", 0.72, nil)?.do, "type milk")
+        XCTAssertEqual(op("WAIT", "step 2", 0.99, nil)?.taken, false, "WAIT is never Jev's")
+        XCTAssertEqual(JevRules.acceptFloor("HOME", threshold: 0.55, history: nil), 0.7)
+        XCTAssertEqual(JevRules.acceptFloor("BACK", threshold: 0.8, history: nil), 0.8, "a higher setting raises every floor")
+        let unchanged = "{\"action\": \"tap\", \"x\": 100, \"y\": 900} -> screen did NOT change"
+        let changed = "{\"action\": \"tap\", \"x\": 100, \"y\": 900} -> screen changed"
+        XCTAssertEqual(op("TAP", "step 2", 0.6, unchanged)?.taken, false, "after a round that changed nothing: 0.1 more")
+        XCTAssertEqual(op("TAP", "step 2", 0.67, unchanged)?.taken, true)
+        XCTAssertEqual(op("TAP", "step 2", 0.6, unchanged + "\n" + changed)?.taken, true, "only the previous round counts")
+        XCTAssertEqual(op("TAP", "step 2", 0.6, changed + "\n" + unchanged + "\n{\"action\": \"hiccup\"}")?.taken, false)
+    }
+
     func testShortProviderError() {
         let raw = "GET /models: HTTP 400 {\n  \"error\": {\n    \"message\": \"Please pass a valid API key\"\n  }\n}"
         XCTAssertEqual(ProviderFields.short(raw), "Please pass a valid API key")
