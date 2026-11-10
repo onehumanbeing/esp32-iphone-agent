@@ -33,6 +33,7 @@ extension AppModel {
     func startAgent(_ task: String, resume: Bool = false) async {
         guard !startingAgent, !agent.running else { return }
         startingAgent = true
+        handoffStop = AsyncStream<Void>.makeStream()
         tab = .agent
         startupBoardIssue = false
         lastRunDoing = nil
@@ -50,7 +51,12 @@ extension AppModel {
                 notifier.clearLinkAsks()
             }
         }
-        let job = Task { await self.prepareAgent(task, resume: resume) }
+        let job = Task {
+            var usedInput = false
+            await prepareAgent(task, resume: resume, usedInput: &usedInput)
+            // Startup can exit after calibration but before opening a trace for this run.
+            if usedInput { await returnInput(checkKeyboard: false, traceStarted: false) }
+        }
         startupTask = job
         await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
     }
@@ -62,7 +68,7 @@ extension AppModel {
         toast = Toast(text: text)
     }
 
-    private func prepareAgent(_ task: String, resume: Bool) async {
+    private func prepareAgent(_ task: String, resume: Bool, usedInput: inout Bool) async {
         if MockMode.on { return mockRun(task) }
         guard !Task.isCancelled else { return }
         guard settings.isConfigured else {
@@ -70,12 +76,14 @@ extension AppModel {
             blocked(String(localized: "Set up the model in Settings first."))
             return
         }
+        runModelRevision = settings.configurationRevision
         let pending = settings.pendingConsent
         guard !pending.model, !pending.jev else {
             Analytics.capture("run_blocked", ["reason": "ai_consent"])
             aiConsentRun = task
             return
         }
+        usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
             blocked(String(localized: "The pointer isn't calibrated yet."))
@@ -130,6 +138,8 @@ extension AppModel {
                 }
                 mark(feed.live && !feed.broken ? "screen ready" : "no screen after 10 s; going on")
             }
+            try Task.checkCancellation()
+            usedInput = true
             try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
             mark("pointer on the home bar")
             backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "agent") { [weak self] in
@@ -165,11 +175,16 @@ extension AppModel {
             }
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
+            usedInput = false  // The running agent now owns cleanup.
             mark("agent started")
             say("started: \(task)")
             began(task, early: true)
         } catch {
             let cancelled = Task.isCancelled || error is CancellationError
+            if usedInput {  // before the lease ends: the keyboard check may still ask the model
+                await returnInput(checkKeyboard: appIsBackgrounded)
+                usedInput = false
+            }
             Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
                                     firmware: board.status?.fw?.description))  // free line
             Analytics.capture("run_ended", ModelUsage().props.merging([
@@ -185,7 +200,8 @@ extension AppModel {
             videoDir = nil
             live.end(cancelled ? (.idle, String(localized: "Stopped")) : (.failure, error.localizedDescription))
             endBackgroundTask()
-            Task { try? await feed.stream(false); prewarmStream() }  // back on only if the app is open
+            await Task { try? await self.feed.stream(false) }.value
+            prewarmStream()
             runs.reload()
             runMood = cancelled ? nil : .failure
             if !cancelled {
@@ -197,17 +213,65 @@ extension AppModel {
         }
     }
 
-    /// Emergency stop: cancel the agent and release the mouse button.
+    /// Wait for whichever task owns input to finish cleanup.
     func stopAgent() async {
-        startupTask?.cancel()
-        if startingAgent && calibrator.busy { calibrator.cancel() }
+        handoffStop.continuation.finish()
+        let startup = startupTask
+        startup?.cancel()
+        if startingAgent && calibrator.busy { calibrator.cancel(releasePointer: false) }
         answerHelp(.stop)
         mockJob?.cancel()
         agent.stop()
-        try? await Task.sleep(nanoseconds: 100_000_000)  // let a gesture in flight finish its own release
-        if board.connected && !MockMode.on {
-            do { try await pointer.reset() } catch { say("release failed: \(error.localizedDescription)") }
+        await agent.waitUntilStopped()
+        await startup?.value
+    }
+
+    /// Return input to the user while preserving the plan, steps, and notebook for resume.
+    func returnInput(checkKeyboard: Bool, traceStarted: Bool = true) async {
+        guard !MockMode.on else { return }
+        returningInput = true
+        defer { returningInput = false }
+        let deadline = ContinuousClock.now + .seconds(30)
+        let job = Task { @MainActor in
+            var released = false
+            do {
+                let link = board.commands.links
+                let release = try await board.commands.releaseForHandoff()
+                if let message = release.notice(on: link, lastShown: &lastPartialReleaseNoticeLink) {
+                    notice = message
+                }
+                guard release == .allInputs else {
+                    say("input handoff: only the left mouse button release was confirmed")
+                    if traceStarted { traces.write(kind: "handoff", ["released": .bool(false), "confirmed": .str("leftMouseButton")]) }
+                    return
+                }
+                released = true
+                if checkKeyboard && appIsBackgrounded && settings.restoreKeyboardAfterRun {
+                    guard board.connected, board.commands.links == link else { throw DeviceError(message: "board reconnected") }
+                    try await KeyboardHandoff.finish(by: deadline, stop: handoffStop.stream) {
+                        try await KeyboardHandoff.restore(device: self.board.commands, screen: self.feed, model: self.agent.actor,
+                                                          enabled: { self.settings.restoreKeyboardAfterRun },
+                                                          stillInTargetApp: {
+                            self.appIsBackgrounded && self.runModelRevision == self.settings.configurationRevision
+                                && !self.settings.pendingConsent.model
+                        }) {
+                            _ = try await self.feed.currentFrame(maxAge: 0)
+                        }
+                    }
+                }
+                if traceStarted { traces.write(kind: "handoff", ["released": .bool(true)]) }
+            } catch {
+                let message = released
+                    ? String(localized: "Check the on-screen keyboard before typing.")
+                    : String(localized: "Check that the mouse and keyboard are released.")
+                notice = message
+                say("input handoff: \(error.localizedDescription)")
+                if traceStarted {
+                    traces.write(kind: "handoff", ["released": .bool(released), "error": .str(error.localizedDescription)])
+                }
+            }
         }
+        await job.value
     }
 
     /// A run began: the character thinks, the Live Activity appears, the video starts.
@@ -319,7 +383,7 @@ extension AppModel {
     func agentFinished() {
         ended()
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
-        Task { try? await feed.stream(false); prewarmStream() }  // back on only if the app is open
+        prewarmStream()
         endBackgroundTask()
     }
 

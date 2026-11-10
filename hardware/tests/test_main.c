@@ -331,6 +331,12 @@ static void test_arbiter(void) {
   CHECK(!arb_gone(&s, ARB_APP));
   arb_after(&s, ARB_APP, "press", false);  // failed: nothing held
   CHECK(!arb_gone(&s, ARB_APP));
+  arb_after(&s, ARB_CLI, "press", true);
+  arb_after(&s, ARB_APP, "reset", false);
+  CHECK(s.pressed == ARB_CLI);
+  arb_after(&s, ARB_APP, "reset", true);
+  arb_after(&s, ARB_APP, "reset", true);
+  CHECK(!arb_gone(&s, ARB_CLI));
 }
 
 static void test_pace(void) {

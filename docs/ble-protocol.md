@@ -23,6 +23,16 @@ video stream and replies: see [cli-protocol.md](cli-protocol.md).
 `<id>` is a decimal request id chosen by the app; the reply echoes it.
 Existing HID commands, unchanged semantics from the old TCP protocol:
 `ping`, `home`, `move DX DY`, `press`, `release`, `click`, `scroll A B`, `type TEXT`, `key COMBO`.
+
+The iOS runner sends `reset` when a task finishes, fails, or is stopped. A stopped task retains its plan, steps, and notebook for resume. Turning off keyboard restoration in Settings skips the screenshot checks and `key eject`.
+
+| Command | Behavior |
+| --- | --- |
+| `reset` | Takes no arguments. Releases all mouse buttons, keyboard keys (including modifiers), and consumer controls in place. Safe to retry. |
+| `key eject` | Sends one Consumer Control Eject press and release (`0x00B8`) to toggle the iOS on-screen keyboard. Do not retry after a lost reply because a second press reverses the first. |
+
+If older firmware explicitly rejects `reset` as an unknown command, the app sends `release` to release the left mouse button. Other held inputs remain unconfirmed. The app records this on every handoff and notifies the user once per connection.
+
 New:
 - `stream on|off` — continuously forward every access unit over `video` (default off).
 - `snap` — send SPS/PPS + every AU since the last IDR (the current GOP), then reply `ok`.

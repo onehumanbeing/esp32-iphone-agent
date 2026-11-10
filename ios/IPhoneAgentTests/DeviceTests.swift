@@ -82,6 +82,35 @@ import XCTest
         XCTAssertEqual(board.lines.count, 2)
     }
 
+    func testCancellingQueuedInputDoesNotWriteItBeforeReset() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let firstWritten = expectation(description: "首条命令已发出，保留回执以占住发送锁")
+        board.dropReplyOnceOn = "ping"
+        board.onCommand = { if $0 == "ping" { firstWritten.fulfill() } }
+        let first = Task { try await channel.send("ping") }
+        await fulfillment(of: [firstWritten], timeout: 2)
+
+        let queued = expectation(description: "旧任务已请求发送输入")
+        let input = Task {
+            queued.fulfill()
+            return try await channel.send("key enter")
+        }
+        await fulfillment(of: [queued], timeout: 2)
+        XCTAssertEqual(board.lines.count, 1)
+        input.cancel()
+        let id = try XCTUnwrap(board.lines.first?.split(separator: " ").first)
+        channel.handleReply("\(id) ok")
+        _ = try await first.value
+        do {
+            _ = try await input.value
+            XCTFail("已取消的输入必须退出发送队列")
+        } catch { XCTAssertTrue(error is CancellationError) }
+
+        try await channel.send("reset")
+        XCTAssertEqual(board.lines.map { $0.split(separator: " ", maxSplits: 1)[1] }, ["ping", "reset"])
+    }
+
     func testLostReplyDoesNotRepeatInputButRetriesSafeCommands() async throws {
         let board = FakeBoard(), channel = CommandChannel(transport: board)
         board.channel = channel
@@ -106,7 +135,7 @@ import XCTest
     }
 
     func testActualReplyDeadlineDoesNotRepeatClickAndStillRetriesRelease() async throws {
-        // 真正丢弃回执并等待通道计时器，覆盖已写入后超时而非写入直接抛错。
+        // Drop the reply after a successful write so the channel timer fires.
         for command in ["click", "release"] {
             let board = FakeBoard(), channel = CommandChannel(transport: board)
             board.channel = channel
@@ -115,7 +144,7 @@ import XCTest
             channel.onTimeout = { _ in
                 recoveries += 1
                 let id = board.lines[0].split(separator: " ")[0]
-                channel.handleReply("\(id) ok")  // 已超时的回执不得完成后续请求。
+                channel.handleReply("\(id) ok")  // A late reply must not complete a later request.
             }
             do {
                 try await channel.send(command)
@@ -149,6 +178,34 @@ import XCTest
         }
     }
 
+    func testCancellingADragDuringPressStillAcknowledgesReleaseAndReset() async throws {
+        let board = FakeBoard(), channel = CommandChannel(transport: board)
+        board.channel = channel
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: channel, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        let pressed = expectation(description: "The board received the press")
+        board.dropReplyOnceOn = "press"
+        board.onCommand = { if $0 == "press" { pressed.fulfill() } }
+        var acknowledged: [String] = []
+        channel.onTiming = { name, _ in acknowledged.append(name) }
+
+        let drag = Task {
+            do {
+                try await pointer.swipe(0.2, 0.2, 0.5, 0.5)
+                XCTFail("The drag should have been cancelled")
+            } catch is CancellationError {}
+            try await channel.send("reset")
+        }
+        await fulfillment(of: [pressed], timeout: 2)
+        drag.cancel()
+        try await drag.value
+
+        XCTAssertEqual(board.lines.suffix(3).map { $0.split(separator: " ")[1] }, ["press", "release", "reset"])
+        XCTAssertEqual(Array(acknowledged.suffix(2)), ["release", "reset"])
+    }
+
     func testUnacknowledgedAimMovesForceRehomingButSuccessfulAimKeepsPosition() async throws {
         let images = VisionTests()
         let before = images.screen(pointer: (274, 540)), after = images.screen(pointer: (289, 540))
@@ -158,7 +215,7 @@ import XCTest
             board.timeoutOnceOn = failure
             screen.frame = before
             var correction: [Int]?
-            // 用真实像素差分进入 aim 纠偏；屏幕先反映移动，再模拟回执丢失。
+            // Trigger aim correction through a pixel change, then drop the reply after the move appears on screen.
             board.onCommand = { [weak board] command in
                 if command == "move 12 0" { screen.frame = after; screen.updated = now() }
                 if command == "move -12 0" { screen.frame = before; screen.updated = now() }
@@ -538,7 +595,7 @@ import XCTest
             x += dx
             y += dy
             let position = CGPoint(x: Double(x) / 400, y: Double(y) / 800)
-            // 微移时切换底色，模拟背景动画使像素差分无法定位指针。
+            // Change the background during the nudge to simulate animation that hides the pointer in the pixel diff.
             let image = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 200)).image { context in
                 (dx == Pointer.nudge ? UIColor.black : .white).setFill()
                 context.fill(CGRect(x: 0, y: 0, width: 100, height: 200))
@@ -559,7 +616,7 @@ import XCTest
         let calibrated = try await pointer.startCalibration()
         XCTAssertTrue(calibrated)
         XCTAssertEqual(readings, [CGPoint(x: 0.375, y: 0.1875), CGPoint(x: 0.875, y: 0.4375)])
-        // 单独载入已知正确的标定参数，避免首次标定的偏移与复验的偏移相互抵消。
+        // Load a known calibration so errors in calibration and verification cannot cancel each other out.
         pointer.finishCalibration(x: 0.5, y: 0.25)
         let error = try await pointer.verify()
         XCTAssertEqual(error, 0)

@@ -1,6 +1,76 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Restore on-screen keyboard after runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务结束后恢复屏幕键盘"
+          }
+        }
+      }
+    },
+    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务结束时，模型会查看一张截图。如果需要恢复键盘，模型会再查看一张截图确认。"
+          }
+        }
+      }
+    },
+    "The software keyboard state could not be verified." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法确认屏幕键盘状态。"
+          }
+        }
+      }
+    },
+    "The screen or board connection changed during keyboard handoff." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复屏幕键盘时，画面或开发板连接已变化。"
+          }
+        }
+      }
+    },
+    "The board confirmed only the left mouse button was released. Check the other buttons and keys before continuing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板只确认了鼠标左键已松开。请检查其他鼠标按钮和键盘按键后再继续。"
+          }
+        }
+      }
+    },
+    "Check the on-screen keyboard before typing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请确认屏幕键盘已显示，再继续输入。"
+          }
+        }
+      }
+    },
+    "Check that the mouse and keyboard are released." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请确认鼠标和键盘的按键均已松开。"
+          }
+        }
+      }
+    },
     "Board firmware %@ is out of date" : {
       "localizations" : {
         "zh-Hans" : {

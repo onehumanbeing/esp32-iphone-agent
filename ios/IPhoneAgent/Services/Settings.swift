@@ -55,6 +55,7 @@ import UIKit
     /// The name, for code without a Settings instance (Live Activity).
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
     @Published var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }
+    @Published var restoreKeyboardAfterRun: Bool { didSet { defaults.set(restoreKeyboardAfterRun, forKey: "restoreKeyboardAfterRun") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
@@ -72,6 +73,7 @@ import UIKit
         apiKey = Self.stored(Keychain.get("llm-api-key")) ?? preset("IAPresetKey") ?? ""
         agentName = defaults.string(forKey: Self.agentNameKey) ?? Self.defaultAgentName
         onboarded = defaults.bool(forKey: "onboarded")
+        restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         provider = defaults.string(forKey: "modelProvider").flatMap(ModelProvider.init(rawValue:))
             ?? ModelProvider.infer(baseURL: baseURL, model: model)
