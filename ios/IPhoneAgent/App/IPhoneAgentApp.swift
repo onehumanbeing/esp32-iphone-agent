@@ -94,6 +94,7 @@ struct RootView: View {
             if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
         }
+        .modifier(HandsyKeyOffer())
         .onOpenURL { url in
             if url.isFileURL && url.pathExtension.lowercased() == IntentArchive.fileExtension {  // shared intents
                 app.importIntents(url)
@@ -103,6 +104,7 @@ struct RootView: View {
                 do { try app.importRuns(url) } catch { app.say("import: \(error.localizedDescription)") }
                 return
             }
+            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity
             guard url.scheme == "iphoneagent", url.host == "run" else { return }

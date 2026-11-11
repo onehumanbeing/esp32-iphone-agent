@@ -4,11 +4,11 @@ import StoreKit
 #endif
 
 /// The model page's plan banner (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
-/// are paid for, in plain sight but small, above the deciders. App Store build: a black banner to the plans (its
-/// link and storefront rule live in HandsyStoreEntry, outside this repository) and "Already have a key?" under it.
-/// TestFlight and this repository's builds: that line only. With a key: the banner says the plan is active and
-/// opens the key sheet. One's own API key is set up in the Large Language Model row below, not here.
-/// Builds without the free line show nothing.
+/// are paid for, in plain sight, above the deciders. App Store build: a black banner to the plans (its link and
+/// storefront rule live in HandsyStoreEntry, outside this repository). Every build with the free line: a wide
+/// "Already have a Handsy key? Set it up now" row. With a key: the banner says the plan is active (or paused, when
+/// the key is turned off in HandsyKeyPanel at the bottom of the page). One's own API key is set up in the Large
+/// Language Model row below, not here. Builds without the free line show nothing.
 struct PlanCard: View {
     var inForm = false
     @ObservedObject private var trial = Trial.shared
@@ -37,10 +37,15 @@ struct PlanCard: View {
 
     @ViewBuilder private var content: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            if trial.keyed {
+            if trial.hasKey {
                 Button { editingKey = true } label: {
-                    PlanBanner(symbol: "checkmark.seal.fill", title: "Handsy Plan · Active",
-                               detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
+                    if trial.keyOn {
+                        PlanBanner(symbol: "checkmark.seal.fill", title: "Handsy Plan · Active",
+                                   detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
+                    } else {
+                        PlanBanner(symbol: "pause.circle.fill", title: "Handsy Plan · Paused",
+                                   detail: Text("Key turned off at the bottom of this page"), dark: false)
+                    }
                 }
                 .buttonStyle(.plain)
             } else {
@@ -54,79 +59,194 @@ struct PlanCard: View {
                 }
                 #endif
                 Button { editingKey = true } label: {
-                    Text("Already have a Handsy key?").font(.footnote.weight(.semibold))
+                    PlanBanner(symbol: "key.fill", title: "Already have a Handsy key?",
+                               detail: Text("Set it up now: tap here"), dark: false)
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, Space.l)
+                .buttonStyle(.plain)
             }
         }
     }
 }
 
-/// A short black banner with a soft sheen: the plan, in the app's black-and-white look in light and dark.
+/// A short banner: black with a soft sheen (the plan), or a plain card with a hairline (the key row), in the
+/// app's black-and-white look in light and dark.
 private struct PlanBanner: View {
     let symbol: String
     let title: LocalizedStringKey
     let detail: Text
+    var dark = true
 
     var body: some View {
         HStack(spacing: Space.m) {
             Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(.white.opacity(0.12)))
+                .background(Circle().fill(dark ? Color.white.opacity(0.12) : Color.primary.opacity(0.07)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
+                Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.8)
                 detail.font(.footnote).opacity(0.7).lineLimit(1)
             }
             Spacer(minLength: Space.s)
             Image(systemName: "arrow.right").font(.footnote.weight(.bold)).opacity(0.7)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(dark ? Color.white : Color.primary)
         .padding(.horizontal, Space.l)
         .frame(height: 64)
         .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(LinearGradient(colors: [Color(white: 0.16), .black], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.14)))
+            let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+            if dark {
+                shape.fill(LinearGradient(colors: [Color(white: 0.16), .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .overlay(shape.strokeBorder(.white.opacity(0.14)))
+            } else {
+                shape.fill(Color(.secondarySystemGroupedBackground)).overlay(shape.strokeBorder(.primary.opacity(0.14)))
+            }
         }
         .contentShape(.rect)
     }
 }
 
-/// Paste, change or remove a Handsy key (hsk_live_…). Saved in the Keychain; runs use it from the next one.
-struct HandsyKeySheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var key = Trial.shared.key
+/// The bottom of the model page, once a key is saved: turn it off for a while (runs go back to Handsy Free or
+/// one's own model; the key stays), change it or remove it.
+struct HandsyKeyPanel: View {
+    var inForm = false
+    @ObservedObject private var trial = Trial.shared
+    @State private var editingKey = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    SecureField("Handsy key", text: $key, prompt: Text(verbatim: "hsk_live_…"))
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button { key = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? key } label: {
-                        Label("Paste", systemImage: "doc.on.clipboard")
+        if Trial.available && trial.hasKey {
+            Group {
+                if inForm {
+                    Section { rows } header: { Text("Handsy Key") } footer: { Text(footer) }
+                } else {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        Text("Handsy Key").font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
+                        Panel { rows }
+                        Text(footer).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                     }
-                } footer: {
-                    Text("The key stays in this iPhone's Keychain. With it, runs use your plan instead of the free runs.")
-                }
-                if Trial.shared.keyed {
-                    Section {
-                        Button(role: .destructive) { Trial.shared.setKey(""); dismiss() } label: { Text("Remove Key") }
-                    }
+                    .padding(.top, Space.l)
                 }
             }
-            .navigationTitle("Handsy Key")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Trial.shared.setKey(key); dismiss() }
-                        .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+            .sheet(isPresented: $editingKey) { HandsyKeySheet() }
+        }
+    }
+
+    @ViewBuilder private var rows: some View {
+        Toggle(isOn: Binding { trial.keyOn } set: { trial.setKeyOn($0) }) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Use My Handsy Key")
+                Text(verbatim: "hsk_…" + String(trial.key.suffix(4))).font(.footnote.monospaced()).foregroundStyle(.secondary)
             }
         }
-        .presentationDetents([.medium])
+        .tint(Palette.accent)
+        Button("Change Key") { editingKey = true }
+        Button("Remove Key", role: .destructive) { trial.setKey("") }
+    }
+
+    private var footer: LocalizedStringKey {
+        trial.keyOn ? "Runs use your Handsy plan. Turn it off to use Handsy Free for a while; the key stays on this iPhone."
+            : "Off: runs use Handsy Free. Turn it back on any time."
+    }
+}
+
+/// Paste or change a Handsy key (hsk_live_…), or say yes to one a link brought (`offered`). Saved in the
+/// Keychain; the model switches to Handsy, so the deciders above use the plan from the next run.
+struct HandsyKeySheet: View {
+    var offered: String?
+    @Environment(\.dismiss) private var dismiss
+    @State private var key = ""
+    @FocusState private var focused: Bool
+
+    private var value: String { (offered ?? key).trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var valid: Bool { Trial.looksLikeKey(value) }
+
+    var body: some View {
+        VStack(spacing: Space.l) {
+            HStack {
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.bold)).foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30).background(Circle().fill(Color.primary.opacity(0.08)))
+                }
+                .accessibilityLabel("Cancel")
+            }
+            Image(systemName: "key.fill").font(.title.weight(.semibold)).foregroundStyle(Color(.systemBackground))
+                .frame(width: 64, height: 64).background(Circle().fill(Color.primary))
+            VStack(spacing: Space.s) {
+                Text(offered == nil ? "Set Up Your Handsy Key" : "Use This Handsy Key?")
+                    .font(.title2.bold()).multilineTextAlignment(.center)
+                Text(offered == nil ? "Paste the key from your Handsy plan. Runs then use your plan: no waiting in line, and recordings are read."
+                     : "handsy.tech sent this key to the app. Use it only if you just copied it from your own Handsy plan.")
+                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            field
+            if !value.isEmpty && !valid {
+                Text("A Handsy key starts with hsk_").font(.footnote).foregroundStyle(.red)
+            }
+            Button { save() } label: {
+                Text("Use This Key").font(.headline).frame(maxWidth: .infinity).frame(height: 52)
+                    .foregroundStyle(Color(.systemBackground))
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary))
+            }
+            .buttonStyle(.plain)
+            .disabled(!valid).opacity(valid ? 1 : 0.35)
+            Text("The key stays in this iPhone's Keychain. Turn it off or remove it at the bottom of Settings › Model.")
+                .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.xl).padding(.top, Space.l)
+        .presentationDetents([.large])
+        .presentationBackground(Color(.systemBackground))
+        .presentationDragIndicator(.visible)
+        .onAppear { if offered == nil { focused = true } }
+    }
+
+    @ViewBuilder private var field: some View {
+        HStack(spacing: Space.s) {
+            if let offered {
+                Text(verbatim: "hsk_…" + String(offered.suffix(4))).font(.body.monospaced())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                SecureField("Handsy key", text: $key, prompt: Text(verbatim: "hsk_live_…"))
+                    .font(.body.monospaced()).focused($focused)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .submitLabel(.done).onSubmit { if valid { save() } }
+                Button {
+                    key = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? key
+                } label: {
+                    Label("Paste", systemImage: "doc.on.clipboard").font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, Space.m).frame(height: 34)
+                        .background(Capsule().fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Space.l).frame(height: 56)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemBackground)))
+    }
+
+    private func save() {
+        guard valid else { return }
+        Trial.shared.setKey(value)
+        let settings = AppModel.shared.settings
+        if settings.provider != .handsyTrial { settings.selectProvider(.handsyTrial) }  // the deciders use the plan
+        Haptics.tick()
+        dismiss()
+    }
+}
+
+/// iphoneagent://key?k=hsk_live_… (handsy.tech's "Open in Handsy" after a purchase on this iPhone): asks first.
+struct HandsyKeyOffer: ViewModifier {
+    @ObservedObject private var trial = Trial.shared
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $trial.offeredKey) { HandsyKeySheet(offered: $0.key) }
+    }
+
+    /// True when `url` was a key link (handled, even when its key is not one).
+    @MainActor static func handle(_ url: URL) -> Bool {
+        guard url.scheme == "iphoneagent", url.host == "key" else { return false }
+        let key = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "k" }?.value ?? ""
+        guard Trial.available, Trial.looksLikeKey(key) else { return true }
+        Trial.shared.offeredKey = OfferedKey(key: key)
+        return true
     }
 }

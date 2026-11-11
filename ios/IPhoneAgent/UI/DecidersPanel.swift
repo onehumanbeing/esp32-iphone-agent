@@ -17,6 +17,7 @@ struct DecidersPanel: View {
     @State private var swapped: CGFloat = 0  // rows moved past while dragging, in points
     @AppStorage(Deciders.raceKey) private var race = true
     @AppStorage(JevConfig.ownKey) private var jevOwnKey = false
+    @ObservedObject private var trial = Trial.shared
 
     private static let rowHeight: CGFloat = 64
     private var freeLine: Bool { settings.provider == .handsyTrial }
@@ -27,6 +28,7 @@ struct DecidersPanel: View {
                 PlanCard(inForm: true)
                 Section { rows } header: { Text("Who decides each step") } footer: { Text(footer) }
                 if deciders.mode == .jevFirst { Section { raceRow } footer: { Text(raceFooter) } }
+                HandsyKeyPanel(inForm: true)
             } else {
                 VStack(alignment: .leading, spacing: Space.s) {
                     PlanCard().padding(.bottom, Space.m)
@@ -38,6 +40,7 @@ struct DecidersPanel: View {
                         Panel { raceRow }.padding(.top, Space.l)
                         Text(raceFooter).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                     }
+                    HandsyKeyPanel()
                 }
             }
         }
@@ -152,7 +155,7 @@ struct DecidersPanel: View {
     private var jevName: String { jevOwnKey && JevConfig.ownActive ? "TypeSafe · \(JevConfig.model)" : "Handsy" }
 
     private var modelName: String {
-        if freeLine { return ModelProvider.handsyTrial.title }
+        if freeLine { return trial.keyed ? String(localized: "Handsy Plan") : ModelProvider.handsyTrial.title }
         guard settings.isConfigured else { return String(localized: "Not set up") }
         return settings.model.isEmpty ? settings.providerName : settings.model
     }

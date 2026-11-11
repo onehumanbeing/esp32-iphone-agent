@@ -40,16 +40,38 @@ import UIKit
     /// line, and the free runs are not counted. Empty: the free line.
     @Published private(set) var key = Keychain.get(Trial.keyAccount) ?? ""
     nonisolated static let keyAccount = "handsy-key"
-    var keyed: Bool { !key.isEmpty }
+    /// Henry 2026-11-12: the key can be turned off for a while (Settings › Model, at the bottom) and kept.
+    @Published private(set) var keyOn = UserDefaults.standard.object(forKey: Trial.keyOnKey) as? Bool ?? true
+    nonisolated static let keyOnKey = "handsyKeyOn"
+    /// A key saved on this iPhone, on or off.
+    var hasKey: Bool { !key.isEmpty }
+    /// Runs go out under the key.
+    var keyed: Bool { hasKey && keyOn }
+    /// A key offered by a link (iphoneagent://key?k=…, from handsy.tech): the app asks before it uses it.
+    @Published var offeredKey: OfferedKey?
     private var keyRun: String?  // the run under way with the key
     func setKey(_ value: String) {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard value != key else { return }
+        guard value != key || (!value.isEmpty && !keyOn) else { return }
         end(nil)
         key = value
         Keychain.set(value, for: Self.keyAccount)
+        if !value.isEmpty { keyOn = true; UserDefaults.standard.set(true, forKey: Self.keyOnKey) }
         status = .unknown
         Task { await refresh() }
+    }
+    func setKeyOn(_ on: Bool) {
+        guard on != keyOn else { return }
+        end(nil)
+        keyOn = on
+        UserDefaults.standard.set(on, forKey: Self.keyOnKey)
+        status = .unknown
+        Task { await refresh() }
+    }
+    /// What a Handsy key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
+    nonisolated static func looksLikeKey(_ value: String) -> Bool {
+        value.hasPrefix("hsk_") && (20...200).contains(value.count)
+            && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
     }
     private var keepAlive: Task<Void, Never>?
     private weak var app: AppModel?
@@ -518,4 +540,10 @@ enum TrialError: LocalizedError {
         case .runsOnly: return String(localized: "Handsy Free only runs tasks. Use your own model for tests and intent analysis.")
         }
     }
+}
+
+/// A key from a link, waiting for the user's yes.
+struct OfferedKey: Identifiable, Equatable {
+    let key: String
+    var id: String { key }
 }

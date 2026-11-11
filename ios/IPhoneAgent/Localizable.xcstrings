@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "A Handsy key starts with hsk_" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy key 以 hsk_ 开头"
+          }
+        }
+      }
+    },
     "Accept and Get Started" : {
       "localizations" : {
         "zh-Hans" : {
@@ -67,6 +77,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "让智能体在这台手机上完成一个任务，比如“打开设置并进入无线局域网”。"
+          }
+        }
+      }
+    },
+    "Change Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换 Key"
           }
         }
       }
@@ -181,6 +201,16 @@
         }
       }
     },
+    "Handsy Plan · Paused" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy 套餐 · 已暂停"
+          }
+        }
+      }
+    },
     "Handsy key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -241,6 +271,16 @@
         }
       }
     },
+    "Key turned off at the bottom of this page" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在本页底部关闭 key"
+          }
+        }
+      }
+    },
     "No board yet? Try the demo" : {
       "localizations" : {
         "zh-Hans" : {
@@ -257,6 +297,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无需排队，还能分析你的录制"
+          }
+        }
+      }
+    },
+    "Off: runs use Handsy Free. Turn it back on any time." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关闭：运行使用 Handsy Free，随时可以再打开。"
           }
         }
       }
@@ -287,6 +337,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "Paste the key from your Handsy plan. Runs then use your plan: no waiting in line, and recordings are read." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴你 Handsy 套餐里的 key。之后运行使用你的套餐：不用排队，也能分析录制。"
           }
         }
       }
@@ -381,6 +441,36 @@
         }
       }
     },
+    "Runs use your Handsy plan. Turn it off to use Handsy Free for a while; the key stays on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行使用你的 Handsy 套餐。关闭后暂时改用 Handsy Free，key 仍保存在这台 iPhone 上。"
+          }
+        }
+      }
+    },
+    "Set Up Your Handsy Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置你的 Handsy key"
+          }
+        }
+      }
+    },
+    "Set it up now: tap here" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点这里，马上设置"
+          }
+        }
+      }
+    },
     "Steps learned from the run %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -397,6 +487,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次任务有部分步骤是 AI 自己完成的，并且运行成功，所以那次运行的步骤成了保存的步骤。"
+          }
+        }
+      }
+    },
+    "The key stays in this iPhone's Keychain. Turn it off or remove it at the bottom of Settings › Model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "key 保存在这台 iPhone 的钥匙串里。可在 设置 › 模型 底部关闭或移除。"
           }
         }
       }
@@ -731,12 +831,42 @@
         }
       }
     },
+    "Use My Handsy Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用我的 Handsy key"
+          }
+        }
+      }
+    },
     "Use My Own API Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "用我自己的 API key"
+          }
+        }
+      }
+    },
+    "Use This Handsy Key?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用这个 Handsy key？"
+          }
+        }
+      }
+    },
+    "Use This Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用这个 Key"
           }
         }
       }
@@ -1347,6 +1477,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "板子已响应，但尚未收到新的屏幕画面。请保持屏幕镜像连接后重试。"
+          }
+        }
+      }
+    },
+    "handsy.tech sent this key to the app. Use it only if you just copied it from your own Handsy plan." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "handsy.tech 把这个 key 发给了 App。只有刚从你自己的 Handsy 套餐里复制的才使用。"
           }
         }
       }
