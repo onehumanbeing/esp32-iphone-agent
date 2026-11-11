@@ -101,16 +101,6 @@
         }
       }
     },
-    "Get a Handsy Plan" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "获取 Handsy 套餐"
-          }
-        }
-      }
-    },
     "Handsy Free gives a few runs per phone. A Handsy plan runs without waiting and reads recordings; your own API key works too." : {
       "localizations" : {
         "zh-Hans" : {
@@ -257,16 +247,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没有板子？试试演示"
-          }
-        }
-      }
-    },
-    "No waiting, and it reads your recordings" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无需排队，还能分析你的录制"
           }
         }
       }

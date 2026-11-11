@@ -1,11 +1,8 @@
 import SwiftUI
-#if HANDSY_STORE
-import StoreKit
-#endif
 
 /// The model page's plan banner (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
-/// are paid for, in plain sight, above the deciders. App Store build: a black banner to the plans (its link and
-/// storefront rule live in HandsyStoreEntry, outside this repository). Every build with the free line: a wide
+/// are paid for, in plain sight, above the deciders. App Store build: its own banners (plans, the loaded plan
+/// and its page) live outside this repository, Henry 2026-11-12: never in TestFlight or here. Every build with the free line: a wide
 /// "Already have a Handsy key? Set it up now" row. With a key: the banner says the plan is active and opens the
 /// key sheet; the App Store build shows the plan, what is left, and opens its plan page instead (both outside
 /// this repository, Henry 2026-11-12: not in TestFlight). One's own API key is set up in the Large Language Model
@@ -15,7 +12,6 @@ struct PlanCard: View {
     @ObservedObject private var trial = Trial.shared
     @State private var editingKey = false
     @State private var managing = false
-    @State private var plansShown = false
 
     var body: some View {
         if Trial.available {
@@ -30,10 +26,6 @@ struct PlanCard: View {
             .sheet(isPresented: $editingKey) { HandsyKeySheet() }
             #if HANDSY_STORE
             .sheet(isPresented: $managing) { HandsyStorePlanPage() }
-            .task {
-                plansShown = HandsyStoreEntry.linkAllowed(await Storefront.current?.countryCode)
-                for await storefront in Storefront.updates { plansShown = HandsyStoreEntry.linkAllowed(storefront.countryCode) }
-            }
             #endif
         }
     }
@@ -52,13 +44,7 @@ struct PlanCard: View {
                 #endif
             } else {
                 #if HANDSY_STORE
-                if plansShown {
-                    Link(destination: HandsyStoreEntry.plans) {
-                        PlanBanner(symbol: "sparkles", title: Text("Get a Handsy Plan"),
-                                   detail: Text("No waiting, and it reads your recordings"))
-                    }
-                    .buttonStyle(.plain)
-                }
+                HandsyStorePlansBanner()
                 #endif
                 Button { editingKey = true } label: {
                     PlanBanner(symbol: "key.fill", title: Text("Already have a Handsy key?"),
@@ -142,9 +128,6 @@ struct HandsyKeySheet: View {
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             field
-            #if HANDSY_STORE
-            if offered == nil { HandsyConnectButton { dismiss() } }  // sign in on handsy.tech, the key comes back
-            #endif
             if !value.isEmpty && !valid {
                 Text("A Handsy key starts with hsk_").font(.footnote).foregroundStyle(.red)
             }
