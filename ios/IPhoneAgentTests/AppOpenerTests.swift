@@ -21,6 +21,20 @@ import XCTest
         XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type Notes", "key enter"])
     }
 
+    /// A plain wallpaper and no on-screen keyboard: Spotlight looks like the Home Screen and the app like both,
+    /// so what the screen says decides (2026-11-11: WeChat judged "Spotlight did not come up" twice).
+    func testPlainWallpaperIsJudgedByWhatTheScreenSays() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [app] in $0 == app ? ["微信", "文件传输助手"] : ["WeChat", "WeChat"] },
+                               same: { _, _ in true }, pause: { _ in })
+        let result = try await opener.open("WeChat")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
+    }
+
     func testChineseNameIsTypedAsIsTheTyperCommitsIt() async throws {
         var sent: [String] = []
         let result = try await opener([home, spotlight, app], lines: ["时钟", "时钟"]) { sent.append($0) }.open("时钟")
@@ -68,7 +82,12 @@ import XCTest
 
     func testSpotlightThatNeverCameUpIsTriedAgainWithoutReturn() async throws {
         var sent: [String] = []
-        let result = try await opener([home, home, home, spotlight, app]) { sent.append($0) }.open("Notes")
+        var queue: [Data?] = [home, home, home, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },  // the Home Screen lists no results
+                               same: { $0 == $1 }, pause: { _ in })
+        let result = try await opener.open("Notes")
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 2)
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)

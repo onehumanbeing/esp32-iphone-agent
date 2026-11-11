@@ -66,11 +66,18 @@ enum OpenResult: String {
             // a Chinese name goes in through the pinyin keyboard, committed (HanTyper)
             if pasting { try await key("cmd+v") } else { try await type(name) }
             guard let results = await look() else { return .unchecked }
-            if same(results, homeFrame) { continue }  // Spotlight did not come up
-            guard Self.listed(name, in: await read(results), as: labels) else { return .notFound }  // Spotlight stays for the model
+            // Read first: with the board's keyboard iOS shows no on-screen one, so on a plain wallpaper Spotlight
+            // looks much like the Home Screen (2026-11-11: WeChat listed, judged "did not come up" twice).
+            let lines = await read(results)
+            if !Self.listed(name, in: lines, as: labels) {
+                if same(results, homeFrame) { continue }  // Spotlight did not come up
+                return .notFound  // Spotlight stays for the model
+            }
             try await key("enter")  // opens the top hit
-            let after = await look()
-            if !ownAppInFront(), !same(after, results), !same(after, homeFrame) { return .opened }
+            guard let after = await look() else { return .unchecked }
+            if ownAppInFront() { continue }
+            if !same(after, results), !same(after, homeFrame) { return .opened }
+            if !Self.listed(name, in: await read(after), as: labels) { return .opened }  // a plain screen: Spotlight is gone
         }
         return .notOpened
     }
