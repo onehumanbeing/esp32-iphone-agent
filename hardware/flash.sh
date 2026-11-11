@@ -4,6 +4,7 @@
 #   --debug       log commands and the AirPlay handshake on USB serial
 #   --sta         test build: join the Wi-Fi in hid_bridge/secrets.h instead of opening a hotspot
 #   --build-only  compile only (prints flash/RAM usage)
+#   --name NAME   the board's name in Screen Mirroring and Bluetooth (one word; default ESP32 Agent)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
 # BLE host: h2zero NimBLE-Arduino (arduino-cli lib install "NimBLE-Arduino"); its buffer sizes live in
 # hid_bridge/nimble_cfg.h, force-included into every C/C++ file below.
@@ -13,9 +14,14 @@ set -euo pipefail
 cd "$(dirname "$0")"
 FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB"
 ports() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && echo "$p"; done; return 0; }
-PORT="" DEFS="" BUILD_ONLY=0
+PORT="" DEFS="" BUILD_ONLY=0 NAME_NEXT=0
 for a in "$@"; do
+  if (( NAME_NEXT )); then
+    [[ $a =~ ^[A-Za-z0-9]+$ ]] || { echo "--name takes one word of letters and digits"; exit 1; }
+    DEFS+=" -DBOARD_NAME=$a"; NAME_NEXT=0; continue
+  fi
   case $a in
+    --name) NAME_NEXT=1 ;;
     --debug) DEFS+=" -DDEBUG_SERIAL=1" ;;
     --sta) [[ -f hid_bridge/secrets.h ]] || { echo "--sta needs hid_bridge/secrets.h (see secrets.example.h)"; exit 1; }
            DEFS+=" -DSTA_FROM_SECRETS=1" ;;
