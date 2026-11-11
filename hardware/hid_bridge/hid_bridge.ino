@@ -234,7 +234,7 @@ String board(const String &line, const String &id, char who) {
   String arg = sp < 0 ? "" : line.substring(sp + 1);
   long a = 0, b = 0;
   int n = sscanf(arg.c_str(), "%ld %ld", &a, &b);
-  // Getting the board back on a network outranks the app's use of it (Henry 2026-11-11): `net` goes through.
+  // Getting the board back on a network outranks the app's use of it (2026-11-11): `net` goes through.
   if (who == FROM_CLI && !arb_allowed(ARB_CLI, ble_app_active()) && cmd != "crash" && cmd != "net") return APP_BUSY;
   if (cmd == "stream") {
     if (arg != "on" && arg != "off") return "err usage: stream on|off";
