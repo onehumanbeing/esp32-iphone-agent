@@ -71,6 +71,26 @@
         }
       }
     },
+    "Ask Both" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时问"
+          }
+        }
+      }
+    },
+    "Ask Both: the model gets each step too, so no time is lost when Jev isn't sure. Uses more tokens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时问：模型也会收到每一步，Jev 拿不准时不耽误时间，但更费 token。"
+          }
+        }
+      }
+    },
     "Ask the agent to ${task}" : {
       "localizations" : {
         "zh-Hans" : {
@@ -117,6 +137,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beta"
+          }
+        }
+      }
+    },
+    "Connected. Try this first: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连接。先试试这个：%@"
           }
         }
       }
@@ -297,6 +327,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Intent 从运行中学习"
+          }
+        }
+      }
+    },
+    "Jev and the model get each step together: faster, uses more tokens." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jev 和模型同时收到每一步：更快，但更费 token。"
           }
         }
       }
@@ -487,6 +527,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运行你上次运行的意图。"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索"
+          }
+        }
+      }
+    },
+    "Searching %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜一下 %@"
+          }
+        }
+      }
+    },
+    "Searching…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜一下…"
           }
         }
       }

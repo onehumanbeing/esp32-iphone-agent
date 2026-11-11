@@ -19,6 +19,11 @@ import SwiftUI
         XCTAssertTrue(states.allSatisfy(\.waits))
         XCTAssertEqual(IslandStatus.acting(["action": .str("swipe")]).minimal, "Swipe")
         XCTAssertEqual(IslandStatus.acting(["action": .str("wait")]).minimal, "Wait")
+        let tool = IslandStatus.acting(["action": .str("tool"), "text": .str("search \"LiberNovo chair\"")])
+        XCTAssertEqual(tool.minimal, "Search")
+        XCTAssertTrue(tool.short.hasPrefix("Searching Liber"), tool.short)
+        XCTAssertEqual(tool.full, "Searching LiberNovo chair")
+        XCTAssertEqual(IslandStatus.acting(["action": .str("tool")]).short, "Searching…")
     }
 
     func testMinimalPresentationUsesExplicitPhaseAndFullAccessibleStatus() {

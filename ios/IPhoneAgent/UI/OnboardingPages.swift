@@ -295,8 +295,7 @@ struct BrainPage: View {
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: app.modelOK == true ? .success : app.modelOK == false ? .failure : .thinking,
-                       title: "Give Me a Brain",
-                       message: "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain.")
+                       title: "Give Me a Brain", message: message)
             if MockMode.on {
                 Panel {
                     Label("Demo data simulates the model.", systemImage: "theatermasks")
@@ -310,20 +309,16 @@ struct BrainPage: View {
                 ModelFieldsPanel(settings: settings)
                 ToolsEntry()
             }
-            ModelTestTimingView(app: app)
-            switch app.modelOK {
-            case true?:
-                Panel {
-                    Label("Connected. Try this first:", systemImage: "checkmark.circle.fill").foregroundStyle(Palette.ok)
-                    Text(verbatim: IntentStore.examples[0].prompt).font(.subheadline).foregroundStyle(.secondary)
-                        .padding(.top, Space.s)
-                }
-            case false?:
-                Label(app.modelError ?? String(localized: "Could not reach the model. Check the URL and key."), systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(Palette.stop).font(.subheadline)
-            case nil:
-                EmptyView()
-            }
+            if app.modelTestStarted != nil || app.modelTestSeconds != nil { ModelTestTimingView(app: app) }
+        }
+    }
+
+    /// The connection result lives in the header (and as a mark on the model row), not in a card of its own.
+    private var message: LocalizedStringKey {
+        switch app.modelOK {
+        case true?: return "Connected. Try this first: \(IntentStore.examples[0].prompt)"
+        case false?: return "\(app.modelError ?? String(localized: "Could not reach the model. Check the URL and key."))"
+        case nil: return "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain."
         }
     }
 }

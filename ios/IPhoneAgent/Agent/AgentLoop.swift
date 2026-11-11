@@ -510,6 +510,7 @@ extension Gestures {
                 return try await confirm(act["reason"]?.str ?? "")
             }
             if Actions.notebookActions.contains(name) {
+                if name == "tool" { onDoing?(.acting(act)) }  // the island says what it looks up while it waits
                 try await notebookAction(&act)
                 record(planned.shot, act)
                 if name == "write" { return false }

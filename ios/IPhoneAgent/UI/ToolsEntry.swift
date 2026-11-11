@@ -27,13 +27,15 @@ struct ToolsEntry: View {
 
     var body: some View {
         Button(action: show) {
-            Panel {
-                HStack {
-                    ToolsRowLabel()
-                    Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(.tertiary)
-                }
-                .frame(minHeight: 44)
+            HStack {
+                ToolsRowLabel()
+                Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(.tertiary)
             }
+            .frame(minHeight: 44)
+            .padding(.horizontal, Space.l)
+            .padding(.vertical, Space.s)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.surface))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $open) {

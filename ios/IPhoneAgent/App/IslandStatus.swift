@@ -112,6 +112,7 @@ struct IslandStatus: Equatable {
         case "path", "circle": minimal = String(localized: "Draw")
         case "home": minimal = String(localized: "Home")
         case "back": minimal = String(localized: "Back")
+        case "tool": minimal = String(localized: "Search")
         default: minimal = String(localized: "Wait")
         }
         func say(_ verb: (String) -> String, _ bare: String, _ what: String?) -> Self {
@@ -140,6 +141,11 @@ struct IslandStatus: Equatable {
             return Self(short: String(localized: "Going home"), full: String(localized: "Going to the Home Screen"), look: look, minimal: minimal)
         case "back":
             return Self(short: String(localized: "Going back"), full: String(localized: "Going back"), look: look, minimal: minimal)
+        case "tool":  // `search "清闲智能椅"`: the query, without the tool's name
+            let line = act["text"]?.str ?? ""
+            let query = line.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init)?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+            return say({ String(localized: "Searching \($0)") }, String(localized: "Searching…"), query)
         default:
             return Self(short: String(localized: "Waiting…"), full: String(localized: "Waiting for the screen…"), look: nil, minimal: minimal)
         }

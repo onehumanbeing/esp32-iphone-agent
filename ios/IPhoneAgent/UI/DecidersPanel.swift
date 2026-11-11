@@ -2,8 +2,9 @@ import SwiftUI
 
 /// The heart of the model page (onboarding's "Give Me a Brain" and Settings › Model): who decides each step.
 /// Two rows, Jev and the large language model: drag a row by its handle to set the order, switch each on or off,
-/// tap one for its settings (Jev: Handsy or your own TypeSafe key; the model: provider, key and model). Below,
-/// on its own, the switch to ask both at once. On your own model, switching Jev on asks for its consent first.
+/// tap one for its settings (Jev: Handsy or your own TypeSafe key; the model: provider, key and model). "Ask Both"
+/// is a small toggle at the header's trailing edge (Henry 2026-11-12: not a card of its own), and the model row
+/// shows whether the last connection test worked. On your own model, switching Jev on asks for its consent first.
 /// Builds without the free line have no Jev: the caller shows the model fields as they are.
 struct DecidersPanel: View {
     @ObservedObject var settings: Settings
@@ -18,6 +19,7 @@ struct DecidersPanel: View {
     @AppStorage(Deciders.raceKey) private var race = true
     @AppStorage(JevConfig.ownKey) private var jevOwnKey = false
     @ObservedObject private var trial = Trial.shared
+    @ObservedObject private var app = AppModel.shared
 
     private static let rowHeight: CGFloat = 64
     private var freeLine: Bool { settings.provider == .handsyTrial }
@@ -26,19 +28,13 @@ struct DecidersPanel: View {
         Group {
             if inForm {
                 PlanCard(inForm: true)
-                Section { rows } header: { Text("Who decides each step") } footer: { Text(footer) }
-                if deciders.mode == .jevFirst { Section { raceRow } footer: { Text(raceFooter) } }
+                Section { rows } header: { header.textCase(nil) } footer: { footerText }
             } else {
                 VStack(alignment: .leading, spacing: Space.s) {
                     PlanCard().padding(.bottom, Space.m)
-                    Text("Who decides each step").font(.footnote).foregroundStyle(.secondary)
-                        .padding(.horizontal, Space.l)
+                    header.font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                     Panel { rows }
-                    Text(footer).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                    if deciders.mode == .jevFirst {
-                        Panel { raceRow }.padding(.top, Space.l)
-                        Text(raceFooter).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                    }
+                    footerText.font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                 }
             }
         }
@@ -115,21 +111,32 @@ struct DecidersPanel: View {
             }
     }
 
-    private var raceRow: some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: "arrow.triangle.branch").frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ask Both at Once")
-                Text("Faster, uses more tokens").font(.footnote).foregroundStyle(.secondary)
+    /// "Who decides each step", and with Jev first, the "Ask Both" toggle at its trailing edge.
+    private var header: some View {
+        HStack {
+            Text("Who decides each step")
+            Spacer(minLength: Space.s)
+            if deciders.mode == .jevFirst {
+                Toggle(isOn: $race) {
+                    Label("Ask Both", systemImage: "arrow.triangle.branch")
+                }
+                .toggleStyle(.button)
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .tint(race ? Palette.accent : .secondary)
+                .accessibilityHint("Jev and the model get each step together: faster, uses more tokens.")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle("Ask Both at Once", isOn: $race).labelsHidden().tint(Palette.accent)
         }
-        .frame(minHeight: Self.rowHeight)
     }
 
-    private var raceFooter: LocalizedStringKey {
-        "Jev and the Large Language Model get each step together. When Jev isn't sure, the model's answer is already on the way, so no time is lost. The model also answers the steps Jev takes, so it uses more tokens."
+    private var footerText: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Text(footer)
+            if deciders.mode == .jevFirst && race {
+                Text("Ask Both: the model gets each step too, so no time is lost when Jev isn't sure. Uses more tokens.")
+            }
+        }
     }
 
     private func title(_ decider: Decider) -> LocalizedStringKey {
@@ -140,14 +147,27 @@ struct DecidersPanel: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title(decider)).foregroundStyle(.primary).lineLimit(1)
             HStack(spacing: Space.xs) {
+                if decider == .model { connection }
                 Text(verbatim: decider == .jev ? jevName : modelName).lineLimit(1).truncationMode(.middle)
-                Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                Image(systemName: "chevron.right").font(.caption.bold())
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
+    }
+
+    /// The last Test Connection: a green check or a red mark before the model's name; nothing before a test.
+    @ViewBuilder private var connection: some View {
+        switch app.modelOK {
+        case true?:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(Palette.ok).accessibilityLabel("Connected")
+        case false?:
+            Image(systemName: "xmark.octagon.fill").foregroundStyle(Palette.stop).accessibilityLabel("Not connected")
+        case nil:
+            EmptyView()
+        }
     }
 
     private var jevName: String { jevOwnKey && JevConfig.ownActive ? "TypeSafe · \(JevConfig.model)" : "Handsy" }
