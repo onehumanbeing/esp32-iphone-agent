@@ -11,6 +11,26 @@
         }
       }
     },
+    "Active" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已启用"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible vision model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任何兼容 OpenAI 的视觉模型"
+          }
+        }
+      }
+    },
     "Ask the agent to ${task}" : {
       "localizations" : {
         "zh-Hans" : {
@@ -61,12 +81,32 @@
         }
       }
     },
+    "Get a Handsy Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取 Handsy 套餐"
+          }
+        }
+      }
+    },
     "Handsy Free gives a few runs per phone. A Handsy plan runs without waiting and reads recordings; your own API key works too." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Handsy Free 每台手机有几次免费运行。Handsy 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
+          }
+        }
+      }
+    },
+    "Handsy Free gives a few runs per phone. A plan runs without waiting and reads your recordings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy Free 每台手机有几次免费运行。套餐无需排队，还能分析你的录制。"
           }
         }
       }
@@ -171,6 +211,16 @@
         }
       }
     },
+    "Key ending in %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "key 末四位 %@"
+          }
+        }
+      }
+    },
     "No board yet? Try the demo" : {
       "localizations" : {
         "zh-Hans" : {
@@ -207,6 +257,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "Paste the key from your plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴你套餐里的 key"
           }
         }
       }
@@ -657,6 +717,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次运行对吗？"
+          }
+        }
+      }
+    },
+    "Your Own API Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我自己的 API key"
           }
         }
       }
