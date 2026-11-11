@@ -29,6 +29,7 @@ struct DraftStep: Identifiable, Equatable {
     @Published var steps: [DraftStep]
     @Published var name: String
     @Published var icon: String
+    @Published var color: String?
     @Published var prompt: String
     @Published var hints: [String]
     @Published var intentID: UUID?
@@ -36,9 +37,10 @@ struct DraftStep: Identifiable, Equatable {
     var showSaveOnOpen = false
 
     init(source: Source, folder: URL?, runID: String?, outcome: Outcome?, steps: [DraftStep], name: String,
-         prompt: String, hints: [String] = [], icon: String = "bolt.fill", intentID: UUID? = nil) {
+         prompt: String, hints: [String] = [], icon: String = "bolt.fill", color: String? = nil, intentID: UUID? = nil) {
         self.source = source; self.folder = folder; self.runID = runID; self.outcome = outcome
         self.steps = steps; self.name = name; self.prompt = prompt; self.hints = hints; self.icon = icon
+        self.color = color
         self.intentID = intentID
         loadEdits()
     }
@@ -51,7 +53,7 @@ struct DraftStep: Identifiable, Equatable {
         }
         self.init(source: intent == nil ? (run.isDemo ? .recording : .run) : .intent, folder: run.folder, runID: run.id, outcome: run.outcome,
                   steps: steps, name: intent?.name ?? "", prompt: intent?.prompt ?? run.task,
-                  hints: intent?.checklist ?? [], icon: intent?.symbol ?? "bolt.fill", intentID: intent?.id)
+                  hints: intent?.checklist ?? [], icon: intent?.symbol ?? "bolt.fill", color: intent?.color, intentID: intent?.id)
     }
 
     /// An intent without a reference run: only its words to edit.
@@ -61,7 +63,7 @@ struct DraftStep: Identifiable, Equatable {
             return DemoRecorder.root.appendingPathComponent(name)
         }
         self.init(source: .intent, folder: recording, runID: nil, outcome: nil, steps: [], name: intent.name,
-                  prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, intentID: intent.id)
+                  prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, color: intent.color, intentID: intent.id)
     }
 
     /// A demonstration: an old recording, or a run DemoRecorder wrote (its steps say `demo`).
@@ -120,6 +122,7 @@ struct DraftStep: Identifiable, Equatable {
         item.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(prompt.prefix(30)) : name
         item.prompt = prompt
         item.icon = icon
+        item.color = color == "accent" ? nil : color
         item.hints = hints.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         item.refRun = runID ?? item.refRun
         if source == .recording && runID == nil { item.refRecording = folder?.lastPathComponent }  // before recordings were runs
@@ -150,6 +153,7 @@ struct DraftStep: Identifiable, Equatable {
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         let result = try picked.enumerated().map { i, step -> RecordedStep in
             var action = Actions.key(step.action)
+            if step.name == "tap", let label = step.action["label"] { action["label"] = label }  // replayed by name
             var sure = source == .run ? outcome == .done && step.action["changed"] != .bool(false) : !step.uncertain
             if let fix = step.fix, step.name == "tap" {
                 action["x"] = .int(Int(fix.x)); action["y"] = .int(Int(fix.y))
@@ -157,7 +161,8 @@ struct DraftStep: Identifiable, Equatable {
             }
             if step.verdict == true { sure = true }
             if demo && (step.name == "note" || (!sure && Replay.replayable.contains(step.name))) {
-                let goal = step.name == "note" ? step.action["text"]?.str ?? "" : "Do this step: " + StepText.title(action)
+                let label = action["label"]?.str.map { "Tap \"\($0)\"" }
+                let goal = step.name == "note" ? step.action["text"]?.str ?? "" : label ?? "Do this step: " + StepText.title(action)
                 action = ["action": .str("ai"), "goal": .str(goal)]
                 sure = true
             }

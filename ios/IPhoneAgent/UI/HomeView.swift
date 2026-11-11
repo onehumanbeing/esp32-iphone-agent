@@ -318,7 +318,7 @@ struct HomeView: View {
             ForEach(intents.items) { item in
                 NavigationLink(value: item.id) {
                     HStack(spacing: Space.m) {
-                        SettingsIcon(symbol: item.symbol, color: .accentColor)
+                        SettingsIcon(symbol: item.symbol, color: IntentTint.color(item.color))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: item.name).font(.body).foregroundStyle(.primary)
                             Text(verbatim: item.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)

@@ -38,6 +38,26 @@ import UIKit
         XCTAssertEqual(Replay.decide(.init(action: note, sure: true, frame: a), screen: a), .handOver("not a move"))
     }
 
+    /// Henry 2026-11-12: a demonstrated tap is replayed by what it tapped, wherever that is on the screen now.
+    func testALabelledTapFindsItsRowWherever() {
+        let lines = [DemoAnalysis.Line(text: "微信", x: 500, y: 30), DemoAnalysis.Line(text: "my family", x: 400, y: 340),
+                     DemoAnalysis.Line(text: "文件传输助手", x: 380, y: 700), DemoAnalysis.Line(text: "微信", x: 80, y: 960)]
+        XCTAssertEqual(Replay.locate("文件传输助手", near: 287, 345, in: lines)?.y, 700, "the row moved down: tapped where it is")
+        XCTAssertEqual(Replay.locate("微信", near: 90, 940, in: lines)?.x, 80, "two of them: the one nearest the recorded spot")
+        XCTAssertEqual(Replay.locate("My Family", near: 0, 0, in: lines)?.y, 340, "case and spaces don't matter")
+        XCTAssertNil(Replay.locate("Taobao", near: 500, 500, in: lines))
+    }
+
+    func testIntentColourIsSavedAndExported() {
+        let draft = ReviewDraft(source: .run, folder: nil, runID: "r", outcome: .done, steps: [], name: "n", prompt: "p")
+        draft.color = "teal"
+        let item = draft.intent(existing: nil)
+        XCTAssertEqual(item.color, "teal")
+        XCTAssertEqual(IntentArchive.item(item, screenshots: false).color, "teal")
+        draft.color = "accent"
+        XCTAssertNil(draft.intent(existing: item).color)
+    }
+
     private func steps(_ frames: [Data?]) -> Replay {
         Replay(steps: frames.enumerated().map { i, f in
             .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)

@@ -99,6 +99,19 @@ struct Replay {
         return .perform
     }
 
+    /// Henry 2026-11-12: a demonstrated tap names what was tapped ("label"), so it is replayed by that name, not by
+    /// its spot: a chat list in another order still finds the row. The OCR line that reads it, nearest to the
+    /// recorded spot; nil when the screen doesn't show it (the model repairs the step).
+    static func locate(_ label: String, near x: Int, _ y: Int, in lines: [DemoAnalysis.Line]) -> (x: Int, y: Int)? {
+        func plain(_ s: String) -> String { s.lowercased().filter { !$0.isWhitespace } }
+        let want = plain(label)
+        guard !want.isEmpty else { return nil }
+        let hits = lines.filter { plain($0.text) == want }
+        let found = hits.isEmpty ? lines.filter { plain($0.text).contains(want) } : hits
+        return found.min { hypot(Double($0.x - x), Double($0.y - y)) < hypot(Double($1.x - x), Double($1.y - y)) }
+            .map { ($0.x, $0.y) }
+    }
+
     /// The steps for the model's prompt, the ones already done marked.
     var hints: [String] {
         steps.enumerated().compactMap { i, s in

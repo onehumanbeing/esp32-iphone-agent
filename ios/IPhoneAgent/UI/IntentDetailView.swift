@@ -16,9 +16,9 @@ struct IntentDetailView: View {
                     VStack(spacing: Space.m) {
                         Image(systemName: item.symbol)
                             .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(.white)
                             .frame(width: 72, height: 72)
-                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.secondarySystemFill)))
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(IntentTint.color(item.color)))
                         Text(verbatim: item.name).font(.title2.bold()).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)

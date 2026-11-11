@@ -6,6 +6,7 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var name: String
     var prompt: String
     var icon: String?
+    var color: String?       // IntentTint name; nil = the app's accent
     var hints: [String]?     // checklist, appended to the actor prompt as hints when it runs
     var refRecording: String? // folder name of the original demonstration
     var refRun: String?      // the run it was made from

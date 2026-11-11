@@ -29,6 +29,19 @@ extension AgentLoop {
             try await notebookAction(&act)
             act["replay"] = .bool(true)
             record(screen?.frame, act)
+        case "tap" where step.action["label"]?.str != nil:
+            guard let at = await labelled(step) else {
+                let why = "\"\(step.action["label"]?.str ?? "")\" not on screen"
+                guard replay.isScript else { return handOver(n, why) }
+                guard try await repair(step, n, why) else { return .ended }
+                break
+            }
+            var found = step
+            (found.action["x"], found.action["y"]) = (.int(at.x), .int(at.y))
+            if !(try await move(found)) {
+                guard replay.isScript else { return handOver(n, "no change") }
+                guard try await repair(step, n, "no change") else { return .ended }
+            }
         default:
             if case .handOver(let why) = Replay.decide(step, screen: screen?.frame) {
                 guard replay.isScript else { return handOver(n, why) }
@@ -41,6 +54,15 @@ extension AgentLoop {
         DebugLog.write("script step \(n) (\(name)): done")
         replay.advance()
         return .next
+    }
+
+    /// Where a demonstrated tap's label reads on this screen (OCR), nearest to the recorded spot.
+    private func labelled(_ step: Replay.Step) async -> (x: Int, y: Int)? {
+        guard let label = step.action["label"]?.str, let frame = screen?.frame else { return nil }
+        let at = Replay.locate(label, near: step.action["x"]?.int ?? 500, step.action["y"]?.int ?? 500,
+                               in: await DemoAnalysis.texts(frame, limit: 80))
+        DebugLog.write("script: \"\(label)\" \(at.map { "at \($0.x) \($0.y)" } ?? "not on screen")")
+        return at
     }
 
     /// The model does one sub-goal from the current screen, with no planner call. True = it said done.

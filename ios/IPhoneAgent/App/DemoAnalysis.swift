@@ -51,12 +51,12 @@ enum DemoAnalysis {
         var listed: String { "\"\(text.prefix(30))\" at \(x) \(y)" }
     }
 
-    /// OCR lines of a screen, centres in 0-1000, top to bottom (at most 30).
-    static func texts(_ jpeg: Data) async -> [Line] {
+    /// OCR lines of a screen, centres in 0-1000, top to bottom (at most `limit`).
+    static func texts(_ jpeg: Data, limit: Int = 30) async -> [Line] {
         guard let img = Vision.image(jpeg) else { return [] }
         let w = Double(img.width), h = Double(img.height)
         let found: [(text: String, box: [Int])] = await UITreeOCR.lines(img)
-        return found.prefix(30).map { line -> Line in
+        return found.prefix(limit).map { line -> Line in
             let b = line.box.map(Double.init)
             return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000))
         }
