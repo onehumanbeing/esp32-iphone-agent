@@ -63,7 +63,8 @@ platform :ios do
     store_name = ENV["IA_STORE_APP_NAME"].to_s
     settings[:IA_APP_NAME] = store_name unless options[:testflight] || store_name.empty?
     # TestFlight-only builds read the TestFlight firmware list (Firmware.swift); store builds keep the default.
-    ipa = with_store_sources do |store|
+    # Henry 2026-11-12: purchase (store sources) only in the App Store build, never in a TestFlight-only one.
+    ipa = with_store_sources(!options[:testflight]) do |store|
       flags = [("TESTFLIGHT" if options[:testflight]), ("HANDSY_STORE" if store)].compact
       settings[:SWIFT_ACTIVE_COMPILATION_CONDITIONS] = "$(inherited) #{flags.join(' ')}" unless flags.empty?
       xcargs = settings.map { |k, v| "#{k}='#{v}'" }.join(" ")
@@ -84,10 +85,12 @@ platform :ios do
   # Store-only sources: HANDSY_STORE_SOURCES in config.env names a folder outside this repository. Its Swift files
   # and string catalogs are copied into the ignored IPhoneAgent/Private and added to the app target for this one
   # build (compiled under HANDSY_STORE); afterwards the copy is removed and the project file is put back, whether
-  # the build passed or not. Without the setting the app builds as it is here.
-  def with_store_sources
+  # the build passed or not. Without the setting, or for a TestFlight-only build (testflight:true), the app builds
+  # as it is here: purchase ships only in the App Store build.
+  def with_store_sources(wanted = true)
     source = ENV["HANDSY_STORE_SOURCES"].to_s
-    return yield(false) if source.empty?
+    UI.message("Store sources: left out of this TestFlight-only build") if !wanted && !source.empty?
+    return yield(false) if source.empty? || !wanted
     source = File.expand_path(source)
     files = Dir["#{source}/*.{swift,xcstrings}"]
     UI.user_error!("HANDSY_STORE_SOURCES has no sources: #{source}") if files.empty?
