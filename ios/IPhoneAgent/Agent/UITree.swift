@@ -62,13 +62,17 @@ struct UITree {
         let textBoxes = lines.map(\.box)
         let edges = UITreeCV.edgeMap(img)
         var leaves = lines.map { UINode("text", $0.box, label: $0.text) }
-        for (kind, b) in blobs(edges, textBoxes, W, H) where kind == "blob" {
+        var found: [(String, [Int])] = [], filled: [[Int]] = []
+        DispatchQueue.concurrentPerform(iterations: 2) { i in  // independent passes over the same edge map
+            if i == 0 { found = blobs(edges, textBoxes, W, H) } else { filled = filledRects(edges, W, H) }
+        }
+        for (kind, b) in found where kind == "blob" {
             if Double(textBoxes.reduce(0) { $0 + inter(b, $1) }) < 0.5 * Double(area(b)) {
                 leaves.append(UINode(classify(img, b, W), b))
             }
         }
         labelIcons(leaves)
-        let rects = filledRects(edges, W, H).map { UINode("container", $0) }
+        let rects = filled.map { UINode("container", $0) }
         var top = prune(nest(rects, leaves), W, H)
         top = xyCut(top, [0, 0, W, H])
         finish(&top, W, H)
@@ -98,9 +102,13 @@ struct UITree {
     /// Non-text leaves: closed edge blobs with the text pixels removed.
     static func blobs(_ edges: Plane, _ textBoxes: [[Int]], _ W: Int, _ H: Int) -> [(String, [Int])] {
         var e = edges
-        for b in textBoxes {
-            for y in max(0, b[1] - ocrPad)..<min(H, b[3] + ocrPad) {
-                for x in max(0, b[0] - ocrPad)..<min(W, b[2] + ocrPad) { e.v[y * W + x] = 0 }
+        e.v.withUnsafeMutableBufferPointer { v in
+            for b in textBoxes {
+                let x0 = max(0, b[0] - ocrPad), x1 = min(W, b[2] + ocrPad)
+                guard x1 > x0 else { continue }
+                for y in max(0, b[1] - ocrPad)..<max(max(0, b[1] - ocrPad), min(H, b[3] + ocrPad)) {
+                    (v.baseAddress! + y * W + x0).update(repeating: 0, count: x1 - x0)
+                }
             }
         }
         let closed = UITreeCV.close(UITreeCV.dilate(e, 3), 7)
