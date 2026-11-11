@@ -61,6 +61,16 @@
         }
       }
     },
+    "Handsy Free gives a few runs per phone. A Handsy plan runs without waiting and reads recordings; your own API key works too." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy Free 每台手机有几次免费运行。Handsy 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
+          }
+        }
+      }
+    },
     "Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
       "localizations" : {
         "zh-Hans" : {
@@ -91,6 +101,26 @@
         }
       }
     },
+    "Handsy Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy key"
+          }
+        }
+      }
+    },
+    "Handsy Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy 套餐"
+          }
+        }
+      }
+    },
     "Handsy key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -107,6 +137,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Handsy 密钥（可选）"
+          }
+        }
+      }
+    },
+    "I Have a Handsy Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我有 Handsy key"
           }
         }
       }
@@ -161,6 +201,16 @@
         }
       }
     },
+    "Paste" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴"
+          }
+        }
+      }
+    },
     "Processed and kept on infrastructure operated by or on behalf of Holomix, Inc." : {
       "localizations" : {
         "zh-Hans" : {
@@ -191,12 +241,32 @@
         }
       }
     },
+    "Remove Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 key"
+          }
+        }
+      }
+    },
     "Restore on-screen keyboard after runs" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "任务结束后恢复屏幕键盘"
+          }
+        }
+      }
+    },
+    "Runs and recordings use your plan, not the free runs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行和录制都用你的套餐，不占免费次数。"
           }
         }
       }
@@ -237,6 +307,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次任务有部分步骤是 AI 自己完成的，并且运行成功，所以那次运行的步骤成了保存的步骤。"
+          }
+        }
+      }
+    },
+    "The key stays in this iPhone's Keychain. With it, runs use your plan instead of the free runs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "key 只保存在这台 iPhone 的钥匙串里。填了之后，运行用你的套餐，不占免费次数。"
           }
         }
       }
@@ -557,6 +637,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销：改回之前的步骤"
+          }
+        }
+      }
+    },
+    "Use My Own API Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用我自己的 API key"
           }
         }
       }
