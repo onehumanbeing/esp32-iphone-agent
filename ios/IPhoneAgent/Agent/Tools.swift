@@ -24,6 +24,8 @@ struct ToolSpec: Codable, Identifiable, Equatable, Hashable {
 }
 
 extension ToolSpec {
+    enum CodingKeys: String, CodingKey { case id, title, about, url, method, key_header, key_prefix, query_field, body, builtin }
+
     /// A tool file may leave out everything but id, title, about and url.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -37,6 +39,21 @@ extension ToolSpec {
         query_field = try c.decodeIfPresent(String.self, forKey: .query_field) ?? "query"
         body = try c.decodeIfPresent([String: String].self, forKey: .body)
         builtin = try c.decodeIfPresent(String.self, forKey: .builtin)
+    }
+
+    /// Writes a missing key header as null (not left out), so an exported keyless tool reads back keyless.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(about, forKey: .about)
+        try c.encode(url, forKey: .url)
+        try c.encode(method, forKey: .method)
+        if let key_header { try c.encode(key_header, forKey: .key_header) } else { try c.encodeNil(forKey: .key_header) }
+        if let key_prefix { try c.encode(key_prefix, forKey: .key_prefix) } else { try c.encodeNil(forKey: .key_prefix) }
+        try c.encode(query_field, forKey: .query_field)
+        try c.encodeIfPresent(body, forKey: .body)
+        try c.encodeIfPresent(builtin, forKey: .builtin)
     }
 }
 
@@ -80,19 +97,33 @@ extension ToolSpec {
         objectWillChange.send()
     }
 
-    /// A tool from a JSON file (ToolSpec's fields). Same id: replaced. Returns the error to show, nil when added.
+    /// Tools from a JSON file: one tool (ToolSpec's fields) or a list of them, as Export writes. All or none;
+    /// a tool with the same id is replaced. Returns the error to show, nil when added.
     func add(json data: Data) -> String? {
-        guard var tool = try? JSONDecoder().decode(ToolSpec.self, from: data) else { return String(localized: "Not a tool file.") }
-        tool.builtin = nil
-        guard ToolSpec.validID(tool.id), tool.id != Self.handsy.id, tool.id != Self.exa.id else {
-            return String(localized: "The tool's id must be 2–24 lowercase letters, digits or _, and not a built-in one.")
+        let decoder = JSONDecoder()
+        guard let tools = (try? decoder.decode([ToolSpec].self, from: data)) ?? (try? decoder.decode(ToolSpec.self, from: data)).map({ [$0] }),
+              !tools.isEmpty else { return String(localized: "Not a tool file.") }
+        for tool in tools {
+            guard ToolSpec.validID(tool.id), tool.id != Self.handsy.id, tool.id != Self.exa.id else {
+                return String(localized: "The tool's id must be 2–24 lowercase letters, digits or _, and not a built-in one.")
+            }
+            guard let url = URL(string: tool.url), url.scheme == "https" else { return String(localized: "A tool's address must be https.") }
         }
-        guard let url = URL(string: tool.url), url.scheme == "https" else { return String(localized: "A tool's address must be https.") }
-        imported.removeAll { $0.id == tool.id }
-        imported.append(tool)
-        enabled.insert(tool.id)
+        for var tool in tools {
+            tool.builtin = nil
+            imported.removeAll { $0.id == tool.id }
+            imported.append(tool)
+            enabled.insert(tool.id)
+        }
         save()
         return nil
+    }
+
+    /// The imported tools as one JSON file (a list), to share or import on another iPhone. Keys are not in it.
+    func export() -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return (try? encoder.encode(imported)) ?? Data("[]".utf8)
     }
 
     func remove(_ id: String) {

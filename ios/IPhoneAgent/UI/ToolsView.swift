@@ -22,7 +22,12 @@ struct ToolsView: View {
                 Text("Before acting, the agent can look up what the task names, such as a product, a brand or a place, so a misspelt name or a product that doesn't exist doesn't send it scrolling.")
             }
             Section {
-                Button(action: startImport) { Label("Import a Tool…", systemImage: "square.and.arrow.down") }
+                Button(action: startImport) { Label("Import Tools…", systemImage: "square.and.arrow.down") }
+                if !store.imported.isEmpty {
+                    ShareLink(item: ToolsFile(data: store.export()), preview: SharePreview("Handsy Tools")) {
+                        Label("Export Tools…", systemImage: "square.and.arrow.up")
+                    }
+                }
             } footer: {
                 Link(destination: docsURL) {
                     Label("How to Make a Tool", systemImage: "book")

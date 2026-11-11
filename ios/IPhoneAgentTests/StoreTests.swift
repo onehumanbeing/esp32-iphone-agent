@@ -135,7 +135,16 @@ import XCTest
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Run-ID"), "r1")
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
         XCTAssertEqual(sent["query"] as? String, "q")
+        // export → import on another iPhone: the same tools, a keyless one stays keyless
+        XCTAssertNil(store.add(json: Data(#"{"id":"wiki","title":"Wiki","about":"a","url":"https://w.k/s","key_header":null}"#.utf8)))
+        let other = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertNil(other.add(json: store.export()))
+        XCTAssertEqual(other.imported, store.imported)
+        XCTAssertNil(other.imported.last?.key_header)
+        XCTAssertNotNil(other.add(json: Data(#"[{"id":"ok_one","title":"t","about":"a","url":"https://x.y"},{"id":"bad","title":"t","about":"a","url":"http://x.y"}]"#.utf8)))
+        XCTAssertFalse(other.imported.contains { $0.id == "ok_one" }, "a list is added whole or not at all")
         store.remove("docs")
+        store.remove("wiki")
         XCTAssertTrue(store.imported.isEmpty)
     }
 }

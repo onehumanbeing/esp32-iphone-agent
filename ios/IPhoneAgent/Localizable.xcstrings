@@ -171,6 +171,16 @@
         }
       }
     },
+    "Export Tools…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出工具…"
+          }
+        }
+      }
+    },
     "Finish Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -301,7 +311,7 @@
         }
       }
     },
-    "Import a Tool…" : {
+    "Import Tools…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
