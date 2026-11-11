@@ -3,33 +3,26 @@ import SwiftUI
 import StoreKit
 #endif
 
-/// The model page's first card (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
-/// are paid for, in plain sight. Without a key: the plans button (App Store build only; its link and storefront
-/// rule live in HandsyStoreEntry, outside this repository), then a Handsy key and one's own API key, as rows like
-/// the deciders below. With a key: the plan in use (change or remove it in the key sheet).
-/// Builds without the free line have no plans and show nothing.
+/// The model page's plan banner (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
+/// are paid for, in plain sight but small, above the deciders. App Store build: a black banner to the plans (its
+/// link and storefront rule live in HandsyStoreEntry, outside this repository) and "Already have a key?" under it.
+/// TestFlight and this repository's builds: that line only. With a key: the banner says the plan is active and
+/// opens the key sheet. One's own API key is set up in the Large Language Model row below, not here.
+/// Builds without the free line show nothing.
 struct PlanCard: View {
     var inForm = false
-    var ownModel: () -> Void
     @ObservedObject private var trial = Trial.shared
     @State private var editingKey = false
-    #if HANDSY_STORE
     @State private var plansShown = false
-    #endif
-
-    private static let rowHeight: CGFloat = 64
 
     var body: some View {
         if Trial.available {
             Group {
                 if inForm {
-                    Section { content } header: { Text("Handsy Plan") } footer: { Text(footer) }
+                    Section { content }
+                        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 } else {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Handsy Plan").font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                        Panel { content }
-                        Text(footer).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                    }
+                    content
                 }
             }
             .sheet(isPresented: $editingKey) { HandsyKeySheet() }
@@ -43,51 +36,61 @@ struct PlanCard: View {
     }
 
     @ViewBuilder private var content: some View {
-        if trial.keyed {
-            row("key.fill", "Handsy Plan", Text("Key ending in \(String(trial.key.suffix(4)))"), badge: true) { editingKey = true }
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Space.s) {
+            if trial.keyed {
+                Button { editingKey = true } label: {
+                    PlanBanner(symbol: "checkmark.seal.fill", title: "Handsy Plan · Active",
+                               detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
+                }
+                .buttonStyle(.plain)
+            } else {
                 #if HANDSY_STORE
                 if plansShown {
                     Link(destination: HandsyStoreEntry.plans) {
-                        Label("Get a Handsy Plan", systemImage: "sparkles")
-                            .font(.body.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 48)
+                        PlanBanner(symbol: "sparkles", title: "Get a Handsy Plan",
+                                   detail: Text("No waiting, and it reads your recordings"))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Palette.accent)
-                    .padding(.bottom, Space.s)
+                    .buttonStyle(.plain)
                 }
                 #endif
-                row("key", "Handsy Key", Text("Paste the key from your plan")) { editingKey = true }
-                Divider().padding(.leading, 44)
-                row("server.rack", "Your Own API Key", Text("Any OpenAI-compatible vision model")) { ownModel() }
-            }
-        }
-    }
-
-    private func row(_ symbol: String, _ title: LocalizedStringKey, _ detail: Text, badge: Bool = false,
-                     action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: Space.m) {
-                Image(systemName: symbol).font(.body).foregroundStyle(Palette.accent).frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).foregroundStyle(.primary)
-                    detail.font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                Button { editingKey = true } label: {
+                    Text("Already have a Handsy key?").font(.footnote.weight(.semibold))
                 }
-                Spacer(minLength: Space.s)
-                if badge { StatusBadge(text: "Active", symbol: "checkmark", emphasized: true) }
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Space.l)
             }
-            .frame(minHeight: Self.rowHeight)
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
     }
+}
 
-    private var footer: LocalizedStringKey {
-        trial.keyed ? "Runs and recordings use your plan, not the free runs."
-            : "Handsy Free gives a few runs per phone. A plan runs without waiting and reads your recordings."
+/// A short black banner with a soft sheen: the plan, in the app's black-and-white look in light and dark.
+private struct PlanBanner: View {
+    let symbol: String
+    let title: LocalizedStringKey
+    let detail: Text
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(.white.opacity(0.12)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                detail.font(.footnote).opacity(0.7).lineLimit(1)
+            }
+            Spacer(minLength: Space.s)
+            Image(systemName: "arrow.right").font(.footnote.weight(.bold)).opacity(0.7)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, Space.l)
+        .frame(height: 64)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(LinearGradient(colors: [Color(white: 0.16), .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.14)))
+        }
+        .contentShape(.rect)
     }
 }
 

@@ -21,6 +21,16 @@
         }
       }
     },
+    "Already have a Handsy key?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已经有 Handsy key？"
+          }
+        }
+      }
+    },
     "Any OpenAI-compatible vision model" : {
       "localizations" : {
         "zh-Hans" : {
@@ -161,6 +171,16 @@
         }
       }
     },
+    "Handsy Plan · Active" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy 套餐 · 已启用"
+          }
+        }
+      }
+    },
     "Handsy key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -227,6 +247,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没有板子？试试演示"
+          }
+        }
+      }
+    },
+    "No waiting, and it reads your recordings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需排队，还能分析你的录制"
           }
         }
       }

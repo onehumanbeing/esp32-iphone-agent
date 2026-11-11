@@ -24,12 +24,12 @@ struct DecidersPanel: View {
     var body: some View {
         Group {
             if inForm {
-                PlanCard(inForm: true) { editingModel = true }
+                PlanCard(inForm: true)
                 Section { rows } header: { Text("Who decides each step") } footer: { Text(footer) }
                 if deciders.mode == .jevFirst { Section { raceRow } footer: { Text(raceFooter) } }
             } else {
                 VStack(alignment: .leading, spacing: Space.s) {
-                    PlanCard { editingModel = true }.padding(.bottom, Space.l)
+                    PlanCard().padding(.bottom, Space.m)
                     Text("Who decides each step").font(.footnote).foregroundStyle(.secondary)
                         .padding(.horizontal, Space.l)
                     Panel { rows }
