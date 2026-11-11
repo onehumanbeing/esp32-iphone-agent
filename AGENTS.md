@@ -21,5 +21,12 @@ See NOTICE for details.
 
 ## Agent notes
 
+- **Store-only sources stay out of this repository.** The App Store build can compile extra sources from a
+  private folder (`HANDSY_STORE_SOURCES`, see `with_store_sources` in `ios/fastlane/Fastfile`): they are copied
+  into the ignored `ios/IPhoneAgent/Private/` for that one build and removed again. Never commit that folder,
+  a `HandsyStore*.swift` file or a `Store.xcstrings`, never stage with `git add -A`, and do not run
+  `ios/scripts/l10n.py sync` on a build that included them. `scripts/check-public.sh` checks a commit (CI job
+  `public`); install it once per clone as the pre-push hook: `ln -sf ../../scripts/check-public.sh .git/hooks/pre-push`.
+
 - **Ask the maintainer before you push or open a pull request.** They control the release pace: commit locally, tell them
   what is ready, and push or open the PR only after they say so. This covers every branch and every remote.
