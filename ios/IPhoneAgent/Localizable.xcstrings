@@ -161,6 +161,16 @@
         }
       }
     },
+    "Recording needs your own model. Set one up in Settings › Model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制需要你自己的模型，请在 设置 › 模型 里配置。"
+          }
+        }
+      }
+    },
     "Restore on-screen keyboard after runs" : {
       "localizations" : {
         "zh-Hans" : {

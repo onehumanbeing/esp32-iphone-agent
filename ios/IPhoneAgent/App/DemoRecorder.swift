@@ -65,6 +65,11 @@ import UIKit
             error = String(localized: "Connect the board, start Screen Mirroring, and set up a model first.")
             return false
         }
+        // Henry 2026-11-12: Handsy Free does not read recordings; one's own model does (owner phones: the server's Opus).
+        if !MockMode.on, app.settings.provider == .handsyTrial, !Trial.shared.recordingAllowed {
+            error = String(localized: "Recording needs your own model. Set one up in Settings › Model.")
+            return false
+        }
         let dir = app.traces.root.appendingPathComponent(TraceStore.folderName())
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -329,7 +334,7 @@ import UIKit
             guard let self else { throw CancellationError() }
             let saved = screens[0].deletingLastPathComponent().appendingPathComponent("analysis-\(start).txt")
             if let text = try? String(contentsOf: saved, encoding: .utf8) { return text }  // a retry after a relaunch
-            let model = try await self.app.settings.client("planner")
+            let model = try await self.app.recordingModel()
             let text = try await DemoAnalysis.ask(model, screens: try screens.map { try Data(contentsOf: $0) }, first: start + 1)
             try? text.write(to: saved, atomically: true, encoding: .utf8)
             DebugLog.write("recording: changes \(start + 1)-\(start + screens.count - 1) named")
@@ -347,7 +352,7 @@ import UIKit
             steps += try await job.value.split(separator: "\n").map(String.init)
                 .filter { $0.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("STEP") }
         }
-        let summary = try await DemoAnalysis.summarize(try await app.settings.client("planner"), steps: steps)
+        let summary = try await DemoAnalysis.summarize(try await app.recordingModel(), steps: steps)
         return summary + "\n" + steps.joined(separator: "\n")
     }
 
@@ -448,5 +453,15 @@ import UIKit
         STEP 5: swipe 397 300 397 200 | unsure
         STEP 6: tap 150 395 | sure
         """
+    }
+}
+
+extension AppModel {
+    /// The recording reader (Settings.recordingClient); none: the free line on a phone the server doesn't allow.
+    func recordingModel() async throws -> LLMClient {
+        guard let model = try await settings.recordingClient() else {
+            throw DeviceError(message: String(localized: "Recording needs your own model. Set one up in Settings › Model."))
+        }
+        return model
     }
 }

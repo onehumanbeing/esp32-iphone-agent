@@ -102,6 +102,25 @@ import XCTest
         XCTAssertNil(both, "the actor is already that model")
     }
 
+    /// Recordings are read by one's own Planner model (else the shared one); the free line only where the server allows.
+    func testRecordingReader() async throws {
+        let name = "recording-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:])
+        settings.selectProvider(.others)
+        settings.baseURL = "http://192.168.1.4:8080/v1"
+        settings.model = "fast-vision"
+        let shared = try await settings.recordingClient()
+        XCTAssertEqual(shared?.model, "fast-vision")
+        settings.plannerModel = "strong-vision"
+        let planner = try await settings.recordingClient()
+        XCTAssertEqual(planner?.model, "strong-vision")
+        settings.selectedProvider = .handsyTrial
+        let free = try await settings.recordingClient()
+        XCTAssertNil(free, "Handsy Free: not this install (the server never said recording)")
+    }
+
     func testThePlannerFlagMarksItsRounds() async throws {
         let actor = FakeModel { _ in "THINK: a\nDO: tap 100 200" }, planner = FakeModel { _ in "THINK: p\nDO: tap 300 400" }
         let a = agent(actor: actor, planner: planner)

@@ -22,12 +22,17 @@ import UIKit
     nonisolated static let model = "handsy-qwen"
     /// The gateway's planner model for the rounds that need judgement (AgentLoop+Checkpoint).
     nonisolated static let plannerModel = "handsy-planner"
+    /// Recording analysis (the gateway's recording.py): owner phones and, later, paying users; never the free line.
+    nonisolated static var recordingBaseURL: String { origin + "/recording/v1" }
+    nonisolated static let recordingModel = "handsy-recording"
     nonisolated static let consentVersion = "2026-10-19"  // the server's recording-consent version
     nonisolated static var privacyURL: URL? { URL(string: origin + "/privacy") }
     nonisolated static func isTrial(_ baseURL: String) -> Bool { available && URL(string: baseURL)?.host == URL(string: origin)?.host }
 
     enum Status { case unknown, free, waiting, busy, usedUp, unavailable }
     @Published private(set) var status = Status.unknown
+    /// The server lets this install analyse recordings (`"recording": true` in /trial/status).
+    @Published private(set) var recordingAllowed = false
     private var lease: (id: String, token: String, run: String)?
     /// A Handsy key (from a Handsy plan): runs go out under it, on the plan's balance. No lease, no waiting in
     /// line, and the free runs are not counted. Empty: the free line.
@@ -96,6 +101,7 @@ import UIKit
                     state = try await call("GET", "/trial/status")
                 }
                 usedUpToday = state.reason == "rate_limit_day"
+                recordingAllowed = state.recording == true
                 switch (state.status, state.reason) {
                 case ("free", _): status = .free
                 case ("busy", "quota"), ("busy", "rate_limit_day"): status = .usedUp
@@ -285,6 +291,12 @@ import UIKit
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }
 
+    /// An enrolled install's own headers, no lease: recording analysis.
+    func deviceHeaders() throws -> [String: String] {
+        guard let token else { throw TrialError.unavailable }
+        return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model]
+    }
+
     /// Send a diagnostics report (gzip). Same App Attest enrollment as the free line, so only this app can
     /// send one; it never uses a free run. Returns the report id to quote to the developer.
     func sendReport(_ gzip: Data) async throws -> String {
@@ -363,7 +375,7 @@ import UIKit
     // MARK: HTTP
 
     private struct Empty: Decodable {}
-    fileprivate struct Hint: Decodable { let status: String?; let retry_after_ms: Int?; let reason: String? }
+    fileprivate struct Hint: Decodable { let status: String?; let retry_after_ms: Int?; let reason: String?; let recording: Bool? }
 
     private func call<T: Decodable>(_ method: String, _ path: String, token: String? = nil, leaseToken: String? = nil,
                                     body: [String: Any]? = nil, gzip: Data? = nil) async throws -> T {
