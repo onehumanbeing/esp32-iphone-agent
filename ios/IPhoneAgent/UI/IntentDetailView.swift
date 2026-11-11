@@ -47,13 +47,11 @@ struct IntentDetailView: View {
                         Button { app.openReview(run: run) } label: {
                             Label("Steps learned from the run \(run)", systemImage: "wand.and.stars")
                         }
-                        if item.previousSteps != nil {
-                            Button { intents.undoLearned(item.id) } label: {
-                                Label("Undo: Use the Previous Steps", systemImage: "arrow.uturn.backward")
-                            }
+                        Button { intents.undoLearned(item.id) } label: {
+                            Label("Undo: Use the Previous Steps", systemImage: "arrow.uturn.backward")
                         }
                     } footer: {
-                        Text("The recorded steps missed, so the steps of a run that worked replaced them.")
+                        Text("The AI did part of this task itself and the run worked, so that run's steps are now the saved steps.")
                     }
                 }
                 Section {

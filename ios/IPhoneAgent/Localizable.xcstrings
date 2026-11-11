@@ -231,6 +231,16 @@
         }
       }
     },
+    "The AI did part of this task itself and the run worked, so that run's steps are now the saved steps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次任务有部分步骤是 AI 自己完成的，并且运行成功，所以那次运行的步骤成了保存的步骤。"
+          }
+        }
+      }
+    },
     "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it." : {
       "localizations" : {
         "zh-Hans" : {

@@ -87,6 +87,19 @@ import UIKit
         XCTAssertEqual(Replay.decide(.init(action: ["action": .str("open"), "app": .str("WeChat")], sure: true, frame: nil), screen: b), .perform)
     }
 
+    func testAnIntentWithoutStepsCanUndoWhatItLearned() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "typed", prompt: "p")
+        item.steps = [RecordedStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(1)], sure: true, frame: nil)]
+        item.learnedFrom = "r1"
+        item.refRun = "r1"
+        store.upsert(item)
+        store.undoLearned(item.id)
+        store.clearReference(item.id)
+        XCTAssertNil(store.item(item.id)?.steps, "back to no steps")
+        XCTAssertNil(store.item(item.id)?.refRun)
+    }
+
     func testLearnedStepsCanBeUndone() {
         let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
         var item = SavedTask(name: "n", prompt: "p")

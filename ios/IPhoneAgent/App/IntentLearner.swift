@@ -68,12 +68,22 @@ extension AppModel {
         IntentLearner.rejected.insert(run)
         for item in intents.items where item.runs.last?.run == run {
             intents.markLastRun(item.id, ok: false)
-            if item.learnedFrom == run { intents.undoLearned(item.id) }
+            if item.learnedFrom == run {
+                intents.undoLearned(item.id)
+                if intents.item(item.id)?.refRun == run { intents.clearReference(item.id) }
+            }
         }
     }
 }
 
 extension IntentStore {
+    /// A run called wrong is no intent's reference.
+    func clearReference(_ id: UUID) {
+        guard var item = item(id) else { return }
+        item.refRun = nil
+        upsert(item)
+    }
+
     /// The intent's last run counts as `ok` after all.
     func markLastRun(_ id: UUID, ok: Bool) {
         guard var item = item(id), var runs = item.history, !runs.isEmpty else { return }
@@ -92,10 +102,11 @@ extension IntentStore {
 
     /// Back to the steps before the last learned ones (their screens too).
     func undoLearned(_ id: UUID) {
-        guard var item = item(id), let old = item.previousSteps else { return }
+        guard var item = item(id), item.learnedFrom != nil else { return }
+        let old = item.previousSteps  // nil: it had none (an intent typed in)
         let folder = IntentFrames.folder(id), previous = IntentFrames.previous(id)
         try? FileManager.default.removeItem(at: folder)
-        try? FileManager.default.moveItem(at: previous, to: folder)
+        try? FileManager.default.moveItem(at: previous, to: folder)  // none: it had no screens either
         item.steps = old
         item.previousSteps = nil
         item.learnedFrom = nil
@@ -105,10 +116,10 @@ extension IntentStore {
 
 extension AppModel {
     /// After a run of an intent (RunSession.ended): learn its steps when the replay missed and the run worked.
-    /// Henry 2026-11-12: any intent with a reference run or saved steps, when Settings › Intents learn from runs is on.
+    /// Henry 2026-11-12: any intent, when Settings › Intents learn from runs is on. An intent typed in (no reference
+    /// run yet) gets its first run that worked as its reference run, and its steps.
     func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool) {
-        guard settings.learnFromRuns, intent.refRun != nil || !(intent.steps ?? []).isEmpty,
-              IntentLearner.shouldLearn(steps, done: done) else { return }
+        guard settings.learnFromRuns, IntentLearner.shouldLearn(steps, done: done) else { return }
         Task {
             guard !IntentLearner.rejected.contains(runID),  // ✗ came first
                   let run = runs.run(runID), var item = intents.item(intent.id) else { return }
@@ -118,6 +129,7 @@ extension AppModel {
                 item.previousSteps = item.steps
                 item.steps = learned
                 item.learnedFrom = runID
+                if item.refRun == nil { item.refRun = runID }
                 intents.upsert(item)
                 let labels = learned.compactMap { $0.object?["label"]?.str }
                 DebugLog.write("intent \"\(item.name)\": \(learned.count) steps learned from run \(runID) (labels: \(labels.joined(separator: ", ")))")
