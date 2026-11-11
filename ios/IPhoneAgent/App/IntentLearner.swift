@@ -54,7 +54,9 @@ enum IntentLearner {
         func distance(_ l: DemoAnalysis.Line) -> Double { hypot(Double(l.x - x), Double(l.y - y)) }
         guard let near = lines.min(by: { distance($0) < distance($1) }), distance(near) <= reach else { return nil }
         let text = near.text.trimmingCharacters(in: .whitespaces)
-        return text.isEmpty ? nil : text
+        // One character ("x", an icon's glyph read as text) names nothing: the replay would find it anywhere
+        // (iddzz 2026-11-12: the Photo & Video folder learned as "x"). Unlabelled, the tap replays by its spot.
+        return text.count < 2 ? nil : text
     }
 }
 

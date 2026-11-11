@@ -192,7 +192,7 @@ extension AppModel {
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
                 try Task.checkCancellation()
-                mark("free line lease")
+                mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")

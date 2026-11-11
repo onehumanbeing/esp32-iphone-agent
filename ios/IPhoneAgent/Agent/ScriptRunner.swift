@@ -29,7 +29,7 @@ extension AgentLoop {
             try await notebookAction(&act)
             act["replay"] = .bool(true)
             record(screen?.frame, act)
-        case "tap" where step.action["label"]?.str != nil:
+        case "tap" where (step.action["label"]?.str?.count ?? 0) >= 2:  // one character names nothing (IntentLearner)
             guard let at = await labelled(step) else {
                 let why = "\"\(step.action["label"]?.str ?? "")\" not on screen"
                 guard replay.isScript else { return handOver(n, why) }

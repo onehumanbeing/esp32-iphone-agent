@@ -84,6 +84,7 @@ import UIKit
         XCTAssertNotNil(IntentFrames.data(id, learned?[1].frame))
         XCTAssertEqual(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "文件传输助手", x: 300, y: 350)]), "文件传输助手")
         XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "far", x: 800, y: 900)]))
+        XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "x", x: 290, y: 350)]), "one character names nothing")
         XCTAssertEqual(Replay.decide(.init(action: ["action": .str("open"), "app": .str("WeChat")], sure: true, frame: nil), screen: b), .perform)
     }
 
