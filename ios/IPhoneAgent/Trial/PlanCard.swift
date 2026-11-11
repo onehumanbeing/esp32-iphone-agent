@@ -142,6 +142,9 @@ struct HandsyKeySheet: View {
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             field
+            #if HANDSY_STORE
+            if offered == nil { HandsyConnectButton { dismiss() } }  // sign in on handsy.tech, the key comes back
+            #endif
             if !value.isEmpty && !valid {
                 Text("A Handsy key starts with hsk_").font(.footnote).foregroundStyle(.red)
             }
@@ -192,11 +195,16 @@ struct HandsyKeySheet: View {
 
     private func save() {
         guard valid else { return }
-        Trial.shared.setKey(value)
-        let settings = AppModel.shared.settings
-        if settings.provider != .handsyTrial { settings.selectProvider(.handsyTrial) }  // the deciders use the plan
-        Haptics.tick()
+        Self.use(value)
         dismiss()
+    }
+
+    /// Save a key and run on it: the model switches to Handsy, so the deciders use the plan.
+    static func use(_ key: String) {
+        Trial.shared.setKey(key)
+        let settings = AppModel.shared.settings
+        if settings.provider != .handsyTrial { settings.selectProvider(.handsyTrial) }
+        Haptics.tick()
     }
 }
 
