@@ -201,6 +201,11 @@ extension AppModel {
             return true
         }
         if !keyed.isEmpty { say("debug: keys stored for " + keyed.map(\.title).joined(separator: ", ")) }
+        // -import-intents <file>: an .esp32intent copied into Documents (devicectl), imported like an opened file
+        if let name = value(after: "-import-intents"), !name.contains("/"),
+           let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            importIntents(docs.appendingPathComponent(name))
+        }
         if args.contains("-delete-intent") {
             guard args.filter({ $0 == "-delete-intent" }).count == 1,
                   let raw = value(after: "-delete-intent"), let id = UUID(uuidString: raw) else {
