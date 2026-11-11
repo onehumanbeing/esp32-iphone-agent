@@ -35,23 +35,47 @@ extension Pointer {
     /// then tells the layouts apart by whether typed letters bring up candidates).
     @discardableResult
     private func matchKeyboard(pinyin: Bool) async throws -> KeyboardLayout {
-        guard let screen, screen.live else { return .none }
-        var layout = KeyboardLayout.none, waited = false
-        for _ in 0..<2 {
-            guard var frame = screen.frame else { return .none }
-            layout = await KeyboardLayout.read(frame)
-            // the keyboard often isn't in the frame yet right after a key opened the field (Spotlight's cmd+space):
-            // 2026-11-11 two "Google Maps" went into pinyin unseen before the third try saw it. Look once more.
-            if layout == .none && !waited {
-                waited = true
-                await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
-                if let later = screen.frame { frame = later; layout = await KeyboardLayout.read(frame) }
-            }
+        guard let screen, screen.live, var frame = screen.frame else { return .none }
+        var layout = await KeyboardLayout.read(frame)
+        // the keyboard often isn't in the frame yet right after a key opened the field (Spotlight's cmd+space):
+        // 2026-11-11 two "Google Maps" went into pinyin unseen before the third try saw it. Look once more.
+        if layout == .none {
+            await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
+            if let later = screen.frame { frame = later; layout = await KeyboardLayout.read(frame) }
+        }
+        // ctrl+space cycles every keyboard the phone has (English, 拼音, emoji …). Each press is followed until the
+        // screen shows a different keyboard; one that shows no change ends it. iddzz 2026-11-12: the second read
+        // came before the switch showed, a second press went on past 拼音 to emoji, and "智能椅" never went in.
+        for _ in 0..<3 {
             if layout == .none || (layout == .pinyin) == pinyin { return layout }
             log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
+            let before = layout
             try await toggleKeyboard()
+            layout = await changedLayout(from: before)
+            if layout == before {
+                log("type: the keyboard still reads \(before == .pinyin ? "pinyin" : "English") after ctrl+space; not pressing again")
+                return .none
+            }
+            if layout == .none {  // emoji or another keyboard with no 123 key: one more press goes on round
+                log("type: ctrl+space showed another keyboard (emoji?); switching on")
+                try await toggleKeyboard()
+                layout = await changedLayout(from: .none)
+            }
         }
         return layout == .none || (layout == .pinyin) == pinyin ? layout : .none
+    }
+
+    /// The keyboard read until it differs from `before`, for up to 2.5 s (the switch animates).
+    private func changedLayout(from before: KeyboardLayout) async -> KeyboardLayout {
+        guard let screen else { return .none }
+        let until = Date().addingTimeInterval(2.5)
+        var layout = before
+        repeat {
+            if let frame = screen.frame { layout = await KeyboardLayout.read(frame) }
+            if layout != before { return layout }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        } while Date() < until
+        return layout
     }
 
     /// ctrl+space (pinyin <-> English), waited for until the screen shows it.

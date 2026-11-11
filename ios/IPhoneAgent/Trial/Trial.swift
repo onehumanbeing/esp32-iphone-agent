@@ -273,6 +273,7 @@ import UIKit
     func end(_ runEnd: RunEnd?) {
         keepAlive?.cancel()
         keepAlive = nil
+        if let run = keyRun { endKeyRun(run, runEnd) }
         keyRun = nil
         guard let lease else { return }
         self.lease = nil
@@ -401,6 +402,29 @@ import UIKit
 
     private struct Empty: Decodable {}
     fileprivate struct Hint: Decodable { let status: String?; let retry_after_ms: Int?; let reason: String?; let recording: Bool? }
+
+    /// A key run's end: its hold on the plan is released now, not after the gateway's idle timeout (the plan card
+    /// read high for two minutes). 404: the gateway never knew it, done all the same.
+    private func endKeyRun(_ run: String, _ runEnd: RunEnd?) {
+        guard !key.isEmpty, let url = URL(string: Self.origin + "/trial/key-runs/\(run)/end") else { return }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue(DeviceInfo.model, forHTTPHeaderField: "X-Device-Model")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let end = runEnd ?? RunEnd(reason: .other, stage: .running)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["run_end": end.json])
+        var background = UIBackgroundTaskIdentifier.invalid
+        background = UIApplication.shared.beginBackgroundTask(withName: "key-run-end") {
+            UIApplication.shared.endBackgroundTask(background)
+            background = .invalid
+        }
+        Task {
+            defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
+            let code = (try? await session.data(for: request)).flatMap { ($0.1 as? HTTPURLResponse)?.statusCode } ?? 0
+            DebugLog.write("trial: key run \(run.prefix(8)) ended: \(end.logLine) → HTTP \(code)")
+        }
+    }
 
     private func call<T: Decodable>(_ method: String, _ path: String, token: String? = nil, leaseToken: String? = nil,
                                     body: [String: Any]? = nil, gzip: Data? = nil) async throws -> T {
