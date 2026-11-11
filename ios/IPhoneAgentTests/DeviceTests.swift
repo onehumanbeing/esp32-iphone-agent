@@ -314,6 +314,8 @@ import XCTest
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 0)
         XCTAssertTrue(Pointer(device: FakeDevice(), calibrationFile: file).calibrated)  // the calibration stays
         try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":3}").utf8).write(to: file)
+        XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 0, "v3 video samples left out the origin")
+        try Data(old.replacingOccurrences(of: "}}", with: "},\"v\":4}").utf8).write(to: file)
         XCTAssertEqual(Pointer(device: FakeDevice(), calibrationFile: file).seen["x"]?.count, 2)
     }
 

@@ -15,6 +15,10 @@ struct Recalibration {
     static let miss = 100.0
     /// Taps after one recalibration before the next may run.
     static let every = 15
+    /// A recalibration that failed (pointer not found: a busy screen) is tried again this many taps later, at most
+    /// `retries` times in a row; the old calibration had already missed far (Henry 2026-11-11: lost = calibrate again).
+    static let retryAfter = 3, retries = 3
+    private(set) var failures = 0
 
     private(set) var pending = false
     private(set) var taps = 0
@@ -40,10 +44,14 @@ struct Recalibration {
     /// Before a tap: true = recalibrate first (the miss is then dealt with, whatever the result).
     mutating func tap() -> Bool {
         taps += 1
+        if failures > 0 && failures <= Self.retries && !pending, let last, taps - last >= Self.retryAfter { pending = true }
         guard pending else { return false }
         (pending, last, rehomed) = (false, taps, false)
         return true
     }
+
+    /// The recalibration's result: a failure asks for another try a few taps later.
+    mutating func finished(ok: Bool) { failures = ok ? 0 : failures + 1 }
 
     /// The phone's screen in pixels (the app runs on the iPhone it controls).
     @MainActor static var pixels: CGSize {
@@ -63,9 +71,12 @@ extension Pointer {
         log("pointer: landed far from the target; calibrating again")
         do {
             guard try await startCalibration(), let error = try await verify(), error <= AutoCalibrator.rejectAbove else {
-                log("pointer: calibration again failed; the previous one stays")
+                recalibration.finished(ok: false)
+                let again = recalibration.failures <= Recalibration.retries
+                log("pointer: calibration again failed; the previous one stays" + (again ? ", trying again in \(Recalibration.retryAfter) taps" : ""))
                 return restore(before)
             }
+            recalibration.finished(ok: true)
             log(String(format: "pointer: calibrated again, ±%.1f%%", error * 100))
         } catch {
             restore(before)

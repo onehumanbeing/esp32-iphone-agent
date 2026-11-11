@@ -12,7 +12,7 @@ import UIKit
     /// before every tap opened Control Center and the Screen Mirroring panel 4 times in one run (2026-11-06).
     /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
     static let rehomeEvery = 10
-    static let samplesVersion = 3  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently
+    static let samplesVersion = 4  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently; 4: video recalibration samples lacked the origin
     static let hold = 0.25                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
@@ -148,14 +148,20 @@ import UIKit
             return false
         }
         span = s
-        (quality, aspect) = (nil, screenAspect())
+        // the corner the board homes to is not exactly (0, 0): fit that offset from the same two stops. Keeping an
+        // older one (a touch probe's 0.142) while the samples left it out made `fix` learn a -7% x shift: every tap
+        // landed left of its target after a mid-run recalibration (2026-11-11 Maps run).
+        let (u1, x1, y1) = found[0]
+        origin = CGPoint(x: x1 - Double(u1) / Double(s.w), y: y1 - Double(u1) / Double(s.h))
+        if abs(origin.x) > 0.2 || abs(origin.y) > 0.2 { origin = .zero }  // not a corner: fall back to none
+        (quality, aspect) = (nil, screenAspect())  // the speed gain (applySpeeds) still holds
         seen = ["x": [], "y": []]
-        for (units, x, y) in found {  // where each stop landed, so moves are corrected for the offset too
-            remember("x", (Double(units) / Double(s.w), x))
-            remember("y", (Double(units) / Double(s.h), y))
+        for (units, x, y) in found {  // where each stop landed, in the same terms as dx/dy aim
+            remember("x", (Double(units) / Double(s.w) + origin.x, x))
+            remember("y", (Double(units) / Double(s.h) + origin.y, y))
         }
         save()
-        log("calibration: span \(s.w) x \(s.h)")
+        log(String(format: "calibration: span %d x %d, offset %.3f / %.3f", s.w, s.h, origin.x, origin.y))
         return true
     }
 
@@ -268,15 +274,22 @@ import UIKit
             return
         }
         let fx = Double(found.x), fy = Double(found.y)
-        let rehome = learn(x, y, found)
+        learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
+        // A far reading is either the tracked position gone wrong or a wrong reading (two agreeing readings of a
+        // map's own marker): moving by the difference then threw the pointer to the screen's edge (2026-11-11, a
+        // +254 move from a reading at 0.46 x). From the corner again is right in both cases.
+        if max(abs(fx - x), abs(fy - y)) > Self.maxMiss {
+            pos = nil
+            try await moveTo(dx(x), dy(y))
+            return
+        }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
         let (sx, sy) = paced(mx, my)
         let previousPosition = pos
         pos = nil
         try await device.send("move \(sx) \(sy)")  // fix this miss right away
-        // a far miss means the tracked position was off, not only this move: the next gesture starts from the corner
-        if let p = previousPosition, !rehome { pos = (p.0 + mx, p.1 + my) }
+        if let p = previousPosition { pos = (p.0 + mx, p.1 + my) }
     }
 
     /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
