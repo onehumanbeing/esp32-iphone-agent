@@ -15,6 +15,35 @@ import XCTest
         XCTAssertThrowsError(try Trial.shared.headers())  // tests and intent analysis never use the free line
     }
 
+    // MARK: - Handsy key (a plan's key instead of the free runs)
+
+    func testAKeyedRunSendsTheKeyAndNoLease() async throws {
+        let trial = Trial.shared
+        trial.setKey("  hsk_test_abc \n")
+        defer { trial.setKey("") }
+        XCTAssertEqual(trial.key, "hsk_test_abc")
+        XCTAssertThrowsError(try trial.headers())  // still runs only
+        try await trial.precheck()
+        try await trial.begin()  // no enrollment, no lease request
+        let headers = try trial.headers()
+        XCTAssertEqual(headers["Authorization"], "Bearer hsk_test_abc")
+        XCTAssertNotNil(UUID(uuidString: headers["X-Run-ID"] ?? ""))
+        XCTAssertNil(headers["X-Lease-ID"])
+        XCTAssertNil(headers["X-Device-ID"])
+        trial.end(nil)
+        XCTAssertThrowsError(try trial.headers())
+    }
+
+    func testARefusedKeyKeepsItsOwnTextAndIsFinal() {
+        let invalid = LLMClient.freeLineError(status: 401, errorText: #"{"status": "refused", "reason": "key_invalid"}"#)
+        XCTAssertEqual(invalid?.message, TrialError.keyRefused.localizedDescription)
+        XCTAssertEqual(invalid?.kind, "handsy_key")
+        let empty = LLMClient.freeLineError(status: 402, errorText: #"{"status": "refused", "reason": "key_balance"}"#)
+        XCTAssertEqual(empty?.message, TrialError.keyEmpty.localizedDescription)
+        XCTAssertNil(LLMClient.keyError(#"{"status": "busy", "reason": "quota"}"#))
+        XCTAssertTrue(TrialError.keyEmpty.ownText)
+    }
+
     func testRequestHeadersAreAddedAndAFailureSendsNothing() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]

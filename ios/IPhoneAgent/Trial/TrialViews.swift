@@ -29,18 +29,27 @@ struct TrialSection: View {
 /// In Model settings, in place of the key and model fields.
 struct TrialPanel: View {
     @ObservedObject private var trial = Trial.shared
+    @State private var key = Trial.shared.key
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
                 Text(verbatim: Trial.model).font(.body.monospaced())
                 Spacer()
-                TrialBadge(status: trial.status)
+                if trial.keyed { StatusBadge(text: "Key", symbol: "key.fill", emphasized: true) } else { TrialBadge(status: trial.status) }
                 Button { Task { _ = await trial.refresh() } } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).accessibilityLabel("Check again")
             }
             Text("Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model.")
                 .font(.footnote).foregroundStyle(.secondary)
+            SecureField("Handsy key", text: $key, prompt: Text("Handsy key (optional)"))
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .onChange(of: key) { _, new in trial.setKey(new) }
+            Text("With a Handsy key, runs use your plan instead of the free runs.")
+                .font(.footnote).foregroundStyle(.secondary)
+            #if HANDSY_STORE
+            HandsyStoreEntry()
+            #endif
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Space.s)

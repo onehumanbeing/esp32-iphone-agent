@@ -194,7 +194,7 @@ struct LLMError: LocalizedError {
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             for attempt in 0..<2 where [429, 502, 503, 504].contains(status) {
                 if status == 429 && Self.dailyLimit(errorText) { break }
-                if Self.trialRunEnded(errorText) || Self.trialUsedUp(errorText) { break }  // final: asking again can't help
+                if Self.trialRunEnded(errorText) || Self.trialUsedUp(errorText) || Self.keyError(errorText) != nil { break }  // final: asking again can't help
                 if status != 429 && attempt > 0 { break }
                 let wait = status == 429 ? min(retryAfter ?? 5, 20) : 3
                 DebugLog.write(String(format: "llm: HTTP %d, retrying in %.0f s", status, wait))
@@ -208,7 +208,8 @@ struct LLMError: LocalizedError {
         guard (200..<300).contains(status), var result else {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
             if Trial.isTrial(baseURL.absoluteString), let refused = Self.freeLineError(status: status, errorText: errorText) {
-                if status == 401 { Trial.shared.tokenRefused() }  // token refused: the next run enrolls again
+                // a refused Handsy key says nothing about the install's own token
+                if status == 401, Self.keyError(errorText) == nil { Trial.shared.tokenRefused() }  // token refused: the next run enrolls again
                 else if refused.kind == LLMError.trialRunEnded.kind { Trial.shared.runEnded() }
                 throw refused
             }
@@ -241,6 +242,16 @@ struct LLMError: LocalizedError {
         ["quota", "rate_limit_day"].contains(trialReason(errorText))
     }
 
+    /// A Handsy key the gateway refuses: unknown, revoked or expired (key_invalid), or nothing left on its plan
+    /// or its own limit (key_balance, key_limit). Final: asking again can't help.
+    nonisolated static func keyError(_ errorText: String) -> TrialError? {
+        switch trialReason(errorText) {
+        case "key_invalid": return .keyRefused
+        case "key_balance", "key_limit": return .keyEmpty
+        default: return nil
+        }
+    }
+
     nonisolated static func trialReason(_ errorText: String) -> String? {
         let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any]
         return body?["reason"] as? String
@@ -250,6 +261,9 @@ struct LLMError: LocalizedError {
     /// refused token and any 5xx read as busy. Nil: the request's own fault (400) or a per-minute limit (429).
     nonisolated static func freeLineError(status: Int, errorText: String) -> LLMError? {
         let reason = trialReason(errorText)
+        if let key = keyError(errorText) {
+            return LLMError(message: key.localizedDescription, status: status, kind: "handsy_key", reason: reason)
+        }
         switch reason {
         case "quota": return LLMError(message: TrialError.usedUp.localizedDescription, status: status, kind: "rate_limit_day", reason: reason)
         case "rate_limit_day":

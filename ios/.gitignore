@@ -1,4 +1,5 @@
 Config/Local.xcconfig
+IPhoneAgent/Private/
 build/
 DerivedData/
 *.xcodeproj/xcuserdata/

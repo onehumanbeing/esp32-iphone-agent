@@ -29,6 +29,21 @@ import UIKit
     enum Status { case unknown, free, waiting, busy, usedUp, unavailable }
     @Published private(set) var status = Status.unknown
     private var lease: (id: String, token: String, run: String)?
+    /// A Handsy key (from a Handsy plan): runs go out under it, on the plan's balance. No lease, no waiting in
+    /// line, and the free runs are not counted. Empty: the free line.
+    @Published private(set) var key = Keychain.get(Trial.keyAccount) ?? ""
+    nonisolated static let keyAccount = "handsy-key"
+    var keyed: Bool { !key.isEmpty }
+    private var keyRun: String?  // the run under way with the key
+    func setKey(_ value: String) {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value != key else { return }
+        end(nil)
+        key = value
+        Keychain.set(value, for: Self.keyAccount)
+        status = .unknown
+        Task { await refresh() }
+    }
     private var keepAlive: Task<Void, Never>?
     private weak var app: AppModel?
     private let session: URLSession = {
@@ -70,7 +85,9 @@ import UIKit
     /// Free or busy. Never takes a run: an enrolled install also learns whether its own runs are used up.
     @discardableResult func refresh() async -> Status {
         guard Self.available else { return .unavailable }
-        if lease == nil {  // during our own run the line is ours, the server says busy
+        if keyed {  // the plan's own capacity: the free line's state says nothing about it
+            status = .free
+        } else if lease == nil {  // during our own run the line is ours, the server says busy
             do {
                 guard DCAppAttestService.shared.isSupported else { throw TrialError.unsupported }
                 let state: Hint
@@ -103,6 +120,7 @@ import UIKit
     /// lease itself is claimed only once the screen is ready (`begin`), so a start that fails on the way (board
     /// not on this iPhone, no mirroring) holds no lease and costs no free run.
     func precheck() async throws {
+        if keyed { return }
         switch await refresh() {
         case .free, .waiting, .unknown: return
         case .usedUp: throw usedUpError
@@ -114,6 +132,7 @@ import UIKit
     /// Claim the run's lease, waiting in line up to `wait` seconds (onWait: the first time it has to wait).
     func begin(wait: TimeInterval = 600, onWait: (() -> Void)? = nil) async throws {
         end(nil)
+        if keyed { return keyRun = UUID().uuidString.lowercased() }
         var token = try await enrolledToken(), enrolledAgain = false
         struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
@@ -224,6 +243,7 @@ import UIKit
     func end(_ runEnd: RunEnd?) {
         keepAlive?.cancel()
         keepAlive = nil
+        keyRun = nil
         guard let lease else { return }
         self.lease = nil
         guard let token else { return }  // refused (401): nothing to release it with, it idles out on the server
@@ -255,6 +275,10 @@ import UIKit
     }
 
     func headers() throws -> [String: String] {
+        if keyed {
+            guard let keyRun else { throw TrialError.runsOnly }
+            return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model, "X-Run-ID": keyRun]
+        }
         guard let lease, let token else { throw TrialError.runsOnly }
         guard !leaseLost else { throw LLMError.trialRunEnded }  // ended on the server: no request would be served
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
@@ -442,6 +466,7 @@ struct RunEnd: Equatable {
 
 enum TrialError: LocalizedError {
     case busy, usedUp, usedUpToday, cooldown, unavailable, unsupported, runsOnly
+    case keyRefused, keyEmpty  // a Handsy key the server doesn't accept / whose plan has nothing left
     case unenrolled  // 401: the server doesn't know this install's token; enroll again
     case waiting(Int)  // milliseconds until asking again
 
@@ -459,7 +484,7 @@ enum TrialError: LocalizedError {
     /// Not the line's side (used up, a few seconds between runs, this phone or build): shown as is, never as busy.
     var ownText: Bool {
         switch self {
-        case .usedUp, .usedUpToday, .cooldown, .unsupported, .runsOnly: return true
+        case .usedUp, .usedUpToday, .cooldown, .unsupported, .runsOnly, .keyRefused, .keyEmpty: return true
         default: return false
         }
     }
@@ -473,6 +498,8 @@ enum TrialError: LocalizedError {
         case .busy: return String(localized: "Handsy Free is busy right now — lots of people are using it. Please try again in a moment.")
         case .unavailable, .unenrolled: return String(localized: "Handsy Free isn't available on this phone right now. Use your own model instead.")
         case .unsupported: return String(localized: "Handsy Free needs the App Store version on a real iPhone.")
+        case .keyRefused: return String(localized: "This Handsy key isn't accepted. Check it in Settings › Model, or remove it to use the free runs.")
+        case .keyEmpty: return String(localized: "This Handsy key has no balance left. Remove it to use the free runs, or add your own model.")
         case .runsOnly: return String(localized: "Handsy Free only runs tasks. Use your own model for tests and intent analysis.")
         }
     }

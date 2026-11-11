@@ -81,6 +81,26 @@
         }
       }
     },
+    "Handsy key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy 密钥"
+          }
+        }
+      }
+    },
+    "Handsy key (optional)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handsy 密钥（可选）"
+          }
+        }
+      }
+    },
     "Installation ID" : {
       "localizations" : {
         "zh-Hans" : {
@@ -601,6 +621,26 @@
         }
       }
     },
+    "This Handsy key has no balance left. Remove it to use the free runs, or add your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 Handsy 密钥的额度已用完。删除它可改用免费次数，或添加你自己的模型。"
+          }
+        }
+      }
+    },
+    "This Handsy key isn't accepted. Check it in Settings › Model, or remove it to use the free runs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 Handsy 密钥无效。请在「设置 › 模型」中检查，或删除它改用免费次数。"
+          }
+        }
+      }
+    },
     "To decide simple steps faster, a step's screenshot, your task and the plan may go to TypeSafe, a service provider" : {
       "localizations" : {
         "zh-Hans" : {
@@ -637,6 +677,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "继续使用旧固件？"
+          }
+        }
+      }
+    },
+    "With a Handsy key, runs use your plan instead of the free runs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填入 Handsy 密钥后，任务会使用你的套餐额度，不占用免费次数。"
           }
         }
       }
