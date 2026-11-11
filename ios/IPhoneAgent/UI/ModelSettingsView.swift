@@ -57,7 +57,10 @@ struct ModelSettingsView: View {
                 }
             } footer: {
                 if advanced {
-                    Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("A Planner model different from the Actor model answers the rounds that need judgement: the first one, a run going in circles, and the check before it finishes. A strong planner with a fast actor keeps most steps quick.")
+                        Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
+                    }
                 }
             }
         }

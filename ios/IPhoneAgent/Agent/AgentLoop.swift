@@ -39,7 +39,7 @@ extension Gestures {
     let phone: Gestures?
     let screen: ScreenSource?
     var actor: ChatModel?, planner: ChatModel?
-    var checkpointModel: ChatModel?, checkpoints = Checkpoints()  // free line: some rounds go to Opus (AgentLoop+Checkpoint)
+    var checkpointModel: ChatModel?, checkpoints = Checkpoints()  // some rounds go to the planner (AgentLoop+Checkpoint)
     let trace: TraceStore?
     /// maxSteps is only a safety cap (a Duolingo lesson is ~80 rounds; 40 cut it in half, 2026-11-06). A run that
     /// is stuck stops sooner: `maxStalls` rounds in a row that changed nothing on screen. Either way the user is asked.
@@ -603,7 +603,7 @@ extension Gestures {
             }
             acts[0]["think_s"] = .num(seconds)
             if lastServed == "handsy-jev" { acts[0]["jev"] = .bool(true) }  // Jev took this step
-            if lastServed == Trial.plannerModel { acts[0]["planner"] = .bool(true) }  // a checkpoint round
+            if checkpoints.answered, lastServed != Trial.model { acts[0]["planner"] = .bool(true) }  // a checkpoint round
             return acts.map { Planned(act: $0, shot: frame) }
         }
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")

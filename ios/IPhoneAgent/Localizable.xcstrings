@@ -1281,6 +1281,16 @@
         }
       }
     },
+    "A Planner model different from the Actor model answers the rounds that need judgement: the first one, a run going in circles, and the check before it finishes. A strong planner with a fast actor keeps most steps quick." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "规划模型与执行模型不同时，由规划模型回答需要判断的几轮：第一轮、任务原地打转时，以及结束前的确认。强的规划模型配快的执行模型，大多数步骤仍然很快。"
+          }
+        }
+      }
+    },
     "The run is still active. Return to the Home Screen to continue." : {
       "localizations" : {
         "zh-Hans" : {

@@ -20,7 +20,7 @@ import UIKit
     nonisolated static var available: Bool { URL(string: origin)?.host != nil }
     nonisolated static var baseURL: String { origin + "/v1" }
     nonisolated static let model = "handsy-qwen"
-    /// The gateway's planner (Opus 5.5 on Infron) for the rounds that need judgement (AgentLoop+Checkpoint).
+    /// The gateway's planner model for the rounds that need judgement (AgentLoop+Checkpoint).
     nonisolated static let plannerModel = "handsy-planner"
     nonisolated static let consentVersion = "2026-10-19"  // the server's recording-consent version
     nonisolated static var privacyURL: URL? { URL(string: origin + "/privacy") }

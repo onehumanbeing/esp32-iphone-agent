@@ -352,9 +352,13 @@ import UIKit
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 
-    /// Free line: the gateway's planner, asked like the actor (same tree headers, no Jev) at a run's checkpoints.
+    /// The model for a run's checkpoints (AgentLoop+Checkpoint), asked like the actor. Free line: the gateway's
+    /// planner (same tree headers, no Jev). Own endpoint: the Planner model, when set and not the actor's model.
     func checkpointClient() async throws -> LLMClient? {
-        provider == .handsyTrial ? try await client("actor", freeLineModel: Trial.plannerModel) : nil
+        if provider == .handsyTrial { return try await client("actor", freeLineModel: Trial.plannerModel) }
+        guard !plannerModel.isEmpty else { return nil }
+        let actor = actorModel.isEmpty ? try await resolvedModel() : actorModel
+        return plannerModel == actor ? nil : try await client("planner")
     }
 
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.
