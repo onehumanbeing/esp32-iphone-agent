@@ -134,7 +134,8 @@ extension AppModel {
         // frame for the planner. Each sub-step is timed in the log.
         let t0 = now()
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
-        traces.start(task: task)  // the run folder exists from here: a failed start keeps its log and video
+        // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
+        if !(resume && traces.dir != nil) { traces.start(task: task) }
         Analytics.capture("run_started", settings.analyticsModel.merging(
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
         startVideo()

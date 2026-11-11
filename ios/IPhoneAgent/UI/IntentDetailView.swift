@@ -44,10 +44,12 @@ struct IntentDetailView: View {
                 }
                 Section {
                     Button { edit(item) } label: { Label("Edit", systemImage: "slider.horizontal.3") }
-                    if item.refRecording != nil {
+                    if item.refRecording != nil {  // recorded before recordings were runs
                         Button { app.review = ReviewDraft(intent: item) } label: {
                             Label("Review Demonstration", systemImage: "record.circle")
                         }
+                    } else if let demo = item.refRun, app.runs.run(demo)?.isDemo == true {
+                        Button { app.openReview(run: demo) } label: { Label("Review Demonstration", systemImage: "record.circle") }
                     }
                     if let last = item.runs.last?.run ?? item.refRun {
                         Button { app.openReview(run: last) } label: { Label("Review Last Run", systemImage: "play.rectangle") }

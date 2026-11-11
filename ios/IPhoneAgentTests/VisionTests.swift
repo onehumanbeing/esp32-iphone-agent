@@ -55,6 +55,32 @@ final class VisionTests: XCTestCase {
 
     func p(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x / W, y: y / H) }
 
+    /// A list scrolled by a tenth of the screen: Vision.scroll finds the shift; a new screen or none is not a scroll.
+    func testScrollIsFoundFromTheShift() {
+        func list(_ offset: Int) -> Data {
+            let ctx = CGContext(data: nil, width: Self.W, height: Self.H, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            ctx.translateBy(x: 0, y: CGFloat(Self.H))
+            ctx.scaleBy(x: 1, y: -1)
+            for y in 0..<Self.H {  // bands of unrelated grays (no period), moved up by `offset` pixels
+                let k = UInt64((y + offset) / 18)
+                let v = CGFloat((k &* 2_654_435_761 >> 7) % 256) / 255
+                ctx.setFillColor(CGColor(gray: v, alpha: 1))
+                ctx.fill(CGRect(x: 0, y: y, width: Self.W, height: 1))
+            }
+            let out = NSMutableData()
+            let dest = CGImageDestinationCreateWithData(out, UTType.jpeg.identifier as CFString, 1, nil)!
+            CGImageDestinationAddImage(dest, ctx.makeImage()!, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+            CGImageDestinationFinalize(dest)
+            return out as Data
+        }
+        let up = Vision.scroll(list(0), list(108))
+        XCTAssertEqual(up ?? 0, 0.1, accuracy: 0.02)
+        XCTAssertEqual(Vision.scroll(list(108), list(0)) ?? 0, -0.1, accuracy: 0.02)
+        XCTAssertNil(Vision.scroll(list(0), list(0)), "nothing moved")
+        XCTAssertNil(Vision.scroll(screen(), screen(button: true)), "a change in place is no scroll")
+    }
+
     func testPointerMoveIsNotAScreenChange() {
         XCTAssertFalse(Vision.changed(screen(pointer: (260, 856)), screen(pointer: (272, 856)),
                                       ignore: [p(260, 856), p(272, 856)]))

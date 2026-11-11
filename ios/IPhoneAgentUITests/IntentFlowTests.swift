@@ -58,6 +58,8 @@ final class IntentFlowTests: XCTestCase {
         attachment.name = "Recording draft"
         attachment.lifetime = .keepAlways
         add(attachment)
+        // a recording is a run: its review can go on from where the person stopped
+        XCTAssertTrue(app.buttons["Continue from Here"].exists, app.debugDescription)
         app.buttons["Save as Intent"].tap()
         XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 15))
         app.navigationBars.buttons["Save"].tap()

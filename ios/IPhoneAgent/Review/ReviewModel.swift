@@ -44,9 +44,12 @@ struct DraftStep: Identifiable, Equatable {
     }
 
     /// A finished run; the intent it ran for (if any) fills the name, prompt and checklist.
+    /// A demonstration written as a run (DemoRecorder) opens as one: its unsure steps marked.
     convenience init(run: Run, intent: SavedTask? = nil) {
-        let steps = run.steps.map { DraftStep(action: $0.action, frame: $0.frame, t: $0.t) }
-        self.init(source: intent == nil ? .run : .intent, folder: run.folder, runID: run.id, outcome: run.outcome,
+        let steps = run.steps.map {
+            DraftStep(action: $0.action, frame: $0.frame, t: $0.t, uncertain: $0.action["sure"] == .bool(false))
+        }
+        self.init(source: intent == nil ? (run.isDemo ? .recording : .run) : .intent, folder: run.folder, runID: run.id, outcome: run.outcome,
                   steps: steps, name: intent?.name ?? "", prompt: intent?.prompt ?? run.task,
                   hints: intent?.checklist ?? [], icon: intent?.symbol ?? "bolt.fill", intentID: intent?.id)
     }
@@ -60,6 +63,9 @@ struct DraftStep: Identifiable, Equatable {
         self.init(source: .intent, folder: recording, runID: nil, outcome: nil, steps: [], name: intent.name,
                   prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, intentID: intent.id)
     }
+
+    /// A demonstration: an old recording, or a run DemoRecorder wrote (its steps say `demo`).
+    var isDemo: Bool { source == .recording || steps.contains { $0.action["demo"] == .bool(true) } }
 
     /// An imported run: replay only, no edits or intents.
     var readOnly: Bool { folder.map(RunShare.isImported) ?? false }
@@ -116,7 +122,7 @@ struct DraftStep: Identifiable, Equatable {
         item.icon = icon
         item.hints = hints.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         item.refRun = runID ?? item.refRun
-        if source == .recording { item.refRecording = folder?.lastPathComponent }
+        if source == .recording && runID == nil { item.refRecording = folder?.lastPathComponent }  // before recordings were runs
         let corrections = steps.compactMap { step -> String? in
             guard !step.uncertain else { return nil }
             if let point = step.fix { return "For \(StepText.title(step.action)), use screen position \(Int(point.x)), \(Int(point.y)) (0–1000). \(step.note)" }
@@ -134,7 +140,7 @@ struct DraftStep: Identifiable, Equatable {
     /// recording keeps them. nil = nothing to replay here (an intent opened without its steps): keep the old ones.
     func recordedSteps(for id: UUID) throws -> [RecordedStep]? {
         // A demonstration keeps script steps too; a note or an unsure move there becomes an AI step (ScriptRunner).
-        let demo = source == .recording
+        let demo = isDemo
         let kept = Replay.replayable.union(Replay.scriptKinds).union(demo ? ["note"] : [])
         let picked = steps.filter { kept.contains($0.name) && !$0.inserted && ($0.verdict != false || $0.fix != nil) }
         guard !picked.isEmpty else { return source == .intent ? nil : [] }

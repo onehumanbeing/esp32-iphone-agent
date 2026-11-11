@@ -174,16 +174,56 @@ import XCTest
         XCTAssertNil(DemoRecorder.draft("STEP 1: home | sure", frames: [], folder: folder).steps.first?.frame)
     }
 
-    func testFrameSamplingHandlesEmptyAndSingleBudgets() {
-        let frames = (0..<20).map { URL(fileURLWithPath: "/tmp/\($0).jpg") }
-        XCTAssertEqual(DemoRecorder.sample(frames, 0), [])
-        XCTAssertEqual(DemoRecorder.sample(frames, 1), [frames[0]])
-        XCTAssertEqual(DemoRecorder.sample([], 12), [])
-        let sampled = DemoRecorder.sample(frames, 12)
-        XCTAssertEqual(sampled.count, 12)
-        XCTAssertEqual(sampled.first, frames.first)
-        XCTAssertEqual(sampled.last, frames.last)
-        XCTAssertEqual(Set(sampled).count, 12)
+    /// A demonstration is written as a run (DemoRecorder.writeRun): Runs lists it as stopped, so it can be
+    /// continued; its unsure steps stay unsure, and the intent saved from it points at the run.
+    func testDemonstrationRunIsAStoppedRunWithItsUnsureSteps() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("20261112-090000")
+        let trace = TraceStore(root: root)
+        trace.open(folder)
+        trace.write(kind: "task", ["task": .str("Send hi to File Transfer"), "demo": .bool(true)])
+        trace.write(kind: "step", ["action": .str("tap"), "x": .int(120), "y": .int(260), "changed": .bool(true),
+                                   "demo": .bool(true), "sure": .bool(true), "frame": .str("k001.jpg"), "t": .num(10)])
+        trace.write(kind: "step", ["action": .str("tap"), "x": .int(500), "y": .int(900), "changed": .bool(true),
+                                   "demo": .bool(true), "sure": .bool(false), "frame": .str("k002.jpg"), "t": .num(12)])
+        trace.write(kind: "step", ["action": .str("stopped"), "demo": .bool(true), "t": .num(12)])
+        let run = try XCTUnwrap(RunStore.load(folder))
+        XCTAssertTrue(run.isDemo)
+        XCTAssertEqual(run.outcome, .stopped)
+        XCTAssertEqual(run.moves.count, 2)
+        XCTAssertEqual(run.steps[0].frame?.lastPathComponent, "k001.jpg")
+        XCTAssertEqual(run.duration, 2)
+        let draft = ReviewDraft(run: run)
+        XCTAssertEqual(draft.source, .recording)
+        XCTAssertEqual(draft.steps.map(\.uncertain), [false, true, false])
+        let item = draft.intent(existing: nil)
+        XCTAssertEqual(item.refRun, run.id)
+        XCTAssertNil(item.refRecording)
+        let steps = try XCTUnwrap(draft.recordedSteps(for: item.id))
+        defer { try? FileManager.default.removeItem(at: IntentFrames.folder(item.id)) }
+        XCTAssertEqual(steps.count, 2)
+        XCTAssertTrue(steps[0].action.contains("\"tap\"") && !steps[0].action.contains("demo"))
+        XCTAssertTrue(steps[1].action.contains("\"ai\""), "the unsure tap is left to the model")
+    }
+
+    func testVerdictRowsReachTheirStep() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("20261112-090001")
+        let trace = TraceStore(root: root)
+        trace.open(folder)
+        trace.write(kind: "task", ["task": .str("x")])
+        trace.write(kind: "step", ["action": .str("tap"), "x": .int(1), "y": .int(2)])
+        trace.write(kind: "verdict", ["changed": .bool(false), "pointer": .str("1 2")])
+        let reopened = TraceStore(root: root)
+        reopened.open(folder)  // a resumed run goes on in the same folder, numbering on
+        reopened.write(kind: "step", ["action": .str("resumed")])
+        let run = try XCTUnwrap(RunStore.load(folder))
+        XCTAssertEqual(run.steps.first?.action["changed"], .bool(false))
+        XCTAssertEqual(run.steps.map(\.name), ["tap", "resumed"])
+        let text = try String(contentsOf: folder.appendingPathComponent("steps.jsonl"), encoding: .utf8)
+        XCTAssertTrue(text.contains("\"n\": 4"), text)
     }
 
     func testRecordingIntentReopensScreensCorrectionsAndHints() throws {

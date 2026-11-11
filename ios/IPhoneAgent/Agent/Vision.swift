@@ -147,6 +147,25 @@ enum Vision {
         return rects.reduce(0) { $0 + $1.width * $1.height } > 0.2 ? [] : rects
     }
 
+    /// How far the content moved up from `before` to `after` (fraction of the height; negative = down) when one
+    /// vertical shift explains the change far better than none: a scroll. nil for a still screen or a new one.
+    static func scroll(_ before: Data?, _ after: Data?) -> Double? {
+        guard let before, let after, let a = image(before), let b = image(after) else { return nil }
+        let w = 24, h = 120, top = Int(topMask * Double(h)) + 1, ga = gray(a, w, h), gb = gray(b, w, h)
+        func diff(_ dy: Int) -> Double {  // after's row y against before's row y + dy
+            var total = 0, n = 0
+            for y in top..<h where (top..<h).contains(y + dy) {
+                for x in 0..<w { total += abs(Int(ga.px[(y + dy) * w + x]) - Int(gb.px[y * w + x])); n += 1 }
+            }
+            return n >= w * h / 4 ? Double(total) / Double(n) : .infinity
+        }
+        let still = diff(0)
+        guard still > 6 else { return nil }  // nothing moved
+        let shifts = (-h / 2...h / 2).filter { $0 != 0 }.map { ($0, diff($0)) }
+        guard let best = shifts.min(by: { $0.1 < $1.1 }), best.1 < still * 0.4 else { return nil }
+        return Double(best.0) / Double(h)
+    }
+
     static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = []) -> Bool {
         guard let before, let after, let a = image(before), let b = image(after) else { return true }
         if a.width != b.width || a.height != b.height { return true }

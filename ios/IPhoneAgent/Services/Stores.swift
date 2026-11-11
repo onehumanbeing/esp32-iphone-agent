@@ -148,6 +148,8 @@ struct Run: Identifiable, Equatable {
     }
 
     var moves: [Step] { steps.filter(\.isMove) }
+    /// Recorded from the person's own taps (DemoRecorder), not run by the agent.
+    var isDemo: Bool { steps.contains { $0.action["demo"] == .bool(true) } }
     /// From someone else's shared archive: replay only.
     var imported: Bool { RunShare.isImported(folder) }
     var outcome: Outcome { Outcome(last: steps.last?.name, running: false) }
@@ -210,6 +212,12 @@ struct Run: Identifiable, Equatable {
             case "task": task = rec["task"]?.str ?? ""
             case "step": steps.append(Run.Step(id: steps.count, action: rec.without(["n", "t", "kind", "frame"]), frame: frame,
                                                t: rec["t"]?.double))
+            case "verdict":  // the step's result, so a run continued from disk still says "-> screen changed"
+                if let last = steps.popLast(), let changed = rec["changed"] {
+                    var action = last.action
+                    action["changed"] = changed
+                    steps.append(Run.Step(id: last.id, action: action, frame: last.frame, t: last.t))
+                }
             case "llm":
                 calls += 1
                 if case .obj(let u) = rec["usage"] {
