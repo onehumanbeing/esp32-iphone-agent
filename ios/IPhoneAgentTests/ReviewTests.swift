@@ -143,6 +143,21 @@ import XCTest
         XCTAssertEqual(draft.steps[2].action["what"], .str("video titles"))
     }
 
+    /// Henry 2026-11-12: a tap names what was tapped; an app still opening is not a step.
+    func testDemonstrationTapsCarryTheirLabelAndNoneIsDropped() {
+        let draft = DemoRecorder.draft("""
+        STEP 1: tap 437 696 "WeChat" | sure
+        STEP 2: none | sure
+        STEP 3: wait | sure
+        STEP 4: tap 287 345 "File Transfer" | sure
+        """, frames: (1...4).map { URL(fileURLWithPath: "/tmp/k00\($0).jpg") }, folder: URL(fileURLWithPath: "/tmp/none"))
+        XCTAssertEqual(draft.steps.map(\.name), ["tap", "tap"])
+        XCTAssertEqual(draft.steps.map { $0.action["label"]?.str }, ["WeChat", "File Transfer"])
+        XCTAssertEqual(draft.steps[0].action["x"], .int(437))
+        XCTAssertEqual(draft.steps[1].frame?.lastPathComponent, "k004.jpg")
+        XCTAssertEqual(DemoRecorder.splitLabel("tap 1 2").1, nil)
+    }
+
     func testCorrectionsReachTheOptimizerInput() {
         let draft = ReviewDraft(source: .run, folder: nil, runID: nil, outcome: .failed,
                                 steps: [DraftStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(2)])],

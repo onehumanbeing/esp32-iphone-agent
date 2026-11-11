@@ -13,7 +13,10 @@ enum DemoAnalysis {
     consecutive screens, name the one action that caused it. Coordinates are 0-1000 of the screen width and height.
     Reply with one line per change, in this format only:
     STEP <change number>: <command> | sure or unsure
-    Commands: tap X Y, swipe X1 Y1 X2 Y2, type "text", home, back, wait, ai "what to achieve", read "what".
+    Commands: tap X Y "what was tapped", swipe X1 Y1 X2 Y2, type "text", home, back, ai "what to achieve", \
+    read "what", none.
+    After tap, name what was tapped as it reads on the screen (an app's name, a button, a row's title). Write \
+    none when the person did nothing: an app still opening, an animation or a page still loading.
     Each change comes with what the phone measured (where the screen changed, or that the content scrolled) and \
     the text on the screen before it, with positions. For a tap, give the position of the text or control that was \
     tapped on the screen before. Use tap / swipe / type for controls that stay in the same place every time. When \
@@ -25,7 +28,8 @@ enum DemoAnalysis {
     static let summaryPrompt = """
     These are the steps a person did on an iPhone, in order. Reply in this format only:
     NAME: <short name for the task>
-    PROMPT: <one instruction that would make an AI agent repeat this task>
+    PROMPT: <one instruction that would make an AI agent repeat this task, naming the apps and the items by their \
+    names, never by screen positions>
     """
 
     /// The model's STEP lines for changes `first` ... `first + screens.count - 2` (1-based: change n is screen n → n+1).
@@ -40,7 +44,7 @@ enum DemoAnalysis {
     }
 
     static func summarize(_ model: LLMClient, steps: [String]) async throws -> String {
-        try await model.chat(system: summaryPrompt, text: steps.joined(separator: "\n"), maxTokens: 200, temperature: 0).text
+        try await model.chat(system: summaryPrompt, text: steps.joined(separator: "\n"), maxTokens: 400, temperature: 0).text
     }
 
     struct Line { let text: String; let x: Int, y: Int

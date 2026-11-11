@@ -97,6 +97,14 @@ import UIKit
         return true
     }
 
+    /// A screen kept still this long is a step's result (the stream is ≤5 fps: two frames alike).
+    static let still = 0.35
+
+    nonisolated private static func differs(_ a: Data?, _ b: Data) async -> Bool {
+        guard let a else { return true }
+        return await Task.detached(priority: .userInitiated) { Vision.changed(a, b) }.value
+    }
+
     private func capture() async {
         do {
             if !MockMode.on {
@@ -104,7 +112,11 @@ import UIKit
                 try await leaveApp()
             }
             try await countDown()
-            var last: Data?
+            // Henry 2026-11-12: waiting for each screen to settle (up to 4 s) missed the screens of a person going at
+            // a normal pace. Now every streamed frame (≤5 fps) is looked at, nothing waits: a screen that stays
+            // `still` seconds is kept, if it differs from the last kept one. Handsy's own screens are not kept.
+            var kept: Data?, seen: Data?, seenAt = -1.0
+            var candidate: Data?, candidateSince = 0.0
             var staleSince = now()
             while recording && !Task.isCancelled {
                 if !MockMode.on && (!app.board.connected || app.board.status?.ap != "streaming") {
@@ -114,21 +126,27 @@ import UIKit
                     Task { await self.stop() }
                     return
                 }
+                let stamp = MockMode.on ? now() : (app.feed.capturedAt > 0 ? app.feed.capturedAt : app.feed.updated)
                 let frame = MockMode.on ? AppModel.mockFrame : freshFrame()
                 if frame == nil, !MockMode.on, now() - staleSince > 2 {
                     await requestFrame()
                     staleSince = now()
                 }
-                if let frame, MockMode.on || Vision.changed(last, frame) {
-                    if !MockMode.on { await app.feed.settled() }
-                    try Task.checkCancellation()
-                    guard recording else { return }
-                    let settled = MockMode.on ? frame : (freshFrame() ?? frame)
-                    try save(settled)
-                    last = settled
+                if let frame, stamp != seenAt {  // a new frame from the stream
+                    staleSince = now()
+                    seenAt = stamp
+                    let before = seen
+                    if await Self.differs(before, frame) { (candidate, candidateSince) = (frame, now()) }
+                    seen = frame
                 }
-                if frame != nil { staleSince = now() }
-                try await Task.sleep(nanoseconds: MockMode.on ? 1_500_000_000 : 400_000_000)
+                if let shot = candidate, now() - candidateSince >= Self.still {
+                    candidate = nil
+                    if app.appIsBackgrounded || MockMode.on, await Self.differs(kept, shot) {
+                        try save(shot)
+                        kept = shot
+                    }
+                }
+                try await Task.sleep(nanoseconds: MockMode.on ? 1_500_000_000 : 120_000_000)
             }
         } catch is CancellationError {
             return
@@ -411,12 +429,24 @@ import UIKit
             let command = parts.first.map(String.init) ?? ""
             let sure = parts.count > 1 && parts[1].trimmingCharacters(in: .whitespaces).lowercased() == "sure"
             let validFrame = n > 0 && n <= frames.count
-            let action = Self.parseDemonstratedAction(command) ?? ["action": .str("note"), "text": .str(command)]
+            let (bare, label) = Self.splitLabel(command)
+            if bare.lowercased() == "none" || bare.lowercased() == "wait" { continue }  // nothing done by the person
+            var action = Self.parseDemonstratedAction(bare) ?? ["action": .str("note"), "text": .str(command)]
+            if let label, action["action"]?.str == "tap" { action["label"] = .str(label) }
             steps.append(DraftStep(action: action, frame: validFrame ? frames[n - 1] : nil,
                                    uncertain: !sure || !validFrame || action["action"]?.str == "note"))
         }
         return ReviewDraft(source: .recording, folder: folder, runID: nil, outcome: nil, steps: steps, name: name,
                            prompt: prompt, icon: "record.circle")
+    }
+
+    /// `tap X Y "label"` → (`tap X Y`, label); any other command is left as it is.
+    static func splitLabel(_ command: String) -> (String, String?) {
+        let text = command.trimmingCharacters(in: .whitespaces)
+        guard text.lowercased().hasPrefix("tap "), let open = text.firstIndex(of: "\""), text.last == "\"",
+              open < text.index(before: text.endIndex) else { return (text, nil) }
+        let label = String(text[text.index(after: open)..<text.index(before: text.endIndex)])
+        return (text[..<open].trimmingCharacters(in: .whitespaces), label.isEmpty ? nil : label)
     }
 
     /// Only the documented demonstration commands are accepted; malformed actions stay editable notes.
