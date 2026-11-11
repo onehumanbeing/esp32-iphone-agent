@@ -30,6 +30,32 @@ enum RepeatGuard {
     }
 }
 
+/// The tap right after a "confirmed" row did the risky thing (add to cart, send, buy, post). Another tap there
+/// would do it again: iddzz 2026-11-12, the add-to-cart button sat where the options sheet's button was, every tap
+/// "changed the screen", and four chairs went into the cart. Such a tap is not sent at once: the model is told why
+/// and asked once more (the planner answers); its second answer stands.
+enum CommitGuard {
+    static let near = 40.0  // the 0–1000 grid: the same button
+
+    static func commit(in steps: [JObject]) -> JObject? {
+        guard let at = steps.lastIndex(where: { $0["action"]?.str == "confirmed" }) else { return nil }
+        return steps[(at + 1)...].first { $0["action"]?.str == "tap" }
+    }
+
+    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+        guard let tap = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              tap["action"]?.str == "tap", let x = tap["x"]?.double, let y = tap["y"]?.double,
+              let done = commit(in: steps), let dx = done["x"]?.double, let dy = done["y"]?.double,
+              abs(x - dx) <= near, abs(y - dy) <= near,
+              steps.last?["action"]?.str != RepeatGuard.action else { return nil }  // asked once already
+        return tap
+    }
+
+    static let reason = "Not done: this taps where the confirmed step was already done, and would do it again "
+        + "(add, send or buy twice). Look for proof it took effect (a success message, the cart's count, the sent "
+        + "message) and finish with done; tap it again only if the screen shows it did not happen."
+}
+
 extension AgentLoop {
     /// The round's actions (nextActions), asked for once more when they start with a repeat of a gesture that just
     /// changed nothing. Not after a round a pause dropped (the flag is taken here): the person may have changed the
@@ -38,10 +64,19 @@ extension AgentLoop {
         let afterPause = roundDroppedByPause
         roundDroppedByPause = false
         let acts = try await nextActions()
-        guard !afterPause, let held = RepeatGuard.repeated(acts.map(\.act), after: steps) else { return acts }
-        let name = held["action"]?.str ?? ""
-        DebugLog.write("repeat guard: the same \(name) again right after it changed nothing; asking once more")
-        var row: JObject = ["action": .str(RepeatGuard.action), "reason": .str(RepeatGuard.reason(name))]
+        guard !afterPause else { return acts }
+        let reason: String
+        if let held = RepeatGuard.repeated(acts.map(\.act), after: steps) {
+            let name = held["action"]?.str ?? ""
+            DebugLog.write("repeat guard: the same \(name) again right after it changed nothing; asking once more")
+            reason = RepeatGuard.reason(name)
+        } else if CommitGuard.repeated(acts.map(\.act), after: steps) != nil {
+            DebugLog.write("commit guard: a tap on the confirmed step's spot again; asking once more")
+            reason = CommitGuard.reason
+        } else {
+            return acts
+        }
+        var row: JObject = ["action": .str(RepeatGuard.action), "reason": .str(reason)]
         if acts[0].act["jev"] != nil { row["jev"] = .bool(true) }
         record(acts[0].shot, row)
         // the user's model answers this one (on both lines): Jev reads the same plan and would offer the same step

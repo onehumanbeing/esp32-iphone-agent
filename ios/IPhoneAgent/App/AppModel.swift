@@ -227,7 +227,7 @@ import UIKit
             prewarmStream()
         }
         board.onLinkDown = { [weak self] in
-            self?.pointer.boardPace = nil
+            self?.pointer.boardPace = nil; self?.pointer.flickInOne = nil
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)

@@ -161,8 +161,11 @@ extension AppModel {
             }
             try Task.checkCancellation()
             usedInput = true
-            try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
-            mark("pointer on the home bar")
+            if !resume {  // resuming waits for the user to switch back: a pointer parked on the home bar only
+                // invites a stray stroke there (2026-11-12)
+                try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
+                mark("pointer on the home bar")
+            }
             backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "agent") { [weak self] in
                 self?.say("iOS is ending background time; BLE status keeps the run going")
                 self?.endBackgroundTask()

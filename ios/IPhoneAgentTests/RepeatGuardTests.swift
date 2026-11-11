@@ -105,4 +105,15 @@ import XCTest
         XCTAssertEqual(model.prompts.count, 1 + 2 * NoProgress.limit)
         XCTAssertTrue(StepText.notMoves.contains(RepeatGuard.action))
     }
+
+    func testATapOnTheConfirmedStepsSpotIsHeldBackOnce() {
+        let confirmed: JObject = ["action": .str("confirmed"), "reason": .str("add to cart")]
+        let steps = [tap(500, 900, changed: true), confirmed, tap(500, 938, changed: true)]
+        XCTAssertNotNil(CommitGuard.repeated([tap(505, 930)], after: steps), "the same button again")
+        XCTAssertNil(CommitGuard.repeated([tap(500, 600)], after: steps), "another target")
+        XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: [tap(500, 938, changed: true)]), "nothing confirmed")
+        XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: [confirmed]), "the commit itself")
+        let asked = steps + [["action": .str(RepeatGuard.action), "reason": .str(CommitGuard.reason)]]
+        XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: asked), "its second answer stands")
+    }
 }

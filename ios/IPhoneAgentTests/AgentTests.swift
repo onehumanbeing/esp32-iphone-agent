@@ -500,9 +500,13 @@ import XCTest
     var connected = true
     var sent: [String] = []
     var onSend: ((String) -> Void)?
+    var reject: Set<String> = []  // commands answered like older firmware: "err unknown command"
     func send(_ command: String) async throws -> String {
         sent.append(command)
         onSend?(command)
+        if reject.contains(String(command.split(separator: " ").first ?? "")) {
+            throw DeviceError(message: "err unknown command")
+        }
         return ""
     }
     func waitConnected(_ timeout: TimeInterval) async -> Bool { connected }

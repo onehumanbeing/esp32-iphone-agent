@@ -86,7 +86,7 @@ import XCTest
         pointer.finishCalibration(x: 0.5, y: 0.25)
         try await pointer.goHome(again: again)
         XCTAssertEqual(device.sent.first, "homescreen")
-        return device.sent.contains("press")
+        return device.sent.contains { $0.hasPrefix("flick ") }
     }
 
     func testTheHomeFlickFollowsUnlessTheAppWasLeft() async throws {

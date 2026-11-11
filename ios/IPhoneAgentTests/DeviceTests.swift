@@ -166,6 +166,7 @@ import XCTest
         defer { try? FileManager.default.removeItem(at: file) }
         let pointer = Pointer(device: channel, calibrationFile: file)
         pointer.finishCalibration(x: 0.5, y: 0.25)
+        pointer.flickInOne = false  // firmware before 0.2.5: press, move, release
         for homeSwipe in [false, true] {
             board.lines = []
             board.timeoutOnceOn = "press"
@@ -655,7 +656,7 @@ import XCTest
         pointer.finishCalibration(x: 0.5, y: 0.25)
         try await pointer.goHome()
         XCTAssertEqual(device.sent.first, "homescreen")
-        XCTAssertEqual(device.sent.last, "release")  // the sheet stayed: flicked up from the home bar
+        XCTAssertEqual(device.sent.last?.hasPrefix("flick "), true)  // the sheet stayed: flicked up from the home bar
     }
 
     func testPhysicalHomeSwipeDoesNotUseAcknowledgedHomeKey() async throws {
@@ -665,13 +666,26 @@ import XCTest
         let pointer = Pointer(device: device, calibrationFile: file)
         pointer.finishCalibration(x: 0.5, y: 0.25)
         try await pointer.homeSwipe()
-        XCTAssertTrue(device.sent.contains("press"))
-        XCTAssertEqual(device.sent.last, "release")
         XCTAssertFalse(device.sent.contains("homescreen"))
         XCTAssertFalse(device.sent.contains("key cmd+h"))
-        let press = try XCTUnwrap(device.sent.firstIndex(of: "press"))
-        XCTAssertEqual(device.sent[press - 1], "move 0 80")  // pushed past the bottom edge first
-        XCTAssertEqual(device.sent[press + 1], "move 0 -680")  // then up 85% of the height, with no end hold
+        XCTAssertEqual(device.sent.suffix(2), ["move 0 80", "flick 0 -680"])  // past the bottom edge, then up 85% in one
+        XCTAssertEqual(pointer.flickInOne, true)
+    }
+
+    /// Firmware before 0.2.5 answers `flick` with "unknown command": press, move, release, and no flick again.
+    func testOldFirmwareGetsTheThreeCommandFlick() async throws {
+        let device = FakeDevice()
+        device.reject = ["flick"]
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.finishCalibration(x: 0.5, y: 0.25)
+        try await pointer.homeSwipe()
+        XCTAssertEqual(device.sent.suffix(3), ["press", "move 0 -680", "release"])
+        XCTAssertEqual(pointer.flickInOne, false)
+        device.sent = []
+        try await pointer.homeSwipe()
+        XCTAssertFalse(device.sent.contains { $0.hasPrefix("flick") })
     }
 
 

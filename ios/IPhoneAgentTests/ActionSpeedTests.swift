@@ -187,16 +187,14 @@ import XCTest
     func testHomeFlickSpeedFollowsTheGentleSetting() async throws {
         let saved = UserDefaults.standard.object(forKey: Pointer.gentleHomeKey)
         defer { UserDefaults.standard.set(saved, forKey: Pointer.gentleHomeKey) }
-        for (gentle, want) in [(nil as Bool?, "move 0 -680 20"), (false, "move 0 -680 40")] {
+        for (gentle, want) in [(nil as Bool?, "flick 0 -680 20"), (false, "flick 0 -680 40")] {
             UserDefaults.standard.set(gentle, forKey: Pointer.gentleHomeKey)
             let device = FakeDevice()
             let pointer = Pointer(device: device, calibrationFile: calibrationFile())
             pointer.boardPace = 3
             pointer.finishCalibration(x: 0.5, y: 0.25)
             try await pointer.homeSwipe()
-            let press = try XCTUnwrap(device.sent.firstIndex(of: "press"))
-            XCTAssertEqual(device.sent[press + 1], want)
-            XCTAssertEqual(device.sent.last, "release")
+            XCTAssertEqual(device.sent.last, want)  // press, move and release in one (firmware 0.2.5)
         }
     }
 

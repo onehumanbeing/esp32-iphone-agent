@@ -68,6 +68,8 @@ import UIKit
     private(set) var pace = 1  // the board's move pacing ("pace") when calibrated; 1 = firmware before it answered
     /// The connected board's pacing; a calibration made under another one no longer fits (iOS accelerates by speed).
     @Published var boardPace: Int?
+    /// The board takes `flick` (firmware 0.2.5); nil until tried, reset by a new board connection.
+    var flickInOne: Bool?
     var log: (String) -> Void = { print($0) }
     /// This app is in front (it must not be: open checks the app it opened is not this one).
     var ownAppInFront: (() -> Bool)?
@@ -556,13 +558,24 @@ import UIKit
         // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
         guard let span else { return }
         try await device.send("move 0 \(span.h / 10)")
+        let speed = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
+        // Firmware 0.2.5: press, move and release in one command. Three commands left a pause before the release,
+        // and iOS took the lingering stroke for "show the app switcher" (iddzz 2026-11-12).
+        if flickInOne != false {
+            do {
+                try await device.send("flick 0 \(-Int(Double(span.h) * 0.85))" + speed)
+                flickInOne = true
+                return
+            } catch let error as DeviceError where error.message.contains("unknown command") {
+                flickInOne = false  // older firmware: the three-command stroke below
+            }
+        }
         do {
             try await device.send("press")
             // to the middle only (0.45) left the app card half-way (2026-10-19). At the board's top speed per report
             // (40, firmware pace 3): at the default 10 the stroke took 1.2 s (2026-11-11); a flick is fast anyway
             // 2026-11-11 Henry: the top-speed flick at a run's start is too abrupt; gentle by default
-            let fast = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
-            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))" + fast)
+            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))" + speed)
         } catch {
             _ = try? await device.send("release")
             throw error
