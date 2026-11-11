@@ -39,6 +39,7 @@ extension Gestures {
     let phone: Gestures?
     let screen: ScreenSource?
     var actor: ChatModel?, planner: ChatModel?
+    var checkpointModel: ChatModel?, checkpoints = Checkpoints()  // free line: some rounds go to Opus (AgentLoop+Checkpoint)
     let trace: TraceStore?
     /// maxSteps is only a safety cap (a Duolingo lesson is ~80 rounds; 40 cut it in half, 2026-11-06). A run that
     /// is stuck stops sooner: `maxStalls` rounds in a row that changed nothing on screen. Either way the user is asked.
@@ -142,7 +143,7 @@ extension Gestures {
         UITree.ocrCache.clear()  // a new run never reuses the last run's OCR
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
-        (touchCheck, progress) = (TouchCheck(), NoProgress())
+        (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         lastActed = 0
         helpAsked = 0
         droppingChosenGesture = false
@@ -576,7 +577,7 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "landed", "opened", "typed", "again"]
+                                   "replay", "jev", "planner", "landed", "opened", "typed", "again"]
         let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
@@ -585,17 +586,24 @@ extension Gestures {
         let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
             + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
         var reply = ""
+        let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)
         for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically
-            let (text, seconds, frame) = try await ask("actor", actor, actorPrompt, prompt, temperature: 0.4 * Double(attempt))
-            reply = text
+            var (text, seconds, frame) = try await askRound(attempt == 0 ? checkpoint : nil, actor, prompt,
+                                                            temperature: 0.4 * Double(attempt))
             var acts: [JObject]
-            do { acts = try Actions.parseActions(text) } catch { continue }
+            do { acts = try Actions.parseActions(text) } catch { reply = text; continue }
+            if checkpoint == nil, let checked = try await confirmDone(acts, prompt),
+               let theirs = try? Actions.parseActions(checked.0) {
+                (text, seconds, frame, acts) = (checked.0, seconds + checked.1, checked.2 ?? frame, theirs)
+            }
+            reply = text
             if let new = Actions.planBlock(text), new != plan {  // the model keeps its own plan up to date
                 plan = new
                 record(frame, ["action": .str("plan"), "plan": .str(new), "plan_zh": .str(new)])
             }
             acts[0]["think_s"] = .num(seconds)
             if lastServed == "handsy-jev" { acts[0]["jev"] = .bool(true) }  // Jev took this step
+            if lastServed == Trial.plannerModel { acts[0]["planner"] = .bool(true) }  // a checkpoint round
             return acts.map { Planned(act: $0, shot: frame) }
         }
         throw Actions.ParseError(message: "actor gave no valid action: \(reply.prefix(200))")

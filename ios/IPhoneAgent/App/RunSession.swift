@@ -104,6 +104,7 @@ extension AppModel {
             if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
             agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
+            agent.checkpointModel = try await settings.checkpointClient()
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
             agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
             agent.compactTree = settings.provider == .handsyTrial && TreeSource.current == .device  // Debug only

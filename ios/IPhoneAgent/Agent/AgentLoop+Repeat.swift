@@ -45,6 +45,7 @@ extension AgentLoop {
         if acts[0].act["jev"] != nil { row["jev"] = .bool(true) }
         record(acts[0].shot, row)
         // the user's model answers this one (on both lines): Jev reads the same plan and would offer the same step
+        checkpoints.asked = "repeat"  // the planner answers the second ask (free line)
         let hold = JevGate.hold
         JevGate.hold = true
         defer { JevGate.hold = hold }

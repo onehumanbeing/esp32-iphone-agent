@@ -324,11 +324,11 @@ import UIKit
     }
 
     /// role "planner" or "actor": its own model if set, else the shared one.
-    func client(_ role: String) async throws -> LLMClient {
+    func client(_ role: String, freeLineModel: String = Trial.model) async throws -> LLMClient {
         // free line: its one model with the gateway's own parameters. Advanced overrides (models, token
         // parameter, Extra body) are for one's own endpoint; the gateway refuses them.
         let freeLine = provider == .handsyTrial
-        let own = freeLine ? Trial.model : role == "planner" ? plannerModel : actorModel
+        let own = freeLine ? freeLineModel : role == "planner" ? plannerModel : actorModel
         let model = own.isEmpty ? try await resolvedModel() : own
         var extra = freeLine ? [:] : extra
         if provider == .openRouter, model.hasSuffix(":free"), extra["models"] == nil {
@@ -339,7 +339,7 @@ import UIKit
         // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
         // once, the first sure answer wins). Read per request: JevGate.hold changes during the run.
         let defaults = defaults
-        let jev = { role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
+        let jev = { role == "actor" && freeLineModel == Trial.model && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
             .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
         let tree = Self.treeHeaders(role, provider)
@@ -350,6 +350,11 @@ import UIKit
                 .merging(step()) { a, _ in a } } : nil
         return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
+    }
+
+    /// Free line: the gateway's planner, asked like the actor (same tree headers, no Jev) at a run's checkpoints.
+    func checkpointClient() async throws -> LLMClient? {
+        provider == .handsyTrial ? try await client("actor", freeLineModel: Trial.plannerModel) : nil
     }
 
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.

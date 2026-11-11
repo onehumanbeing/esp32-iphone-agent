@@ -140,6 +140,7 @@
 		8FCFB9340A6E3F74CE629FBF /* VideoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E6D0770452B562B5CA484E /* VideoTests.swift */; };
 		90594045D55F83E5EEE53574 /* ReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794E46A6A28E406A3D606661 /* ReviewTests.swift */; };
 		90690C50BC27D749B19F7BA7 /* UITreeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E49E4897714D436F985C230 /* UITreeTests.swift */; };
+		39256938584A2E44AF083673 /* CheckpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC542D5506F6C9FD180C1CD3 /* CheckpointTests.swift */; };
 		A1C0FFEE00000000000000B1 /* UITreeGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000B2 /* UITreeGoldenTests.swift */; };
 		A1C0FFEE00000000000000C1 /* UITreeReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000C2 /* UITreeReference.swift */; };
 		948C0D1F80207A8E5874D943 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCAEE3FDF94357F8875E473 /* HomeView.swift */; };
@@ -149,6 +150,7 @@
 		96C08C1CFEECA69484811137 /* StatusChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BDA430E0C54DC956DE9366 /* StatusChips.swift */; };
 		C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 631717D96356AF58914A22AA /* LinkCheck.swift */; };
 		7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */; };
+		C412E4D2DCEBDDEC2F465E97 /* AgentLoop+Checkpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 939610F93D74EE0CD17515FD /* AgentLoop+Checkpoint.swift */; };
 		5CC305035C1C48ED032C19D4 /* Pointer+Keys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */; };
 		7F507E00732D8B71CA6C8BB7 /* AgentLoop+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */; };
 		F4F11E19CA6625C685ACC005 /* AgentLoop+Repeat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F9A38B0E7A4EB545C681E9E /* AgentLoop+Repeat.swift */; };
@@ -411,6 +413,7 @@
 		9924DF8869348C0458073E8B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		99381FBF82EA7EB76556866E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		9E49E4897714D436F985C230 /* UITreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeTests.swift; sourceTree = "<group>"; };
+		BC542D5506F6C9FD180C1CD3 /* CheckpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTests.swift; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000B2 /* UITreeGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeGoldenTests.swift; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000C2 /* UITreeReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeReference.swift; sourceTree = "<group>"; };
 		9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessLink.swift; sourceTree = "<group>"; };
@@ -476,6 +479,7 @@
 		A9389E6F46CC4B27BCA766BB /* RemoteLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLogTests.swift; sourceTree = "<group>"; };
 		631717D96356AF58914A22AA /* LinkCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCheck.swift; sourceTree = "<group>"; };
 		E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Pause.swift"; sourceTree = "<group>"; };
+		939610F93D74EE0CD17515FD /* AgentLoop+Checkpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Checkpoint.swift"; sourceTree = "<group>"; };
 		2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Pointer+Keys.swift"; sourceTree = "<group>"; };
 		D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Progress.swift"; sourceTree = "<group>"; };
 		7F9A38B0E7A4EB545C681E9E /* AgentLoop+Repeat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Repeat.swift"; sourceTree = "<group>"; };
@@ -537,6 +541,7 @@
 				2169FBFC7A60B9FC1FF1E724 /* StepText.swift */,
 				631717D96356AF58914A22AA /* LinkCheck.swift */,
 				E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */,
+				939610F93D74EE0CD17515FD /* AgentLoop+Checkpoint.swift */,
 				2AA93362C477AF20A5D2D909 /* Pointer+Keys.swift */,
 				D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */,
 				7F9A38B0E7A4EB545C681E9E /* AgentLoop+Repeat.swift */,
@@ -635,6 +640,7 @@
 				E4B0E258DD4494C631F0E77A /* TrialTests.swift */,
 				A9389E6F46CC4B27BCA766BB /* RemoteLogTests.swift */,
 				9E49E4897714D436F985C230 /* UITreeTests.swift */,
+				BC542D5506F6C9FD180C1CD3 /* CheckpointTests.swift */,
 				A1C0FFEE00000000000000B2 /* UITreeGoldenTests.swift */,
 				A1C0FFEE00000000000000C2 /* UITreeReference.swift */,
 				44E6D0770452B562B5CA484E /* VideoTests.swift */,
@@ -1109,6 +1115,7 @@
 				E45965E6B985C29D7DDC83BB /* TrialTests.swift in Sources */,
 				C77A7CC8411D4428B27359E2 /* RemoteLogTests.swift in Sources */,
 				90690C50BC27D749B19F7BA7 /* UITreeTests.swift in Sources */,
+				39256938584A2E44AF083673 /* CheckpointTests.swift in Sources */,
 				A1C0FFEE00000000000000B1 /* UITreeGoldenTests.swift in Sources */,
 				A1C0FFEE00000000000000C1 /* UITreeReference.swift in Sources */,
 				8FCFB9340A6E3F74CE629FBF /* VideoTests.swift in Sources */,
@@ -1266,6 +1273,7 @@
 				4C33F19F733F62B5A131BE9E /* TouchCalibration.swift in Sources */,
 				C5AC123BA4AE594991A9A093 /* LinkCheck.swift in Sources */,
 				7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */,
+				C412E4D2DCEBDDEC2F465E97 /* AgentLoop+Checkpoint.swift in Sources */,
 				5CC305035C1C48ED032C19D4 /* Pointer+Keys.swift in Sources */,
 				7F507E00732D8B71CA6C8BB7 /* AgentLoop+Progress.swift in Sources */,
 				F4F11E19CA6625C685ACC005 /* AgentLoop+Repeat.swift in Sources */,
