@@ -31,8 +31,10 @@ import UIKit
 
     enum Status { case unknown, free, waiting, busy, usedUp, unavailable }
     @Published private(set) var status = Status.unknown
-    /// The server lets this install analyse recordings (`"recording": true` in /trial/status).
+    /// The server lets this install analyse recordings (`"recording": true` in /trial/status: owner phones).
     @Published private(set) var recordingAllowed = false
+    /// Recordings are read: on an owner phone, or with a Handsy key that pays for it (Henry 2026-11-12).
+    var canRecord: Bool { keyed || recordingAllowed }
     private var lease: (id: String, token: String, run: String)?
     /// A Handsy key (from a Handsy plan): runs go out under it, on the plan's balance. No lease, no waiting in
     /// line, and the free runs are not counted. Empty: the free line.
@@ -291,8 +293,9 @@ import UIKit
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }
 
-    /// An enrolled install's own headers, no lease: recording analysis.
-    func deviceHeaders() throws -> [String: String] {
+    /// Recording analysis, no lease: the Handsy key (it pays per call), else the enrolled install's own token.
+    func recordingHeaders() throws -> [String: String] {
+        if keyed { return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model] }
         guard let token else { throw TrialError.unavailable }
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model]
     }

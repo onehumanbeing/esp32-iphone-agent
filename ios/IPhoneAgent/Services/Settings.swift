@@ -355,13 +355,13 @@ import UIKit
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 
-    /// The model that reads a recording (DemoAnalysis). Free line: only where the server allows it (owner phones,
-    /// later paying users), Opus 5.5 on the gateway; else nil. Own endpoint: the Planner model, else the shared one.
+    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Handsy key (paid
+    /// per call) or where the server allows it (owner phones); else nil. Own endpoint: the Planner model, else the shared one.
     func recordingClient() async throws -> LLMClient? {
         guard provider == .handsyTrial else { return try await client("planner") }
-        guard Trial.shared.recordingAllowed else { return nil }
+        guard Trial.shared.canRecord else { return nil }
         return LLMClient(baseURL: Trial.recordingBaseURL, model: Trial.recordingModel, tokenParam: "auto",
-                         headers: { try Trial.shared.deviceHeaders() })
+                         headers: { try Trial.shared.recordingHeaders() })
     }
 
     /// The model for a run's checkpoints (AgentLoop+Checkpoint), asked like the actor. Free line: the gateway's

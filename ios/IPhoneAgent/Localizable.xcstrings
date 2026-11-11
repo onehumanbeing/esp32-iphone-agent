@@ -181,12 +181,12 @@
         }
       }
     },
-    "Recording needs your own model. Set one up in Settings › Model." : {
+    "Recording needs a Handsy key or your own model. Add one in Settings › Model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "录制需要你自己的模型，请在 设置 › 模型 里配置。"
+            "value" : "录制需要 Handsy key 或你自己的模型，请在 设置 › 模型 里添加。"
           }
         }
       }

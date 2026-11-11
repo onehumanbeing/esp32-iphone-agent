@@ -119,6 +119,12 @@ import XCTest
         settings.selectedProvider = .handsyTrial
         let free = try await settings.recordingClient()
         XCTAssertNil(free, "Handsy Free: not this install (the server never said recording)")
+        guard settings.provider == .handsyTrial else { return }  // a build without the free line
+        Trial.shared.setKey("hsk_test_" + String(repeating: "k", count: 43))
+        defer { Trial.shared.setKey("") }
+        let paid = try await settings.recordingClient()
+        XCTAssertEqual(paid?.model, Trial.recordingModel, "a Handsy key pays for recordings")
+        XCTAssertEqual(try Trial.shared.recordingHeaders()["Authorization"], "Bearer hsk_test_" + String(repeating: "k", count: 43))
     }
 
     func testThePlannerFlagMarksItsRounds() async throws {

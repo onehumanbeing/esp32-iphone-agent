@@ -65,9 +65,9 @@ import UIKit
             error = String(localized: "Connect the board, start Screen Mirroring, and set up a model first.")
             return false
         }
-        // Henry 2026-11-12: Handsy Free does not read recordings; one's own model does (owner phones: the server's Opus).
-        if !MockMode.on, app.settings.provider == .handsyTrial, !Trial.shared.recordingAllowed {
-            error = String(localized: "Recording needs your own model. Set one up in Settings › Model.")
+        // Henry 2026-11-12: Handsy Free does not read recordings; a Handsy key (paid) or one's own model does.
+        if !MockMode.on, app.settings.provider == .handsyTrial, !Trial.shared.canRecord {
+            error = String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model.")
             return false
         }
         let dir = app.traces.root.appendingPathComponent(TraceStore.folderName())
@@ -490,7 +490,7 @@ extension AppModel {
     /// The recording reader (Settings.recordingClient); none: the free line on a phone the server doesn't allow.
     func recordingModel() async throws -> LLMClient {
         guard let model = try await settings.recordingClient() else {
-            throw DeviceError(message: String(localized: "Recording needs your own model. Set one up in Settings › Model."))
+            throw DeviceError(message: String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model."))
         }
         return model
     }
