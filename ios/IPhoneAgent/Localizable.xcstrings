@@ -1,12 +1,42 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个已开启"
+          }
+        }
+      }
+    },
     "A Handsy key starts with hsk_" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Handsy key 以 hsk_ 开头"
+          }
+        }
+      }
+    },
+    "A tool file is JSON: id, title, about, url (https), and optionally method, key_header, key_prefix, query_field and body." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具文件是 JSON：id、title、about、url（https），可选 method、key_header、key_prefix、query_field 和 body。"
+          }
+        }
+      }
+    },
+    "A tool's address must be https." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具地址必须是 https。"
           }
         }
       }
@@ -77,6 +107,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "让智能体在这台手机上完成一个任务，比如“打开设置并进入无线局域网”。"
+          }
+        }
+      }
+    },
+    "Before acting, the agent can look up what the task names, such as a product, a brand or a place, so a misspelt name or a product that doesn't exist doesn't send it scrolling." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始操作前，Agent 可以先查一下任务里提到的东西（商品、品牌、地点），这样名字打错或者根本没有这款商品时，就不会一直翻页。"
+          }
+        }
+      }
+    },
+    "Beta" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        }
+      }
+    },
+    "Couldn't Import" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导入"
           }
         }
       }
@@ -211,6 +271,16 @@
         }
       }
     },
+    "Import a Tool…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入工具…"
+          }
+        }
+      }
+    },
     "Installation ID" : {
       "localizations" : {
         "zh-Hans" : {
@@ -241,12 +311,42 @@
         }
       }
     },
+    "Needs a Handsy key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Handsy key"
+          }
+        }
+      }
+    },
     "No board yet? Try the demo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没有板子？试试演示"
+          }
+        }
+      }
+    },
+    "No key yet: press and hold to set one" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有 key：长按设置"
+          }
+        }
+      }
+    },
+    "Not a tool file." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是工具文件。"
           }
         }
       }
@@ -391,6 +491,16 @@
         }
       }
     },
+    "Set Key…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置 Key…"
+          }
+        }
+      }
+    },
     "Set Up Your Handsy Key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -407,6 +517,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点这里，马上设置"
+          }
+        }
+      }
+    },
+    "Stays in this iPhone's Keychain and is only sent to %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存在这台 iPhone 的钥匙串里，只会发送给 %@。"
           }
         }
       }
@@ -751,6 +871,26 @@
         }
       }
     },
+    "The tool's id must be 2–24 lowercase letters, digits or _, and not a built-in one." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具 id 须为 2–24 个小写字母、数字或 _，且不能与内置工具重名。"
+          }
+        }
+      }
+    },
+    "Tools" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具"
+          }
+        }
+      }
+    },
     "Undo: Use the Previous Steps" : {
       "localizations" : {
         "zh-Hans" : {
@@ -787,6 +927,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用这个 Key"
+          }
+        }
+      }
+    },
+    "Uses your Handsy key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的 Handsy key"
+          }
+        }
+      }
+    },
+    "Uses your own key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你自己的 key"
           }
         }
       }

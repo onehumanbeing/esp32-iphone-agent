@@ -38,6 +38,15 @@ extension AgentLoop {
             let text = act["text"]?.str ?? ""
             if !text.isEmpty { learned.append(text) }
             act["reason"] = .str("kept if the task ends with done")
+        case "tool":
+            let line = act["text"]?.str ?? ""
+            guard lookedUp.count < ToolStore.perRun else {
+                act["reason"] = .str("not looked up: this task already used its \(ToolStore.perRun) tool calls; go on with what is on screen")
+                break
+            }
+            let answer = await ToolRunner.run(line, run: Trial.shared.runID)
+            lookedUp.append("\(line)\n\(answer)")
+            act["reason"] = .str("looked up: " + String(answer.prefix(160)))
         case "write":
             act["reason"] = .str(try await writeOut())
         default:

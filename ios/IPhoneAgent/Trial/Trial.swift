@@ -50,6 +50,8 @@ import UIKit
     /// A key offered by a link (iphoneagent://key?k=…, from handsy.tech): the app asks before it uses it.
     @Published var offeredKey: OfferedKey?
     private var keyRun: String?  // the run under way with the key
+    /// The key run under way (X-Run-ID), for a tool its plan pays for.
+    var runID: String? { keyRun }
     func setKey(_ value: String) {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard value != key || (!value.isEmpty && !keyOn) else { return }

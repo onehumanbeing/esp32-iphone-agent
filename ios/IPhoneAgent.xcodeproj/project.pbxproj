@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		583C9D4FBB63971D21698DBE /* BetaBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978C1391BB358BA8480CBB77 /* BetaBadge.swift */; };
+		86F9B4D5D32366CCE863DCE8 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19C12ADC79498FBF935F26C /* ToolsView.swift */; };
+		E0F8627F6603827581D839B8 /* Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491480ED5912E9D2A1E11B50 /* Tools.swift */; };
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
 		00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */; };
 		01BAE28C7BD64CE7AE0D2303 /* ProviderSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7439B820D6DA2D4C35103F /* ProviderSelectionView.swift */; };
@@ -277,6 +280,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		978C1391BB358BA8480CBB77 /* BetaBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetaBadge.swift; sourceTree = "<group>"; };
+		D19C12ADC79498FBF935F26C /* ToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsView.swift; sourceTree = "<group>"; };
+		491480ED5912E9D2A1E11B50 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
 		01F6840C8EDD48E656084FEA /* AudioFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFeed.swift; sourceTree = "<group>"; };
 		0278B11885CA8C4A96C96531 /* AgentIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntents.swift; sourceTree = "<group>"; };
 		02C2C2C9EBE006E896050646 /* BoardCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCommands.swift; sourceTree = "<group>"; };
@@ -517,6 +523,7 @@
 			children = (
 				6E1F880227863F1205405FB9 /* Accents.swift */,
 				458E8069AA8BE0B721C9AD7A /* Actions.swift */,
+				491480ED5912E9D2A1E11B50 /* Tools.swift */,
 				17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */,
 				F3C06DB2D9B93FDD668695A0 /* AgentLoop+Act.swift */,
 				980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */,
@@ -680,6 +687,8 @@
 				E2E3712143A195602610004B /* CalibrationToast.swift */,
 				E1828194EBD7CDB8FEFF8643 /* CalibrationViews.swift */,
 				2732CFF0E55395C82C4A329B /* DecidersPanel.swift */,
+				D19C12ADC79498FBF935F26C /* ToolsView.swift */,
+				978C1391BB358BA8480CBB77 /* BetaBadge.swift */,
 				98FCB3CC93B5580515B2ED3D /* DecidersSheets.swift */,
 				2F3122E7A1DB53F3BFCCFD06 /* DiagnosticsView.swift */,
 				503EC3A78FFFF188D620D156 /* FirmwareViews.swift */,
@@ -1141,6 +1150,7 @@
 				0A553429560D1697C678A682 /* AboutView.swift in Sources */,
 				64A3E7309AB54D9DD782859A /* Accents.swift in Sources */,
 				2671E23FE56D69B0CEAB4EF6 /* Actions.swift in Sources */,
+				E0F8627F6603827581D839B8 /* Tools.swift in Sources */,
 				E8FA336F818FBAB651C32BEE /* AgentActivity.swift in Sources */,
 				ABEF22E60573E04FACD0E4A9 /* AgentFace.swift in Sources */,
 				74222DFADC00836F21E19FEA /* AgentIntents.swift in Sources */,
@@ -1182,6 +1192,8 @@
 				419FA08397BAF31F91A62633 /* DebugLog.swift in Sources */,
 				342F4EA40765044DE8EEAE1E /* Deciders.swift in Sources */,
 				F29FF2D2BF00DC997EF914FD /* DecidersPanel.swift in Sources */,
+				86F9B4D5D32366CCE863DCE8 /* ToolsView.swift in Sources */,
+				583C9D4FBB63971D21698DBE /* BetaBadge.swift in Sources */,
 				5A6AA718FC12DB193AE6EC8E /* DecidersSheets.swift in Sources */,
 				5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */,
 				19731EC42F4FE58F8B9724CD /* DemoAnalysis.swift in Sources */,

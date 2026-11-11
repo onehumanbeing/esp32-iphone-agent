@@ -17,12 +17,13 @@ enum Actions {
         "type": ["text"], "clear": [], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
         "home": [], "back": [], "wait": [], "open": ["app"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
+        "tool": ["text"],  // tool <name> "query" (Tools.swift)
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the screen.
     static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
-    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
+    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool"]
 
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {

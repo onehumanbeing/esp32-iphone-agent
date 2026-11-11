@@ -23,6 +23,9 @@ struct ModelSettingsView: View {
                 }
             }
             Section {
+                NavigationLink { ToolsView() } label: { ToolsRowLabel() }
+            }
+            Section {
                 Button {
                     testing = true
                     Task { await app.pingLLM(); testing = false }
@@ -69,5 +72,26 @@ struct ModelSettingsView: View {
         .navigationTitle("Model")
         .navigationBarTitleDisplayMode(.inline)
 
+    }
+}
+
+/// "Tools [Beta] · 2 on" in Settings › Model.
+private struct ToolsRowLabel: View {
+    @ObservedObject private var store = ToolStore.shared
+    @ObservedObject private var trial = Trial.shared
+
+    var body: some View {
+        LabeledContent {
+            Text("\(store.active.count) on")
+        } label: {
+            Label {
+                HStack(spacing: Space.s) {
+                    Text("Tools")
+                    BetaBadge()
+                }
+            } icon: {
+                Image(systemName: "wrench.and.screwdriver")
+            }
+        }
     }
 }

@@ -114,4 +114,29 @@ import XCTest
         XCTAssertNil(card.cover)
         XCTAssertNil(card.storedRun)
     }
+
+    func testToolsReadSearchAnswersAndRefuseBadFiles() throws {
+        let exa = #"{"results":[{"title":"清闲智能","url":"https://qingxian.com/","text":"动态人机工学椅 OC1"}]}"#
+        XCTAssertEqual(ToolRunner.text(Data(exa.utf8)), "- 清闲智能: 动态人机工学椅 OC1 (https://qingxian.com/)")
+        XCTAssertEqual(ToolRunner.text(Data(#"{"result":"42"}"#.utf8)), "42")
+        XCTAssertEqual(ToolRunner.text(Data("plain".utf8)), "plain")
+
+        let store = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertNotNil(store.add(json: Data("nope".utf8)))
+        XCTAssertNotNil(store.add(json: Data(#"{"id":"web","title":"t","about":"a","url":"https://x.y"}"#.utf8)), "a built-in's id")
+        XCTAssertNotNil(store.add(json: Data(#"{"id":"docs","title":"t","about":"a","url":"http://x.y"}"#.utf8)), "https only")
+        XCTAssertNil(store.add(json: Data(#"{"id":"docs","title":"Docs","about":"Search our docs.","url":"https://x.y/s"}"#.utf8)))
+        XCTAssertEqual(store.imported.map(\.id), ["docs"])
+        XCTAssertTrue(ToolStore.prompt([]).isEmpty, "no tool on: the prompt says nothing")
+
+        let tool = try XCTUnwrap(store.imported.first)
+        let request = try XCTUnwrap(ToolRunner.request(tool, query: "q", key: "k", run: "r1"))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer k")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Run-ID"), "r1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
+        XCTAssertEqual(sent["query"] as? String, "q")
+        store.remove("docs")
+        XCTAssertTrue(store.imported.isEmpty)
+    }
 }
+

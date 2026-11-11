@@ -96,6 +96,9 @@ extension Gestures {
     var chatContext = ""
     /// Lessons the actor offered (learn); kept only when the run ends with done.
     var learned: [String] = []
+    /// Tool answers this run ("Looked up", newest last) and the tools it may call (fixed at the start: same prompt).
+    var lookedUp: [String] = []
+    var tools: [ToolSpec] = []
     /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
     var onWrite: ((String) async throws -> Bool)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
@@ -136,12 +139,13 @@ extension Gestures {
         JevGate.hold = false
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
-            notebook = Notebook(); learned = []
+            notebook = Notebook(); learned = []; lookedUp = []
             metrics?.runStarted()
         }
         StepReport.shared.clear()
         UITree.ocrCache.clear()  // a new run never reuses the last run's OCR
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
+        tools = ToolStore.shared.active
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         lastActed = 0
@@ -464,7 +468,7 @@ extension Gestures {
 
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
-        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background
+        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background + ToolStore.prompt(tools)
         let all = hints + replay.hints
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
     }
@@ -582,6 +586,7 @@ extension Gestures {
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
+            + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
         let sound = heard?() ?? ""
         let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
             + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
