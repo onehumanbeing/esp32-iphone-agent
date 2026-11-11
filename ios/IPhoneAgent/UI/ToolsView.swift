@@ -9,6 +9,7 @@ struct ToolsView: View {
     @State private var importing = false
     @State private var importError: String?
     @State private var editing: ToolSpec?
+    @Environment(\.locale) private var locale
 
     var body: some View {
         Form {
@@ -23,7 +24,10 @@ struct ToolsView: View {
             Section {
                 Button(action: startImport) { Label("Import a Tool…", systemImage: "square.and.arrow.down") }
             } footer: {
-                Text("A tool file is JSON: id, title, about, url (https), and optionally method, key_header, key_prefix, query_field and body.")
+                Link(destination: docsURL) {
+                    Label("How to Make a Tool", systemImage: "book")
+                }
+                .font(.footnote)
             }
         }
         .navigationTitle("Tools")
@@ -41,6 +45,12 @@ struct ToolsView: View {
         .alert("Couldn't Import", isPresented: Binding { importError != nil } set: { if !$0 { importError = nil } }) {
         } message: { Text(verbatim: importError ?? "") }
         .sheet(item: $editing) { ToolKeySheet(tool: $0, store: store) }
+    }
+
+    /// The tool file format, on handsy.tech's docs (the Chinese page on a Chinese iPhone).
+    private var docsURL: URL {
+        let zh = locale.language.languageCode == .chinese
+        return URL(string: zh ? "https://handsy.tech/zh/docs/tools" : "https://handsy.tech/docs/tools")!
     }
 
     private func startImport() { importing = true }

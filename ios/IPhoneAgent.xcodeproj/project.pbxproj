@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		583C9D4FBB63971D21698DBE /* BetaBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978C1391BB358BA8480CBB77 /* BetaBadge.swift */; };
+		D9D238AAF4D3796B0E9FAD39 /* ToolsEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805AB1B8F09787EC3F6648D2 /* ToolsEntry.swift */; };
 		86F9B4D5D32366CCE863DCE8 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19C12ADC79498FBF935F26C /* ToolsView.swift */; };
 		E0F8627F6603827581D839B8 /* Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491480ED5912E9D2A1E11B50 /* Tools.swift */; };
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
@@ -281,6 +282,7 @@
 
 /* Begin PBXFileReference section */
 		978C1391BB358BA8480CBB77 /* BetaBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetaBadge.swift; sourceTree = "<group>"; };
+		805AB1B8F09787EC3F6648D2 /* ToolsEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsEntry.swift; sourceTree = "<group>"; };
 		D19C12ADC79498FBF935F26C /* ToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsView.swift; sourceTree = "<group>"; };
 		491480ED5912E9D2A1E11B50 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
 		01F6840C8EDD48E656084FEA /* AudioFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFeed.swift; sourceTree = "<group>"; };
@@ -688,6 +690,7 @@
 				E1828194EBD7CDB8FEFF8643 /* CalibrationViews.swift */,
 				2732CFF0E55395C82C4A329B /* DecidersPanel.swift */,
 				D19C12ADC79498FBF935F26C /* ToolsView.swift */,
+				805AB1B8F09787EC3F6648D2 /* ToolsEntry.swift */,
 				978C1391BB358BA8480CBB77 /* BetaBadge.swift */,
 				98FCB3CC93B5580515B2ED3D /* DecidersSheets.swift */,
 				2F3122E7A1DB53F3BFCCFD06 /* DiagnosticsView.swift */,
@@ -1193,6 +1196,7 @@
 				342F4EA40765044DE8EEAE1E /* Deciders.swift in Sources */,
 				F29FF2D2BF00DC997EF914FD /* DecidersPanel.swift in Sources */,
 				86F9B4D5D32366CCE863DCE8 /* ToolsView.swift in Sources */,
+				D9D238AAF4D3796B0E9FAD39 /* ToolsEntry.swift in Sources */,
 				583C9D4FBB63971D21698DBE /* BetaBadge.swift in Sources */,
 				5A6AA718FC12DB193AE6EC8E /* DecidersSheets.swift in Sources */,
 				5D657D39BD5F6808ED60EDEA /* DemoRecorder.swift in Sources */,

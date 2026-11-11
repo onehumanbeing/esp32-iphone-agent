@@ -34,7 +34,7 @@ struct TrialPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(verbatim: Trial.model).font(.body.monospaced())
+                Text(verbatim: "Handsy").font(.headline)
                 Spacer()
                 if trial.keyed { StatusBadge(text: "Key", symbol: "key.fill", emphasized: true) } else { TrialBadge(status: trial.status) }
                 Button { Task { _ = await trial.refresh() } } label: { Image(systemName: "arrow.clockwise") }

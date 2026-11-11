@@ -21,16 +21,6 @@
         }
       }
     },
-    "A tool file is JSON: id, title, about, url (https), and optionally method, key_header, key_prefix, query_field and body." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "工具文件是 JSON：id、title、about、url（https），可选 method、key_header、key_prefix、query_field 和 body。"
-          }
-        }
-      }
-    },
     "A tool's address must be https." : {
       "localizations" : {
         "zh-Hans" : {
@@ -257,6 +247,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Handsy 密钥（可选）"
+          }
+        }
+      }
+    },
+    "How to Make a Tool" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如何制作工具"
           }
         }
       }

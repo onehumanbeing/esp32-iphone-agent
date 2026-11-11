@@ -308,6 +308,7 @@ struct BrainPage: View {
                 }
             } else {
                 ModelFieldsPanel(settings: settings)
+                ToolsEntry()
             }
             ModelTestTimingView(app: app)
             switch app.modelOK {

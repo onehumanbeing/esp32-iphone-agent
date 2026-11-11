@@ -74,24 +74,3 @@ struct ModelSettingsView: View {
 
     }
 }
-
-/// "Tools [Beta] · 2 on" in Settings › Model.
-private struct ToolsRowLabel: View {
-    @ObservedObject private var store = ToolStore.shared
-    @ObservedObject private var trial = Trial.shared
-
-    var body: some View {
-        LabeledContent {
-            Text("\(store.active.count) on")
-        } label: {
-            Label {
-                HStack(spacing: Space.s) {
-                    Text("Tools")
-                    BetaBadge()
-                }
-            } icon: {
-                Image(systemName: "wrench.and.screwdriver")
-            }
-        }
-    }
-}
