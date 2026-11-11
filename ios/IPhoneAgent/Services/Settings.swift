@@ -461,16 +461,19 @@ struct CustomEndpoint: Identifiable, Equatable {
     }
 }
 
-/// Debug only: where the free line's actor tree is built. Settings › Developer › Tree source, `-tree-source device|server`,
-/// `iphoneagent://tree?source=device`. Release builds always use the server (Spark).
+/// Where the free line's actor tree is built. The phone by default (Henry 2026-11-11): ~117 ms on an iPhone 17 Pro Max
+/// against ~290 ms for the gateway's Spark round trip, same accuracy (Wiki #956 §12). An unoptimised (-Onone) build
+/// takes seconds per tree, so it defaults to the server. Debug builds can switch: Settings › Developer › Tree source,
+/// `-tree-source device|server`, `iphoneagent://tree?source=device`.
 enum TreeSource: String, CaseIterable {
     case server, device
     static let key = "treeSource"
+    static var fallback: TreeSource { _isDebugAssertConfiguration() ? .server : .device }
     static var current: TreeSource {
         #if DEBUG
-        TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .server
+        TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? fallback
         #else
-        .server
+        .device
         #endif
     }
     static func set(_ source: TreeSource) { UserDefaults.standard.set(source.rawValue, forKey: key) }

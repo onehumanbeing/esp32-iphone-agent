@@ -106,13 +106,13 @@ import XCTest
         XCTAssertEqual(planned.first?.act["y"], .int(196))
     }
 
-    func testTreeSourceDefaultsToServerAndDeviceDropsTheTreeHeader() {
+    func testTreeSourceDefaultsToTheFallbackAndDeviceDropsTheTreeHeader() {
         let saved = UserDefaults.standard.string(forKey: TreeSource.key)
         defer { UserDefaults.standard.set(saved, forKey: TreeSource.key) }
         UserDefaults.standard.removeObject(forKey: TreeSource.key)
-        XCTAssertEqual(TreeSource.current, .server)
-        XCTAssertTrue(Settings.serverTree(.handsyTrial))
-        XCTAssertEqual(Settings.treeHeaders("actor", .handsyTrial), ["X-Handsy-Tree": "slim"])
+        XCTAssertEqual(TreeSource.current, TreeSource.fallback)
+        XCTAssertTrue(Settings.serverTree(.handsyTrial, source: .server))
+        XCTAssertEqual(Settings.treeHeaders("actor", .handsyTrial, source: .server), ["X-Handsy-Tree": "slim"])
         TreeSource.set(.device)
         XCTAssertEqual(TreeSource.current, .device)
         XCTAssertFalse(Settings.serverTree(.handsyTrial))

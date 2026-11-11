@@ -100,7 +100,7 @@ struct DeveloperView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(MockMode.key) private var demoData = false
-    @AppStorage(TreeSource.key) private var treeSource = TreeSource.server.rawValue
+    @AppStorage(TreeSource.key) private var treeSource = TreeSource.fallback.rawValue
     @State private var language = "ja-JP"
     @State private var testing = false
 
