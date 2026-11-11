@@ -245,7 +245,11 @@ struct HandsyKeyOffer: ViewModifier {
     @MainActor static func handle(_ url: URL) -> Bool {
         guard url.scheme == "iphoneagent", url.host == "key" else { return false }
         let key = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "k" }?.value ?? ""
-        guard Trial.available, Trial.looksLikeKey(key) else { return true }
+        guard Trial.available, Trial.looksLikeKey(key) else {
+            DebugLog.write("key link: ignored (free line \(Trial.available), \(key.count) chars, prefix \(key.prefix(4)))")
+            return true
+        }
+        DebugLog.write("key link: asking about hsk_…\(key.suffix(4))")
         Trial.shared.offeredKey = OfferedKey(key: key)
         return true
     }

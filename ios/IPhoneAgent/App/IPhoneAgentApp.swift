@@ -104,6 +104,7 @@ struct RootView: View {
                 do { try app.importRuns(url) } catch { app.say("import: \(error.localizedDescription)") }
                 return
             }
+            if !url.isFileURL { DebugLog.write("open url: \(url.scheme ?? "?")://\(url.host ?? "")") }
             if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity
