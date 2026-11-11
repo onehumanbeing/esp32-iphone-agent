@@ -9,7 +9,7 @@ struct WelcomePage: View {
 
     var body: some View {
         VStack(spacing: Space.xl) {
-            PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm ESP32 Agent",
+            PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm \(AppName.current)",
                        message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
             Panel {
                 if accepted {
@@ -33,7 +33,7 @@ struct WelcomePage: View {
 
 enum Disclaimer {
     static var text: LocalizedStringKey {
-        "ESP32 Agent is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
+        "\(AppName.current) is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
     }
 }
 
@@ -50,7 +50,7 @@ struct ConnectPage: View {
             Panel {
                 switch board.state {
                 case .unauthorized:
-                    Label("Bluetooth is not allowed for ESP32 Agent.", systemImage: "exclamationmark.triangle.fill")
+                    Label("Bluetooth is not allowed for \(AppName.current).", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Palette.warning)
                     Button("Open Settings") { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) }
                         .padding(.top, Space.s)
@@ -99,7 +99,7 @@ struct ConnectPage: View {
         }
         if board.pairingLost {
             // Short: a long warning pushed the button off small screens.
-            Text("Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+            Text("Pairing failed. Replug the board, then forget \(BoardName.current) in Settings › Bluetooth.")
                 .font(.footnote).foregroundStyle(Palette.warning).lineLimit(2).minimumScaleFactor(0.85)
                 .padding(.top, Space.s)
         } else if !board.connected || (board.signalStrength ?? 0) < -80 {
@@ -129,7 +129,7 @@ struct DemoOffer: View {
             .alert("Demo Data Is On", isPresented: $told) {
                 Button("OK") {}
             } message: {
-                Text("Quit ESP32 Agent and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer.")
+                Text("Quit \(AppName.current) and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer.")
             }
     }
 }
@@ -197,7 +197,7 @@ struct SeePage: View {
                 .font(.footnote).foregroundStyle(.secondary)
                 Button("I'm already on the board's Wi-Fi") { onWiFi = true }.font(.footnote)
             } else if !streaming {
-                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")
+                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → \(BoardName.current)**.")
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 MiniPhoneDemo(kind: .controlCenter)

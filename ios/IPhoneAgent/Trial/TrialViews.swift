@@ -78,3 +78,31 @@ struct TrialConsentSections: View {
         }
     }
 }
+
+/// Settings › Privacy: the installation ID Handsy Free keeps records under, and the mail that asks to delete them.
+struct TrialRecordsSection: View {
+    var body: some View {
+        if Trial.available {
+            let id = Trial.shared.installationID
+            Section {
+                LabeledContent("Installation ID") {
+                    Text(verbatim: id).font(.caption.monospaced()).textSelection(.enabled)
+                }
+                if let url = Self.mail(id) { Link("Ask to Delete My Records", destination: url) }
+            } header: {
+                Text("Handsy Free records")
+            } footer: {
+                Text("Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached.")
+            }
+        }
+    }
+
+    static func mail(_ id: String) -> URL? {
+        var parts = URLComponents()
+        parts.scheme = "mailto"
+        parts.path = "support@handsy.tech"
+        parts.queryItems = [URLQueryItem(name: "subject", value: "Delete my Handsy Free records"),
+                            URLQueryItem(name: "body", value: "Please delete the Handsy Free records of installation \(id).")]
+        return parts.url
+    }
+}

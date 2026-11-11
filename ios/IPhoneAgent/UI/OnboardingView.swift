@@ -160,7 +160,7 @@ struct OnboardingView: View {
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
         case .brain:
-            if app.modelOK == true { return "Start Using ESP32 Agent" }
+            if app.modelOK == true { return "Start Using \(AppName.current)" }
             return testing ? "Testing…" : "Test Connection"
         }
     }

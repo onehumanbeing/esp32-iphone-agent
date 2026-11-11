@@ -29,7 +29,7 @@ struct SettingsView: View {
                     }
                     .tint(.primary)
                 } footer: {
-                    Text("ESP32 Agent follows your iPhone's language. To change it just for this app, open Settings › ESP32 Agent › Language.")
+                    Text("\(AppName.current) follows your iPhone's language. To change it just for this app, open Settings › \(AppName.current) › Language.")
                 }
                 Section {
                     Button { UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!) } label: {
@@ -163,7 +163,7 @@ struct BoardSettingsView: View {
                 HStack(spacing: Space.l) {
                     AgentFace(mood: board.connected ? .idle : .sleeping).frame(width: 52, height: 58)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: board.name.isEmpty ? "ESP32 Agent" : board.name).font(.headline)
+                        Text(verbatim: board.name.isEmpty ? BoardName.current : board.name).font(.headline)
                         Text(board.connected ? "Connected" : board.pairedID != nil ? "Connecting…" : "Not paired")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
@@ -220,7 +220,7 @@ struct BoardSettingsView: View {
                     Button("Unpair Board", role: .destructive) { Task { await board.unpair() } }
                     Button("Forget in This App", role: .destructive) { board.forget() }
                 } footer: {
-                    Text("Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"ESP32 Agent\" in Settings › Bluetooth and choose Forget This Device.")
+                    Text("Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"\(BoardName.current)\" in Settings › Bluetooth and choose Forget This Device.")
                 }
             }
         }

@@ -7,3 +7,13 @@
 #else
 #define FW_VERSION "0.2.4"
 #endif
+
+// The name the board shows in Screen Mirroring and Bluetooth (plus " 1A2B" there). A release build may set its
+// own: flash.sh --name NAME (one word). The hotspot keeps its ESP32Agent-1A2B name: phones have it saved.
+#define BOARD_NAME_STR2(x) #x
+#define BOARD_NAME_STR(x) BOARD_NAME_STR2(x)
+#ifdef BOARD_NAME
+#define BOARD_NAME_TEXT BOARD_NAME_STR(BOARD_NAME)
+#else
+#define BOARD_NAME_TEXT "ESP32 Agent"
+#endif

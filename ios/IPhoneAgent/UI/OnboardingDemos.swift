@@ -22,7 +22,7 @@ struct MiniPhoneDemo: View {
         case .controlCenter:
             return [("Swipe down from the top-right corner", CGPoint(x: 0.85, y: 0.04)),
                     ("Swipe down from the top-right corner", CGPoint(x: 0.85, y: 0.36)),
-                    ("Tap Screen Mirroring", CGPoint(x: 0.3, y: 0.42)), ("Choose “ESP32 Agent”", CGPoint(x: 0.5, y: 0.43))]
+                    ("Tap Screen Mirroring", CGPoint(x: 0.3, y: 0.42)), ("Choose “\(BoardName.current)”", CGPoint(x: 0.5, y: 0.43))]
         case .assistiveTouch:
             return [("Settings › Accessibility", CGPoint(x: 0.5, y: 0.42)), ("Touch", CGPoint(x: 0.5, y: 0.22)),
                     ("AssistiveTouch", CGPoint(x: 0.5, y: 0.22)), ("Turn AssistiveTouch on", CGPoint(x: 0.84, y: 0.22))]
@@ -104,7 +104,7 @@ struct MiniPhoneDemo: View {
             if frame == 2 {
                 VStack(spacing: 6) {
                     Text("Bluetooth Pairing Request").font(.system(size: 8, weight: .semibold))
-                    Text(verbatim: "“ESP32 Agent”").font(.system(size: 7))
+                    Text(verbatim: "“\(BoardName.current)”").font(.system(size: 7))
                     HStack(spacing: 0) {
                         Text("Cancel").frame(maxWidth: .infinity)
                         Text("Pair").fontWeight(.semibold).frame(maxWidth: .infinity)
@@ -156,7 +156,7 @@ struct MiniPhoneDemo: View {
                     .foregroundStyle(.secondary)
                     HStack {
                         Image(systemName: "checkmark").font(.system(size: 8, weight: .bold))
-                        Text(verbatim: "ESP32 Agent").font(.system(size: 8, weight: .semibold))
+                        Text(verbatim: BoardName.current).font(.system(size: 8, weight: .semibold))
                     }
                     .padding(5)
                     .frame(maxWidth: .infinity, alignment: .leading)

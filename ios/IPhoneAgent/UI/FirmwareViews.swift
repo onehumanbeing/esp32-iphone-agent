@@ -119,7 +119,7 @@ struct FirmwareSheet: View {
             Text(updater.required ? "Board Update Required" : "Update the Board").font(.title2.bold())
             Group {
                 if updater.belowMinimum {
-                    Text("This version of ESP32 Agent needs board firmware \(Firmware.required.description) or later.")
+                    Text("This version of \(AppName.current) needs board firmware \(Firmware.required.description) or later.")
                 } else if updater.outdated {
                     Text("Update the board to the latest firmware to keep taps accurate and the connection stable.")
                 } else {

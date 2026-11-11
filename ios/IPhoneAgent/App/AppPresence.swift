@@ -129,7 +129,7 @@ extension AppModel {
         if let stage = recovering, stage.ask, stage.part != .board {
             return DeviceError(message: stage.line)
         }
-        return DeviceError(message: String(localized: "ESP32 Agent is still on screen"))
+        return DeviceError(message: String(localized: "\(AppName.current) is still on screen"))
     }
 
     /// Try a short stream wait, then explicitly snap; a static Home Screen must not stall startup.

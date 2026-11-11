@@ -44,7 +44,7 @@ USBHIDMouse mouse;
 USBHIDKeyboard keyboard;
 USBHIDConsumerControl consumer;
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
-static String receiverName = "ESP32 Agent";
+static String receiverName = BOARD_NAME_TEXT;
 
 void movePaced(long dx, long dy, int step = STEP) {
   pace_t p;
@@ -409,7 +409,7 @@ void setup() {
   arb_init(&arb);
   cli_begin();
   if (!cli_tcp_begin()) board_log("cli: Wi-Fi link failed to start");
-  ble_begin("ESP32 Agent " + board_suffix());
+  ble_begin(String(BOARD_NAME_TEXT " ") + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
   board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,

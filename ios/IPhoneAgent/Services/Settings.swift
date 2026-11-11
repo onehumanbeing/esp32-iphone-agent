@@ -51,7 +51,7 @@ import UIKit
         }
     }
     static let agentNameKey = "agentName"
-    static var defaultAgentName: String { String(localized: "ESP32 Agent") }
+    static var defaultAgentName: String { AppName.current }
     /// The name, for code without a Settings instance (Live Activity).
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
     @Published var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }

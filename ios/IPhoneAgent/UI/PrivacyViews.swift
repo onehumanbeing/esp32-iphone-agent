@@ -109,6 +109,7 @@ struct PrivacySettingsView: View {
         List {
             AIConsentSection(settings: app.settings)
             JevConsentSection()
+            TrialRecordsSection()
             PrivacyLists()
             Section { Toggle("Keep run data for sharing", isOn: $keep) }
             if keep { export }

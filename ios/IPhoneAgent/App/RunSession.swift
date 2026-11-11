@@ -163,7 +163,7 @@ extension AppModel {
             let away = try await (resume ? waitForSwitchBack() : leaveForRun())
             try Task.checkCancellation()
             guard away else {  // never let the agent start on its own app
-                throw DeviceError(message: String(localized: "ESP32 Agent is still on screen"))
+                throw DeviceError(message: String(localized: "\(AppName.current) is still on screen"))
             }
             departing = false
             homeHint = nil

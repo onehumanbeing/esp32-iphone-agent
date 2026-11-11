@@ -298,4 +298,19 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["reason"], .str(Recovery.reason(.frames)))
         XCTAssertTrue(model.prompts.isEmpty)
     }
+
+    /// Texts that point at the board in Screen Mirroring or Bluetooth use its own name, without the suffix.
+    func testBoardFamilyName() {
+        XCTAssertEqual(BoardName.family("ESP32 Agent 7C3E"), "ESP32 Agent")
+        XCTAssertEqual(BoardName.family("Pocket 0a1F"), "Pocket")
+        XCTAssertEqual(BoardName.family("ESP32 Agent"), "ESP32 Agent", "no suffix: kept whole")
+        XCTAssertEqual(BoardName.family("Board Name"), "Board Name", "Name is not four hex digits")
+        XCTAssertNil(BoardName.family(""))
+    }
+
+    func testDeletionMailCarriesTheInstallationID() {
+        let url = TrialRecordsSection.mail("0a1b2c3d-0000-4000-8000-000000000001")
+        XCTAssertEqual(url?.scheme, "mailto")
+        XCTAssertTrue(url?.absoluteString.contains("0a1b2c3d-0000-4000-8000-000000000001") == true)
+    }
 }

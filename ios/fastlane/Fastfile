@@ -59,6 +59,9 @@ platform :ios do
       IA_TRIAL_ORIGIN: ENV["IA_TRIAL_ORIGIN"].to_s, IA_APP_ATTEST_ENV: "production",  # free line
       CURRENT_PROJECT_VERSION: build,
     }
+    # A store build may carry its own name (IA_STORE_APP_NAME in config.env); TestFlight-only builds keep the default.
+    store_name = ENV["IA_STORE_APP_NAME"].to_s
+    settings[:IA_APP_NAME] = store_name unless options[:testflight] || store_name.empty?
     # TestFlight-only builds read the TestFlight firmware list (Firmware.swift); store builds keep the default.
     settings[:SWIFT_ACTIVE_COMPILATION_CONDITIONS] = "$(inherited) TESTFLIGHT" if options[:testflight]
     settings = settings.map { |k, v| "#{k}='#{v}'" }.join(" ")

@@ -36,6 +36,9 @@ import UIKit
         return URLSession(configuration: config)
     }()
 
+    /// The random ID Handsy Free keeps this install's records under (shown in Settings › Privacy).
+    var installationID: String { deviceID }
+
     private var deviceID: String {
         if let id = Keychain.get("trial-device-id"), UUID(uuidString: id) != nil { return id }
         let id = UUID().uuidString.lowercased()

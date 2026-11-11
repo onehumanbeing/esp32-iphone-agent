@@ -11,12 +11,62 @@
         }
       }
     },
+    "Ask the agent to ${task}" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让智能体 ${task}"
+          }
+        }
+      }
+    },
+    "Ask to Delete My Records" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "申请删除我的记录"
+          }
+        }
+      }
+    },
+    "Asks the agent to do a task on this phone, like \"Open Settings and go to Wi-Fi\"." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让智能体在这台手机上完成一个任务，比如“打开设置并进入无线局域网”。"
+          }
+        }
+      }
+    },
     "Demo Data Is On" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "演示数据已打开"
+          }
+        }
+      }
+    },
+    "Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路按这个 ID 保存每次运行的记录。这封邮件请我们删除这些记录，不会附带其他内容。"
+          }
+        }
+      }
+    },
+    "Handsy Free records" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路记录"
           }
         }
       }
@@ -31,12 +81,42 @@
         }
       }
     },
+    "Installation ID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 ID"
+          }
+        }
+      }
+    },
     "No board yet? Try the demo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没有板子？试试演示"
+          }
+        }
+      }
+    },
+    "Open %@ and allow sending screenshots and your task to this model, then ask again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请打开 %@，允许把截图和任务发送给这个模型，然后再问一次。"
+          }
+        }
+      }
+    },
+    "Opens the app and calibrates the pointer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 App 并校准指针。"
           }
         }
       }
@@ -51,12 +131,12 @@
         }
       }
     },
-    "Quit ESP32 Agent and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer." : {
+    "Quit %@ and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "退出 ESP32 Agent 再重新打开，就能在没有板子的情况下体验整个 App。演示中不会向任何地方发送内容。可在 设置 › 开发者 中关闭。"
+            "value" : "退出 %@ 再重新打开，就能在没有板子的情况下体验整个 App。演示中不会向任何地方发送内容。可在 设置 › 开发者 中关闭。"
           }
         }
       }
@@ -67,6 +147,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "任务结束后恢复屏幕键盘"
+          }
+        }
+      }
+    },
+    "Runs one of your saved intents." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行一个已保存的意图。"
+          }
+        }
+      }
+    },
+    "Runs the saved intent you ran last." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行你上次运行的意图。"
           }
         }
       }
@@ -991,12 +1091,12 @@
         }
       }
     },
-    "Stop and restart Screen Mirroring → ESP32 Agent; I’ll continue when a fresh image arrives." : {
+    "Stop and restart Screen Mirroring → %@; I’ll continue when a fresh image arrives." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请停止并重新开启「屏幕镜像 → ESP32 Agent」，收到新画面后我会继续。"
+            "value" : "请停止并重新开启「屏幕镜像 → %@」，收到新画面后我会继续。"
           }
         }
       }
@@ -1734,12 +1834,12 @@
         }
       }
     },
-    "Bluetooth is not allowed for ESP32 Agent." : {
+    "Bluetooth is not allowed for %@." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 没有蓝牙权限。"
+            "value" : "%@ 没有蓝牙权限。"
           }
         }
       }
@@ -1845,12 +1945,12 @@
         }
       }
     },
-    "Calibrate the pointer in ESP32 Agent first." : {
+    "Calibrate the pointer in %@ first." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请先在 ESP32 Agent 中校准指针。"
+            "value" : "请先在 %@ 中校准指针。"
           }
         }
       }
@@ -2055,12 +2155,12 @@
         }
       }
     },
-    "Choose “ESP32 Agent”" : {
+    "Choose “%@”" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择“ESP32 Agent”"
+            "value" : "选择“%@”"
           }
         }
       }
@@ -3037,12 +3137,12 @@
         }
       }
     },
-    "Hi, I'm ESP32 Agent" : {
+    "Hi, I'm %@" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你好，我是 ESP32 Agent"
+            "value" : "你好，我是 %@"
           }
         }
       }
@@ -3937,12 +4037,12 @@
         }
       }
     },
-    "Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**." : {
+    "Now swipe down from the top-right corner and tap **Screen Mirroring → %@**." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "现在从右上角向下轻扫，然后轻点 **屏幕镜像 → ESP32 Agent**。"
+            "value" : "现在从右上角向下轻扫，然后轻点 **屏幕镜像 → %@**。"
           }
         }
       }
@@ -4007,12 +4107,12 @@
         }
       }
     },
-    "Open ESP32 Agent once, then try again." : {
+    "Open %@ once, then try again." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请先打开一次 ESP32 Agent，然后再试。"
+            "value" : "请先打开一次 %@，然后再试。"
           }
         }
       }
@@ -4974,12 +5074,12 @@
         }
       }
     },
-    "Start Using ESP32 Agent" : {
+    "Start Using %@" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开始使用 ESP32 Agent"
+            "value" : "开始使用 %@"
           }
         }
       }
@@ -5698,12 +5798,12 @@
         }
       }
     },
-    "Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"ESP32 Agent\" in Settings › Bluetooth and choose Forget This Device." : {
+    "Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"%@\" in Settings › Bluetooth and choose Forget This Device." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解除配对会清除小板上的绑定。iOS 会保留自己的绑定：还需在 设置 › 蓝牙 中点“ESP32 Agent”旁的 (i)，选择“忽略此设备”。"
+            "value" : "解除配对会清除小板上的绑定。iOS 会保留自己的绑定：还需在 设置 › 蓝牙 中点“%@”旁的 (i)，选择“忽略此设备”。"
           }
         }
       }
@@ -6128,32 +6228,32 @@
     "ESP32 Agent" : {
       "shouldTranslate" : false
     },
-    "ESP32 Agent follows your iPhone's language. To change it just for this app, open Settings › ESP32 Agent › Language." : {
+    "%@ follows your iPhone's language. To change it just for this app, open Settings › %@ › Language." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 跟随 iPhone 的语言。只想改这个 App 的语言，请打开 设置 › ESP32 Agent › 语言。"
+            "value" : "%1$@ 跟随 iPhone 的语言。只想改这个 App 的语言，请打开 设置 › %2$@ › 语言。"
           }
         }
       }
     },
-    "ESP32 Agent is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage." : {
+    "%@ is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 是实验性软件，会自行操作这台 iPhone。它可能点错、发出消息、修改设置、购买东西或删除数据。运行时请看着它，发现不对立即停止。屏幕截图会发送到你选择的模型接口。使用风险由你自行承担；作者不对任何损失负责。"
+            "value" : "%@ 是实验性软件，会自行操作这台 iPhone。它可能点错、发出消息、修改设置、购买东西或删除数据。运行时请看着它，发现不对立即停止。屏幕截图会发送到你选择的模型接口。使用风险由你自行承担；作者不对任何损失负责。"
           }
         }
       }
     },
-    "ESP32 Agent is still on screen" : {
+    "%@ is still on screen" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 仍在屏幕上"
+            "value" : "%@ 仍在屏幕上"
           }
         }
       }
@@ -7943,12 +8043,12 @@
         }
       }
     },
-    "Open Control Center, tap Screen Mirroring → ESP32 Agent; the run goes on from here." : {
+    "Open Control Center, tap Screen Mirroring → %@; the run goes on from here." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开控制中心，点“屏幕镜像”→ ESP32 Agent，任务会从这里继续。"
+            "value" : "打开控制中心，点“屏幕镜像”→ %@，任务会从这里继续。"
           }
         }
       }
@@ -8113,12 +8213,12 @@
         }
       }
     },
-    "Tap Screen Mirroring → ESP32 Agent to continue" : {
+    "Tap Screen Mirroring → %@ to continue" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点“屏幕镜像”→ ESP32 Agent 以继续"
+            "value" : "点“屏幕镜像”→ %@ 以继续"
           }
         }
       }
@@ -8163,12 +8263,12 @@
         }
       }
     },
-    "This isn't an ESP32 Agent intent file." : {
+    "This isn't an %@ intent file." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这不是 ESP32 Agent 的意图文件。"
+            "value" : "这不是 %@ 的意图文件。"
           }
         }
       }
@@ -8313,32 +8413,32 @@
         }
       }
     },
-    "We use what you send only to improve intents in ESP32 Agent, and never for anything else." : {
+    "We use what you send only to improve intents in %@, and never for anything else." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你发来的内容只用于改进 ESP32 Agent 的意图，不会用于任何其他用途。"
+            "value" : "你发来的内容只用于改进 %@ 的意图，不会用于任何其他用途。"
           }
         }
       }
     },
-    "Attached: an intent shared from ESP32 Agent. Screenshots were included only if I chose to, blurred on my iPhone. Use it only to improve intents in ESP32 Agent, not for anything else." : {
+    "Attached: an intent shared from %@. Screenshots were included only if I chose to, blurred on my iPhone. Use it only to improve intents in %@, not for anything else." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "附件是从 ESP32 Agent 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPhone 上打码。仅可用于改进 ESP32 Agent 的意图，不得用于其他用途。"
+            "value" : "附件是从 %1$@ 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPhone 上打码。仅可用于改进 %2$@ 的意图，不得用于其他用途。"
           }
         }
       }
     },
-    "The firmware release isn't signed by ESP32 Agent." : {
+    "The firmware release isn't signed by %@." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个固件版本没有 ESP32 Agent 的签名。"
+            "value" : "这个固件版本没有 %@ 的签名。"
           }
         }
       }
@@ -8703,12 +8803,12 @@
         }
       }
     },
-    "This version of ESP32 Agent needs board firmware %@ or later." : {
+    "This version of %@ needs board firmware %@ or later." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个版本的 ESP32 Agent 需要板子固件 %@ 或更高版本。"
+            "value" : "这个版本的 %1$@ 需要板子固件 %2$@ 或更高版本。"
           }
         }
       }
@@ -8823,12 +8923,12 @@
         }
       }
     },
-    "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth." : {
+    "Pairing failed. Replug the board, then forget %@ in Settings › Bluetooth." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配对失败。请重新插拔板子，再到 设置 › 蓝牙 忽略 ESP32 Agent。"
+            "value" : "配对失败。请重新插拔板子，再到 设置 › 蓝牙 忽略 %@。"
           }
         }
       }
@@ -9523,12 +9623,12 @@
         }
       }
     },
-    "Speech recognition is off for ESP32 Agent. Turn it on in Settings › ESP32 Agent." : {
+    "Speech recognition is off for %@. Turn it on in Settings › %@." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ESP32 Agent 的语音识别已关闭，请在 设置 › ESP32 Agent 中打开。"
+            "value" : "%1$@ 的语音识别已关闭，请在 设置 › %2$@ 中打开。"
           }
         }
       }

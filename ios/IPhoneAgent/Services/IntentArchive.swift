@@ -57,7 +57,7 @@ enum IntentArchive {
     static func decode(_ data: Data) throws -> [Item] {
         guard data.count <= maxBytes else { throw Failure(String(localized: "This file is too large.")) }
         guard let file = try? JSONDecoder().decode(File.self, from: data) else {
-            throw Failure(String(localized: "This isn't an ESP32 Agent intent file."))
+            throw Failure(String(localized: "This isn't an \(AppName.current) intent file."))
         }
         guard file.format == format else { throw Failure(String(localized: "This intent file needs a newer version of the app.")) }
         return file.intents.compactMap { item in

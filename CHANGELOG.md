@@ -4,6 +4,14 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App: the name is a build setting (`IA_APP_NAME`, shown on the Home Screen and in texts about the app). TestFlight
+  and source builds stay ESP32 Agent. The board keeps its names in Screen Mirroring and Bluetooth (ESP32 Agent),
+  so setup texts that point at them are unchanged. Permission prompts and Shortcuts descriptions no longer carry
+  the app's name.
+- App: Settings › Privacy shows the installation ID Handsy Free keeps records under, with a mail link that asks
+  to delete them (the privacy policy pointed at an ID the app did not show).
+- Firmware: the board's name in Screen Mirroring and Bluetooth is a build option (`flash.sh --name NAME`, default
+  ESP32 Agent); the hotspot name is unchanged. The app's setup texts name the board it last saw.
 - App: what is sent and to whom reads the same everywhere. The send sheet names who runs Handsy Free (Holomix, Inc.)
   next to its address and says that simple steps may go to its provider TypeSafe; Your Data no longer says run data
   is never uploaded without saying what a run sends. Demo data asks for the same consent before its first run when

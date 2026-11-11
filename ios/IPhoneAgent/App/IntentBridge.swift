@@ -35,7 +35,7 @@ extension AppModel {
         if agent.running { return String(localized: "Already running: \(agent.task)") }
         if !MockMode.on {
             guard settings.isConfigured else { return String(localized: "Set up the model in Settings first.") }
-            guard pointer.calibrated else { return String(localized: "Calibrate the pointer in ESP32 Agent first.") }
+            guard pointer.calibrated else { return String(localized: "Calibrate the pointer in \(AppName.current) first.") }
             guard await waitReady(mirroring: true, timeout: 20) else {
                 return String(localized: "The board or Screen Mirroring isn't ready. Connect the board and start Screen Mirroring.")
             }
