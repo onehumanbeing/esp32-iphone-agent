@@ -36,10 +36,17 @@ extension Pointer {
     @discardableResult
     private func matchKeyboard(pinyin: Bool) async throws -> KeyboardLayout {
         guard let screen, screen.live else { return .none }
-        var layout = KeyboardLayout.none
+        var layout = KeyboardLayout.none, waited = false
         for _ in 0..<2 {
-            guard let frame = screen.frame else { return .none }
+            guard var frame = screen.frame else { return .none }
             layout = await KeyboardLayout.read(frame)
+            // the keyboard often isn't in the frame yet right after a key opened the field (Spotlight's cmd+space):
+            // 2026-11-11 two "Google Maps" went into pinyin unseen before the third try saw it. Look once more.
+            if layout == .none && !waited {
+                waited = true
+                await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
+                if let later = screen.frame { frame = later; layout = await KeyboardLayout.read(frame) }
+            }
             if layout == .none || (layout == .pinyin) == pinyin { return layout }
             log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
             try await toggleKeyboard()

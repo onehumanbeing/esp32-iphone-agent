@@ -461,19 +461,19 @@ struct CustomEndpoint: Identifiable, Equatable {
     }
 }
 
-/// Where the free line's actor tree is built. The phone by default (Henry 2026-11-11): ~117 ms on an iPhone 17 Pro Max
-/// against ~290 ms for the gateway's Spark round trip, same accuracy (Wiki #956 §12). An unoptimised (-Onone) build
-/// takes seconds per tree, so it defaults to the server. Debug builds can switch: Settings › Developer › Tree source,
-/// `-tree-source device|server`, `iphoneagent://tree?source=device`.
+/// Where the free line's actor tree is built. Spark (the gateway) by default again: the phone's tree took ~117 ms in a
+/// foreground benchmark (Wiki #956 §12) but 0.8-2.9 s per step in a real run (2026-11-11 Maps run: Vision OCR 1.1-2.9 s
+/// with the app in the background decoding video, CPU ~50%), against ~290 ms for the Spark round trip. Debug builds
+/// can switch: Settings › Developer › Tree source, `-tree-source device|server`, `iphoneagent://tree?source=device`.
 enum TreeSource: String, CaseIterable {
     case server, device
     static let key = "treeSource"
-    static var fallback: TreeSource { _isDebugAssertConfiguration() ? .server : .device }
+    static var fallback: TreeSource { .server }
     static var current: TreeSource {
         #if DEBUG
         TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? fallback
         #else
-        .device
+        .server
         #endif
     }
     static func set(_ source: TreeSource) { UserDefaults.standard.set(source.rawValue, forKey: key) }

@@ -28,6 +28,9 @@ A goal can take many rounds of the same steps (a lesson of 15 exercises, a long 
 Done means the WHOLE goal is reached, shown on this screen (e.g. the lesson's results or streak screen,
 the sent message in the chat). A step that worked (a correct answer, a "Continue" button) is not the goal:
 keep going.
+A goal that asks for facts (an address and a rating): once you have looked for one where it should be (scrolled
+the page, opened its tab) and it is not shown, do not wander off to other screens for it: done with what you
+found, and say what the screen did not show.
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
 Chinese text is typed word by word through the iPhone's pinyin keyboard and committed for you; the result

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var board: BoardLink
     @AppStorage(AskMode.key) private var askMode = AskMode.current
+    @AppStorage(Pointer.gentleHomeKey) private var gentleHome = true
 
     var body: some View {
         NavigationStack {
@@ -57,8 +58,11 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.restoreKeyboardAfterRun) {
                         SettingsLabel(title: "Restore on-screen keyboard after runs", symbol: "keyboard", color: .blue)
                     }
+                    Toggle(isOn: $gentleHome) {
+                        SettingsLabel(title: "Gentle Home swipe", symbol: "arrow.up.to.line", color: .gray)
+                    }
                 } footer: {
-                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot.")
+                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed.")
                 }
                 ListenSection(app: app, audio: app.audio)
                 Section {

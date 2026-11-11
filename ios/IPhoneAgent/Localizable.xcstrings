@@ -171,16 +171,6 @@
         }
       }
     },
-    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任务结束时，模型会查看一张截图。如果需要恢复键盘，模型会再查看一张截图确认。"
-          }
-        }
-      }
-    },
     "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
@@ -10019,6 +10009,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置好模型后，任务向它发送任何内容前都会先征得你的同意。"
+          }
+        }
+      }
+    },
+    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务结束时，模型会查看一张截图。如果需要恢复键盘，模型会再查看一张截图确认。轻柔回到主屏幕：任务开始时上滑回主屏幕的速度为板子最高速度的一半。"
+          }
+        }
+      }
+    },
+    "Gentle Home swipe" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻柔回到主屏幕"
           }
         }
       }

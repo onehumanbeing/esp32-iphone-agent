@@ -23,6 +23,9 @@ import UIKit
     static let apart = 0.1                  // this far apart, is something moving by itself, not the pointer
     static let watch = 0.3                  // s the screen is watched before a nudge, for what moves by itself
     static let flickSpeed = 40              // the home flick's speed per report: the firmware's top (`move dx dy speed`)
+    static let gentleFlickSpeed = 20        // Settings > Gentle Home swipe (default): half that, still a flick
+    static let gentleHomeKey = "gentleHomeSwipe"
+    static var gentleHome: Bool { UserDefaults.standard.object(forKey: gentleHomeKey) as? Bool ?? true }
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -544,7 +547,8 @@ import UIKit
             try await device.send("press")
             // to the middle only (0.45) left the app card half-way (2026-10-19). At the board's top speed per report
             // (40, firmware pace 3): at the default 10 the stroke took 1.2 s (2026-11-11); a flick is fast anyway
-            let fast = (boardPace ?? pace) >= 3 ? " \(Self.flickSpeed)" : ""
+            // 2026-11-11 Henry: the top-speed flick at a run's start is too abrupt; gentle by default
+            let fast = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
             try await device.send("move 0 \(-Int(Double(span.h) * 0.85))" + fast)
         } catch {
             _ = try? await device.send("release")
