@@ -35,44 +35,78 @@ struct UITree {
     let w: Int, h: Int
     let nodes: [UINode]
     var lines: [(text: String, box: [Int])] = []  // the OCR input, for parity checks against tree.py
-    var ocrSeconds = 0.0, cvSeconds = 0.0, totalSeconds = 0.0  // total: JPEG in to tree out
+    /// ocr: Vision's wall time (0 when the cache had the frame); cv: CV compute, pre (raster, edges, filled
+    /// rects, run alongside Vision) + post (the stages that need the lines); total: wall clock, JPEG in to tree out.
+    var ocrSeconds = 0.0, cvSeconds = 0.0, totalSeconds = 0.0
+    var preSeconds = 0.0, postSeconds = 0.0, ocrCached = false
 
     static let ocrPad = 3
+    static let ocrCache = OCRCache()
 
-    /// The tree of one frame (the 540-wide JPEG the model sees).
-    static func build(jpeg: Data) async -> UITree? {
+    typealias Lines = [(text: String, box: [Int])]
+
+    /// The tree of one frame (the 540-wide JPEG the model sees). Vision and the OCR-independent CV run at
+    /// the same time; a frame byte-identical to the last one reuses its lines.
+    static func build(jpeg: Data, cache: OCRCache? = ocrCache,
+                      ocr: @escaping @Sendable (CGImage) async -> Lines = { await UITreeOCR.lines($0) }) async -> UITree? {
         let start = Date()
         guard let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        let t0 = Date()
-        let lines = await UITreeOCR.lines(image)
-        let t1 = Date()
-        guard let raster = Raster(image) else { return nil }
-        var tree = build(raster, lines)
+        let cached = cache?.lines(for: jpeg)
+        async let read: (Lines, Double) = {
+            if let cached { return (cached, 0) }
+            let t = Date()
+            let lines = await ocr(image)
+            return (lines, Date().timeIntervalSince(t))
+        }()
+        async let early: (CVPass?, Double) = offPool {
+            let t = Date()
+            return (Raster(image).map(prepare), Date().timeIntervalSince(t))
+        }
+        let (lines, ocrSeconds) = await read
+        let (pass, preSeconds) = await early
+        guard let pass else { return nil }
+        if cached == nil { cache?.store(jpeg, lines) }
+        let t = Date()
+        var tree = build(pass, lines)
+        tree.postSeconds = Date().timeIntervalSince(t)
         tree.lines = lines
-        tree.ocrSeconds = t1.timeIntervalSince(t0)
-        tree.cvSeconds = Date().timeIntervalSince(t1)
+        tree.ocrSeconds = ocrSeconds
+        tree.ocrCached = cached != nil
+        tree.preSeconds = preSeconds
+        tree.cvSeconds = preSeconds + tree.postSeconds
         tree.totalSeconds = Date().timeIntervalSince(start)
         return tree
     }
 
-    /// tree.py build() after OCR.
-    static func build(_ img: Raster, _ lines: [(text: String, box: [Int])]) -> UITree {
-        let W = img.w, H = img.h
-        let textBoxes = lines.map(\.box)
+    private static func offPool<T>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { done in DispatchQueue.global(qos: .userInitiated).async { done.resume(returning: work()) } }
+    }
+
+    /// The CV that does not need the OCR lines.
+    struct CVPass: @unchecked Sendable {
+        let img: Raster, edges: Plane, rects: [[Int]]
+    }
+
+    static func prepare(_ img: Raster) -> CVPass {
         let edges = UITreeCV.edgeMap(img)
+        return CVPass(img: img, edges: edges, rects: filledRects(edges, img.w, img.h))
+    }
+
+    /// tree.py build() after OCR.
+    static func build(_ img: Raster, _ lines: Lines) -> UITree { build(prepare(img), lines) }
+
+    static func build(_ pass: CVPass, _ lines: Lines) -> UITree {
+        let img = pass.img, W = img.w, H = img.h
+        let textBoxes = lines.map(\.box)
         var leaves = lines.map { UINode("text", $0.box, label: $0.text) }
-        var found: [(String, [Int])] = [], filled: [[Int]] = []
-        DispatchQueue.concurrentPerform(iterations: 2) { i in  // independent passes over the same edge map
-            if i == 0 { found = blobs(edges, textBoxes, W, H) } else { filled = filledRects(edges, W, H) }
-        }
-        for (kind, b) in found where kind == "blob" {
+        for (kind, b) in blobs(pass.edges, textBoxes, W, H) where kind == "blob" {
             if Double(textBoxes.reduce(0) { $0 + inter(b, $1) }) < 0.5 * Double(area(b)) {
                 leaves.append(UINode(classify(img, b, W), b))
             }
         }
         labelIcons(leaves)
-        let rects = filled.map { UINode("container", $0) }
+        let rects = pass.rects.map { UINode("container", $0) }
         var top = prune(nest(rects, leaves), W, H)
         top = xyCut(top, [0, 0, W, H])
         finish(&top, W, H)
@@ -314,7 +348,8 @@ struct UITree {
     /// One log line per build: size, total/ocr/cv ms and element counts (listed, compact, all nodes).
     var timingLine: String {
         let ms = { (s: Double) in Int((s * 1000).rounded()) }
-        return "tree: \(w)x\(h) total \(ms(totalSeconds)) ms ocr \(ms(ocrSeconds)) cv \(ms(cvSeconds)), "
+        return "tree: \(w)x\(h) total \(ms(totalSeconds)) ms wall, ocr \(ms(ocrSeconds))\(ocrCached ? " cached" : "") "
+            + "cv \(ms(cvSeconds)) (pre \(ms(preSeconds)) alongside ocr, post \(ms(postSeconds))), "
             + "\(elements.count) elements, \(candidates.filter { $0.role != "container" }.count) compact, "
             + "\(Self.walk(nodes).count) nodes, \(lines.count) ocr lines"
     }
@@ -359,5 +394,27 @@ extension UITree {
             return n
         }
         self.init(w: w, h: h, nodes: nodes.compactMap(node))
+    }
+}
+
+/// The last frame's OCR lines, reused only for byte-identical JPEG bytes. One entry; cleared when a run starts.
+final class OCRCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: (jpeg: Data, lines: UITree.Lines)?
+
+    func lines(for jpeg: Data) -> UITree.Lines? {
+        lock.lock(); defer { lock.unlock() }
+        guard let last, last.jpeg == jpeg else { return nil }
+        return last.lines
+    }
+
+    func store(_ jpeg: Data, _ lines: UITree.Lines) {
+        lock.lock(); defer { lock.unlock() }
+        last = (jpeg, lines)
+    }
+
+    func clear() {
+        lock.lock(); defer { lock.unlock() }
+        last = nil
     }
 }

@@ -186,15 +186,16 @@ import XCTest
                 .filter { $0.pathExtension == "jpg" }.sorted { $0.path < $1.path }
             let frames = files.compactMap { try? Data(contentsOf: $0) }
             if frames.isEmpty { continue }
-            for f in frames { _ = await UITree.build(jpeg: f) }  // warm-up
-            var total: [Double] = [], ocr: [Double] = [], cv: [Double] = [], els: [Double] = [], compact: [Double] = []
+            for f in frames { _ = await UITree.build(jpeg: f, cache: nil) }  // warm-up
+            var total: [Double] = [], ocr: [Double] = [], cv: [Double] = [], pre: [Double] = [], post: [Double] = [], els: [Double] = [], compact: [Double] = []
             var stage: [String: [Double]] = [:], size = ""
             for i in 0..<30 {
                 let jpeg = frames[i % frames.count]
-                let made = await UITree.build(jpeg: jpeg)
+                let made = await UITree.build(jpeg: jpeg, cache: nil)  // every build runs Vision
                 let t = try XCTUnwrap(made)
                 size = "\(t.w)x\(t.h)"
                 total.append(t.totalSeconds * 1000); ocr.append(t.ocrSeconds * 1000); cv.append(t.cvSeconds * 1000)
+                pre.append(t.preSeconds * 1000); post.append(t.postSeconds * 1000)
                 els.append(Double(t.elements.count)); compact.append(Double(t.candidates.filter { $0.role != "container" }.count))
                 // the CV half again, stage by stage (the calls of UITree.build(_:_:))
                 let image = try XCTUnwrap(CGImageSourceCreateWithData(jpeg as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
@@ -224,7 +225,7 @@ import XCTest
                 UITree.finish(&top, W, H)
                 stage["7 labels, nest, prune, xyCut, finish", default: []].append(ms(s))
             }
-            report.append("\(size), 30 builds over \(frames.count) frames: total \(pct(total)) ms; ocr \(pct(ocr)); cv \(pct(cv)); "
+            report.append("\(size), 30 builds over \(frames.count) frames: total \(pct(total)) ms; ocr \(pct(ocr)); cv \(pct(cv)) (pre alongside ocr \(pct(pre)); post \(pct(post))); "
                           + "elements \(pct(els)); compact \(pct(compact))")
             for k in stage.keys.sorted() { report.append("  \(size) stage \(k): \(pct(stage[k]!)) ms") }
         }

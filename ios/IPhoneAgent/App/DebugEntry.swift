@@ -323,7 +323,7 @@ extension AppModel {
                 let small = ModelImage.shrink(frame)
                 for (name, jpeg) in [("model", small), ("full", frame)] where name == "model" || small != frame {
                     let c0 = Self.cpuSeconds()
-                    let made = await Task.detached(priority: .userInitiated) { await UITree.build(jpeg: jpeg) }.value
+                    let made = await Task.detached(priority: .userInitiated) { await UITree.build(jpeg: jpeg, cache: nil) }.value  // every build runs Vision
                     let cpu = Self.cpuSeconds() - c0
                     guard let tree = made else { continue }
                     stats[name, default: []].append((tree, cpu))

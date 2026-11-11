@@ -139,6 +139,7 @@ extension Gestures {
             metrics?.runStarted()
         }
         StepReport.shared.clear()
+        UITree.ocrCache.clear()  // a new run never reuses the last run's OCR
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         pointerAt = .zero
         (touchCheck, progress) = (TouchCheck(), NoProgress())
@@ -336,7 +337,7 @@ extension Gestures {
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             } else if let tree {
                 rec["tree"] = .str("device")
-                rec["tree_ms"] = .num(((tree.ocrSeconds + tree.cvSeconds) * 1000).rounded())
+                rec["tree_ms"] = .num((tree.totalSeconds * 1000).rounded())  // wall clock: ocr and cv overlap
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
