@@ -123,7 +123,9 @@ import UIKit
         var noTaps = false
         if boardOpen {
             do {
-                switch try await touchCalibrate(full: true) {
+                var result = try await touchCalibrate(full: true)
+                if shaky(result), await waitForYoungBoard() { result = try await touchCalibrate(full: true) }
+                switch result {
                 case .done(let error): return finished(error)
                 case .noTaps: noTaps = true
                 case .failed(let why): app.say("calibration: touch probe failed: \(why)")
@@ -139,6 +141,28 @@ import UIKit
     }
 
     /// The fallback: find the pointer in the mirrored video.
+    /// Right after it powers up, the board's USB drops reports for up to a minute: moves land short and clicks
+    /// go missing (2026-11-11, users' diagnostics: probe clicks 3 of 10 arrived, 15-60 s after power-up; check
+    /// taps rejected far off). A calibration that went wrong then is tried once more after the board settled.
+    static let settledAfter = 60.0, youngBelow = 90.0
+
+    private func shaky(_ r: TouchResult) -> Bool {
+        if case .done(let error) = r { return error > Self.rejectAbove }
+        return true
+    }
+
+    /// Waits for a board that powered up moments ago; false (at once) for one that has been up a while.
+    private func waitForYoungBoard() async -> Bool {
+        try? await app.board.refreshStatus()
+        guard let ms = app.board.status?.up, Double(ms) / 1000 < Self.youngBelow else { return false }
+        let wait = max(Self.settledAfter - Double(ms) / 1000, 10)
+        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+        reason = String(localized: "the board just started; trying again")
+        progress = nil
+        try? await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+        return !Task.isCancelled
+    }
+
     private func videoCalibrate(noTaps: Bool) async {
         let diagnosis = noTaps ? Self.noTapsText : nil
         guard mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }

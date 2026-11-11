@@ -1,5 +1,13 @@
 import Foundation
+import GameController
 import UIKit
+
+/// Whether this iPhone itself has a mouse plugged in (the board's USB HID), as iOS lists it to GameController.
+/// Only a "yes" is trusted: discovery is asynchronous, so an empty list right after launch proves nothing.
+@MainActor enum PhoneMouse {
+    static func start() { _ = GCMouse.mice() }  // begins discovery; mice then arrive by notification
+    static var connected: Bool { !GCMouse.mice().isEmpty }
+}
 
 /// The agent works on the phone this app runs on, so the app must be out of the way: Start sends it to the
 /// Home Screen (and checks that iOS really put it in the background), and a run holds while it is in front.
@@ -40,11 +48,27 @@ extension AppModel {
     /// is only for a board that isn't answering.
     func leaveForRun() async throws -> Bool {
         if try await leaveApp() { return true }
-        guard startupBoardIssue || !board.connected else {
-            DebugLog.write("leave app: the board took every gesture, the app stayed in front; not plugged into this iPhone")
-            throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
+        if startupBoardIssue || !board.connected { return try await askUserToLeave() }
+        // Why the gestures didn't take (2026-11-11: users with the board plugged in got "isn't controlling"):
+        // its USB unused (a charger, a hub, nothing), or this iPhone has it and only the Home gestures failed.
+        try? await board.refreshStatus()
+        let usb = board.status?.usb ?? "?", mouse = PhoneMouse.connected
+        DebugLog.write("leave app: the board took every gesture, the app stayed in front (usb \(usb), mouse on this iPhone: \(mouse))")
+        Analytics.capture("app_left_failed", ["usb": usb, "mouse": mouse])
+        if usb == "off" {
+            throw DeviceError(message: String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
         }
-        return try await askUserToLeave()
+        // just powered up: its USB drops reports for up to a minute (AutoCalibrator.settledAfter); once more after
+        if let ms = board.status?.up, Double(ms) / 1000 < AutoCalibrator.youngBelow {
+            let wait = max(AutoCalibrator.settledAfter - Double(ms) / 1000, 10)
+            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+            homeHint = String(localized: "The board just started. One moment…")
+            try await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+            homeHint = nil
+            if try await leaveApp() { return true }
+        }
+        if mouse || PhoneMouse.connected { return try await askUserToLeave() }  // the board drives this iPhone: the user swipes up once
+        throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
     }
 
     /// Keep the manual instruction visible; a normal disconnect pauses this wait and retries departure.

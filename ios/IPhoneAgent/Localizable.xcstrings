@@ -6132,6 +6132,16 @@
       },
       "extractionState" : "stale"
     },
+    "the board just started; trying again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子刚启动，稍后再试一次"
+          }
+        }
+      }
+    },
     "before a run" : {
       "localizations" : {
         "zh-Hans" : {
@@ -9109,6 +9119,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把调试日志、板子状态和崩溃报告发给开发者"
+          }
+        }
+      }
+    },
+    "The board just started. One moment…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子刚启动，请稍等…"
+          }
+        }
+      }
+    },
+    "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子有电，但没有插在这台 iPhone 上。请把它插到这台 iPhone 的 USB-C 口上再试。"
           }
         }
       }

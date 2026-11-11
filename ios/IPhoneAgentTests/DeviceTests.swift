@@ -480,6 +480,19 @@ import XCTest
         XCTAssertEqual(settings.currentModel, "some-model")
     }
 
+    /// One probe far off (a report dropped right after power-up) no longer drags the whole fit.
+    func testRobustProbeFitDropsOneFarSample() throws {
+        let good: [(Double, Double)] = [(150, 0.20), (350, 0.40), (250, 0.30), (550, 0.60), (750, 0.80)]
+        let bad = good + [(450, 0.38)]  // should be 0.50
+        let plain = try XCTUnwrap(ProbeFit.line(bad)), robust = try XCTUnwrap(ProbeFit.robustLine(bad))
+        XCTAssertGreaterThan(plain.rms, 0.03)
+        XCTAssertEqual(robust.a, 0.001, accuracy: 1e-6)
+        XCTAssertEqual(robust.b, 0.05, accuracy: 1e-6)
+        let noisy: [(Double, Double)] = [(150, 0.205), (350, 0.395), (250, 0.30), (550, 0.605), (750, 0.795)]
+        XCTAssertEqual(ProbeFit.robustLine(noisy), ProbeFit.line(noisy), "small scatter is kept")
+        XCTAssertEqual(ProbeFit.robustLine(Array(bad.suffix(4))), ProbeFit.line(Array(bad.suffix(4))), "too few to judge")
+    }
+
     func testProbeFitRecoversScaleAndOffset() {
         let samples: [(Double, Double)] = [150.0, 350, 60].map { u in (u, 0.02 + u / 400) }
         let line = ProbeFit.line(samples)

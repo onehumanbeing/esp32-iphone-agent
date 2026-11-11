@@ -132,6 +132,7 @@ import UIKit
         pointer = Pointer(device: board.commands, calibrationFile: support.appendingPathComponent("calibration.json"),
                           screen: feed)
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
+        PhoneMouse.start()
         agent.metrics = metrics
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
