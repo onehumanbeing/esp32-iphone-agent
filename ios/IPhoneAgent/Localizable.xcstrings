@@ -81,16 +81,6 @@
         }
       }
     },
-    "Change Key" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更换 Key"
-          }
-        }
-      }
-    },
     "Demo Data Is On" : {
       "localizations" : {
         "zh-Hans" : {
@@ -167,16 +157,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免费线路，由 Holomix, Inc. 运营（%@）"
-          }
-        }
-      }
-    },
-    "Handsy Key" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Handsy key"
           }
         }
       }
@@ -271,16 +251,6 @@
         }
       }
     },
-    "Key turned off at the bottom of this page" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已在本页底部关闭 key"
-          }
-        }
-      }
-    },
     "No board yet? Try the demo" : {
       "localizations" : {
         "zh-Hans" : {
@@ -297,16 +267,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无需排队，还能分析你的录制"
-          }
-        }
-      }
-    },
-    "Off: runs use Handsy Free. Turn it back on any time." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已关闭：运行使用 Handsy Free，随时可以再打开。"
           }
         }
       }
@@ -401,6 +361,16 @@
         }
       }
     },
+    "Remove This Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除这个 Key"
+          }
+        }
+      }
+    },
     "Restore on-screen keyboard after runs" : {
       "localizations" : {
         "zh-Hans" : {
@@ -437,16 +407,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运行你上次运行的意图。"
-          }
-        }
-      }
-    },
-    "Runs use your Handsy plan. Turn it off to use Handsy Free for a while; the key stays on this iPhone." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "运行使用你的 Handsy 套餐。关闭后暂时改用 Handsy Free，key 仍保存在这台 iPhone 上。"
           }
         }
       }
@@ -491,22 +451,12 @@
         }
       }
     },
-    "The key stays in this iPhone's Keychain. Turn it off or remove it at the bottom of Settings › Model." : {
+    "The key stays in this iPhone's Keychain. Tap the plan at the top of Settings › Model to change it." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "key 保存在这台 iPhone 的钥匙串里。可在 设置 › 模型 底部关闭或移除。"
-          }
-        }
-      }
-    },
-    "The key stays in this iPhone's Keychain. With it, runs use your plan instead of the free runs." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "key 只保存在这台 iPhone 的钥匙串里。填了之后，运行用你的套餐，不占免费次数。"
+            "value" : "key 保存在这台 iPhone 的钥匙串里。要更换，点 设置 › 模型 顶部的套餐。"
           }
         }
       }
@@ -827,16 +777,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销：改回之前的步骤"
-          }
-        }
-      }
-    },
-    "Use My Handsy Key" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用我的 Handsy key"
           }
         }
       }

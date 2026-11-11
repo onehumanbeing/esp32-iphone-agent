@@ -28,7 +28,6 @@ struct DecidersPanel: View {
                 PlanCard(inForm: true)
                 Section { rows } header: { Text("Who decides each step") } footer: { Text(footer) }
                 if deciders.mode == .jevFirst { Section { raceRow } footer: { Text(raceFooter) } }
-                HandsyKeyPanel(inForm: true)
             } else {
                 VStack(alignment: .leading, spacing: Space.s) {
                     PlanCard().padding(.bottom, Space.m)
@@ -40,7 +39,6 @@ struct DecidersPanel: View {
                         Panel { raceRow }.padding(.top, Space.l)
                         Text(raceFooter).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                     }
-                    HandsyKeyPanel()
                 }
             }
         }

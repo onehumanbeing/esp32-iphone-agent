@@ -6,13 +6,15 @@ import StoreKit
 /// The model page's plan banner (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
 /// are paid for, in plain sight, above the deciders. App Store build: a black banner to the plans (its link and
 /// storefront rule live in HandsyStoreEntry, outside this repository). Every build with the free line: a wide
-/// "Already have a Handsy key? Set it up now" row. With a key: the banner says the plan is active (or paused, when
-/// the key is turned off in HandsyKeyPanel at the bottom of the page). One's own API key is set up in the Large
-/// Language Model row below, not here. Builds without the free line show nothing.
+/// "Already have a Handsy key? Set it up now" row. With a key: the banner says the plan is active and opens the
+/// key sheet; the App Store build shows the plan, what is left, and opens its plan page instead (both outside
+/// this repository, Henry 2026-11-12: not in TestFlight). One's own API key is set up in the Large Language Model
+/// row below, not here. Builds without the free line show nothing.
 struct PlanCard: View {
     var inForm = false
     @ObservedObject private var trial = Trial.shared
     @State private var editingKey = false
+    @State private var managing = false
     @State private var plansShown = false
 
     var body: some View {
@@ -27,6 +29,7 @@ struct PlanCard: View {
             }
             .sheet(isPresented: $editingKey) { HandsyKeySheet() }
             #if HANDSY_STORE
+            .sheet(isPresented: $managing) { HandsyStorePlanPage() }
             .task {
                 plansShown = HandsyStoreEntry.linkAllowed(await Storefront.current?.countryCode)
                 for await storefront in Storefront.updates { plansShown = HandsyStoreEntry.linkAllowed(storefront.countryCode) }
@@ -38,28 +41,28 @@ struct PlanCard: View {
     @ViewBuilder private var content: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             if trial.hasKey {
+                #if HANDSY_STORE
+                Button { managing = true } label: { HandsyStorePlanBanner() }
+                    .buttonStyle(.plain)
+                #else
                 Button { editingKey = true } label: {
-                    if trial.keyOn {
-                        PlanBanner(symbol: "checkmark.seal.fill", title: "Handsy Plan · Active",
-                                   detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
-                    } else {
-                        PlanBanner(symbol: "pause.circle.fill", title: "Handsy Plan · Paused",
-                                   detail: Text("Key turned off at the bottom of this page"), dark: false)
-                    }
+                    PlanBanner(title: Text(trial.keyOn ? "Handsy Plan · Active" : "Handsy Plan · Paused"),
+                               detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
                 }
                 .buttonStyle(.plain)
+                #endif
             } else {
                 #if HANDSY_STORE
                 if plansShown {
                     Link(destination: HandsyStoreEntry.plans) {
-                        PlanBanner(symbol: "sparkles", title: "Get a Handsy Plan",
+                        PlanBanner(symbol: "sparkles", title: Text("Get a Handsy Plan"),
                                    detail: Text("No waiting, and it reads your recordings"))
                     }
                     .buttonStyle(.plain)
                 }
                 #endif
                 Button { editingKey = true } label: {
-                    PlanBanner(symbol: "key.fill", title: "Already have a Handsy key?",
+                    PlanBanner(symbol: "key.fill", title: Text("Already have a Handsy key?"),
                                detail: Text("Set it up now: tap here"), dark: false)
                 }
                 .buttonStyle(.plain)
@@ -69,20 +72,27 @@ struct PlanCard: View {
 }
 
 /// A short banner: black with a soft sheen (the plan), or a plain card with a hairline (the key row), in the
-/// app's black-and-white look in light and dark.
-private struct PlanBanner: View {
-    let symbol: String
-    let title: LocalizedStringKey
+/// app's black-and-white look in light and dark. No symbol: the Handsy robot. Also used by the App Store build's
+/// plan banner (outside this repository).
+struct PlanBanner: View {
+    var symbol: String?
+    let title: Text
     let detail: Text
     var dark = true
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
-                .frame(width: 36, height: 36)
+            Group {
+                if let symbol {
+                    Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
+                } else {
+                    Image("AgentGlyph").renderingMode(.template).resizable().scaledToFit().frame(width: 22, height: 22)
+                }
+            }
+            .frame(width: 36, height: 36)
                 .background(Circle().fill(dark ? Color.white.opacity(0.12) : Color.primary.opacity(0.07)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.8)
+                title.font(.headline).lineLimit(1).minimumScaleFactor(0.8)
                 detail.font(.footnote).opacity(0.7).lineLimit(1)
             }
             Spacer(minLength: Space.s)
@@ -101,49 +111,6 @@ private struct PlanBanner: View {
             }
         }
         .contentShape(.rect)
-    }
-}
-
-/// The bottom of the model page, once a key is saved: turn it off for a while (runs go back to Handsy Free or
-/// one's own model; the key stays), change it or remove it.
-struct HandsyKeyPanel: View {
-    var inForm = false
-    @ObservedObject private var trial = Trial.shared
-    @State private var editingKey = false
-
-    var body: some View {
-        if Trial.available && trial.hasKey {
-            Group {
-                if inForm {
-                    Section { rows } header: { Text("Handsy Key") } footer: { Text(footer) }
-                } else {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Handsy Key").font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                        Panel { rows }
-                        Text(footer).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                    }
-                    .padding(.top, Space.l)
-                }
-            }
-            .sheet(isPresented: $editingKey) { HandsyKeySheet() }
-        }
-    }
-
-    @ViewBuilder private var rows: some View {
-        Toggle(isOn: Binding { trial.keyOn } set: { trial.setKeyOn($0) }) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Use My Handsy Key")
-                Text(verbatim: "hsk_…" + String(trial.key.suffix(4))).font(.footnote.monospaced()).foregroundStyle(.secondary)
-            }
-        }
-        .tint(Palette.accent)
-        Button("Change Key") { editingKey = true }
-        Button("Remove Key", role: .destructive) { trial.setKey("") }
-    }
-
-    private var footer: LocalizedStringKey {
-        trial.keyOn ? "Runs use your Handsy plan. Turn it off to use Handsy Free for a while; the key stays on this iPhone."
-            : "Off: runs use Handsy Free. Turn it back on any time."
     }
 }
 
@@ -188,8 +155,11 @@ struct HandsyKeySheet: View {
             }
             .buttonStyle(.plain)
             .disabled(!valid).opacity(valid ? 1 : 0.35)
-            Text("The key stays in this iPhone's Keychain. Turn it off or remove it at the bottom of Settings › Model.")
+            Text("The key stays in this iPhone's Keychain. Tap the plan at the top of Settings › Model to change it.")
                 .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if offered == nil && Trial.shared.hasKey {
+                Button("Remove This Key", role: .destructive) { Trial.shared.setKey(""); dismiss() }.font(.footnote)
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Space.xl).padding(.top, Space.l)
