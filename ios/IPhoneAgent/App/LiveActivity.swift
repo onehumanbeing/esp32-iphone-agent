@@ -94,7 +94,11 @@ import Foundation
     }
 
     /// Shows the outcome for a while, then the system removes it. Tapping it opens the review.
-    func end(_ outcome: (mood: Mood, line: String)?) {
+    /// How long a done run asks ✓ / ✗ in the island before it is ended (then only the Lock Screen keeps it).
+    static let verdictWindow: TimeInterval = 90
+
+    func end(_ outcome: (mood: Mood, line: String)?, asksVerdict: Bool = false) {
+        recentEndTask?.cancel()  // a previous run still asking: ended now
         stopUpdates()
         stuckTapAt = nil
         guard let activity else { return }
@@ -105,13 +109,22 @@ import Foundation
             if state.phase == .running || state.phase == .help { apply(.ended(outcome.mood), to: &state) }
         }
         state.finished = true
+        state.asksVerdict = asksVerdict && outcome != nil
         state.waitingSince = nil
         DebugLog.write("Live Activity: ended" + (outcome.map { " (\($0.mood.rawValue))" } ?? ""))
         self.activity = nil
         last = nil
         sent = nil
+        let ask = state.asksVerdict
         let completion = Task {
-            await activity.end(.init(state: state, staleDate: nil),
+            if ask {  // ended activities leave the Dynamic Island at once: it stays up while it asks
+                let until = Date().addingTimeInterval(Self.verdictWindow)
+                await activity.update(.init(state: state, staleDate: until, relevanceScore: Self.relevance))
+                try? await Task.sleep(nanoseconds: UInt64(Self.verdictWindow * 1_000_000_000))
+            }
+            var final = state
+            final.asksVerdict = false
+            await activity.end(.init(state: final, staleDate: nil),
                                dismissalPolicy: outcome == nil ? .immediate : .after(.now + 15 * 60))
         }
         if outcome != nil {
@@ -119,6 +132,9 @@ import Foundation
             recentEndTask = completion
         }
     }
+
+    /// The user answered ✓ / ✗: the island stops asking (the Lock Screen keeps the outcome).
+    func verdictGiven() { recentEndTask?.cancel() }
 
     /// A deleted run must also disappear from the Lock Screen, including its retained finished activity.
     func dismiss(runID: String) {
@@ -131,6 +147,7 @@ import Foundation
             sent = nil
         }
         let pending = recentlyEnded?.attributes.runID == runID ? recentEndTask : nil
+        pending?.cancel()  // a done run still asking ✓ / ✗: stop waiting
         if let recentlyEnded, recentlyEnded.attributes.runID == runID {
             matches.append(recentlyEnded)
             self.recentlyEnded = nil

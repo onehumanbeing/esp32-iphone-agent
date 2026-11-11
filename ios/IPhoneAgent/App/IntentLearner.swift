@@ -11,6 +11,9 @@ enum IntentLearner {
     /// A tap's label: the OCR line nearest its spot, within this distance (0-1000 units).
     static let reach = 90.0
 
+    /// Runs the user called wrong from the island (✗): never learned from.
+    @MainActor static var rejected: Set<String> = []
+
     /// True when the run is worth learning from: it ended done and the model, not the replay, did a move.
     static func shouldLearn(_ steps: [JObject], done: Bool) -> Bool {
         done && steps.contains { kept.contains($0["action"]?.str ?? "") && $0["replay"] != .bool(true) }
@@ -55,7 +58,38 @@ enum IntentLearner {
     }
 }
 
+extension AppModel {
+    /// ✓ / ✗ from a done run's Live Activity. Wrong: the run counts as failed for its intent, and steps learned
+    /// from it are undone (or never learned, when the answer comes first).
+    func runVerdict(_ run: String, correct: Bool) {
+        live.verdictGiven()
+        DebugLog.write("run \(run): the user says \(correct ? "correct" : "wrong")")
+        guard !correct else { return }
+        IntentLearner.rejected.insert(run)
+        for item in intents.items where item.runs.last?.run == run {
+            intents.markLastRun(item.id, ok: false)
+            if item.learnedFrom == run { intents.undoLearned(item.id) }
+        }
+    }
+}
+
 extension IntentStore {
+    /// The intent's last run counts as `ok` after all.
+    func markLastRun(_ id: UUID, ok: Bool) {
+        guard var item = item(id), var runs = item.history, !runs.isEmpty else { return }
+        runs[runs.count - 1].ok = ok
+        item.history = runs
+        upsert(item)
+    }
+
+    /// Learning finished after a ✗: put the previous screens back (the steps were never saved).
+    func undoLearnedFrames(_ id: UUID) {
+        let folder = IntentFrames.folder(id), previous = IntentFrames.previous(id)
+        guard FileManager.default.fileExists(atPath: previous.path) else { return }
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.moveItem(at: previous, to: folder)
+    }
+
     /// Back to the steps before the last learned ones (their screens too).
     func undoLearned(_ id: UUID) {
         guard var item = item(id), let old = item.previousSteps else { return }
@@ -71,12 +105,16 @@ extension IntentStore {
 
 extension AppModel {
     /// After a run of an intent (RunSession.ended): learn its steps when the replay missed and the run worked.
+    /// Henry 2026-11-12: any intent with a reference run or saved steps, when Settings › Intents learn from runs is on.
     func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool) {
-        guard IntentLearner.shouldLearn(steps, done: done) else { return }
+        guard settings.learnFromRuns, intent.refRun != nil || !(intent.steps ?? []).isEmpty,
+              IntentLearner.shouldLearn(steps, done: done) else { return }
         Task {
-            guard let run = runs.run(runID), var item = intents.item(intent.id) else { return }
+            guard !IntentLearner.rejected.contains(runID),  // ✗ came first
+                  let run = runs.run(runID), var item = intents.item(intent.id) else { return }
             do {
                 guard let learned = try await IntentLearner.steps(from: run, for: item.id) else { return }
+                if IntentLearner.rejected.contains(runID) { return intents.undoLearnedFrames(item.id) }
                 item.previousSteps = item.steps
                 item.steps = learned
                 item.learnedFrom = runID

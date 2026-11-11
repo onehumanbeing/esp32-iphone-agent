@@ -61,8 +61,11 @@ struct SettingsView: View {
                     Toggle(isOn: $gentleHome) {
                         SettingsLabel(title: "Gentle Home swipe", symbol: "arrow.up.to.line", color: .gray)
                     }
+                    Toggle(isOn: $settings.learnFromRuns) {
+                        SettingsLabel(title: "Intents learn from runs", symbol: "wand.and.stars", color: .indigo)
+                    }
                 } footer: {
-                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed.")
+                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it.")
                 }
                 ListenSection(app: app, audio: app.audio)
                 Section {

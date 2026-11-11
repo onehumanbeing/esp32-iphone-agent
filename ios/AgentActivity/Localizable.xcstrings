@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Correct" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对了"
+          }
+        }
+      }
+    },
+    "Finish Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成录制"
+          }
+        }
+      }
+    },
     "Pause the agent" : {
       "localizations" : {
         "zh-Hans" : {
@@ -47,6 +67,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "求助"
+          }
+        }
+      }
+    },
+    "Run" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行"
           }
         }
       }
@@ -127,6 +157,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "镜像"
+          }
+        }
+      }
+    },
+    "Was the run right?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次运行对吗？"
           }
         }
       }
@@ -537,6 +577,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wi-Fi 设置"
+          }
+        }
+      }
+    },
+    "Wrong" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不对"
           }
         }
       }

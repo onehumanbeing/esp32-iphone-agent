@@ -48,6 +48,7 @@ struct AgentLiveActivity: Widget {
                             ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)
                         }
                         if !s.finished { Buttons(state: s) }
+                        if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID) }
                     }
                 }
             } compactLeading: {
@@ -107,6 +108,24 @@ private extension View {
     }
 }
 
+/// A run that says it is done: was it right? (RunVerdictIntent; shown until the state goes stale.)
+private struct VerdictButtons: View {
+    let run: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(intent: RunVerdictIntent(run: run, correct: true)) {
+                Label("Correct", systemImage: "hand.thumbsup.fill").frame(maxWidth: .infinity)
+            }
+            .tint(.green)
+            Button(intent: RunVerdictIntent(run: run, correct: false)) {
+                Label("Wrong", systemImage: "hand.thumbsdown.fill").frame(maxWidth: .infinity)
+            }
+            .tint(.gray)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+}
+
 private struct Buttons: View {
     let state: AgentActivityAttributes.ContentState
     var body: some View {
@@ -120,7 +139,7 @@ private struct Buttons: View {
                 Button(intent: StopAgentIntent()) { Image(systemName: "stop.fill") }.tint(.red)
             case .countdown, .recording:
                 Button(intent: StopRecordingIntent()) {
-                    Label("Stop Recording", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                    Label("Finish Recording", systemImage: "stop.fill").frame(maxWidth: .infinity)
                 }
                 .tint(.red)
             case .running:
@@ -208,6 +227,7 @@ private struct LockScreenView: View {
                     Label(s.mood == .success ? "Done · tap to review" : "Ended · tap to review",
                           systemImage: s.mood == .success ? "checkmark.circle.fill" : "play.circle")
                         .font(.footnote.weight(.semibold))
+                    if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID).controlSize(.small) }
                 } else {
                     if s.phase == .running {
                         ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)

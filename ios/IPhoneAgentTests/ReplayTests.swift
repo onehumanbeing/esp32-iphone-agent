@@ -94,6 +94,9 @@ import UIKit
         item.previousSteps = [RecordedStep(action: ["action": .str("home")], sure: true, frame: nil)]
         item.learnedFrom = "r1"
         store.upsert(item)
+        store.record(item.id, RunStat(run: "r1", ok: true, seconds: 3))
+        store.markLastRun(item.id, ok: false)
+        XCTAssertEqual(store.item(item.id)?.runs.last?.ok, false, "✗ on the island: the run counts as failed")
         store.undoLearned(item.id)
         XCTAssertEqual(store.item(item.id)?.steps?.first?.object?["action"]?.str, "home")
         XCTAssertNil(store.item(item.id)?.learnedFrom)

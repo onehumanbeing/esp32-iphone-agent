@@ -56,6 +56,8 @@ import UIKit
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
     @Published var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }
     @Published var restoreKeyboardAfterRun: Bool { didSet { defaults.set(restoreKeyboardAfterRun, forKey: "restoreKeyboardAfterRun") } }
+    /// Intents learn their steps from runs that worked (IntentLearner). On by default (Henry 2026-11-12).
+    @Published var learnFromRuns: Bool { didSet { defaults.set(learnFromRuns, forKey: "learnFromRuns") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
@@ -74,6 +76,7 @@ import UIKit
         agentName = defaults.string(forKey: Self.agentNameKey) ?? Self.defaultAgentName
         onboarded = defaults.bool(forKey: "onboarded")
         restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
+        learnFromRuns = defaults.object(forKey: "learnFromRuns") as? Bool ?? true
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         provider = defaults.string(forKey: "modelProvider").flatMap(ModelProvider.init(rawValue:))
             ?? ModelProvider.infer(baseURL: baseURL, model: model)

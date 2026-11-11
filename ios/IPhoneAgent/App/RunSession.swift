@@ -356,7 +356,7 @@ extension AppModel {
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
-        live.end((outcome.mood, last.map(StepText.line) ?? ""))
+        live.end((outcome.mood, last.map(StepText.line) ?? ""), asksVerdict: outcome == .done)
         runs.reload()
         let summary = String(localized: "\(moveCount) steps · \(seconds.durationText)")
         switch outcome {

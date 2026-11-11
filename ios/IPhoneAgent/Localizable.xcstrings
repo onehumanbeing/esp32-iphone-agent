@@ -51,6 +51,16 @@
         }
       }
     },
+    "Finish Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成录制"
+          }
+        }
+      }
+    },
     "Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
       "localizations" : {
         "zh-Hans" : {
@@ -107,6 +117,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安装 ID"
+          }
+        }
+      }
+    },
+    "Intents learn from runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intent 从运行中学习"
           }
         }
       }
@@ -207,6 +227,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "步骤已从运行 %@ 中学到"
+          }
+        }
+      }
+    },
+    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行结束时模型会检查一张截图；如果恢复了键盘，会再检查一张。轻柔回到主屏幕：运行开始时上滑回主屏幕的速度为开发板最高速度的一半。Intent 从运行中学习：Intent 保存的步骤没走通、由 AI 完成任务时，用这次运行的步骤替换它们；在结束的运行上点「不对」会撤销。"
           }
         }
       }
@@ -517,6 +547,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销：改回之前的步骤"
+          }
+        }
+      }
+    },
+    "Was the run right?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次运行对吗？"
           }
         }
       }

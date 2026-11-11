@@ -19,6 +19,7 @@ struct AgentActivityAttributes: ActivityAttributes {
         var limit: Int      // the step limit of a run
         var line: String    // what it does now, one line
         var finished = false
+        var asksVerdict = false  // finished and done: ✓ Correct / ✗ Wrong for a while (RunVerdictIntent)
         var phase = Phase.running
         var since = Date()  // recording start, for the timer; the countdown's end before that
         var label = ""      // what the character says, compact island ("Thinking…", "Tapping Clock")
@@ -83,6 +84,27 @@ enum AgentCommand: String {
 /// Set by the app; nil inside the widget extension (the intents run in the app's process).
 @MainActor enum AgentControl {
     static var handle: ((AgentCommand) async -> Void)?
+    /// The user's word on a finished run from its Live Activity: (run id, correct).
+    static var verdict: ((String, Bool) async -> Void)?
+}
+
+/// ✓ / ✗ on a run that says it is done (Henry 2026-11-12). Wrong undoes what an intent learned from it.
+struct RunVerdictIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Was the run right?"
+    static let isDiscoverable = false
+    @Parameter(title: "Run") var run: String
+    @Parameter(title: "Correct") var correct: Bool
+
+    init() {}
+    init(run: String, correct: Bool) {
+        self.run = run
+        self.correct = correct
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AgentControl.verdict?(run, correct)
+        return .result()
+    }
 }
 
 /// Stop button: releases everything and stops the agent.
