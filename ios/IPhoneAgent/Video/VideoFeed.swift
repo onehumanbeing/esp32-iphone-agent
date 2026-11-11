@@ -126,6 +126,12 @@ extension ScreenSource {
     /// Board status fz: its GOP filled up and no stream goes on from it, so nothing newer than the shown frame
     /// arrives until mirroring sends a keyframe (#25). The shown frame is stale, not "the screen didn't change".
     var frozen = false
+    /// Decoding has failed since `decodeFailingSince` with no frame after it. A lost video packet breaks every
+    /// frame after it until the next keyframe, which a still iPhone screen may not send for minutes (2026-11-12:
+    /// six minutes blind, then "reconnect mirroring" only after 20 s). Three seconds of it is treated like a
+    /// frozen feed: the user is asked to restart mirroring at once.
+    private var decodeFailingSince: Double?
+    var undecodable: Bool { decodeFailingSince.map { now() - $0 >= 3 } ?? false }
     var metrics: Metrics?
     weak var device: HIDDevice?
     /// The board streams every access unit over Wi-Fi while the app's session is up (see video_link.cpp), so
@@ -152,6 +158,7 @@ extension ScreenSource {
                 self?.note = note
                 self?.metrics?.decodeError(background: bg)
                 self?.broken = true
+                if self?.decodeFailingSince == nil { self?.decodeFailingSince = now() }
                 self?.resumeMs = nil  // the decoder needs the IDR again
             }
         }
@@ -245,6 +252,7 @@ extension ScreenSource {
         if !repeated { changed = updated }
         capturedAt = clockOffset.map { Double(f.unit.boardMs) / 1000 + $0 } ?? updated
         broken = false
+        decodeFailingSince = nil
         if size.width != CGFloat(f.width) || size.height != CGFloat(f.height) {
             size = CGSize(width: f.width, height: f.height)
         }

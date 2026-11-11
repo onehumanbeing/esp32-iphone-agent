@@ -203,10 +203,11 @@ extension AppModel {
                     return source
                 }
             }
-            let stalled = airplayStalled()
+            let stalled = airplayStalled() || feed.undecodable
             if stalled && !stallLogged {
                 stallLogged = true
-                DebugLog.write("startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
+                DebugLog.write(feed.undecodable ? "startup: frames arrive but none decodes (a lost packet; no keyframe yet); Screen Mirroring has to restart"
+                               : "startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
             let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled)
