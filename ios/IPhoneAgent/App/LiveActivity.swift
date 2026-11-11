@@ -12,6 +12,9 @@ import Foundation
 /// when nothing went out for `keepAliveEvery`. Suspended by iOS (only bluetooth-central keeps it alive), the
 /// app sends nothing, the date passes and the widget shows "×" eyes and "Paused by iOS — tap to continue".
 @MainActor final class LiveActivityController {
+    /// Highest: with another Live Activity running (Maps navigation, music) iOS shows the most relevant one in the
+    /// Dynamic Island, and a run's activity without a score (0) lost to them (Henry, 2026-11-11).
+    static let relevance = 100.0
     typealias State = AgentActivityAttributes.ContentState
     private var activity: Activity<AgentActivityAttributes>?
     private var recentlyEnded: Activity<AgentActivityAttributes>?
@@ -55,7 +58,7 @@ import Foundation
         apply(status, to: &state)
         do {
             activity = try Activity.request(attributes: AgentActivityAttributes(task: task, runID: runID, name: Settings.storedAgentName),
-                                            content: .init(state: state, staleDate: markSent(state)))
+                                            content: .init(state: state, staleDate: markSent(state), relevanceScore: Self.relevance))
             last = state
             sent = state
             tokens = 1
@@ -214,7 +217,7 @@ import Foundation
         guard let activity, let state = last, force || state != sent else { return }
         tokens -= 1
         sent = state
-        let content = ActivityContent(state: state, staleDate: markSent(state))
+        let content = ActivityContent(state: state, staleDate: markSent(state), relevanceScore: Self.relevance)
         Task { await activity.update(content) }
     }
 
