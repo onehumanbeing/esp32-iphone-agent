@@ -58,6 +58,47 @@ import UIKit
         XCTAssertNil(draft.intent(existing: item).color)
     }
 
+    /// Henry 2026-11-12: a run that worked after the replay missed becomes the intent's steps.
+    func testAnIntentLearnsFromARunThatWorked() async throws {
+        let replayed: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(2), "replay": .bool(true)]
+        let model: JObject = ["action": .str("tap"), "x": .int(437), "y": .int(696)]
+        XCTAssertTrue(IntentLearner.shouldLearn([replayed, model, ["action": .str("done")]], done: true))
+        XCTAssertFalse(IntentLearner.shouldLearn([replayed, model], done: false), "only a run that worked")
+        XCTAssertFalse(IntentLearner.shouldLearn([replayed, ["action": .str("done")]], done: true), "the replay did it all")
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let frame = dir.appendingPathComponent("1.jpg"); try a.write(to: frame)
+        let run = Run(id: "r1", folder: dir, task: "t", date: Date(), steps: [
+            .init(id: 1, action: ["action": .str("plan"), "plan": .str("1. x")], frame: nil, t: nil),
+            .init(id: 2, action: ["action": .str("open"), "app": .str("WeChat")], frame: frame, t: nil),
+            .init(id: 3, action: ["action": .str("tap"), "x": .int(10), "y": .int(10), "changed": .bool(false)], frame: frame, t: nil),
+            .init(id: 4, action: model.merging(["think_s": .num(1)]), frame: frame, t: nil),
+            .init(id: 5, action: ["action": .str("done"), "answer": .str("ok")], frame: frame, t: nil),
+        ])
+        let id = UUID()
+        defer { IntentFrames.delete(id) }
+        let learned = try await IntentLearner.steps(from: run, for: id)
+        XCTAssertEqual(learned?.map { $0.object?["action"]?.str }, ["open", "tap"], "moves that changed the screen")
+        XCTAssertNil(learned?[1].object?["think_s"])
+        XCTAssertNotNil(IntentFrames.data(id, learned?[1].frame))
+        XCTAssertEqual(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "文件传输助手", x: 300, y: 350)]), "文件传输助手")
+        XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "far", x: 800, y: 900)]))
+        XCTAssertEqual(Replay.decide(.init(action: ["action": .str("open"), "app": .str("WeChat")], sure: true, frame: nil), screen: b), .perform)
+    }
+
+    func testLearnedStepsCanBeUndone() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "n", prompt: "p")
+        item.steps = [RecordedStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(1)], sure: true, frame: nil)]
+        item.previousSteps = [RecordedStep(action: ["action": .str("home")], sure: true, frame: nil)]
+        item.learnedFrom = "r1"
+        store.upsert(item)
+        store.undoLearned(item.id)
+        XCTAssertEqual(store.item(item.id)?.steps?.first?.object?["action"]?.str, "home")
+        XCTAssertNil(store.item(item.id)?.learnedFrom)
+    }
+
     private func steps(_ frames: [Data?]) -> Replay {
         Replay(steps: frames.enumerated().map { i, f in
             .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)

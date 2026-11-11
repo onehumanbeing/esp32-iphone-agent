@@ -28,6 +28,9 @@ enum IntentFrames {
 
     static func folder(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString) }
 
+    /// The screens of the steps before the last learned ones (IntentLearner), for Undo.
+    static func previous(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString + ".prev") }
+
     static func url(_ id: UUID, _ name: String?) -> URL? {
         guard let name, !name.isEmpty, !name.contains("/"), !name.contains("..") else { return nil }
         return folder(id).appendingPathComponent(name)
@@ -35,7 +38,10 @@ enum IntentFrames {
 
     static func data(_ id: UUID, _ name: String?) -> Data? { url(id, name).flatMap { try? Data(contentsOf: $0) } }
 
-    static func delete(_ id: UUID) { try? FileManager.default.removeItem(at: folder(id)) }
+    static func delete(_ id: UUID) {
+        try? FileManager.default.removeItem(at: folder(id))
+        try? FileManager.default.removeItem(at: previous(id))
+    }
 }
 
 /// Tap first, ask later: a saved intent's recorded steps are done without the model while the screen matches
@@ -87,12 +93,13 @@ struct Replay {
     mutating func restart() { next = 0; over = false; loops = 0 }
 
     /// Moves that can be repeated blindly; anything else (notes, done, unknown words) goes to the model.
-    static let replayable: Set<String> = ["tap", "swipe", "type", "clear", "home", "back", "key", "wait"]
+    static let replayable: Set<String> = ["tap", "swipe", "type", "clear", "home", "back", "key", "wait", "open"]
 
     static func decide(_ step: Step, screen: Data?) -> Decision {
         let name = step.action["action"]?.str ?? ""
         guard replayable.contains(name) else { return .handOver("not a move") }
         guard step.sure else { return .handOver("unsure") }
+        if name == "open" { return .perform }  // opens the app from any screen
         if name == "type", (step.action["text"]?.str ?? "").isEmpty { return .handOver("unknown text") }
         guard let frame = step.frame else { return .handOver("no reference screen") }
         guard Vision.similar(frame, screen) else { return .handOver("miss (screen differs)") }

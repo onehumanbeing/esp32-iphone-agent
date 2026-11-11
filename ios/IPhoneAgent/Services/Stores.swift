@@ -11,6 +11,8 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var refRecording: String? // folder name of the original demonstration
     var refRun: String?      // the run it was made from
     var steps: [RecordedStep]? // replayed before asking the model (Replay)
+    var previousSteps: [RecordedStep]? // before IntentLearner replaced them (Undo)
+    var learnedFrom: String? // the run the steps were learned from (IntentLearner)
     var history: [RunStat]?  // its runs, newest last
     var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
     var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)

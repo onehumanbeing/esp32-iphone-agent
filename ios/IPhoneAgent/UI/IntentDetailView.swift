@@ -42,6 +42,20 @@ struct IntentDetailView: View {
                         }
                     }
                 }
+                if let run = item.learnedFrom {  // IntentLearner: the steps came from a run that worked
+                    Section {
+                        Button { app.openReview(run: run) } label: {
+                            Label("Steps learned from the run \(run)", systemImage: "wand.and.stars")
+                        }
+                        if item.previousSteps != nil {
+                            Button { intents.undoLearned(item.id) } label: {
+                                Label("Undo: Use the Previous Steps", systemImage: "arrow.uturn.backward")
+                            }
+                        }
+                    } footer: {
+                        Text("The recorded steps missed, so the steps of a run that worked replaced them.")
+                    }
+                }
                 Section {
                     Button { edit(item) } label: { Label("Edit", systemImage: "slider.horizontal.3") }
                     if item.refRecording != nil {  // recorded before recordings were runs

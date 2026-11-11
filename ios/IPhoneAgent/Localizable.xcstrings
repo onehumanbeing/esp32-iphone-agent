@@ -201,6 +201,26 @@
         }
       }
     },
+    "Steps learned from the run %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步骤已从运行 %@ 中学到"
+          }
+        }
+      }
+    },
+    "The recorded steps missed, so the steps of a run that worked replaced them." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录下的步骤没能走通，已用一次成功运行的步骤替换。"
+          }
+        }
+      }
+    },
     "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
@@ -487,6 +507,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "偏好"
+          }
+        }
+      }
+    },
+    "Undo: Use the Previous Steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销：改回之前的步骤"
           }
         }
       }
