@@ -46,7 +46,7 @@ struct UsageStatsSection: View {
 
 /// First launch, before setup: one sheet for what a run sends and to whom (the model and Jev as set up now),
 /// what is kept here, and the two switches (both off). Agree and Continue records the same yes as
-/// SendConsentSheet; Not Now records none, so the first run asks again. See FirstConsent.
+/// SendConsentSheet and accepts the risks; Not Now records none, so setup and the first run ask. See FirstConsent.
 struct ConsentSheet: View {
     @ObservedObject var settings: Settings
     @AppStorage(RunShare.keepKey) private var keep = false
@@ -57,7 +57,12 @@ struct ConsentSheet: View {
         NavigationStack {
             List {
                 SendConsentHero()
-                SendConsentParts(settings: settings, model: parts.model, jev: parts.jev)
+                Section {
+                    Label("Understand the risks", systemImage: "exclamationmark.shield").font(.body.weight(.semibold))
+                    Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).listRowSeparator(.hidden)
+                }
+                SendConsentParts(settings: settings, model: parts.model, jev: parts.jev,
+                                 freeLineDefault: FirstConsent.freeLineDefault(settings))
                 if !parts.model && !parts.jev {
                     Section { Text("Once a model is set up, you'll be asked before a run sends anything to it.").font(.subheadline) }
                 }
@@ -77,7 +82,7 @@ struct ConsentSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Not Now") { FirstConsent.notNow(); dismiss() } }
             }
             .safeAreaInset(edge: .bottom) {
-                Button { FirstConsent.agree(settings); dismiss() } label: {
+                Button { settings.acceptedDisclaimer = true; FirstConsent.agree(settings); dismiss() } label: {
                     Text("Agree and Continue").font(.headline).frame(maxWidth: .infinity, minHeight: 34)
                 }
                 .buttonStyle(.borderedProminent)

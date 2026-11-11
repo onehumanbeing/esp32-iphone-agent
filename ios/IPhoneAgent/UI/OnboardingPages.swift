@@ -1,9 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// 0 · Welcome: the character wakes up and says hello; the disclaimer must be accepted to go on.
+/// 0 · Welcome: the character wakes up and says hello. The risks were accepted on the first-launch sheet
+/// (Agree and Continue); after Not Now there, the button here is the acceptance (Accept and Get Started).
 struct WelcomePage: View {
-    @Binding var accepted: Bool
+    var accepted: Bool
     @State private var awake = false
 
     var body: some View {
@@ -11,13 +12,16 @@ struct WelcomePage: View {
             PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm ESP32 Agent",
                        message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
             Panel {
-                DisclosureGroup {
-                    Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
-                } label: {
+                if accepted {
+                    DisclosureGroup {
+                        Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
+                    } label: {
+                        Label("Understand the risks", systemImage: "exclamationmark.shield").font(.body.weight(.semibold))
+                    }
+                } else {
                     Label("Understand the risks", systemImage: "exclamationmark.shield").font(.body.weight(.semibold))
+                    Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
                 }
-                Divider().padding(.vertical, Space.m)
-                Toggle("I understand and accept", isOn: $accepted)
             }
         }
         .task {

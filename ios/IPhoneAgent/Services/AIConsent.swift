@@ -41,19 +41,33 @@ extension Settings {
     }
 }
 
-/// First launch: one sheet says what a run sends (the model once one is set up, Jev when it is on) and what is
-/// kept here. Agree records the same yes as SendConsentSheet; Not Now records none, so the first run still asks.
+/// First launch: one sheet says the risks, what a run sends (the model once one is set up, Jev when it is on) and
+/// what is kept here; Agree accepts the risks too, so setup asks nothing again. Agree records the same yes as SendConsentSheet; Not Now records none, so the first run still asks.
 @MainActor enum FirstConsent {
     static var asked: Bool {
         get { UserDefaults.standard.bool(forKey: RunShare.askedKey) }
         set { UserDefaults.standard.set(newValue, forKey: RunShare.askedKey) }
     }
 
-    static func parts(_ settings: Settings) -> (model: Bool, jev: Bool) { (settings.isConfigured, settings.jevOn) }
+    /// Nothing of one's own is set up yet, so Handsy Free is what the app starts with (Trial.attach picks it once
+    /// the line answers): the sheet shows it and Agree covers it, instead of asking again on the model page.
+    static func freeLineDefault(_ settings: Settings) -> Bool {
+        Trial.available && settings.provider != .handsyTrial && !settings.isConfigured(settings.provider)
+    }
+
+    static func parts(_ settings: Settings) -> (model: Bool, jev: Bool) {
+        (settings.isConfigured || freeLineDefault(settings), settings.jevOn)
+    }
 
     static func agree(_ settings: Settings) {
         let parts = parts(settings)
-        settings.grantConsent(model: parts.model, jev: parts.jev)
+        if freeLineDefault(settings) {
+            AIConsent.grant(Trial.baseURL)
+            Analytics.capture("ai_consent", ["granted": true])
+            settings.grantConsent(model: false, jev: parts.jev)
+        } else {
+            settings.grantConsent(model: parts.model, jev: parts.jev)
+        }
         asked = true
     }
 

@@ -9,6 +9,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   is never uploaded without saying what a run sends. Demo data asks for the same consent before its first run when
   a model is set up, and the first setup page offers the demo to try the app without a board (No board yet? Try the
   demo). The privacy manifest lists the installation ID and run content of Handsy Free.
+- App: one agreement at first launch. Your Data now also states the risks, and Agree and Continue accepts them and
+  allows sending to Handsy Free when nothing else is set up yet, so the model page does not ask again. The welcome
+  page has no switch: Get Started, or Accept and Get Started after Not Now. Another service or Jev still asks.
 - App: Pause finishes the gesture already in flight, then does not send one the model had chosen. The next
   look decides from the screen in front. Frames from while the run is paused are left out of its video.
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a

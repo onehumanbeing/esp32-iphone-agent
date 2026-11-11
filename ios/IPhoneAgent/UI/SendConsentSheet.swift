@@ -60,9 +60,10 @@ struct SendConsentParts: View {
     @ObservedObject var settings: Settings
     var model: Bool
     var jev: Bool
+    var freeLineDefault = false  // first launch, nothing set up yet: Handsy Free is what will be used
 
-    private var host: String { AIConsent.host(settings.baseURL) }
-    private var freeLine: Bool { Trial.isTrial(settings.baseURL) }
+    private var host: String { AIConsent.host(freeLineDefault ? Trial.baseURL : settings.baseURL) }
+    private var freeLine: Bool { freeLineDefault || Trial.isTrial(settings.baseURL) }
     private var jevOwnKey: Bool { JevConsent.target != JevConsent.handsy }
 
     var body: some View {

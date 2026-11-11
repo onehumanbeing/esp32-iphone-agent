@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Accept and Get Started" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同意并开始"
+          }
+        }
+      }
+    },
     "Demo Data Is On" : {
       "localizations" : {
         "zh-Hans" : {

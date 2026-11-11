@@ -93,6 +93,18 @@ final class ShareTests: XCTestCase {
         XCTAssertTrue(JevConsent.granted)
     }
 
+    /// Agree covers Handsy Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
+    func testFreeLineDefaultOnlyWithNothingSetUp() throws {
+        let settings = fresh()
+        XCTAssertFalse(FirstConsent.freeLineDefault(settings), "an endpoint is set up: the sheet shows that one")
+        try XCTSkipUnless(Trial.available, "needs a build with the free line")
+        settings.baseURL = ""
+        XCTAssertTrue(FirstConsent.freeLineDefault(settings))
+        XCTAssertTrue(FirstConsent.parts(settings).model)
+        FirstConsent.agree(settings)
+        XCTAssertTrue(AIConsent.granted(Trial.baseURL), "the model page does not ask again")
+    }
+
     func testNotNowGrantsNothing() {
         let settings = fresh()
         FirstConsent.notNow()
