@@ -195,6 +195,7 @@ struct HandsyKeySheet: View {
 
     private func save() {
         guard valid else { return }
+        DebugLog.write("key: hsk_…\(value.suffix(4)) saved\(offered == nil ? "" : " from a link")")
         Self.use(value)
         dismiss()
     }
@@ -209,11 +210,28 @@ struct HandsyKeySheet: View {
 }
 
 /// iphoneagent://key?k=hsk_live_… (handsy.tech's "Open in Handsy" after a purchase on this iPhone): asks first.
+/// The link lands while the app is still coming back from the background, and a sheet asked for then is dropped
+/// (iddzz 2026-11-12: two links logged, no sheet), so the sheet waits for the scene to be active.
 struct HandsyKeyOffer: ViewModifier {
     @ObservedObject private var trial = Trial.shared
+    @Environment(\.scenePhase) private var scene
+    @State private var shown: OfferedKey?
 
     func body(content: Content) -> some View {
-        content.sheet(item: $trial.offeredKey) { HandsyKeySheet(offered: $0.key) }
+        content
+            .background { Color.clear.sheet(item: $shown) { HandsyKeySheet(offered: $0.key) } }
+            .onChange(of: trial.offeredKey) { present() }
+            .onChange(of: scene) { present() }
+    }
+
+    private func present() {
+        guard scene == .active, let offer = trial.offeredKey else { return }
+        trial.offeredKey = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))  // let the scene finish coming back
+            shown = offer
+            DebugLog.write("key link: sheet shown for hsk_…\(offer.key.suffix(4))")
+        }
     }
 
     /// True when `url` was a key link (handled, even when its key is not one).
