@@ -14,6 +14,7 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   `lost` in the status, so the app can tell a broken picture from a still screen and ask for mirroring to
   restart at once.
 - Board: `press_for MS`, a held press that comes up by itself (long press, or a press then moves to drag).
+- Board: `flick DX DY SPEED`, press, move and release in one command, so the Home Screen flick never lingers into the app switcher.
 - Board: `result ID` answers the last 8 replies again, for a reply that never arrived.
 - Board: the CLI's `net` goes through while the app drives the board, so the board can always be put back on a
   network.

@@ -32,6 +32,7 @@ New:
 - `unpair` — erase all bonds and restart advertising.
 - `coex [bt|balance|wifi]` — Wi-Fi/BLE radio-share preference (A/B knob, not stored; every boot starts at
   `balance`). Replies `ok <current>`; bare `coex` just reports it.
+- `flick DX DY [SPEED]` (0.2.5) — press, move by DX DY (paced like `move`), release, with no pause between: a fast swipe such as the Home Screen flick from the home bar.
 - `press_for MS` (0.2.5) — hold the left button; it comes up by itself after MS (1–60000), or at `release`,
   `click` or `reset`. Moves in between drag. A lost `release` never leaves the button held.
 - `result ID` (0.2.5) — the reply this side got (or should have got) for request `ID`, as `ok <that reply>`,

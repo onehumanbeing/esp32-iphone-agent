@@ -142,6 +142,14 @@ String run(const String &line) {
     return "ok";
   }
   if (cmd == "release") { mouse.release(MOUSE_LEFT); holdUntil = 0; return "ok"; }
+  if (cmd == "flick") {  // press, move, release with no pause between: a lingering stroke from the home bar
+    // opened the app switcher instead of the Home Screen (iddzz 2026-11-12)
+    mouse.press(MOUSE_LEFT);
+    movePaced(a, b, constrain(c, 1, 40));
+    mouse.release(MOUSE_LEFT);
+    holdUntil = 0;
+    return "ok";
+  }
   if (cmd == "click") { mouse.press(MOUSE_LEFT); delay(60); mouse.release(MOUSE_LEFT); holdUntil = 0; return "ok"; }
   if (cmd == "scroll") { mouse.move(0, 0, a, b); return "ok"; }
   if (cmd == "type") { keyboard.print(arg); return "ok"; }
