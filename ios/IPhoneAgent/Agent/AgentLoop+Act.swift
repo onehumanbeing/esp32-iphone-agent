@@ -3,13 +3,16 @@ import Foundation
 
 /// Carrying out one action, and its effect as the model reads it next round.
 extension AgentLoop {
+    /// The last action sent: not a plan row, not the repeat guard's "blocked" row (that one sent nothing).
+    var lastSent: JObject? { steps.last { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action } }
+
     /// The previous round changed nothing on screen, so a tap may have landed off target.
-    var missed: Bool { steps.last?["changed"] == .bool(false) }
+    var missed: Bool { lastSent?["changed"] == .bool(false) }
 
     /// A tap where the last one went: that one didn't do what was meant even if the screen moved (Duolingo's
     /// animated mascot read three misses just above the "water" tile as changed, 2026-11-06).
     func retaps(_ a: JObject) -> Bool {
-        guard let last = steps.last(where: { $0["action"]?.str != "plan" }), last["action"]?.str == "tap",
+        guard let last = lastSent, last["action"]?.str == "tap",
               let x = last["x"]?.double, let y = last["y"]?.double, let ax = a["x"]?.double, let ay = a["y"]?.double
         else { return false }
         return abs(ax - x) <= 30 && abs(ay - y) <= 30

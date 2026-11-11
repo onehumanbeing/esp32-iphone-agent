@@ -486,7 +486,7 @@ extension Gestures {
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
         var quiet: Task<(rects: [CGRect], s: Double), Never>?  // what moved on its own while the model looked (motion)
         func still() async -> [CGRect] { await quiet?.value.rects ?? [] }  // not a result of these gestures
-        let confirmed = steps.last { $0["action"]?.str != "plan" }?["action"]?.str == "confirmed"  // a risky round
+        let confirmed = lastSent?["action"]?.str == "confirmed"  // a risky round
         defer {
             timing.settleMs = StepWaits.settle * 1000
             timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap

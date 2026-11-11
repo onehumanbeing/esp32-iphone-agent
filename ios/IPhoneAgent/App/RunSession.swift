@@ -232,9 +232,13 @@ extension AppModel {
         if startingAgent && calibrator.busy { calibrator.cancel(releasePointer: false) }
         answerHelp(.stop)
         mockJob?.cancel()
+        let owned = startup != nil || agent.running  // that owner's cleanup returns input
         agent.stop()
         await agent.waitUntilStopped()
         await startup?.value
+        if !owned && board.connected && !MockMode.on {  // nothing owned input (calibration, harness): release here
+            do { try await pointer.reset() } catch { say("release failed: \(error.localizedDescription)") }
+        }
     }
 
     /// Return input to the user while preserving the plan, steps, and notebook for resume.

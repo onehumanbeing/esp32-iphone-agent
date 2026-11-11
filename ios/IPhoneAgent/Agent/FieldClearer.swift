@@ -20,7 +20,9 @@ import Foundation
         }
         for round in 0..<Self.rounds {
             try await deleteBurst()
-            guard let now = await read() else { return nil }
+            guard let now = await read() else {
+                return "deleted \((round + 1) * Self.burst) words, then the screen could not be read; the field may not be empty"
+            }
             if now == before {
                 return round == 0 ? "nothing was deleted: no text field is focused, or it was already empty" : nil
             }

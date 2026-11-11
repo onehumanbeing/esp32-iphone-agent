@@ -74,7 +74,7 @@ extension ScreenSource {
     func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = [],
                  busy: [CGRect] = []) async {
         let started = now(), cap = StepWaits.moving ? StepWaits.movingCap : most
-        let (least, most) = (min(least, cap), min(most, cap))
+        let most = max(min(most, cap), least)  // the cap shortens the wait for quiet, never the minimum look delay
         defer { StepWaits.settle += now() - started }
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
         var still = frame, moved = changed, checked = changed  // moved: the last change that counts
