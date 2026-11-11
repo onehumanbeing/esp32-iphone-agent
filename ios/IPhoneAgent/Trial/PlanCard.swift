@@ -42,8 +42,7 @@ struct PlanCard: View {
         VStack(alignment: .leading, spacing: Space.s) {
             if trial.hasKey {
                 #if HANDSY_STORE
-                Button { managing = true } label: { HandsyStorePlanBanner() }
-                    .buttonStyle(.plain)
+                HandsyStorePlanBanner(manage: { managing = true }, enterKey: { editingKey = true })
                 #else
                 Button { editingKey = true } label: {
                     PlanBanner(title: Text(trial.keyOn ? "Handsy Plan · Active" : "Handsy Plan · Paused"),
@@ -72,7 +71,7 @@ struct PlanCard: View {
 }
 
 /// A short banner: black with a soft sheen (the plan), or a plain card with a hairline (the key row), in the
-/// app's black-and-white look in light and dark. No symbol: the Handsy robot. Also used by the App Store build's
+/// app's black-and-white look in light and dark. No symbol: the Handsy logo. Also used by the App Store build's
 /// plan banner (outside this repository).
 struct PlanBanner: View {
     var symbol: String?
@@ -82,15 +81,13 @@ struct PlanBanner: View {
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Group {
-                if let symbol {
-                    Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
-                } else {
-                    Image("AgentGlyph").renderingMode(.template).resizable().scaledToFit().frame(width: 22, height: 22)
-                }
+            if let symbol {
+                Image(systemName: symbol).font(.title3.weight(.semibold)).symbolRenderingMode(.hierarchical)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(dark ? Color.white.opacity(0.12) : Color.primary.opacity(0.07)))
+            } else {
+                Image("Logo").resizable().scaledToFit().frame(width: 36, height: 40).accessibilityHidden(true)
             }
-            .frame(width: 36, height: 36)
-                .background(Circle().fill(dark ? Color.white.opacity(0.12) : Color.primary.opacity(0.07)))
             VStack(alignment: .leading, spacing: 2) {
                 title.font(.headline).lineLimit(1).minimumScaleFactor(0.8)
                 detail.font(.footnote).opacity(0.7).lineLimit(1)
