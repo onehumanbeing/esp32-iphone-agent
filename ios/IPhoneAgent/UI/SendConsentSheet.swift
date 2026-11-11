@@ -72,7 +72,9 @@ struct SendConsentParts: View {
 
     @ViewBuilder private var modelPart: some View {
         Section {
-            recipient("brain", "Large Language Model", host, mono: true)
+            // The free line names who runs it, not just its address.
+            if freeLine { recipient("brain", "Large Language Model", String(localized: "Handsy Free, operated by Holomix, Inc. (\(host))")) }
+            else { recipient("brain", "Large Language Model", host, mono: true) }
             item("photo", "A screenshot of your mirrored screen at every step of a run, so the AI can see it")
             item("text.bubble", "The task you type and the steps so far")
             if !freeLine { item("key", "Your API key, to sign in to that service") }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// What run data holds, for the consent sheet and Settings › Privacy. Run data is never uploaded (steps sent
-/// to Jev, when it is on, are covered by Jev's own consent).
+/// What run data holds, for the consent sheet and Settings › Privacy. The saved runs are never uploaded; what a
+/// run sends to the model and to Jev is covered by their own consent (SendConsentSheet).
 struct PrivacyLists: View {
     var body: some View {
         Section {
@@ -10,7 +10,7 @@ struct PrivacyLists: View {
         } header: {
             Text("Your data")
         } footer: {
-            Text("Run data is never uploaded, except the steps sent to Jev when you turn it on. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
+            Text("The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out.")
         }
     }
 

@@ -70,7 +70,13 @@ extension AppModel {
     }
 
     private func prepareAgent(_ task: String, resume: Bool, usedInput: inout Bool) async {
-        if MockMode.on { return mockRun(task) }
+        if MockMode.on {
+            // Demo data sends nothing, but a run still asks first when a model is set up: the demo shows the
+            // same consent a real run opens.
+            let pending = settings.pendingConsent
+            if settings.isConfigured, pending.model || pending.jev { aiConsentRun = task; return }
+            return mockRun(task)
+        }
         guard !Task.isCancelled else { return }
         guard settings.isConfigured else {
             Analytics.capture("run_blocked", ["reason": "model_not_set"])

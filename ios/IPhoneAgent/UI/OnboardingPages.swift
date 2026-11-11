@@ -57,6 +57,7 @@ struct ConnectPage: View {
                 }
             }
             if !board.connected { FirmwareLinks() }
+            if !board.connected && !MockMode.on { DemoOffer() }
         }
         .onAppear { board.scan(); autoPair() }
         .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
@@ -112,6 +113,23 @@ struct ConnectPage: View {
 }
 
 /// A board fresh from the shop has no firmware and never shows up: point to the browser installer and the source.
+/// No board at hand: turn on Demo data from the first setup page (the same switch as Settings › Developer).
+/// It is read once at launch (MockMode), so the app says to reopen it.
+struct DemoOffer: View {
+    @AppStorage(MockMode.key) private var demoData = false
+    @State private var told = false
+
+    var body: some View {
+        Button("No board yet? Try the demo") { demoData = true; told = true }
+            .font(.footnote.weight(.semibold))
+            .alert("Demo Data Is On", isPresented: $told) {
+                Button("OK") {}
+            } message: {
+                Text("Quit ESP32 Agent and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer.")
+            }
+    }
+}
+
 struct FirmwareLinks: View {
     static let install = URL(string: "https://handsy.tech/install")!
 
@@ -276,7 +294,14 @@ struct BrainPage: View {
                        title: "Give Me a Brain",
                        message: "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain.")
             if MockMode.on {
-                Panel { Label("Demo data simulates the model.", systemImage: "theatermasks") }
+                Panel {
+                    Label("Demo data simulates the model.", systemImage: "theatermasks")
+                    // The demo still shows what a real run asks before it sends anything.
+                    let pending = settings.pendingConsent
+                    if settings.isConfigured, pending.model || pending.jev {
+                        SendConsentCard(settings: settings, model: pending.model, jev: pending.jev)
+                    }
+                }
             } else {
                 ModelFieldsPanel(settings: settings)
             }

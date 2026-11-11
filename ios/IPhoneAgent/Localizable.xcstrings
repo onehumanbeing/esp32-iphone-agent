@@ -1,6 +1,56 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Demo Data Is On" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演示数据已打开"
+          }
+        }
+      }
+    },
+    "Handsy Free, operated by Holomix, Inc. (%@)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路，由 Holomix, Inc. 运营（%@）"
+          }
+        }
+      }
+    },
+    "No board yet? Try the demo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有板子？试试演示"
+          }
+        }
+      }
+    },
+    "Processed and kept on infrastructure operated by or on behalf of Holomix, Inc." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Holomix, Inc. 自有或委托运营的基础设施上处理和保存"
+          }
+        }
+      }
+    },
+    "Quit ESP32 Agent and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出 ESP32 Agent 再重新打开，就能在没有板子的情况下体验整个 App。演示中不会向任何地方发送内容。可在 设置 › 开发者 中关闭。"
+          }
+        }
+      }
+    },
     "Restore on-screen keyboard after runs" : {
       "localizations" : {
         "zh-Hans" : {
@@ -17,6 +67,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "任务结束时，模型会查看一张截图。如果需要恢复键盘，模型会再查看一张截图确认。"
+          }
+        }
+      }
+    },
+    "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 上的运行记录不会上传。运行过程中发送的内容只会发给你允许的 AI 服务（打开 Jev 时也发给 Jev）；免费线路会自己保存每次运行的记录。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
           }
         }
       }
@@ -437,6 +497,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点击可能点偏，开发板也可能断开。你随时可以在 设置 › 开发板 里更新。"
+          }
+        }
+      }
+    },
+    "To decide simple steps faster, a step's screenshot, your task and the plan may go to TypeSafe, a service provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为了更快决定简单步骤，某一步的截图、你的任务和计划可能会发给服务商 TypeSafe"
           }
         }
       }

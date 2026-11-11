@@ -4,6 +4,11 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App: what is sent and to whom reads the same everywhere. The send sheet names who runs Handsy Free (Holomix, Inc.)
+  next to its address and says that simple steps may go to its provider TypeSafe; Your Data no longer says run data
+  is never uploaded without saying what a run sends. Demo data asks for the same consent before its first run when
+  a model is set up, and the first setup page offers the demo to try the app without a board (No board yet? Try the
+  demo). The privacy manifest lists the installation ID and run content of Handsy Free.
 - App: Pause finishes the gesture already in flight, then does not send one the model had chosen. The next
   look decides from the screen in front. Frames from while the run is paused are left out of its video.
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a

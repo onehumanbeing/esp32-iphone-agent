@@ -68,7 +68,8 @@ struct TrialConsentSections: View {
     var body: some View {
         Section("Recorded") {
             Label("Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
-            Label("Requests pass through Cloudflare and Hong Kong; the model and the records are on the developer's own servers in mainland China", systemImage: "globe.asia.australia")
+            Label("Processed and kept on infrastructure operated by or on behalf of Holomix, Inc.", systemImage: "globe.asia.australia")
+            Label("To decide simple steps faster, a step's screenshot, your task and the plan may go to TypeSafe, a service provider", systemImage: "bolt")
         }
         Section {
             Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
