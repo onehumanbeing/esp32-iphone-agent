@@ -14,6 +14,17 @@ enum IntentLearner {
     /// Runs the user called wrong from the island (✗): never learned from.
     @MainActor static var rejected: Set<String> = []
 
+    /// A checklist never grows past this by itself (what the user wrote is never dropped).
+    static let checklistLimit = 8
+
+    /// The lessons the actor offered on a run (`learn`, "App: point"), kept on the intent's checklist when the run
+    /// ends done, so its next run starts with them (Henry 2026-11-12: an intent gets smarter by itself).
+    static func lessons(_ steps: [JObject]) -> [String] {
+        steps.filter { $0["action"]?.str == "learn" }
+            .compactMap { $0["text"]?.str?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     /// True when the run is worth learning from: it ended done and the model, not the replay, did a move.
     static func shouldLearn(_ steps: [JObject], done: Bool) -> Bool {
         done && steps.contains { kept.contains($0["action"]?.str ?? "") && $0["replay"] != .bool(true) }
@@ -70,6 +81,9 @@ extension AppModel {
         IntentLearner.rejected.insert(run)
         for item in intents.items where item.runs.last?.run == run {
             intents.markLastRun(item.id, ok: false)
+            if let steps = runs.run(run)?.steps.map(\.action) {
+                intents.removeLessons(item.id, IntentLearner.lessons(steps))
+            }
             if item.learnedFrom == run {
                 intents.undoLearned(item.id)
                 if intents.item(item.id)?.refRun == run { intents.clearReference(item.id) }
@@ -79,6 +93,25 @@ extension AppModel {
 }
 
 extension IntentStore {
+    /// New lessons onto the checklist, up to IntentLearner.checklistLimit, none twice.
+    func addLessons(_ id: UUID, _ lessons: [String]) {
+        guard var item = item(id), !lessons.isEmpty else { return }
+        var list = item.hints ?? []
+        for lesson in lessons where !list.contains(lesson) && list.count < IntentLearner.checklistLimit {
+            list.append(lesson)
+        }
+        guard list != (item.hints ?? []) else { return }
+        item.hints = list
+        upsert(item)
+    }
+
+    /// A run called wrong: the lessons it brought go again.
+    func removeLessons(_ id: UUID, _ lessons: [String]) {
+        guard var item = item(id), !lessons.isEmpty, let list = item.hints else { return }
+        item.hints = list.filter { !lessons.contains($0) }
+        if item.hints != list { upsert(item) }
+    }
+
     /// A run called wrong is no intent's reference.
     func clearReference(_ id: UUID) {
         guard var item = item(id) else { return }
@@ -121,7 +154,13 @@ extension AppModel {
     /// Henry 2026-11-12: any intent, when Settings › Intents learn from runs is on. An intent typed in (no reference
     /// run yet) gets its first run that worked as its reference run, and its steps.
     func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool) {
-        guard settings.learnFromRuns, IntentLearner.shouldLearn(steps, done: done) else { return }
+        guard settings.learnFromRuns else { return }
+        if done, !IntentLearner.rejected.contains(runID) {
+            let lessons = IntentLearner.lessons(steps)
+            intents.addLessons(intent.id, lessons)
+            if !lessons.isEmpty { DebugLog.write("intent \"\(intent.name)\": checklist +\(lessons.count) lesson(s) from run \(runID)") }
+        }
+        guard IntentLearner.shouldLearn(steps, done: done) else { return }
         Task {
             guard !IntentLearner.rejected.contains(runID),  // ✗ came first
                   let run = runs.run(runID), var item = intents.item(intent.id) else { return }

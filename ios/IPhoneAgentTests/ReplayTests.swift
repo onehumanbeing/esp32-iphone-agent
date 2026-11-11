@@ -116,6 +116,25 @@ import UIKit
         XCTAssertNil(store.item(item.id)?.learnedFrom)
     }
 
+    func testADoneRunsLessonsJoinTheChecklistAndLeaveOnAWrong() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "n", prompt: "p")
+        item.hints = ["mine"]
+        store.upsert(item)
+        let run: [JObject] = [["action": .str("tap")], ["action": .str("learn"), "text": .str("WeChat: in the Photo & Video folder")],
+                              ["action": .str("learn"), "text": .str(" ")], ["action": .str("done")]]
+        let lessons = IntentLearner.lessons(run)
+        XCTAssertEqual(lessons, ["WeChat: in the Photo & Video folder"])
+        store.addLessons(item.id, lessons)
+        store.addLessons(item.id, lessons)
+        XCTAssertEqual(store.item(item.id)?.checklist, ["mine", "WeChat: in the Photo & Video folder"], "once, after what the user wrote")
+        store.addLessons(item.id, (1...20).map { "lesson \($0)" })
+        XCTAssertEqual(store.item(item.id)?.checklist.count, IntentLearner.checklistLimit)
+        store.removeLessons(item.id, lessons)
+        XCTAssertEqual(store.item(item.id)?.checklist.first, "mine")
+        XCTAssertFalse(store.item(item.id)?.checklist.contains(lessons[0]) ?? true)
+    }
+
     private func steps(_ frames: [Data?]) -> Replay {
         Replay(steps: frames.enumerated().map { i, f in
             .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)
