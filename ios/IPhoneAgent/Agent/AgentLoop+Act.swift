@@ -77,6 +77,10 @@ extension AgentLoop {
             let text = a["text"]?.str ?? ""
             if Scripts.needsPaste(text) { return ("typed", try await pasteInstead(text)) }  // the board can't type it
             return try await phone.type(text).map { ("typed", $0) }
+        case "say":  // the Live Speech field: typed, then return speaks it (never the clipboard: it asks first)
+            let missed = try await phone.type(a["text"]?.str ?? "")
+            try await phone.key("enter")
+            return missed.map { ("typed", $0) }
         case "clear": return try await phone.clearField().map { ("cleared", $0) }
         case "key": try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome(again: homeAgain)

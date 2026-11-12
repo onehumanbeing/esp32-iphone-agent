@@ -14,6 +14,10 @@ extension AppModel {
     func run(_ task: String, intent: SavedTask? = nil) async {
         guard !startingAgent, !agent.running, !recorder.busy else { return }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
+        if IntentStore.unfilled(task) {  // a template: who and what are the user's to fill in first
+            notice = String(localized: "Edit the parts in [brackets] first, such as who to text or call.")
+            return
+        }
         currentIntent = intent
         var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped

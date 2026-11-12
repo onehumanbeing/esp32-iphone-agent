@@ -142,9 +142,14 @@ extension ToolSpec {
     static func prompt(_ tools: [ToolSpec]) -> String {
         guard !tools.isEmpty else { return "" }
         return "\n\nTools: `tool <name> \"query\"` looks something up off the screen; the answer is under \"Looked up\" "
-            + "next round. Most tasks need none: use one only when you cannot go on well without it, such as a product, "
-            + "brand or place in the goal you do not recognise or that may be misspelt, or something the goal asks for "
-            + "that is still not on screen after a few tries. Never to check what the screen already shows. At most "
+            + "next round. Most tasks need none. Use one (1) in the first round, before opening anything, when the goal "
+            + "names something you cannot place: a product, brand, model, place, show, song, word or service (never a "
+            + "contact to text or call) you do not recognise or that may be misspelt; learn what it really is, or that it "
+            + "does not exist. (2) "
+            + "When an app's search shows no match, only loose suggestions (\"no results\", \"did you mean\", \"few "
+            + "related\", \"recommended for you\") or nothing like what the goal names: look it up before picking "
+            + "anything. If it does not exist, `fail` and say so; never take a near match as what was asked for. Never "
+            + "to check what the screen already shows. At most "
             + "\(perRun) per task.\n" + tools.map { "- \($0.id): \($0.about)" }.joined(separator: "\n")
     }
 }

@@ -18,10 +18,11 @@ enum Actions {
         "home": [], "back": [], "wait": [], "open": ["app"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
         "tool": ["text"],  // tool <name> "query" (Tools.swift)
+        "say": ["text"],  // say "TEXT": Live Speech says it into a call (Calls.swift)
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the screen.
-    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open"]
+    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open", "say"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool"]
 
@@ -70,7 +71,7 @@ enum Actions {
     /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
     /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
-        let ending: Set<String?> = ["done", "fail", "confirm", "write"]
+        let ending: Set<String?> = ["done", "fail", "confirm", "write", "say"]  // after say: listen
         var out: [JObject] = []
         var typed = false
         for a in acts {

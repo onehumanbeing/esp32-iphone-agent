@@ -12,6 +12,7 @@
 		3AB0EE8723788CD2A314DEC9 /* ToolsFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 383D5864324AF3AAAF904AA6 /* ToolsFile.swift */; };
 		86F9B4D5D32366CCE863DCE8 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19C12ADC79498FBF935F26C /* ToolsView.swift */; };
 		E0F8627F6603827581D839B8 /* Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491480ED5912E9D2A1E11B50 /* Tools.swift */; };
+		C4A11CA115E5A7D3B2C1F001 /* Calls.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A11CA115E5A7D3B2C1F002 /* Calls.swift */; };
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
 		00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */; };
 		01BAE28C7BD64CE7AE0D2303 /* ProviderSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7439B820D6DA2D4C35103F /* ProviderSelectionView.swift */; };
@@ -287,6 +288,7 @@
 		383D5864324AF3AAAF904AA6 /* ToolsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsFile.swift; sourceTree = "<group>"; };
 		D19C12ADC79498FBF935F26C /* ToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsView.swift; sourceTree = "<group>"; };
 		491480ED5912E9D2A1E11B50 /* Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tools.swift; sourceTree = "<group>"; };
+		C4A11CA115E5A7D3B2C1F002 /* Calls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calls.swift; sourceTree = "<group>"; };
 		01F6840C8EDD48E656084FEA /* AudioFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFeed.swift; sourceTree = "<group>"; };
 		0278B11885CA8C4A96C96531 /* AgentIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntents.swift; sourceTree = "<group>"; };
 		02C2C2C9EBE006E896050646 /* BoardCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCommands.swift; sourceTree = "<group>"; };
@@ -528,6 +530,7 @@
 				6E1F880227863F1205405FB9 /* Accents.swift */,
 				458E8069AA8BE0B721C9AD7A /* Actions.swift */,
 				491480ED5912E9D2A1E11B50 /* Tools.swift */,
+				C4A11CA115E5A7D3B2C1F002 /* Calls.swift */,
 				17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */,
 				F3C06DB2D9B93FDD668695A0 /* AgentLoop+Act.swift */,
 				980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */,
@@ -1157,6 +1160,7 @@
 				64A3E7309AB54D9DD782859A /* Accents.swift in Sources */,
 				2671E23FE56D69B0CEAB4EF6 /* Actions.swift in Sources */,
 				E0F8627F6603827581D839B8 /* Tools.swift in Sources */,
+				C4A11CA115E5A7D3B2C1F001 /* Calls.swift in Sources */,
 				E8FA336F818FBAB651C32BEE /* AgentActivity.swift in Sources */,
 				ABEF22E60573E04FACD0E4A9 /* AgentFace.swift in Sources */,
 				74222DFADC00836F21E19FEA /* AgentIntents.swift in Sources */,

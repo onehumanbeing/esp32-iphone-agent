@@ -43,7 +43,34 @@ import XCTest
         XCTAssertEqual(store.items.first?.name, "Open Notes and write hello")
         XCTAssertEqual(IntentStore(defaults: defaults).items.count, store.items.count)
         store.delete(at: IndexSet(integer: 0))
-        XCTAssertEqual(IntentStore(defaults: defaults).items.first?.name, IntentStore.examples[0].name)
+        XCTAssertEqual(IntentStore(defaults: defaults).items.first?.name, IntentStore.text.name)  // the templates lead
+    }
+
+    /// Text and call come first, as templates that do not run until their blanks are filled in; an install that
+    /// already has intents gets them once at the top, and deleting them sticks.
+    func testTextAndCallTemplatesLeadAndNeedEditing() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let fresh = IntentStore(defaults: defaults)
+        XCTAssertEqual(fresh.items.prefix(2).map(\.name), [IntentStore.text.name, IntentStore.call.name])
+        XCTAssertTrue(fresh.items[0].unfilled && fresh.items[1].unfilled)
+        XCTAssertFalse(IntentStore.note.unfilled)
+        XCTAssertFalse(IntentStore.unfilled("Call Mom and talk about dinner"))
+
+        let old = UserDefaults(suiteName: UUID().uuidString)!
+        old.set(try? JSONEncoder().encode([IntentStore.note]), forKey: "savedTasks")
+        old.set(true, forKey: "seededDiagnosticsIntent")
+        let store = IntentStore(defaults: old)
+        XCTAssertEqual(store.items.map(\.name), [IntentStore.text.name, IntentStore.call.name, IntentStore.note.name])
+        store.delete(at: IndexSet(integer: 0))
+        XCTAssertEqual(IntentStore(defaults: old).items.count, 2)
+    }
+
+    func testCallGuideOnlyForCallTasks() {
+        XCTAssertTrue(Calls.isCall("Call Mom and talk about dinner"))
+        XCTAssertTrue(Calls.isCall("打电话给妈妈，聊晚饭"))
+        XCTAssertFalse(Calls.isCall("在淘宝把耳机加到购物车"))
+        XCTAssertEqual(Calls.prompt("Open Notes"), "")
+        XCTAssertEqual(try Actions.parseCommand("say \"你好，我是助手\""), ["action": .str("say"), "text": .str("你好，我是助手")])
     }
 
     func testDeletingRunRemovesRecordingAndPersistsAfterReload() throws {

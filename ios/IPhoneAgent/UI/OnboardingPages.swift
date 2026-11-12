@@ -316,7 +316,7 @@ struct BrainPage: View {
     /// The connection result lives in the header (and as a mark on the model row), not in a card of its own.
     private var message: LocalizedStringKey {
         switch app.modelOK {
-        case true?: return "Connected. Try this first: \(IntentStore.examples[0].prompt)"
+        case true?: return "Connected. Try this first: \(IntentStore.note.prompt)"
         case false?: return "\(app.modelError ?? String(localized: "Could not reach the model. Check the URL and key."))"
         case nil: return "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain."
         }

@@ -19,6 +19,8 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
 
     var symbol: String { icon ?? "bolt.fill" }
+    /// A template's blanks ("[who]") are still in it: edit them before it can run.
+    var unfilled: Bool { IntentStore.unfilled(prompt) }
     var checklist: [String] { hints ?? [] }
     var runs: [RunStat] { history ?? [] }
     var successRate: Double? { runs.isEmpty ? nil : Double(runs.filter(\.ok).count) / Double(runs.count) }
@@ -38,6 +40,7 @@ struct RunStat: Codable, Equatable, Hashable {
     private let defaults: UserDefaults
     private static let key = "savedTasks"
     private static let diagnosticsKey = "seededDiagnosticsIntent"
+    private static let callsKey = "seededTextAndCallIntents"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -47,15 +50,34 @@ struct RunStat: Codable, Equatable, Hashable {
                 defaults.set(true, forKey: Self.diagnosticsKey)
                 if !items.contains(where: { $0.builtin == Self.diagnostics.builtin }) { items.append(Self.diagnostics); save() }
             }
+            if !defaults.bool(forKey: Self.callsKey) {  // Henry 2026-11-12: text and call at the top, once
+                defaults.set(true, forKey: Self.callsKey)
+                items.insert(contentsOf: [Self.text, Self.call], at: 0)
+                save()
+            }
         } else {
             defaults.set(true, forKey: Self.diagnosticsKey)
-            items = Self.examples
+            defaults.set(true, forKey: Self.callsKey)
+            items = [Self.text, Self.call] + Self.examples
             save()
         }
     }
 
     /// First launch: one intent for Notes and one for Clock (the demo run is the alarm).
     static var examples: [SavedTask] { [note, alarm, diagnostics] }
+    /// Templates (Henry 2026-11-12): who, and what to say or talk about, are the user's to fill in; until the
+    /// "[…]" blanks are edited the intent does not run.
+    static var text: SavedTask {
+        SavedTask(name: String(localized: "Text someone"),
+                  prompt: String(localized: "Send a text message to [who]: [message]"), icon: "message.fill", color: "green")
+    }
+    static var call: SavedTask {
+        SavedTask(name: String(localized: "Call someone"),
+                  prompt: String(localized: "Call [who] and talk about [topic]"), icon: "phone.fill", color: "blue")
+    }
+    nonisolated static let blanks = ["[who]", "[message]", "[topic]", "[联系人]", "[内容]", "[话题]"]
+    nonisolated static func unfilled(_ prompt: String) -> Bool { blanks.contains { prompt.contains($0) } }
+
     static var note: SavedTask {
         SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))
     }

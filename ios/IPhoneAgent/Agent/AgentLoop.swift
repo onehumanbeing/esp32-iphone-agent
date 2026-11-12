@@ -469,7 +469,7 @@ extension Gestures {
 
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
-        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background + ToolStore.prompt(tools)
+        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background + ToolStore.prompt(tools) + Calls.prompt(task)
         let all = hints + replay.hints
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
     }

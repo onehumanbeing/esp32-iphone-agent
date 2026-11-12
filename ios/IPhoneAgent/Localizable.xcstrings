@@ -141,6 +141,26 @@
         }
       }
     },
+    "Call [who] and talk about [topic]" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话给[联系人]，聊[话题]"
+          }
+        }
+      }
+    },
+    "Call someone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话给…"
+          }
+        }
+      }
+    },
     "Connected. Try this first: %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -167,6 +187,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "演示数据已打开"
+          }
+        }
+      }
+    },
+    "Edit the parts in [brackets] first, such as who to text or call." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先改好方括号 [ ] 里的内容，比如发给谁、打给谁。"
           }
         }
       }
@@ -541,6 +571,16 @@
         }
       }
     },
+    "Say “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说“%@”"
+          }
+        }
+      }
+    },
     "Search" : {
       "localizations" : {
         "zh-Hans" : {
@@ -567,6 +607,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜一下…"
+          }
+        }
+      }
+    },
+    "Send a text message to [who]: [message]" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "给[联系人]发短信：[内容]"
           }
         }
       }
@@ -617,6 +667,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "步骤已从运行 %@ 中学到"
+          }
+        }
+      }
+    },
+    "Tap Edit and fill in the parts in [brackets], such as who to text or call, before running it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点「编辑」填好方括号 [ ] 里的内容（比如发给谁、打给谁），才能运行。"
+          }
+        }
+      }
+    },
+    "Text someone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发短信给…"
           }
         }
       }

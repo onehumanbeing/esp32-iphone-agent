@@ -33,7 +33,11 @@ struct IntentDetailView: View {
                         stat("Recorded steps", "\(steps.count)")
                     }
                 }
-                Section("Instruction") { Text(verbatim: item.prompt) }
+                Section {
+                    Text(verbatim: item.prompt)
+                } header: { Text("Instruction") } footer: {
+                    if item.unfilled { Text("Tap Edit and fill in the parts in [brackets], such as who to text or call, before running it.") }
+                }
                 ScriptSection(intents: intents, item: item)
                 if !item.checklist.isEmpty {
                     Section("Checklist") {
@@ -86,7 +90,7 @@ struct IntentDetailView: View {
                         Task { await app.run(item.prompt, intent: item) }
                     } label: { Label("Run", systemImage: "play.fill") }
                     .buttonStyle(BigButton())
-                    .disabled(app.agent.running || app.startingAgent || app.recorder.busy)
+                    .disabled(app.agent.running || app.startingAgent || app.recorder.busy || item.unfilled)
                 }
             }
             .confirmationDialog("Delete this intent?", isPresented: $confirmDelete, titleVisibility: .visible) {
