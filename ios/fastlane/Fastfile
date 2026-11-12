@@ -1,7 +1,7 @@
 # Store builds: `fastlane beta` (from ios/) archives a Release and uploads it to TestFlight;
 # `fastlane package` makes the same build in build/store without uploading.
 # Auth is an App Store Connect API key described in ~/.appstoreconnect/config.env
-# (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH); signing uses Xcode's Apple ID and the team in Config/Local.xcconfig.
+# (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH); signing is cloud signing with that key and the team in Config/Local.xcconfig.
 # The LLM preset from Local.xcconfig is cleared and the built app is checked for it. The official PostHog key
 # (IA_POSTHOG_KEY in config.env) is set only here, so local builds never report usage stats.
 
@@ -48,7 +48,12 @@ platform :ios do
     build = (options[:build] || latest + 1).to_i
     UI.user_error!("Build #{build} is not above the latest TestFlight build #{latest}") unless build > latest
     # Signing uses the Apple ID signed in to Xcode: only it can register the App Group (the API key can't).
+    # Export uses cloud signing with the App Store Connect API key (only there: with it in
+    # xcargs too, xcodebuild stopped on a second -authenticationKeyPath), so an Xcode Apple ID sign-out does not stop a release
+    # (2026-11-13: export failed with "No Accounts").
     auth = "-allowProvisioningUpdates"
+    export_auth = "#{auth} -authenticationKeyPath '#{key_path}' " \
+                  "-authenticationKeyID #{ENV['ASC_KEY_ID']} -authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}"
     settings = {
       IA_BUNDLE_ID: bundle_id,
       IA_ENTITLEMENTS: "IPhoneAgent/IPhoneAgent.entitlements",
@@ -70,7 +75,7 @@ platform :ios do
       xcargs = settings.map { |k, v| "#{k}='#{v}'" }.join(" ")
       build_app(project: "IPhoneAgent.xcodeproj", scheme: "IPhoneAgent", configuration: "Release",
                 export_method: "app-store", output_directory: "build/store", clean: true,
-                xcargs: "#{xcargs} #{auth}", export_xcargs: auth)
+                xcargs: "#{xcargs} #{auth}", export_xcargs: export_auth)
     end
     check_no_preset(ipa: ipa)
     # Keep each build's symbols: crash_report events carry raw addresses, symbolicated with these.
