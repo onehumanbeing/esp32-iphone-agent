@@ -24,3 +24,24 @@ enum Calls {
             + "side ends; `done` then sums up what was said."
     }
 }
+
+#if DEBUG
+/// Settings › Developer › Call test (Debug builds only, never TestFlight or the App Store): the call flow as a
+/// script, one step at a time, with the person on the other phone in the loop (`manual` waits for them).
+extension Calls {
+    static func test(number: String, line: String) -> SavedTask {
+        func ai(_ goal: String) -> RecordedStep { RecordedStep(action: ["action": .str("ai"), "goal": .str(goal)], sure: true, frame: nil) }
+        func manual(_ reason: String) -> RecordedStep { RecordedStep(action: ["action": .str("manual"), "reason": .str(reason)], sure: true, frame: nil) }
+        return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
+                         steps: [
+                            ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
+                            manual("Answer the call on the other phone, then resume."),
+                            ai("Open Live Speech and stop when its text field shows."),
+                            ai("Give `say \"\(line)\"` once, then done."),
+                            manual("Did the other phone hear it? Say one short sentence back, then resume."),
+                            ai("Read what the other side just said from Live Captions or the Phone audio line; done with it as the answer."),
+                            ai("Hang up the call."),
+                         ])
+    }
+}
+#endif

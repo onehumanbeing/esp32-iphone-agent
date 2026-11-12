@@ -110,6 +110,8 @@ struct DeveloperView: View {
     @AppStorage(TreeSource.key) private var treeSource = TreeSource.fallback.rawValue
     @State private var language = "ja-JP"
     @State private var testing = false
+    @State private var callNumber = ""
+    @State private var callLine = "Hello, this is a call test. Can you hear me?"
 
     var body: some View {
         List {
@@ -126,6 +128,19 @@ struct DeveloperView: View {
                 } label: { Text(verbatim: "Tree source") }
             } footer: {
                 Text(verbatim: "Free line: where the screen tree for the actor is built. Takes effect on the next run.")
+            }
+            Section {
+                TextField(text: $callNumber) { Text(verbatim: "Number to call") }.keyboardType(.phonePad)
+                TextField(text: $callLine) { Text(verbatim: "Line to say") }
+                Button { Task { await app.run(Calls.test(number: callNumber, line: callLine).prompt,
+                                              intent: Calls.test(number: callNumber, line: callLine)) } } label: {
+                    Text(verbatim: "Run call test")
+                }
+                .disabled(callNumber.filter(\.isNumber).count < 3 || callLine.isEmpty)
+            } header: {
+                Text(verbatim: "Call test")
+            } footer: {
+                Text(verbatim: "Debug builds only. Before: Live Speech and Live Captions on (Settings › Accessibility), Live Speech in Control Center, Listen to phone audio on. Steps: dial, you answer on the other phone, open Live Speech, say the line, you reply, read the reply, hang up. Each step is in the run's trace.")
             }
             #endif
             RemoteLogSection()

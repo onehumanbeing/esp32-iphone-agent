@@ -94,6 +94,8 @@ extension Gestures {
     private(set) var recalled: [MemoryEntry] = []
     /// Earlier turns of the chat this run belongs to (ChatContext), for planner and actor.
     var chatContext = ""
+    /// The run starts on the Home Screen (RunSession left for it): `open` the app a task names, hold Home swipes.
+    var startsOnHome = false
     /// Lessons the actor offered (learn); kept only when the run ends with done.
     var learned: [String] = []
     /// Tool answers this run ("Looked up", newest last) and the tools it may call (fixed at the start: same prompt).
@@ -366,6 +368,12 @@ extension Gestures {
         var failures = 0, stalls = 0, rounds = 0
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         do {
+            if startsOnHome, !scripting, !steps.contains(where: { Actions.gestures.contains($0["action"]?.str ?? "") || $0["action"]?.str == "resumed" }),
+               let app = AppNames.only(in: task) {
+                do { try await autoOpen(app) } catch let e where !(e is CancellationError) && !Task.isCancelled && !(e is BlindError) {
+                    DebugLog.write("auto open: \(e.localizedDescription); the model goes on")
+                }
+            }
             while true {
                 rounds += 1
                 if rounds > maxSteps || stalls >= maxStalls {
@@ -548,6 +556,7 @@ extension Gestures {
                         return false
                     }
                 }
+                if name == "swipe" { SwipeClamp.apply(&act) }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started

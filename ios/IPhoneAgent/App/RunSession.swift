@@ -201,6 +201,7 @@ extension AppModel {
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
+            agent.startsOnHome = !resume  // leaveForRun went to the Home Screen
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.

@@ -102,6 +102,28 @@ enum AppNames {
         "Mercari": ["ja": "メルカリ"],
     ]
 
+    /// Words that name an app but mostly mean something else in a task ("on my phone", "a photo of", "设置一个").
+    static let loose: Set<String> = ["Phone", "Photo", "Note", "Texts", "Browser", "Email", "Timer", "Alarm", "Reminder",
+                                     "设置", "设定", "提醒", "录音", "拍照", "日程", "待办", "浏览器", "邮箱", "笔记"]
+
+    /// The one app the task names, as the task writes it, so a run can open it before the first look rather
+    /// than page the Home Screen for it. nil when it names none, or more than one app.
+    static func only(in task: String) -> String? {
+        var found: [(row: Int, name: String)] = []
+        for (i, row) in table.enumerated() {
+            let hit = row.first { name in
+                guard name.count >= 2, !loose.contains(name) else { return false }
+                if name.allSatisfy(\.isASCII) {
+                    let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: name) + "(?![A-Za-z])"
+                    return task.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+                }
+                return task.contains(name)
+            }
+            if let hit, !found.contains(where: { $0.row == i }) { found.append((i, hit)) }
+        }
+        return found.count == 1 ? found[0].name : nil
+    }
+
     /// The table's row for `name` (any of its names, localized ones included).
     private static func row(_ name: String) -> [String]? {
         let want = norm(name)

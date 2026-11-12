@@ -117,3 +117,82 @@ import XCTest
         XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: asked), "its second answer stands")
     }
 }
+
+/// The run guards: back and forth, swipes on the Home Screen, an early done, a send after a typing
+/// stop, too many holds, long swipes, and the one app a task names.
+final class DefectGuardTests: XCTestCase {
+    private func g(_ name: String, _ x: Double = 0, _ y: Double = 0, changed: Bool? = nil) -> JObject {
+        var s: JObject = ["action": .str(name), "x": .num(x), "y": .num(y)]
+        if let changed { s["changed"] = .bool(changed) }
+        return s
+    }
+    private func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> JObject {
+        ["action": .str("swipe"), "x1": .num(x1), "y1": .num(y1), "x2": .num(x2), "y2": .num(y2)]
+    }
+
+    func testBackAndForthIsHeldButNotThreeDifferentMoves() {
+        let a = g("tap", 100, 900, changed: true), b = g("tap", 900, 900, changed: true)
+        XCTAssertNotNil(LoopGuard.repeated([g("tap", 900, 900)], after: [a, b, a]))
+        XCTAssertNil(LoopGuard.repeated([g("tap", 500, 500)], after: [a, b, a]))
+        XCTAssertNil(LoopGuard.repeated([g("tap", 900, 900)], after: [b, a]), "needs three before it")
+    }
+
+    func testASwipeOnTheHomeScreenIsHeldButNotFromAnEdgeOrInAnApp() {
+        XCTAssertNotNil(HomeSwipeGuard.repeated([swipe(800, 500, 200, 500)], after: [], startsOnHome: true))
+        XCTAssertNil(HomeSwipeGuard.repeated([swipe(800, 500, 200, 500)], after: []), "a run not started from Home")
+        XCTAssertNotNil(HomeSwipeGuard.repeated([swipe(800, 500, 200, 500)], after: [g("tap", 1, 1), g("home"), swipe(800, 500, 200, 500)]))
+        XCTAssertNil(HomeSwipeGuard.repeated([swipe(950, 10, 950, 300)], after: [], startsOnHome: true), "Control Center")
+        XCTAssertNil(HomeSwipeGuard.repeated([swipe(500, 700, 500, 400)], after: [g("open")]))
+        XCTAssertNil(HomeSwipeGuard.repeated([swipe(500, 700, 500, 400)], after: [["action": .str("resumed")]]))
+    }
+
+    func testDoneBeforeAnyChangeIsHeldOnce() {
+        let done: [JObject] = [["action": .str("done"), "answer": .str("ok")]]
+        XCTAssertTrue(DoneGuard.premature(done, after: [], earlierRuns: true))
+        XCTAssertFalse(DoneGuard.premature(done, after: [], earlierRuns: false), "no earlier run to mistake for this one")
+        XCTAssertTrue(DoneGuard.premature(done, after: [g("tap", 5, 5, changed: false)], earlierRuns: true))
+        XCTAssertFalse(DoneGuard.premature(done, after: [g("tap", 5, 5, changed: true)], earlierRuns: true))
+        XCTAssertFalse(DoneGuard.premature(done, after: [["action": .str("resumed")]], earlierRuns: true))
+        let asked: JObject = ["action": .str(RepeatGuard.action), "reason": .str(DoneGuard.reason)]
+        XCTAssertFalse(DoneGuard.premature(done, after: [asked], earlierRuns: true), "the second done stands")
+    }
+
+    func testASendAfterAChineseTypeThatStoppedIsHeld() {
+        var typed: JObject = ["action": .str("type"), "text": .str("你好"), "typed": .str("left: hao")]
+        XCTAssertNotNil(TypedGuard.repeated([["action": .str("key"), "combo": .str("enter")]], after: [typed]))
+        XCTAssertNotNil(TypedGuard.repeated([g("tap", 900, 500)], after: [typed]))
+        typed["text"] = .str("hello")
+        XCTAssertNil(TypedGuard.repeated([g("tap", 900, 500)], after: [typed]), "English stops are not pinyin")
+        XCTAssertNil(TypedGuard.repeated([g("tap", 900, 500)], after: [["action": .str("type"), "text": .str("你好")]]))
+    }
+
+    func testTheThirdHoldInAShortWhileIsStuck() {
+        let hold: JObject = ["action": .str(RepeatGuard.action)]
+        XCTAssertFalse(StuckGuard.stuck([hold]))
+        XCTAssertTrue(StuckGuard.stuck([hold, g("tap"), hold]))
+        XCTAssertFalse(StuckGuard.stuck([hold, hold] + Array(repeating: g("tap"), count: 12)))
+        let repeatHold: JObject = ["action": .str(RepeatGuard.action), "reason": .str(RepeatGuard.reason("tap"))]
+        XCTAssertFalse(StuckGuard.stuck([repeatHold, repeatHold, repeatHold]), "the repeat guard's own holds stall as before")
+    }
+
+    func testLongSwipesAreCutButEdgeSwipesAreNot() {
+        var a = swipe(500, 800, 500, 100)
+        SwipeClamp.apply(&a)
+        XCTAssertEqual(a["y2"]?.double, 500)
+        XCTAssertNotNil(a["result"])
+        var edge = swipe(500, 990, 500, 100)
+        SwipeClamp.apply(&edge)
+        XCTAssertEqual(edge["y2"]?.double, 100)
+        var short = swipe(500, 600, 500, 400)
+        SwipeClamp.apply(&short)
+        XCTAssertNil(short["result"])
+    }
+
+    func testTheOneAppATaskNames() {
+        XCTAssertEqual(AppNames.only(in: "给妈妈发短信说晚点回家"), "短信")
+        XCTAssertEqual(AppNames.only(in: "Open WeChat and send hi to File Transfer"), "WeChat")
+        XCTAssertNil(AppNames.only(in: "Turn on dark mode on my iPhone"), "iPhone is not Phone")
+        XCTAssertNil(AppNames.only(in: "把淘宝的链接发到微信"), "two apps")
+        XCTAssertNil(AppNames.only(in: "设置一个明天早上的提醒"), "loose words only")
+    }
+}

@@ -56,6 +56,22 @@ extension AgentLoop {
         return .next
     }
 
+    /// The run's start, for a task that names one app (AppNames.only): `open` it before the first look, done by
+    /// the code. Its result is in the history like the model's own open ("auto").
+    func autoOpen(_ app: String) async throws {
+        let seen = screen?.frame
+        var act: JObject = ["action": .str("open"), "app": .str(app), "auto": .bool(true)]
+        DebugLog.write("auto open: the task names \(app)")
+        onDoing?(.acting(act))
+        let started = now()
+        if let note = try await perform(act) { act[note.field] = .str(note.value) }
+        lastActed = now()
+        act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
+        _ = await settle()
+        act["changed"] = .bool(Vision.changed(seen, screen?.frame))
+        record(seen, act)
+    }
+
     /// Where a demonstrated tap's label reads on this screen (OCR), nearest to the recorded spot.
     private func labelled(_ step: Replay.Step) async -> (x: Int, y: Int)? {
         guard let label = step.action["label"]?.str, let frame = screen?.frame else { return nil }

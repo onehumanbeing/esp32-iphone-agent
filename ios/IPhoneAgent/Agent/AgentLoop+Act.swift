@@ -97,3 +97,28 @@ extension AgentLoop {
         return nil
     }
 }
+
+/// Swipes have no momentum, and a long one skips what was between (scrolled past unseen); the prompt asks for
+/// 100-250, the code holds it to that. A swipe from a screen edge (Control Center, Notification Center, Back)
+/// keeps its length.
+enum SwipeClamp {
+    static let limit = 300.0, edge = 40.0
+
+    /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
+    static func apply(_ a: inout JObject) {
+        let (x, y, cut) = end(a)
+        guard cut else { return }
+        (a["x2"], a["y2"]) = (.int(Int(x.rounded())), .int(Int(y.rounded())))
+        a["result"] = .str("swipe shortened to \(Int(limit)) units; swipe again to go further")
+    }
+
+    /// The swipe's end in 0-1000 units, and whether it was cut short.
+    static func end(_ a: JObject) -> (x: Double, y: Double, cut: Bool) {
+        let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
+        let length = hypot(x2 - x1, y2 - y1)
+        let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
+        guard length > limit, !fromEdge else { return (x2, y2, false) }
+        let k = limit / length
+        return (x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, true)
+    }
+}

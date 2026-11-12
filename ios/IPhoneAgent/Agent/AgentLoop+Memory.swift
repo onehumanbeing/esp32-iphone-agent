@@ -8,7 +8,10 @@ extension AgentLoop {
         var out = ""
         let remembered = MemoryStore.promptSection(recalled)
         if !remembered.isEmpty { out += "\n\n" + remembered }
-        if !chatContext.isEmpty { out += "\n\nEarlier in this chat:\n" + chatContext }
+        if !chatContext.isEmpty {  // what those runs did is not this run's progress
+            out += "\n\nEarlier runs in this chat (finished before this run started; what they did or showed is not "
+                + "progress of this run):\n" + chatContext
+        }
         return out
     }
 
