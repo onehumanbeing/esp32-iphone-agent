@@ -15,13 +15,17 @@ enum Calls {
 
     static func prompt(_ task: String) -> String {
         guard isCall(task) else { return "" }
-        return "\n\nPhone calls: a number goes in with `type` on Phone's Keypad (the board is a keyboard). Check the "
-            + "whole number shows, `confirm`, then tap the call button once. To speak, open Live Speech (Control Center › Live Speech, "
-            + "or the AssistiveTouch menu) and give `say \"TEXT\"`: the iPhone says TEXT into the call. One or two short "
-            + "sentences per say, in the other side's language, then wait and listen. To hear, read Live Captions on "
-            + "screen (turn them on in Control Center if they are not showing) and the \"Phone audio\" line. Keep to the "
-            + "goal, never promise or agree to anything it does not ask for, and hang up when it is done or the other "
-            + "side ends; `done` then sums up what was said."
+        return "\n\nPhone calls: a number goes in with `type` on Phone's Keypad (the board is a keyboard); the number "
+            + "above the keys can take a moment to show. The Keypad has no text selection: cmd+a does nothing there, so "
+            + "remove a wrong number with `key backspace` once per digit before typing it again. Check the whole number "
+            + "shows once, `confirm`, then tap the call button once. Keep the call on the iPhone itself: if the call "
+            + "screen shows Speaker on, tap Audio (or Speaker) and pick iPhone. Call sound never goes over AirPlay, so the "
+            + "only way to hear the other side is Live Captions on screen (turn them on in Control Center if they are "
+            + "not showing). To speak, open Live Speech (Control Center › Live Speech, or the AssistiveTouch menu) and "
+            + "give `say \"TEXT\"`: the iPhone says TEXT into the call. Open it while the call still rings and `type` the "
+            + "first sentence into its field without enter; the moment they answer (the call timer starts), `key enter` "
+            + "says it. One or two short sentences per say, in the other side's language, then wait and read the captions. Keep to the goal, never promise or agree to anything it "
+            + "does not ask for, and hang up when it is done or the other side ends; `done` then sums up what was said."
     }
 }
 
@@ -35,11 +39,10 @@ extension Calls {
         return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
                          steps: [
                             ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
-                            manual("Answer the call on the other phone, then resume."),
-                            ai("Open Live Speech and stop when its text field shows."),
-                            ai("Give `say \"\(line)\"` once, then done."),
+                            ai("While it rings: open Live Speech and `type \"\(line)\"` into its field, without enter."),
+                            ai("Watch with `wait` until the call timer starts (the other phone answered), then at once `key enter` to say the line."),
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
-                            ai("Read what the other side just said from Live Captions or the Phone audio line; done with it as the answer."),
+                            ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
                          ])
     }
