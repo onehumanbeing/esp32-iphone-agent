@@ -22,7 +22,7 @@ extension AgentLoop {
         switch name {
         case "ai":
             guard try await subGoal(step.action["goal"]?.str ?? "", budget: step.action["budget"]?.int ?? Self.subGoalSteps,
-                                  endText: step.action["end_text"]?.str) else { return .ended }
+                                  endText: step.action["end_text"]?.str, endAfter: step.action["end_after"]?.str) else { return .ended }
         case "manual":
             guard try await handToUser(step.action["reason"]?.str ?? "") else { return .ended }
         case "waittext":  // watch the screen until a line matches, without the model
@@ -115,7 +115,9 @@ extension AgentLoop {
 
     /// The model does one sub-goal from the current screen, with no planner call. True = it said done.
     /// `endText`: a regex; once a line on screen matches (a call's "Call Ended"), the part is over without the model.
-    func subGoal(_ goal: String, budget: Int = AgentLoop.subGoalSteps, endText: String? = nil) async throws -> Bool {
+    /// `endAfter`: an action ("type") that ends the part once it went through, without a round to say done.
+    func subGoal(_ goal: String, budget: Int = AgentLoop.subGoalSteps, endText: String? = nil,
+                 endAfter: String? = nil) async throws -> Bool {
         let whole = task
         task = goal + "\n(This is one part of: \(whole). Say done as soon as this part is done.)"
         plan = goal
@@ -130,7 +132,15 @@ extension AgentLoop {
                 record(screen?.frame, ["action": .str("ai done"), "answer": .str("ended: \"\(hit)\" showed")])
                 return true
             }
-            guard try await step() else { continue }
+            guard try await step() else {
+                // the model's action went through without a note on what failed (a `type` typed it all): part done
+                if let endAfter, let last = steps.last(where: { $0["thought"] != nil }), last["action"]?.str == endAfter,
+                   last["typed"] == nil, last["result"] == nil {
+                    record(screen?.frame, ["action": .str("ai done"), "answer": .str("ended after \(endAfter)")])
+                    return true
+                }
+                continue
+            }
             guard steps.last?["action"]?.str == "done" else { return false }  // fail ends the run
             steps[steps.count - 1]["action"] = .str("ai done")
             return true

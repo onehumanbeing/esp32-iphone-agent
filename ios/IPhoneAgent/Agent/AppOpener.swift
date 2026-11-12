@@ -34,6 +34,10 @@ enum OpenResult: String {
     /// Taps the Home Screen's Search button; false = none on screen. Used only after cmd+space brought nothing up.
     var searchButton: (() async throws -> Bool)?
     static let tries = 2
+    static var buttonFirst: Bool {
+        get { UserDefaults.standard.bool(forKey: "spotlightByButton") }
+        set { UserDefaults.standard.set(newValue, forKey: "spotlightByButton") }
+    }
     static let relooks = 2
 
     func open(_ name: String) async throws -> OpenResult {
@@ -52,7 +56,9 @@ enum OpenResult: String {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let labels = AppNames.labels(name, language: language)
-        var button = false  // cmd+space did not bring Spotlight up last try (2026-11-13, twice in one run)
+        // cmd+space did not bring Spotlight up last try (2026-11-13, twice in one run); once the Search button had to do
+        // it, it goes first after that (cmd+space failed on this iPhone at the start of every call run, ~10 s each)
+        var button = Self.buttonFirst
         for _ in 0..<Self.tries {
             try await home()
             try await pause(0.4)
@@ -86,6 +92,7 @@ enum OpenResult: String {
                 if Self.count(name, in: lines) <= Self.count(name, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
+            if button != Self.buttonFirst { Self.buttonFirst = button }
             try await key("enter")  // opens the top hit
             guard let after = await look() else { return .unchecked }
             if ownAppInFront() { continue }

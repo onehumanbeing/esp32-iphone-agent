@@ -283,7 +283,10 @@ import NaturalLanguage
     static func symbolsWrong(_ text: String, _ symbols: [Character], now: Seen, row: [Int], before: Seen,
                              beforeRow: Set<Int>) -> Bool {
         guard !symbols.isEmpty else { return false }
-        let after = fieldText(now, minus: row), base = fieldText(before, minus: Array(beforeRow))
+        // OCR reads a typed "?" as "？" in a field next to Chinese: fold full-width forms first, or a sentence typed
+        // right was called wrong and not said (2026-11-13, a call's "Can you confirm that?")
+        func half(_ t: String) -> String { t.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? t }
+        let after = half(fieldText(now, minus: row)), base = half(fieldText(before, minus: Array(beforeRow)))
         let words = text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 }
         guard words.contains(where: { count($0, in: after) > count($0, in: base) }) else { return false }
         return symbols.contains { count(String($0), in: after) <= count(String($0), in: base) }
