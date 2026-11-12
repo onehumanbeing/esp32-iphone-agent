@@ -14,8 +14,11 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   Don't Show Again; it needs Live Captions › Keep Call Captions › 1 Hour, or iOS keeps call captions out of Screen
   Mirroring. An intent has a Phone call switch that follows its words ("Call …") until set by hand. Calls are not
   stable yet: see #150.
-- App: a recording is a run: every change is named and kept as a trace, reviewed and continued like a run; an
-  intent learns from a run that worked (Correct / Wrong in the Dynamic Island undoes it).
+- App: **intents improve themselves**: when an intent's saved steps miss and the AI finishes the task, that run's
+  steps replace them; a typed-in intent's first run that works becomes its reference; lessons from done runs go on
+  its checklist (up to 8). Wrong in the Dynamic Island (90 s) or Undo on the intent takes it back; Settings › Intents
+  learn from runs turns it off.
+- App: a recording is a run: every change is named and kept as a trace, reviewed, continued and saved as an intent.
 - App: open APP is done by code and read back: Spotlight (or the Home Screen's Search button when cmd+space does
   nothing), only the name asked for; the model picks another name in the iPhone's language.
 - App: Chinese, accented and other scripts typed or pasted reliably; a full-width "？" read by OCR is not a wrong symbol.
