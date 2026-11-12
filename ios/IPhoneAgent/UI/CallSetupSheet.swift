@@ -118,6 +118,9 @@ private struct LoopingClip: UIViewRepresentable {
         guard let url = Bundle.main.url(forResource: name, withExtension: "mp4") else { return view }
         let player = AVQueuePlayer()
         player.isMuted = true
+        // Never to the AirPlay receiver: during Screen Mirroring iOS hands a playing video to the receiver, and the
+        // board got no mirrored frames for 12 s after the sheet closed (2026-11-13, startup +14.6 s).
+        player.allowsExternalPlayback = false
         context.coordinator.looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
         view.layer.player = player
         view.layer.videoGravity = .resizeAspect
