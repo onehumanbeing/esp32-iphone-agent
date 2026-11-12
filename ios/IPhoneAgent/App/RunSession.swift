@@ -28,6 +28,10 @@ extension AppModel {
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
+        if agent.replay.steps.isEmpty, Calls.dials(task) {  // a call: the fast scripted way (Calls.script)
+            agent.replay = Replay(steps: Calls.script(task).compactMap { s in s.object.map { Replay.Step(action: $0, sure: true, frame: nil) } })
+            DebugLog.write("call: scripted (\(agent.replay.steps.count) steps)")
+        }
         if !agent.replay.steps.isEmpty { DebugLog.write("replay: \(agent.replay.steps.count) recorded steps") }
         await startAgent(task, resume: resume)
     }

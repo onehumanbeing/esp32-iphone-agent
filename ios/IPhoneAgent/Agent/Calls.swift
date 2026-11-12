@@ -34,6 +34,56 @@ enum Calls {
     }
 }
 
+/// A task that is a call ("Call Mom and …", "打电话给妈妈…", the Call template) runs as a script: the model dials;
+/// code opens Control Center, turns Live Captions on and opens Live Speech while it rings; the model types the first
+/// sentence; code says it the moment the call is answered; the model talks and hangs up; code turns captions off.
+/// The model-only way took too long: the call was answered before anything was ready.
+extension Calls {
+    static let dialing = [#"^\s*(please\s+)?(call|dial|phone|ring)\s"#, #"^\s*(请)?(帮我)?(打电话给|拨打|致电)"#, #"给.{1,20}打(个|一个)?电话"#]
+
+    /// The task asks to place a call (not just mentions a phone).
+    static func dials(_ task: String) -> Bool {
+        dialing.contains { task.range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil }
+    }
+
+    static func ai(_ goal: String, budget: Int? = nil) -> RecordedStep {
+        var a: JObject = ["action": .str("ai"), "goal": .str(goal)]
+        if let budget { a["budget"] = .int(budget) }
+        return RecordedStep(action: a, sure: true, frame: nil)
+    }
+
+    static func move(_ a: JObject) -> RecordedStep {
+        var a = a
+        a["blind"] = .bool(true)
+        return RecordedStep(action: a, sure: true, frame: nil)
+    }
+
+    /// A Control Center button: by the person's marked spot, else by its name (large buttons show it; the model
+    /// repairs a miss).
+    static func button(_ label: String, at spot: (x: Int, y: Int)? = nil) -> RecordedStep {
+        guard let spot else {
+            return RecordedStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(500), "label": .str(label)], sure: true, frame: nil)
+        }
+        return RecordedStep(action: ["action": .str("tap"), "x": .int(spot.x), "y": .int(spot.y), "blind": .bool(true),
+                                     "note": .str(label)], sure: true, frame: nil)
+    }
+
+    static let controlCenter = move(["action": .str("swipe"), "x1": .int(930), "y1": .int(5), "x2": .int(930), "y2": .int(450)])
+    /// The call screen's timer (0:05, 00:05) shows once the other side answers; "Calling…" before.
+    static let answered = RecordedStep(action: ["action": .str("waittext"), "pattern": .str(#"^\d{1,2}:\d{2}$"#), "seconds": .num(60)],
+                                       sure: true, frame: nil)
+
+    static func script(_ task: String) -> [RecordedStep] {
+        [ai("Place the call the goal asks for: open Phone, find the contact or type the number on the Keypad, check it, `confirm`, tap the call button once. Done as soon as it is calling."),
+         controlCenter, button("Live Captions"), button("Live Speech"),
+         ai("In the Live Speech field, `type` the first short English sentence to say for the goal (a greeting and why you call), without enter. Done once it is typed."),
+         answered,
+         move(["action": .str("key"), "combo": .str("enter")]),
+         ai("Hold the call for the goal: read what they say in Live Captions, answer with `say`, and hang up when it is done or they end it. Done with a summary of what was said.", budget: 30),
+         controlCenter, button("Live Captions"), move(["action": .str("home")])]
+    }
+}
+
 #if DEBUG
 /// Settings › Developer › Call test (Debug builds only, never TestFlight or the App Store): the call flow as a
 /// script, one step at a time, with the person on the other phone in the loop (`manual` waits for them).
@@ -41,35 +91,18 @@ extension Calls {
     /// `captions` / `speech`: where those Control Center buttons are (0-1000), when the person marked them; else they
     /// are looked for by name (wide buttons show it) and the model repairs a miss.
     static func test(number: String, line: String, captions: (x: Int, y: Int)? = nil, speech: (x: Int, y: Int)? = nil) -> SavedTask {
-        func ai(_ goal: String) -> RecordedStep { RecordedStep(action: ["action": .str("ai"), "goal": .str(goal)], sure: true, frame: nil) }
         func manual(_ reason: String) -> RecordedStep { RecordedStep(action: ["action": .str("manual"), "reason": .str(reason)], sure: true, frame: nil) }
-        func move(_ a: JObject) -> RecordedStep {
-            var a = a
-            a["blind"] = .bool(true)
-            return RecordedStep(action: a, sure: true, frame: nil)
-        }
-        func tapLabel(_ label: String, at spot: (x: Int, y: Int)?) -> RecordedStep {
-            guard let spot else {  // found by its name (OCR); the model repairs a miss
-                return RecordedStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(500), "label": .str(label)], sure: true, frame: nil)
-            }
-            return RecordedStep(action: ["action": .str("tap"), "x": .int(spot.x), "y": .int(spot.y), "blind": .bool(true),
-                                         "note": .str(label)], sure: true, frame: nil)
-        }
-        let controlCenter = move(["action": .str("swipe"), "x1": .int(930), "y1": .int(5), "x2": .int(930), "y2": .int(450)])
-        // the call screen's timer (0:05, 00:05) shows once the other side answers; "Calling…" before
-        let answered = RecordedStep(action: ["action": .str("waittext"), "pattern": .str(#"^\d{1,2}:\d{2}$"#), "seconds": .num(60)],
-                                    sure: true, frame: nil)
         return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
                          steps: [
                             ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
-                            controlCenter, tapLabel("Live Captions", at: captions), tapLabel("Live Speech", at: speech),
+                            controlCenter, button("Live Captions", at: captions), button("Live Speech", at: speech),
                             move(["action": .str("type"), "text": .str(line)]),
                             answered,
                             move(["action": .str("key"), "combo": .str("enter")]),
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
                             ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
-                            controlCenter, tapLabel("Live Captions", at: captions), move(["action": .str("home")]),
+                            controlCenter, button("Live Captions", at: captions), move(["action": .str("home")]),
                          ])
     }
 }

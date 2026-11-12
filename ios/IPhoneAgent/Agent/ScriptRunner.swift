@@ -21,7 +21,7 @@ extension AgentLoop {
         if !replay.isScript && !Replay.replayable.contains(name) { return handOver(n, "not a move") }
         switch name {
         case "ai":
-            guard try await subGoal(step.action["goal"]?.str ?? "") else { return .ended }
+            guard try await subGoal(step.action["goal"]?.str ?? "", budget: step.action["budget"]?.int ?? Self.subGoalSteps) else { return .ended }
         case "manual":
             guard try await handToUser(step.action["reason"]?.str ?? "") else { return .ended }
         case "waittext":  // watch the screen until a line matches, without the model
