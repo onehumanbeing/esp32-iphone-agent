@@ -96,6 +96,8 @@ extension Gestures {
     var chatContext = ""
     /// The run starts on the Home Screen (RunSession left for it): `open` the app a task names, hold Home swipes.
     var startsOnHome = false
+    /// A script's part is running (ScriptRunner.subGoal): its done needs no planner check, the script goes on.
+    var inPart = false
     /// Lessons the actor offered (learn); kept only when the run ends with done.
     var learned: [String] = []
     /// Tool answers this run ("Looked up", newest last) and the tools it may call (fixed at the start: same prompt).
@@ -608,7 +610,7 @@ extension Gestures {
                                                             temperature: 0.4 * Double(attempt))
             var acts: [JObject]
             do { acts = try Actions.parseActions(text) } catch { reply = text; continue }
-            if checkpoint == nil, let checked = try await confirmDone(acts, prompt),
+            if checkpoint == nil, !inPart, let checked = try await confirmDone(acts, prompt),
                let theirs = try? Actions.parseActions(checked.0) {
                 (text, seconds, frame, acts) = (checked.0, seconds + checked.1, checked.2 ?? frame, theirs)
             }

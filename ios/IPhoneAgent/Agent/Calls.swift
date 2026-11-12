@@ -78,18 +78,30 @@ extension Calls {
     static let answered = RecordedStep(action: ["action": .str("waittext"), "pattern": .str(#"^\d{1,2}:\d{2}$"#), "seconds": .num(60)],
                                        sure: true, frame: nil)
 
-    /// Captions go on before dialing; Live Speech only once it rings: its keyboard would take the number typed on
-    /// the Keypad.
+    /// Where the two large buttons sit when set up as asked (side by side at the bottom of Control Center: Live
+    /// Speech left, Live Captions right), 0-1000; Settings › Developer can change them, empty = found by name.
+    static var spots: (captions: (x: Int, y: Int)?, speech: (x: Int, y: Int)?) {
+        func read(_ key: String, _ fallback: String) -> (x: Int, y: Int)? {
+            let n = (UserDefaults.standard.string(forKey: key) ?? fallback).split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Int($0) }
+            return n.count == 2 ? (n[0], n[1]) : nil
+        }
+        return (read("callTestCaptions", "707 820"), read("callTestSpeech", "290 820"))
+    }
+
+    /// Nothing opens before dialing (the panels would cover the Keypad); right after, code opens both by their spots
+    /// at once, before it is answered.
     static func script(_ task: String) -> [RecordedStep] {
-        [controlCenter, button("Live Captions"), move(["action": .str("home")]),
+        let (captions, speech) = spots
+        return [
          ai("Place the call the goal asks for: open Phone, find the contact or type the number on the Keypad, check it, `confirm`, tap the call button once. Done as soon as it is calling."),
-         controlCenter, button("Live Speech"),
+         controlCenter, button("Live Captions", at: captions), button("Live Speech", at: speech),
          ai("Live Speech is open: its text field and the keyboard show at the bottom (its button does not stay lit; never tap it again). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter. Done once it is typed."),
          answered,
          move(["action": .str("key"), "combo": .str("enter")]),
          ai("Hold the call for the goal: read what they say in Live Captions, answer with `say`, and hang up when it is done or they end it. Done with a summary of what was said.", budget: 30, end: ended),
-         controlCenter, button("Live Captions"), move(["action": .str("home")]),
+         controlCenter, button("Live Captions", at: captions), move(["action": .str("home")]),
          ai("If the Live Speech text field still shows, close it; done once it is gone (or was not there).", budget: 4)]
+
     }
 }
 

@@ -112,8 +112,8 @@ struct DeveloperView: View {
     @State private var testing = false
     @State private var callNumber = ""
     @State private var callLine = "Hello, this is a call test. Can you hear me?"
-    @AppStorage("callTestCaptions") private var captionsAt = ""  // Control Center spots, 0-1000; empty = by name
-    @AppStorage("callTestSpeech") private var speechAt = ""
+    @AppStorage("callTestCaptions") private var captionsAt = "707 820"  // Control Center spots, 0-1000; empty = by name
+    @AppStorage("callTestSpeech") private var speechAt = "290 820"
 
     var body: some View {
         List {

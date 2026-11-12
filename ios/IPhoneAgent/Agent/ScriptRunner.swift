@@ -119,7 +119,8 @@ extension AgentLoop {
         let whole = task
         task = goal + "\n(This is one part of: \(whole). Say done as soon as this part is done.)"
         plan = goal
-        defer { task = whole; plan = "" }
+        inPart = true
+        defer { task = whole; plan = ""; inPart = false }
         for _ in 0..<budget {
             if let endText, let frame = screen?.frame,
                let hit = await DemoAnalysis.texts(frame, limit: 80).first(where: { $0.text.range(of: endText, options: [.regularExpression, .caseInsensitive]) != nil }) {
