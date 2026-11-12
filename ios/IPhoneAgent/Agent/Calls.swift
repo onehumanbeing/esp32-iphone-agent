@@ -49,6 +49,8 @@ extension Calls {
 
     /// The call screen once either side hung up.
     static let ended = #"^(call ended|通话结束)"#
+    /// The call screen right after dialing: the dial part ends here without a model round to say so.
+    static let calling = #"^(calling|呼叫中|正在呼叫|正在拨号)"#
 
     static func ai(_ goal: String, budget: Int? = nil, end: String? = nil) -> RecordedStep {
         var a: JObject = ["action": .str("ai"), "goal": .str(goal)]
@@ -93,7 +95,8 @@ extension Calls {
     static func script(_ task: String) -> [RecordedStep] {
         let (captions, speech) = spots
         return [
-         ai("Place the call the goal asks for: open Phone, find the contact or type the number on the Keypad, check it, `confirm`, tap the call button once. Done as soon as it is calling."),
+         move(["action": .str("open"), "app": .str("Phone")]),  // by code: the model's own open cost a round
+         ai("Phone is open. Place the call the goal asks for: find the contact (search or Contacts) or type the number on the Keypad, then tap the call button once; do both in one reply when you can. The call is what the user asked for: no `confirm`.", end: calling),
          controlCenter, button("Live Captions", at: captions), button("Live Speech", at: speech),
          move(["action": .str("home")]),  // Control Center stays over Live Speech until closed (the model took ~25 s to close it)
          ai("Live Speech is open: its text field is focused with the keyboard at the bottom (its button does not stay lit; never tap it again, never tap the field or the call buttons). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter. Done once it is typed."),
