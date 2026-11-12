@@ -84,7 +84,12 @@ extension AppModel {
             say(statusSummary)
         case "intent":
             guard let prompt = arg("prompt"), !prompt.isEmpty else { return false }
+            if let old = arg("replace"), !old.isEmpty {  // intents with this name, or whose words start with it, go first
+                intents.items.filter { $0.name == old || $0.prompt.hasPrefix(old) }.forEach { intents.delete($0.id) }
+            }
             intents.add(name: arg("name") ?? "", prompt: prompt)
+        case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
+            CallGuide.seen = false
         case "bench":
             debugCommand("bench", kb: Int(arg("kb") ?? "") ?? 256)
         case "tree":
