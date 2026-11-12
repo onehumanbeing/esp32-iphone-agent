@@ -550,7 +550,8 @@ import UIKit
     func aimHomeBar() async throws { try await point(0.5, 0.995) }
 
     /// A real home-bar flick, independent of consumer-key and keyboard acknowledgements.
-    func homeSwipe() async throws {
+    /// `full`: the board's top speed even with the gentle setting (a second try after a flick that did not take).
+    func homeSwipe(full: Bool = false) async throws {
         defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
         try Task.checkCancellation()
         try await point(0.5, 0.995)
@@ -558,7 +559,7 @@ import UIKit
         // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
         guard let span else { return }
         try await device.send("move 0 \(span.h / 10)")
-        let speed = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
+        let speed = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome && !full ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
         // Firmware 0.2.5: press, move and release in one command. Three commands left a pause before the release,
         // and iOS took the lingering stroke for "show the app switcher" (iddzz 2026-11-12).
         if flickInOne != false {

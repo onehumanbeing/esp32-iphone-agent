@@ -138,5 +138,24 @@ extension Pointer {
         log(again ? "home: the Home key again changed little; flicking up from the home bar"
                   : "home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
+        // 2026-11-13: in Messages the flick scrolled the list instead (the press landed on the app, not the home
+        // bar). Still the same app's words on screen: once more at full speed, and the outcome goes in the log.
+        await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
+        guard await Self.sameApp(before, screen.frame) else { return log("home: the flick left the app") }
+        log("home: the flick left the app's words on screen (scrolled it?); once more at full speed")
+        try await homeSwipe(full: true)
+        await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
+        log(await Self.sameApp(before, screen.frame) ? "home: still in the app after two flicks" : "home: the second flick left the app")
+    }
+
+    /// Most of the text on `before` is still on `after`: the same app (scrolled, perhaps), not the Home Screen.
+    static func sameApp(_ before: Data?, _ after: Data?) async -> Bool {
+        func words(_ jpeg: Data?) async -> Set<String> {
+            guard let jpeg, let image = Vision.image(jpeg) else { return [] }
+            return Set(await UITreeOCR.lines(image).map(\.text).filter { $0.count >= 4 })
+        }
+        let a = await words(before), b = await words(after)
+        guard a.count >= 3 else { return false }
+        return Double(a.intersection(b).count) / Double(a.count) >= 0.4
     }
 }
