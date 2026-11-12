@@ -8,6 +8,17 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
 
+## Firmware v0.2.5 (TestFlight)
+
+- Board: a mirrored video packet it has to drop for good is logged (header and first bytes) and counted as
+  `lost` in the status, so the app can tell a broken picture from a still screen and ask for mirroring to
+  restart at once.
+- Board: `press_for MS`, a held press that comes up by itself (long press, or a press then moves to drag).
+- Board: `flick DX DY SPEED`, press, move and release in one command, so the Home Screen flick never lingers into the app switcher.
+- Board: `result ID` answers the last 8 replies again, for a reply that never arrived.
+- Board: the CLI's `net` goes through while the app drives the board, so the board can always be put back on a
+  network.
+
 ## App 1.0.4 (TestFlight)
 
 - App: requests to DeepSeek's API (`api.deepseek.com`) turn thinking off unless Extra body JSON sets `thinking`,

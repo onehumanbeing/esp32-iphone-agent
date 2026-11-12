@@ -391,6 +391,9 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   if (sink.task) xTaskNotifyGive(sink.task);
 }
 
+static volatile uint32_t lostPackets;
+void video_on_lost() { lostPackets++; }
+
 void video_stream(bool on, char who) { sink.streaming[sideOf(who)] = on; }
 
 static void request(const String &id, bool bench, uint32_t kb, char who) {
@@ -409,7 +412,7 @@ VideoStats video_stats(char who) {
   bool frozen = gop.frozen && !(tailLive && sink.who == who && sink.onTail);
   xSemaphoreGive(lock);
   uint32_t age = lastAu ? millis() - lastAu : 0;
-  return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0, overflows, frozen};
+  return {fresh ? statKbps : 0, statIdrMs, gopBytes, age, fresh ? statFps : 0, overflows, frozen, lostPackets};
 }
 
 String video_debug() {

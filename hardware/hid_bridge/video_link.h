@@ -6,6 +6,7 @@
 bool video_begin();
 void video_on_config(const uint8_t *sps_pps, size_t len);  // AirPlay callbacks (mirror task)
 void video_on_au(const uint8_t *au, size_t len, bool idr);
+void video_on_lost();  // AirPlay dropped a video packet for good (status "lost")
 void video_stream(bool on, char who);             // who: FROM_APP or FROM_CLI (ble_link.h); one is sent at a time, the app first
 void video_snap(const String &id, char who);      // replies "<id> ok" when the GOP is sent, to who
 void video_bench(const String &id, uint32_t kb, char who);  // replies "<id> ok <ms>"
@@ -16,6 +17,7 @@ struct VideoStats {
   float fps;
   uint32_t overflows;  // times the GOP filled up since boot
   bool frozen;         // GOP full and who's stream not going on from it: no new frame until the next IDR (#25)
+  uint32_t lost;       // video packets dropped for good since boot: the picture may not decode until an IDR
 };
 VideoStats video_stats(char who);  // frozen is as seen by who's stream
 String video_debug();              // `vdbg`: the tail and the app stream's state, for a frozen screen
