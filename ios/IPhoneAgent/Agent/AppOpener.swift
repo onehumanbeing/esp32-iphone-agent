@@ -33,6 +33,7 @@ enum OpenResult: String {
     /// Puts text on the clipboard (the agent app hops to the front and back home); nil = no clipboard here.
     var paste: ((String) async throws -> Bool)?
     static let tries = 2
+    static let relooks = 3
 
     func open(_ name: String) async throws -> OpenResult {
         let result = try await open(named: name)
@@ -65,10 +66,19 @@ enum OpenResult: String {
             try await key("backspace")
             // a Chinese name goes in through the pinyin keyboard, committed (HanTyper)
             if pasting { try await key("cmd+v") } else { try await type(name) }
-            guard let results = await look() else { return .unchecked }
+            guard var results = await look() else { return .unchecked }
             // Read first: with the board's keyboard iOS shows no on-screen one, so on a plain wallpaper Spotlight
             // looks much like the Home Screen (2026-11-11: WeChat listed, judged "did not come up" twice).
-            let lines = await read(results)
+            var lines = await read(results)
+            // The field and the results lag the typing by up to ~1.5 s: the first look still had an empty field over
+            // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
+            // while the screen is still changing.
+            for _ in 0..<Self.relooks where !Self.listed(name, in: lines, as: labels) && !same(results, homeFrame) {
+                try await pause(0.6)
+                guard let again = await look(), !same(again, results) else { break }
+                results = again
+                lines = await read(again)
+            }
             if !Self.listed(name, in: lines, as: labels) {
                 if same(results, homeFrame) { continue }  // Spotlight did not come up
                 return .notFound  // Spotlight stays for the model

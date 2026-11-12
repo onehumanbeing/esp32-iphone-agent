@@ -44,7 +44,7 @@ import XCTest
 
     func testANameSpotlightDoesNotKnowIsTriedUnderItsSystemName() async throws {
         var sent: [String] = [], typed = ""
-        var queue = [home, spotlight, home, spotlight, app]
+        var queue = [home, spotlight, spotlight, home, spotlight, app]  // a second look at 闹钟's results: unchanged
         let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
@@ -133,5 +133,21 @@ import XCTest
         _ = try await agent.step()
         let line = AgentLoop.effect(try XCTUnwrap(agent.steps.last))
         XCTAssertTrue(line.contains("typing stopped: \"龘\" is not among"), line)
+    }
+
+    /// The results come up after the first look: an empty field over Siri Suggestions, then "WeChat" in the field
+    /// (2026-11-12). It looks again instead of typing 微信 next.
+    func testResultsThatLagTheTypingAreLookedAtAgain() async throws {
+        var sent: [String] = []
+        let early = Data([4])
+        var queue: [Data?] = [home, early, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [early] in $0 == early ? ["Siri Suggestions", "WeChat"] : ["WeChat", "WeChat"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        let result = try await opener.open("WeChat")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type WeChat"])
+        XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
     }
 }
