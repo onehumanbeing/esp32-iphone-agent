@@ -62,12 +62,11 @@ import XCTest
         XCTAssertEqual(sent, ["paste メモ", "home", "key cmd+space", "key cmd+a", "key backspace", "key cmd+v", "key enter"])
     }
 
-    func testWithoutTheClipboardAKanaNameFallsBackToTheEnglishName() async throws {
+    func testWithoutTheClipboardAKanaNameGoesBackToTheModel() async throws {
         var sent: [String] = []
-        let lines: (String) -> [String] = { $0 == "Notes" ? ["Notes", "メモ"] : [$0] }
-        let result = try await opener(language: "ja", paste: false, lines: lines) { sent.append($0) }.open("メモ")
-        XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type Notes"], "メモ never went in as \"memo\"")
+        let result = try await opener(language: "ja", paste: false, lines: { [$0] }) { sent.append($0) }.open("メモ")
+        XCTAssertEqual(result, .notFound)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, [], "メモ never went in as \"memo\"")
     }
 
     func testHanIsPastedOffAChineseIPhoneOnly() async throws {

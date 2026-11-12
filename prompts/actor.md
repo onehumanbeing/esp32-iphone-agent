@@ -55,7 +55,7 @@ Actions:
   type TEXT                 (English, Chinese or accented Latin; emoji are dropped; tap the input field first)
   clear                     (empty the focused text field; the result says if text is left)
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
-  open APP                  (start the app by its name, from any screen; the result says whether it opened)
+  open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
   home | back | wait
   done ANSWER               (the whole goal is reached and visible; ANSWER is the result for the user)
   fail REASON

@@ -26,7 +26,7 @@ extension AgentLoop {
         switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
-            + AppNames.alternatives(app).map { " nor \($0)" }.joined() + " (the search is still on screen)"
+            + " (the search is still on screen): open it by the name this iPhone shows, in its language"
         case .notOpened?: out += "; \(app) did not open"
         default: break
         }

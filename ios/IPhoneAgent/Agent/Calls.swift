@@ -99,7 +99,7 @@ extension Calls {
         let (captions, speech) = spots
         return [
          move(["action": .str("open"), "app": .str("Phone")]),  // by code: the model's own open cost a round
-         ai("Phone is open. Place the call the goal asks for: find the contact (search or Contacts) or type the number on the Keypad, then tap the call button once; do both in one reply when you can. The call is what the user asked for: no `confirm`.", end: calling),
+         ai("Phone should be open (if not, open it by the name this iPhone shows). Place the call the goal asks for: find the contact (search or Contacts) or type the number on the Keypad, then tap the call button once; do both in one reply when you can. The call is what the user asked for: no `confirm`.", end: calling),
          controlCenter, button("Live Captions", at: captions), button("Live Speech", at: speech),
          move(["action": .str("home")]),  // Control Center stays over Live Speech until closed (the model took ~25 s to close it)
          ai("Live Speech is open: its text field is focused with the keyboard at the bottom (its button does not stay lit; never tap it again, never tap the field or the call buttons). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter. Done once it is typed."),

@@ -6,11 +6,11 @@ import XCTest
     private let home = Data([1]), spotlight = Data([2]), app = Data([3])
 
     /// A phone whose screens come in order (one per look) and whose OCR reads `lines` on Spotlight.
-    private func opener(_ frames: [Data?], lines: [String] = ["Notes", "Notes"], own: Bool = false,
+    private func opener(_ frames: [Data?], lines: [String] = ["Notes", "Notes"], homeLines: [String]? = nil, own: Bool = false,
                         log: @escaping (String) -> Void) -> AppOpener {
         var queue = frames
         return AppOpener(home: { log("home") }, key: { log("key \($0)") }, type: { log("type \($0)") },
-                         look: { queue.isEmpty ? nil : queue.removeFirst() }, read: { _ in lines },
+                         look: { queue.isEmpty ? nil : queue.removeFirst() }, read: { [home] in $0 == home ? homeLines ?? lines : lines },
                          ownAppInFront: { own }, same: { $0 == $1 }, pause: { _ in })
     }
 
@@ -42,18 +42,19 @@ import XCTest
         XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type 时钟", "key enter"])
     }
 
-    func testANameSpotlightDoesNotKnowIsTriedUnderItsSystemName() async throws {
+    /// A name Spotlight does not list goes back to the model; code never types other names (2026-11-13).
+    func testANameSpotlightDoesNotKnowGoesBackToTheModel() async throws {
         var sent: [String] = [], typed = ""
-        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, app]  // 闹钟: two more looks, still not listed
+        var queue = [home, spotlight, spotlight, spotlight]  // 闹钟: two more looks, still not listed
         let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
-                               read: { _ in typed == "时钟" ? ["时钟", "时钟"] : [typed] },
+                               read: { [home] in $0 == home ? [] : [typed] },
                                same: { $0 == $1 }, pause: { _ in }, language: "zh")
         let result = try await opener.open("闹钟")
-        XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟", "type 时钟"])
-        XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
+        XCTAssertEqual(result, .notFound)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟"])
+        XCTAssertFalse(sent.contains("key enter"))
     }
 
     func testAliasesNameTheSystemAppsChineseFirst() {
@@ -67,7 +68,7 @@ import XCTest
 
     func testNoSuchAppLeavesSpotlightForTheModelWithoutReturn() async throws {
         var sent: [String] = []
-        let result = try await opener([home, spotlight], lines: ["Notes", "Messages"]) { sent.append($0) }.open("Notes")
+        let result = try await opener([home, spotlight], lines: ["Notes", "Messages"], homeLines: []) { sent.append($0) }.open("Notes")
         XCTAssertEqual(result, .notFound)
         XCTAssertFalse(sent.contains("key enter"), "Return would open whatever matched instead")
     }
@@ -122,7 +123,7 @@ import XCTest
         _ = try await agent.step()
         XCTAssertEqual(phone.calls, ["open Notes"])
         let line = AgentLoop.effect(try XCTUnwrap(agent.steps.last))
-        XCTAssertTrue(line.contains("Spotlight lists no app named Notes nor 备忘录"), line)
+        XCTAssertTrue(line.contains("Spotlight lists no app named Notes"), line)
     }
 
     func testTheModelSeesWhatTypingCouldNotType() async throws {

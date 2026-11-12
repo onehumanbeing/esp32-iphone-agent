@@ -10,8 +10,7 @@ enum OpenResult: String {
 /// only once the results list the name, then a check that the screen left Spotlight and the Home Screen.
 /// The model used to tap the app in the results itself: a tap that missed closed Spotlight back to the Home
 /// Screen, and a Chinese name could stay uncommitted pinyin that never found the app.
-/// A name Spotlight does not know ("闹钟") is tried once more under its system names (AppNames: 时钟, Clock; the
-/// device language's name first).
+/// Only the name asked for; a name Spotlight does not list goes back to the model, which picks another.
 /// A name the board cannot type (kana, Hangul; Han off a Chinese iPhone, where no pinyin keyboard may be set up) is
 /// put on the clipboard once and pasted into Spotlight (cmd+v); without the clipboard it is not typed at all.
 /// Bounded: `tries` rounds of a few keys per name, at most three names, every look has a ceiling; the result goes
@@ -38,13 +37,9 @@ enum OpenResult: String {
     static let relooks = 2
 
     func open(_ name: String) async throws -> OpenResult {
-        let result = try await open(named: name)
-        guard result == .notFound else { return result }
-        for other in AppNames.alternatives(name, language: language, paste: paste != nil) {
-            let found = try await open(named: other)
-            if found == .opened || found == .notOpened { return found }  // listed under that name
-        }
-        return .notFound
+        // Only the name asked for: the model sees the iPhone's language on screen and picks another name itself.
+        // Code trying other names (电话 after Phone) switched an English iPhone to pinyin and opened a note (2026-11-13).
+        try await open(named: name)
     }
 
     /// Whether `name` goes in by the clipboard: the board types ASCII and accented Latin, and Chinese only on a
@@ -84,6 +79,11 @@ enum OpenResult: String {
             }
             if !Self.listed(name, in: lines, as: labels) {
                 if same(results, homeFrame) { button = true; continue }  // Spotlight did not come up
+                // The typed name is nowhere new on screen: cmd+space did nothing and the frames differ only where
+                // something moves (the Live Activity). 2026-11-13: read as "no such app", so it went on to 电话 on an
+                // English iPhone and Return opened a note; the Search button next time instead.
+                let before = await homeFrame.asyncMap(read) ?? []
+                if Self.count(name, in: lines) <= Self.count(name, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
             try await key("enter")  // opens the top hit
@@ -93,6 +93,12 @@ enum OpenResult: String {
             if !Self.listed(name, in: await read(after), as: labels) { return .opened }  // a plain screen: Spotlight is gone
         }
         return .notOpened
+    }
+
+    /// Lines that show `name` (folded).
+    static func count(_ name: String, in lines: [String]) -> Int {
+        let want = Scripts.fold(name)
+        return want.isEmpty ? 0 : lines.filter { Scripts.fold($0).contains(want) }.count
     }
 
     /// The name shows in the search field and again in the results (a label cut short with "…" counts):
@@ -110,5 +116,12 @@ enum OpenResult: String {
         let folded = lines.map(Scripts.fold)
         let typed = folded.filter { shows(want, $0) }.count
         return typed >= 2 || typed >= 1 && folded.contains { line in !shows(want, line) && others.contains { shows($0, line) } }
+    }
+}
+
+private extension Optional {
+    func asyncMap<T>(_ f: (Wrapped) async -> T) async -> T? {
+        guard let self else { return nil }
+        return await f(self)
     }
 }
