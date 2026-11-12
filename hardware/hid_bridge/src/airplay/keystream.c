@@ -2,6 +2,20 @@
 #include <string.h>
 #include "../video/gop.h"
 
+// The hardware AES runs on DMA. Straight on a PSRAM packet, it was seen (2026-11-13, a short-drama video with sound)
+// to hand back a plaintext that does not parse at the right keystream position, now and then, and every P-frame
+// after it stayed undecodable until the next keyframe. So the bytes go through internal RAM, 1 KB at a time;
+// the counter state carries over between chunks as across packets.
+void ks_ctr(const mbedtls_aes_context *aes, size_t n, size_t *off, uint8_t iv[16], uint8_t stream[16], uint8_t *buf) {
+  static uint8_t bounce[1024];  // .bss: internal RAM
+  for (size_t i = 0; i < n; i += sizeof bounce) {
+    size_t k = n - i < sizeof bounce ? n - i : sizeof bounce;
+    memcpy(bounce, buf + i, k);
+    mbedtls_aes_crypt_ctr((mbedtls_aes_context *)aes, k, off, iv, stream, bounce, bounce);
+    memcpy(buf + i, bounce, k);
+  }
+}
+
 bool ks_plausible(const uint8_t *p, size_t n) {
   if (n < 5) return false;
   uint32_t len = (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
@@ -36,7 +50,7 @@ void ks_at(const ks_key *key, keystream *k, uint64_t pos) {
 bool ks_try(const ks_key *key, const keystream *k, keystream *out, const uint8_t *cipher, uint8_t *p, size_t n) {
   *out = *k;
   memcpy(p, cipher, n);
-  mbedtls_aes_crypt_ctr((mbedtls_aes_context *)key->aes, n, &out->off, out->iv, out->stream, p, p);
+  ks_ctr(key->aes, n, &out->off, out->iv, out->stream, p);
   out->pos += n;
   return ks_plausible(p, n);
 }

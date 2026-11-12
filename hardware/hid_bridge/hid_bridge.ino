@@ -11,6 +11,7 @@
 #include <esp_mac.h>
 #include <esp_wifi.h>
 #include <esp_core_dump.h>
+#include <esp_app_desc.h>
 #include "USB.h"
 #include "USBHIDMouse.h"
 #include "USBHIDKeyboard.h"
@@ -198,7 +199,13 @@ void readCrash() {
     int n = snprintf(b, sizeof b, "%.16s pc %08lx bt", c->exc_task, (unsigned long)c->exc_pc);
     for (int i = 0; i < (int)c->exc_bt_info.depth && i < 12 && n < (int)sizeof b - 10; i++)
       n += snprintf(b + n, sizeof b - n, " %08lx", (unsigned long)c->exc_bt_info.bt[i]);
-    lastCrash = b;
+    // Is it this build's? A dump stays until the next crash; erase it once read, so the next one is fresh
+    // (2026-11-13: an mdns dump of unknown age was all there was after a reset).
+    char sha[17] = {0};
+    esp_app_get_elf_sha256(sha, sizeof sha);
+    bool mine = !strncmp((const char *)c->app_elf_sha256, sha, 16);
+    lastCrash = String(b) + (mine ? " (this build)" : " (older build)");
+    esp_core_dump_image_erase();
   }
   free(c);
 }

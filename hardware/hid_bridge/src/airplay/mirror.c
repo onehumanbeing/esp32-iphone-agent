@@ -157,7 +157,7 @@ static int decrypt(uint8_t *p, size_t n) {
       // it at that position; if it parses it is a real frame, and dropping it broke every P-frame after it until
       // the next IDR (the "frame"/"Mirror" stalls of 2026-10-20).
       keystream at = *last;
-      mbedtls_aes_crypt_ctr(&m.aes, m.held_n, &at.off, at.iv, at.stream, m.held, m.held);
+      ks_ctr(&m.aes, m.held_n, &at.off, at.iv, at.stream, m.held);
       uint8_t h[8] = {0};
       memcpy(h, m.held, m.held_n < 8 ? m.held_n : 8);
       m.held_ready = avcc_to_annexb(m.held, m.held_n);
@@ -207,13 +207,13 @@ static void handle_packet(const uint8_t *hdr, uint8_t *p, size_t n) {
     mbedtls_aes_setkey_enc(&clean, key_copy, 128);
     memcpy(fresh.iv, iv0_copy, 16);
     memcpy(p, m.copy, n);
-    mbedtls_aes_crypt_ctr(&clean, n, &fresh.off, fresh.iv, fresh.stream, p, p);
+    ks_ctr(&clean, n, &fresh.off, fresh.iv, fresh.stream, p);
     bool clean_ok = ks_plausible(p, n);
     int ks_clean = 0;
     for (int i = 0; i < m.nks && !ks_clean; i++) {
       next = m.ks[i];
       memcpy(p, m.copy, n);
-      mbedtls_aes_crypt_ctr(&clean, n, &next.off, next.iv, next.stream, p, p);
+      ks_ctr(&clean, n, &next.off, next.iv, next.stream, p);
       if (ks_plausible(p, n)) ks_clean = i + 1;
     }
     mbedtls_aes_free(&clean);
