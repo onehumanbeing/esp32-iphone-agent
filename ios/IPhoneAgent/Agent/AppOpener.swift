@@ -33,7 +33,7 @@ enum OpenResult: String {
     /// Puts text on the clipboard (the agent app hops to the front and back home); nil = no clipboard here.
     var paste: ((String) async throws -> Bool)?
     static let tries = 2
-    static let relooks = 3
+    static let relooks = 2
 
     func open(_ name: String) async throws -> OpenResult {
         let result = try await open(named: name)
@@ -72,10 +72,10 @@ enum OpenResult: String {
             var lines = await read(results)
             // The field and the results lag the typing by up to ~1.5 s: the first look still had an empty field over
             // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
-            // while the screen is still changing.
+            // (not "while the screen changes": the typed name in the field alone is too small a change for `same`).
             for _ in 0..<Self.relooks where !Self.listed(name, in: lines, as: labels) && !same(results, homeFrame) {
                 try await pause(0.6)
-                guard let again = await look(), !same(again, results) else { break }
+                guard let again = await look() else { break }
                 results = again
                 lines = await read(again)
             }

@@ -44,7 +44,7 @@ import XCTest
 
     func testANameSpotlightDoesNotKnowIsTriedUnderItsSystemName() async throws {
         var sent: [String] = [], typed = ""
-        var queue = [home, spotlight, spotlight, home, spotlight, app]  // a second look at 闹钟's results: unchanged
+        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, app]  // 闹钟: two more looks, still not listed
         let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },

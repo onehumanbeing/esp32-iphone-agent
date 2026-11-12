@@ -69,6 +69,7 @@ import XCTest
         XCTAssertTrue(Calls.isCall("Call Mom and talk about dinner"))
         XCTAssertTrue(Calls.isCall("打电话给妈妈，聊晚饭"))
         XCTAssertFalse(Calls.isCall("在淘宝把耳机加到购物车"))
+        XCTAssertFalse(Calls.isCall("Open Settings on this iPhone and recall the last note"))
         XCTAssertEqual(Calls.prompt("Open Notes"), "")
         XCTAssertEqual(try Actions.parseCommand("say \"你好，我是助手\""), ["action": .str("say"), "text": .str("你好，我是助手")])
     }

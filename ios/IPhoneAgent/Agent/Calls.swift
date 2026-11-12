@@ -5,11 +5,12 @@ import Foundation
 /// line. `say "TEXT"` types into the open Live Speech field and presses return. The guide goes into the actor's prompt
 /// only for a task that sounds like a call, so other tasks pay nothing for it.
 enum Calls {
-    static let words = ["电话", "致电", "打给", "通话", "call ", "phone ", "ring ", "dial"]
+    static let words = ["电话", "致电", "打给", "通话"]
+    /// Whole words only: "iPhone" and "recall" are not calls.
+    static let english = #"\b(call|calling|phone|ring|dial)\b"#
 
     static func isCall(_ task: String) -> Bool {
-        let t = task.lowercased() + " "
-        return words.contains { t.contains($0) }
+        words.contains { task.contains($0) } || task.range(of: english, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     static func prompt(_ task: String) -> String {
