@@ -20,10 +20,11 @@ enum Calls {
             + "remove a wrong number with `key backspace` once per digit before typing it again. Check the whole number "
             + "shows once, `confirm`, then tap the call button once. Keep the call on the iPhone itself: if the call "
             + "screen shows Speaker on, tap Audio (or Speaker) and pick iPhone. Call sound never goes over AirPlay, so the "
-            + "only way to hear the other side is Live Captions on screen, and they understand English only: speak "
-            + "English on a call, and if the goal needs another language, `fail` and say calls work in English for now. Both are buttons in Control Center (swipe down "
+            + "only way to hear the other side is Live Captions on screen; they understand English best and may mishear "
+            + "other languages, so read them with care. Speak in the goal's language. Both are buttons in Control Center (swipe down "
             + "from the top right corner): while the call still rings, turn Live Captions on there, then tap Live Speech "
-            + "and `type` the first sentence into its field without enter; the moment they answer (the call timer "
+            + "and `type` the first sentence into its field without enter (Live Speech is open when its text field and the "
+            + "keyboard show at the bottom; its button does not stay lit, never tap it again); the moment they answer (the call timer "
             + "starts), `key enter` says it. Live Captions stay on screen until turned off: after hanging up, turn them "
             + "off in Control Center and check they are gone before `done`. Find each button by its name (Live Captions, "
             + "Live Speech) and tap it once: a lit button is on, never tap it again. If a button is not there by name, "
@@ -73,10 +74,13 @@ extension Calls {
     static let answered = RecordedStep(action: ["action": .str("waittext"), "pattern": .str(#"^\d{1,2}:\d{2}$"#), "seconds": .num(60)],
                                        sure: true, frame: nil)
 
+    /// Captions go on before dialing; Live Speech only once it rings: its keyboard would take the number typed on
+    /// the Keypad.
     static func script(_ task: String) -> [RecordedStep] {
-        [ai("Place the call the goal asks for: open Phone, find the contact or type the number on the Keypad, check it, `confirm`, tap the call button once. Done as soon as it is calling."),
-         controlCenter, button("Live Captions"), button("Live Speech"),
-         ai("In the Live Speech field, `type` the first short English sentence to say for the goal (a greeting and why you call), without enter. Done once it is typed."),
+        [controlCenter, button("Live Captions"), move(["action": .str("home")]),
+         ai("Place the call the goal asks for: open Phone, find the contact or type the number on the Keypad, check it, `confirm`, tap the call button once. Done as soon as it is calling."),
+         controlCenter, button("Live Speech"),
+         ai("Live Speech is open: its text field and the keyboard show at the bottom (its button does not stay lit; never tap it again). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter. Done once it is typed."),
          answered,
          move(["action": .str("key"), "combo": .str("enter")]),
          ai("Hold the call for the goal: read what they say in Live Captions, answer with `say`, and hang up when it is done or they end it. Done with a summary of what was said.", budget: 30),

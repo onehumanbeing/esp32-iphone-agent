@@ -99,9 +99,15 @@ extension AgentLoop {
 
     /// Where a demonstrated tap's label reads on this screen (OCR), nearest to the recorded spot.
     private func labelled(_ step: Replay.Step) async -> (x: Int, y: Int)? {
-        guard let label = step.action["label"]?.str, let frame = screen?.frame else { return nil }
-        let at = Replay.locate(label, near: step.action["x"]?.int ?? 500, step.action["y"]?.int ?? 500,
+        guard let label = step.action["label"]?.str else { return nil }
+        var at: (x: Int, y: Int)?
+        // a sheet or Control Center may still be sliding in after the last move: read again for up to ~2 s
+        for attempt in 0..<4 where at == nil {
+            if attempt > 0 { try? await Task.sleep(nanoseconds: 600_000_000) }
+            guard let frame = screen?.frame else { return nil }
+            at = Replay.locate(label, near: step.action["x"]?.int ?? 500, step.action["y"]?.int ?? 500,
                                in: await DemoAnalysis.texts(frame, limit: 80))
+        }
         DebugLog.write("script: \"\(label)\" \(at.map { "at \($0.x) \($0.y)" } ?? "not on screen")")
         return at
     }
