@@ -21,7 +21,8 @@ extension AgentLoop {
         if !replay.isScript && !Replay.replayable.contains(name) { return handOver(n, "not a move") }
         switch name {
         case "ai":
-            guard try await subGoal(step.action["goal"]?.str ?? "", budget: step.action["budget"]?.int ?? Self.subGoalSteps) else { return .ended }
+            guard try await subGoal(step.action["goal"]?.str ?? "", budget: step.action["budget"]?.int ?? Self.subGoalSteps,
+                                  endText: step.action["end_text"]?.str) else { return .ended }
         case "manual":
             guard try await handToUser(step.action["reason"]?.str ?? "") else { return .ended }
         case "waittext":  // watch the screen until a line matches, without the model
@@ -113,12 +114,18 @@ extension AgentLoop {
     }
 
     /// The model does one sub-goal from the current screen, with no planner call. True = it said done.
-    func subGoal(_ goal: String, budget: Int = AgentLoop.subGoalSteps) async throws -> Bool {
+    /// `endText`: a regex; once a line on screen matches (a call's "Call Ended"), the part is over without the model.
+    func subGoal(_ goal: String, budget: Int = AgentLoop.subGoalSteps, endText: String? = nil) async throws -> Bool {
         let whole = task
         task = goal + "\n(This is one part of: \(whole). Say done as soon as this part is done.)"
         plan = goal
         defer { task = whole; plan = "" }
         for _ in 0..<budget {
+            if let endText, let frame = screen?.frame,
+               let hit = await DemoAnalysis.texts(frame, limit: 80).first(where: { $0.text.range(of: endText, options: [.regularExpression, .caseInsensitive]) != nil }) {
+                record(frame, ["action": .str("ai done"), "answer": .str("ended: \"\(hit.text)\" showed")])
+                return true
+            }
             guard try await step() else { continue }
             guard steps.last?["action"]?.str == "done" else { return false }  // fail ends the run
             steps[steps.count - 1]["action"] = .str("ai done")
