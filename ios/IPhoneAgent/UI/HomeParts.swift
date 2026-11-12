@@ -54,6 +54,8 @@ struct HelpPanel: View {
     private var reason: String { app.help ?? "" }
     private var limit: Bool { reason == AgentLoop.stepLimitReason }
     private var stalled: Bool { reason.hasPrefix(AgentLoop.stallReason) }
+    private var touchless: Bool { reason == TouchCheck.reason }
+    private var repeating: Bool { reason == NoProgress.reason }  // a stall too (its prefix): the same buttons
 
     var body: some View {
         Section {
@@ -68,7 +70,7 @@ struct HelpPanel: View {
                         Button { app.answerHelp(.resume) } label: { Label("Continue", systemImage: "play.fill") }
                             .buttonStyle(BigButton())
                         Button("Skip Step") { app.answerHelp(.skip) }.buttonStyle(BigButton.tinted)
-                    } else if limit {
+                    } else if limit || touchless {
                         Button { app.answerHelp(.resume) } label: { Label("Keep Going", systemImage: "play.fill") }
                             .buttonStyle(BigButton())
                         Button("Take Over") { app.takeOver() }.buttonStyle(BigButton.tinted)
@@ -88,12 +90,16 @@ struct HelpPanel: View {
 
     private var title: Text {
         if limit { return Text("That's \(app.agent.maxSteps) steps") }
+        if repeating { return Text("I keep repeating the same step") }
         if stalled { return Text("The screen hasn't changed in a while") }
+        if touchless { return Text("My taps aren't reaching the iPhone") }
         return Text(verbatim: reason)
     }
 
     private var detail: LocalizedStringKey? {
         if app.takingOver { return "Do the step yourself, then tap Continue." }
+        if touchless { return "\(TouchCheck.advice) Then tap Keep Going." }
+        if repeating { return "\(NoProgress.advice) Then tap Keep Going." }
         if limit { return "A safety limit. If the run is still getting somewhere, keep going." }
         if stalled { return "My taps may be missing. Do this step yourself, or let me try again." }
         return nil
@@ -123,8 +129,11 @@ struct RecoveryPanel: View {
             }
             HStack {
                 Spacer()
-                Button(role: .destructive) { Task { await app.stopAgent() } } label: { Label("Stop", systemImage: "stop.fill") }
-                    .buttonStyle(.bordered)
+                Button(role: .destructive) { Task { await app.stopAgent() } } label: {
+                    Label(app.stopping ? LocalizedStringKey("Stopping…") : "Stop", systemImage: "stop.fill")
+                }
+                .buttonStyle(.bordered)
+                .disabled(app.stopping)
             }
         } header: {
             if stage.part == .frames {

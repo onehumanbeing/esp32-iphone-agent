@@ -1,6 +1,12 @@
 import AppIntents
 import Foundation
 
+/// The name on the Home Screen (CFBundleDisplayName = IA_APP_NAME, a build setting). Texts about the app use it; the board's own names (Screen Mirroring,
+/// Bluetooth) stay what the firmware broadcasts.
+enum AppName {
+    nonisolated static let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "ESP32 Agent"
+}
+
 /// A request from Siri, Shortcuts, a widget or a control, handled by the app process (AppModel sets `handle`).
 enum AgentRequest {
     case runTask(String), runSaved(UUID?), status, calibrate
@@ -11,7 +17,7 @@ enum AgentRequest {
 @MainActor enum AgentRequests {
     /// Returns the line to say or show.
     static var handle: ((AgentRequest) async -> String)?
-    nonisolated static var unavailable: String { String(localized: "Open ESP32 Agent once, then try again.") }
+    nonisolated static var unavailable: String { String(localized: "Open \(AppName.current) once, then try again.") }
 }
 
 /// A saved intent (My Intents), as Siri and Shortcuts see it.
@@ -52,7 +58,7 @@ struct SavedIntentQuery: EntityStringQuery {
 /// and may start the Live Activity from the background.
 struct RunSavedIntentIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Run a Saved Intent"
-    static let description = IntentDescription("Runs one of your saved intents on ESP32 Agent.")
+    static let description = IntentDescription("Runs one of your saved intents.")
 
     @Parameter(title: "Intent") var intent: SavedIntentEntity
 
@@ -70,7 +76,7 @@ struct RunSavedIntentIntent: LiveActivityIntent {
 /// Runs the intent run last (else the first saved one): the Control Center button.
 struct RunLastIntentIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Run Last Intent"
-    static let description = IntentDescription("Runs the saved intent you ran last on ESP32 Agent.")
+    static let description = IntentDescription("Runs the saved intent you ran last.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let line = await AgentRequests.handle?(.runSaved(nil)) ?? AgentRequests.unavailable

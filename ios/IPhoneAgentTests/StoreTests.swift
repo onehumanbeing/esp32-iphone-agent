@@ -43,7 +43,35 @@ import XCTest
         XCTAssertEqual(store.items.first?.name, "Open Notes and write hello")
         XCTAssertEqual(IntentStore(defaults: defaults).items.count, store.items.count)
         store.delete(at: IndexSet(integer: 0))
-        XCTAssertEqual(IntentStore(defaults: defaults).items.first?.name, IntentStore.examples[0].name)
+        XCTAssertEqual(IntentStore(defaults: defaults).items.first?.name, IntentStore.text.name)  // the templates lead
+    }
+
+    /// Text and call come first, as templates that do not run until their blanks are filled in; an install that
+    /// already has intents gets them once at the top, and deleting them sticks.
+    func testTextAndCallTemplatesLeadAndNeedEditing() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let fresh = IntentStore(defaults: defaults)
+        XCTAssertEqual(fresh.items.prefix(2).map(\.name), [IntentStore.text.name, IntentStore.call.name])
+        XCTAssertTrue(fresh.items[0].unfilled && fresh.items[1].unfilled)
+        XCTAssertFalse(IntentStore.note.unfilled)
+        XCTAssertFalse(IntentStore.unfilled("Call Mom and talk about dinner"))
+
+        let old = UserDefaults(suiteName: UUID().uuidString)!
+        old.set(try? JSONEncoder().encode([IntentStore.note]), forKey: "savedTasks")
+        old.set(true, forKey: "seededDiagnosticsIntent")
+        let store = IntentStore(defaults: old)
+        XCTAssertEqual(store.items.map(\.name), [IntentStore.text.name, IntentStore.call.name, IntentStore.note.name])
+        store.delete(at: IndexSet(integer: 0))
+        XCTAssertEqual(IntentStore(defaults: old).items.count, 2)
+    }
+
+    func testCallGuideOnlyForCallTasks() {
+        XCTAssertTrue(Calls.isCall("Call Mom and talk about dinner"))
+        XCTAssertTrue(Calls.isCall("打电话给妈妈，聊晚饭"))
+        XCTAssertFalse(Calls.isCall("在淘宝把耳机加到购物车"))
+        XCTAssertFalse(Calls.isCall("Open Settings on this iPhone and recall the last note"))
+        XCTAssertEqual(Calls.prompt("Open Notes"), "")
+        XCTAssertEqual(try Actions.parseCommand("say \"你好，我是助手\""), ["action": .str("say"), "text": .str("你好，我是助手")])
     }
 
     func testDeletingRunRemovesRecordingAndPersistsAfterReload() throws {
@@ -114,4 +142,38 @@ import XCTest
         XCTAssertNil(card.cover)
         XCTAssertNil(card.storedRun)
     }
+
+    func testToolsReadSearchAnswersAndRefuseBadFiles() throws {
+        let exa = #"{"results":[{"title":"清闲智能","url":"https://qingxian.com/","text":"动态人机工学椅 OC1"}]}"#
+        XCTAssertEqual(ToolRunner.text(Data(exa.utf8)), "- 清闲智能: 动态人机工学椅 OC1 (https://qingxian.com/)")
+        XCTAssertEqual(ToolRunner.text(Data(#"{"result":"42"}"#.utf8)), "42")
+        XCTAssertEqual(ToolRunner.text(Data("plain".utf8)), "plain")
+
+        let store = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertNotNil(store.add(json: Data("nope".utf8)))
+        XCTAssertNotNil(store.add(json: Data(#"{"id":"web","title":"t","about":"a","url":"https://x.y"}"#.utf8)), "a built-in's id")
+        XCTAssertNotNil(store.add(json: Data(#"{"id":"docs","title":"t","about":"a","url":"http://x.y"}"#.utf8)), "https only")
+        XCTAssertNil(store.add(json: Data(#"{"id":"docs","title":"Docs","about":"Search our docs.","url":"https://x.y/s"}"#.utf8)))
+        XCTAssertEqual(store.imported.map(\.id), ["docs"])
+        XCTAssertTrue(ToolStore.prompt([]).isEmpty, "no tool on: the prompt says nothing")
+
+        let tool = try XCTUnwrap(store.imported.first)
+        let request = try XCTUnwrap(ToolRunner.request(tool, query: "q", key: "k", run: "r1"))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer k")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Run-ID"), "r1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
+        XCTAssertEqual(sent["query"] as? String, "q")
+        // export → import on another iPhone: the same tools, a keyless one stays keyless
+        XCTAssertNil(store.add(json: Data(#"{"id":"wiki","title":"Wiki","about":"a","url":"https://w.k/s","key_header":null}"#.utf8)))
+        let other = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertNil(other.add(json: store.export()))
+        XCTAssertEqual(other.imported, store.imported)
+        XCTAssertNil(other.imported.last?.key_header)
+        XCTAssertNotNil(other.add(json: Data(#"[{"id":"ok_one","title":"t","about":"a","url":"https://x.y"},{"id":"bad","title":"t","about":"a","url":"http://x.y"}]"#.utf8)))
+        XCTAssertFalse(other.imported.contains { $0.id == "ok_one" }, "a list is added whole or not at all")
+        store.remove("docs")
+        store.remove("wiki")
+        XCTAssertTrue(store.imported.isEmpty)
+    }
 }
+

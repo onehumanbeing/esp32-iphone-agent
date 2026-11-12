@@ -241,6 +241,25 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["reason"], .str("3 errors in a row"))
     }
 
+    func testRunStopsAtOnceWhenTheFreeLineEndsIt() async {
+        let model = FakeModel { _ in "THINK: x\nDO: wait" }
+        model.error = LLMError.trialRunEnded
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        await agent.run()
+        XCTAssertEqual(model.prompts.count, 1)  // no retries: every further call would be refused too
+        XCTAssertEqual(agent.steps.last?["action"], .str("error"))
+    }
+
+    func testStepTimingIsKeptForTheNextRequest() async {
+        let model = FakeModel { n in n == 1 ? "THINK: home\nDO: home" : "THINK: there\nDO: done ok" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        await agent.run()
+        let header = StepReport.shared.take()[StepReport.header] ?? ""
+        XCTAssertTrue(header.hasPrefix("llm="), header)
+        XCTAssertTrue(header.contains(",settle=") && header.contains(",mode=stream,gap="), header)
+        XCTAssertFalse(StepWaits.moving)
+    }
+
     func testRunFinishesOnDone() async {
         let model = FakeModel { n in n == 1 ? "THINK: home\nPLAN:\n1. Go home\nDO: home" : "THINK: there\nDO: done ok" }
         let phone = FakeGestures()
@@ -326,6 +345,72 @@ import XCTest
         XCTAssertEqual(again.steps.last?["changed"], .bool(true))
     }
 
+    func testATapThatChangedNothingIsPressedOnceMoreWithThePointerChecked() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = Self.jpeg()  // the same before and after
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Send\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false, true])
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.5, y: 0.5), CGPoint(x: 0.5, y: 0.5)])
+        XCTAssertEqual(agent.steps.last?["again"], .bool(true))
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNil(Actions.key(agent.steps.last!)["again"])
+    }
+
+    func testASecondPressThatWorksReadsAsChanged() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen()
+        var presses = 0
+        phone.onTap = { presses += 1; if presses == 2 { screen.frame = v.screen(button: true) } }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Open\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(presses, 2)
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(true))
+    }
+
+    func testAMissWithThePointerOnTheTargetIsNotPressedAgain() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        phone.landed = CGPoint(x: 0.505, y: 0.495)
+        screen.frame = Self.jpeg()
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: label\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])  // the target itself does nothing: the model decides what next
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
+    func testAConfirmedTapIsNeverPressedTwice() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = Self.jpeg()  // the same before and after
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: Send\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        agent.steps = [["action": .str("confirm"), "reason": .str("send the message")],
+                       ["action": .str("confirmed"), "reason": .str("the user said yes, do it now: send the message")]]
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+        XCTAssertNil(agent.steps.last?["again"])
+    }
+
+    func testATargetThatMovedByItselfIsNotPressedAgain() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        let seen = v.screen(spinner: 230)
+        screen.frame = seen
+        var looked = false
+        let model = FakeModel { _ in
+            looked = true
+            return "THINK: bar\nDO: tap 720 289"  // on the bar (x 300-420, y 300-324 of 498 x 1080)
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 90) } }  // moved while the model looked
+        phone.onTap = { screen.frame = v.screen(spinner: 160) }
+        _ = try await agent.step()
+        XCTAssertEqual(phone.aims, [false])
+        XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
     func testAMissedTapSaysWhereThePointerIs() async throws {
         let phone = FakeGestures()
         phone.landed = CGPoint(x: 0.5, y: 0.958)
@@ -339,6 +424,44 @@ import XCTest
                        " -> screen did NOT change; the pointer is at 500 958 (37 below the target)")
         XCTAssertNil(Actions.key(agent.steps.last!)["landed"])
     }
+
+    /// Pause holds at the gesture gate. Continue must not send a tap chosen for the screen from before the pause.
+    func testPauseBeforeAChosenGestureDropsItAndLooksAgain() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { n in n == 1 ? "THINK: tap\nDO: tap 10 20\nDO: type hi" : "THINK: now\nDO: wait" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gestureGates = 0
+        agent.gate = {
+            guard agent.droppingChosenGesture else { return }  // a pause during the look does not drop the decision
+            gestureGates += 1
+            if gestureGates == 1 { agent.notePauseInterrupted() }
+        }
+        let dropped = try await agent.step()
+        XCTAssertFalse(dropped)
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertTrue(agent.steps.isEmpty)
+        let looked = try await agent.step()
+        XCTAssertFalse(looked)
+        XCTAssertEqual(phone.calls, [])
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "wait")
+    }
+
+    /// The first gesture of a batch ran; a pause before the next one sends nothing further.
+    func testPauseBetweenGesturesDropsTheRest() async throws {
+        let phone = FakeGestures()
+        let model = FakeModel { _ in "THINK: tap then type\nDO: tap 10 20\nDO: type hi" }
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var gestureGates = 0
+        agent.gate = {
+            guard agent.droppingChosenGesture else { return }
+            gestureGates += 1
+            if gestureGates == 2 { agent.notePauseInterrupted() }
+        }
+        let dropped = try await agent.step()
+        XCTAssertFalse(dropped)
+        XCTAssertEqual(phone.calls, ["tap"])
+        XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["tap"])
+    }
 }
 
 // MARK: - fakes
@@ -349,12 +472,14 @@ import XCTest
     private(set) var images: [Data?] = []
     private let reply: (Int) -> String
     var tree: Data?  // the free line's handsy.tree on every reply
+    var error: Error?  // thrown instead of a reply
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
+        if let error { throw error }
         var result = ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
         result.tree = tree
         return result
@@ -375,9 +500,13 @@ import XCTest
     var connected = true
     var sent: [String] = []
     var onSend: ((String) -> Void)?
+    var reject: Set<String> = []  // commands answered like older firmware: "err unknown command"
     func send(_ command: String) async throws -> String {
         sent.append(command)
         onSend?(command)
+        if reject.contains(String(command.split(separator: " ").first ?? "")) {
+            throw DeviceError(message: "err unknown command")
+        }
         return ""
     }
     func waitConnected(_ timeout: TimeInterval) async -> Bool { connected }
@@ -397,14 +526,20 @@ import XCTest
     }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
-    func type(_ text: String) async throws { calls.append("type") }
+    var typeNote: String?
+    func type(_ text: String) async throws -> String? { calls.append("type"); return typeNote }
     func key(_ combo: String) async throws { calls.append("key") }
-    func goHome() async throws { calls.append("home") }
-    func openApp(_ name: String) async throws { calls.append("open \(name)") }
+    var homeAgain: [Bool] = []
+    func goHome(again: Bool) async throws { calls.append("home"); homeAgain.append(again) }
+    var openResult = OpenResult.opened
+    func openApp(_ name: String) async throws -> OpenResult { calls.append("open \(name)"); return openResult }
     func goBack() async throws { calls.append("back") }
     func reset() async throws { calls.append("reset") }
     var landed: CGPoint?
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { landed }
+    var pointerVisible: Bool?  // what a TouchCheck probe sees (nil = can't tell)
+    var probes = 0
+    func pointerSeen(near p: CGPoint) async -> Bool? { probes += 1; return pointerVisible }
 }
 
 @MainActor private final class ConnectionFailureModel: ChatModel {

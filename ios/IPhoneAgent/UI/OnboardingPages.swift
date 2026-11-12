@@ -1,23 +1,27 @@
 import SwiftUI
 import UIKit
 
-/// 0 · Welcome: the character wakes up and says hello; the disclaimer must be accepted to go on.
+/// 0 · Welcome: the character wakes up and says hello. The risks were accepted on the first-launch sheet
+/// (Agree and Continue); after Not Now there, the button here is the acceptance (Accept and Get Started).
 struct WelcomePage: View {
-    @Binding var accepted: Bool
+    var accepted: Bool
     @State private var awake = false
 
     var body: some View {
         VStack(spacing: Space.xl) {
-            PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm ESP32 Agent",
+            PageHeader(mood: awake ? .idle : .sleeping, title: "Hi, I'm \(AppName.current)",
                        message: "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
             Panel {
-                DisclosureGroup {
-                    Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
-                } label: {
+                if accepted {
+                    DisclosureGroup {
+                        Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
+                    } label: {
+                        Label("Understand the risks", systemImage: "exclamationmark.shield").font(.body.weight(.semibold))
+                    }
+                } else {
                     Label("Understand the risks", systemImage: "exclamationmark.shield").font(.body.weight(.semibold))
+                    Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
                 }
-                Divider().padding(.vertical, Space.m)
-                Toggle("I understand and accept", isOn: $accepted)
             }
         }
         .task {
@@ -29,7 +33,7 @@ struct WelcomePage: View {
 
 enum Disclaimer {
     static var text: LocalizedStringKey {
-        "ESP32 Agent is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
+        "\(AppName.current) is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
     }
 }
 
@@ -46,7 +50,7 @@ struct ConnectPage: View {
             Panel {
                 switch board.state {
                 case .unauthorized:
-                    Label("Bluetooth is not allowed for ESP32 Agent.", systemImage: "exclamationmark.triangle.fill")
+                    Label("Bluetooth is not allowed for \(AppName.current).", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Palette.warning)
                     Button("Open Settings") { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) }
                         .padding(.top, Space.s)
@@ -57,6 +61,7 @@ struct ConnectPage: View {
                 }
             }
             if !board.connected { FirmwareLinks() }
+            if !board.connected && !MockMode.on { DemoOffer() }
         }
         .onAppear { board.scan(); autoPair() }
         .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
@@ -94,7 +99,7 @@ struct ConnectPage: View {
         }
         if board.pairingLost {
             // Short: a long warning pushed the button off small screens.
-            Text("Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+            Text("Pairing failed. Replug the board, then forget \(BoardName.current) in Settings › Bluetooth.")
                 .font(.footnote).foregroundStyle(Palette.warning).lineLimit(2).minimumScaleFactor(0.85)
                 .padding(.top, Space.s)
         } else if !board.connected || (board.signalStrength ?? 0) < -80 {
@@ -112,6 +117,23 @@ struct ConnectPage: View {
 }
 
 /// A board fresh from the shop has no firmware and never shows up: point to the browser installer and the source.
+/// No board at hand: turn on Demo data from the first setup page (the same switch as Settings › Developer).
+/// It is read once at launch (MockMode), so the app says to reopen it.
+struct DemoOffer: View {
+    @AppStorage(MockMode.key) private var demoData = false
+    @State private var told = false
+
+    var body: some View {
+        Button("No board yet? Try the demo") { demoData = true; told = true }
+            .font(.footnote.weight(.semibold))
+            .alert("Demo Data Is On", isPresented: $told) {
+                Button("OK") {}
+            } message: {
+                Text("Quit \(AppName.current) and open it again to try the whole app without a board. Nothing is sent anywhere in the demo. Turn it off in Settings › Developer.")
+            }
+    }
+}
+
 struct FirmwareLinks: View {
     static let install = URL(string: "https://handsy.tech/install")!
 
@@ -175,7 +197,7 @@ struct SeePage: View {
                 .font(.footnote).foregroundStyle(.secondary)
                 Button("I'm already on the board's Wi-Fi") { onWiFi = true }.font(.footnote)
             } else if !streaming {
-                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")
+                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → \(BoardName.current)**.")
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 MiniPhoneDemo(kind: .controlCenter)
@@ -273,27 +295,30 @@ struct BrainPage: View {
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: app.modelOK == true ? .success : app.modelOK == false ? .failure : .thinking,
-                       title: "Give Me a Brain",
-                       message: "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain.")
+                       title: "Give Me a Brain", message: message)
             if MockMode.on {
-                Panel { Label("Demo data simulates the model.", systemImage: "theatermasks") }
+                Panel {
+                    Label("Demo data simulates the model.", systemImage: "theatermasks")
+                    // The demo still shows what a real run asks before it sends anything.
+                    let pending = settings.pendingConsent
+                    if settings.isConfigured, pending.model || pending.jev {
+                        SendConsentCard(settings: settings, model: pending.model, jev: pending.jev)
+                    }
+                }
             } else {
                 ModelFieldsPanel(settings: settings)
+                ToolsEntry()
             }
-            ModelTestTimingView(app: app)
-            switch app.modelOK {
-            case true?:
-                Panel {
-                    Label("Connected. Try this first:", systemImage: "checkmark.circle.fill").foregroundStyle(Palette.ok)
-                    Text(verbatim: IntentStore.examples[0].prompt).font(.subheadline).foregroundStyle(.secondary)
-                        .padding(.top, Space.s)
-                }
-            case false?:
-                Label(app.modelError ?? String(localized: "Could not reach the model. Check the URL and key."), systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(Palette.stop).font(.subheadline)
-            case nil:
-                EmptyView()
-            }
+            if app.modelTestStarted != nil || app.modelTestSeconds != nil { ModelTestTimingView(app: app) }
+        }
+    }
+
+    /// The connection result lives in the header (and as a mark on the model row), not in a card of its own.
+    private var message: LocalizedStringKey {
+        switch app.modelOK {
+        case true?: return "Connected. Try this first: \(IntentStore.note.prompt)"
+        case false?: return "\(app.modelError ?? String(localized: "Could not reach the model. Check the URL and key."))"
+        case nil: return "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain."
         }
     }
 }

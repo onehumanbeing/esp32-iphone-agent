@@ -9,20 +9,22 @@ enum Actions {
 
     /// Bookkeeping keys that are not part of the action itself.
     static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay", "jev",
-                                     "landed"]
+                                     "landed", "again", "demo", "sure", "label"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
-        "type": ["text"], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
+        "type": ["text"], "clear": [], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
         "home": [], "back": [], "wait": [], "open": ["app"],
         "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
+        "tool": ["text"],  // tool <name> "query" (Tools.swift)
+        "say": ["text"],  // say "TEXT": Live Speech says it into a call (Calls.swift)
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the screen.
-    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "key", "home", "back", "open"]
+    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open", "say"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
-    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write"]
+    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool"]
 
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
@@ -69,7 +71,7 @@ enum Actions {
     /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
     /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
-        let ending: Set<String?> = ["done", "fail", "confirm", "write"]
+        let ending: Set<String?> = ["done", "fail", "confirm", "write", "say"]  // after say: listen
         var out: [JObject] = []
         var typed = false
         for a in acts {

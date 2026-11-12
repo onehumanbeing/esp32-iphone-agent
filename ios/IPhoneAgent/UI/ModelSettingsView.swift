@@ -23,6 +23,9 @@ struct ModelSettingsView: View {
                 }
             }
             Section {
+                NavigationLink { ToolsView() } label: { ToolsRowLabel() }
+            }
+            Section {
                 Button {
                     testing = true
                     Task { await app.pingLLM(); testing = false }
@@ -37,7 +40,7 @@ struct ModelSettingsView: View {
                     }
                 }
                 .disabled(testing || !app.modelReady)
-                ModelTestTimingView(app: app)
+                if app.modelTestStarted != nil || app.modelTestSeconds != nil { ModelTestTimingView(app: app) }  // no empty row
                 if let error = app.modelError {
                     Text(verbatim: error).font(.footnote).foregroundStyle(Palette.stop)
                 }
@@ -57,7 +60,10 @@ struct ModelSettingsView: View {
                 }
             } footer: {
                 if advanced {
-                    Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("A Planner model different from the Actor model answers the rounds that need judgement: the first one, a run going in circles, and the check before it finishes. A strong planner with a fast actor keeps most steps quick.")
+                        Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
+                    }
                 }
             }
         }

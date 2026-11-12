@@ -119,6 +119,26 @@ struct ValueRow: View {
 }
 
 /// A row icon in a rounded colored square, like Settings.app.
+/// An intent's icon colour (SavedTask.color), chosen in Save as Intent; nil or "accent" = the app's accent.
+enum IntentTint {
+    static let names = ["accent", "red", "pink", "purple", "indigo", "blue", "teal", "green", "yellow", "gray"]
+
+    static func color(_ name: String?) -> Color {
+        switch name {
+        case "red": return .red
+        case "pink": return .pink
+        case "purple": return .purple
+        case "indigo": return .indigo
+        case "blue": return .blue
+        case "teal": return .teal
+        case "green": return .green
+        case "yellow": return .yellow
+        case "gray": return .gray
+        default: return .accentColor
+        }
+    }
+}
+
 struct SettingsIcon: View {
     let symbol: String
     let color: Color

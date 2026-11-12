@@ -144,7 +144,7 @@ struct OnboardingView: View {
 
     private var primaryTitle: LocalizedStringKey {
         switch page {
-        case .welcome: return "Get Started"
+        case .welcome: return accepted ? "Get Started" : "Accept and Get Started"
         case .connect: return board.connected ? "Continue" : waiting ? "Looking for the board…" : "Scan Again"
         case .see:
             if streaming { return "Continue" }
@@ -160,14 +160,14 @@ struct OnboardingView: View {
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
         case .brain:
-            if app.modelOK == true { return "Start Using ESP32 Agent" }
+            if app.modelOK == true { return "Start Using \(AppName.current)" }
             return testing ? "Testing…" : "Test Connection"
         }
     }
 
     private var primaryEnabled: Bool {
         switch page {
-        case .welcome: return accepted
+        case .welcome: return true
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && !app.join.busy)
         case .act: return !calibrator.busy && (pointer.calibrated || actReady)
@@ -190,6 +190,10 @@ struct OnboardingView: View {
                 testing = false
                 if app.modelOK == true { Haptics.success() }
             }
+        case .welcome:
+            settings.acceptedDisclaimer = true  // the button says Accept when the first-launch sheet was skipped
+            advance()
+            accepted = true
         default:
             advance()
         }
@@ -199,7 +203,7 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: $accepted)
+        case .welcome: WelcomePage(accepted: accepted)
         case .connect: ConnectPage(board: board)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi)
         case .act: ActPage(app: app, board: board, calibrator: calibrator, pointer: pointer)

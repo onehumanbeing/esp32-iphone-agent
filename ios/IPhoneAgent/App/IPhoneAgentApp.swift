@@ -43,8 +43,10 @@ enum SetupPage: Int, CaseIterable, Identifiable {
 struct RootView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var settings: Settings
+    @Environment(\.scenePhase) private var scene
     @AppStorage(RunShare.askedKey) private var privacyAsked = false
     @State private var consent = false
+    @ObservedObject private var callGuide = CallGuide.shared
 
     var body: some View {
         TabView(selection: $app.tab) {
@@ -82,16 +84,23 @@ struct RootView: View {
                 .id(page)  // a fresh setup (its own page state) for every start page, e.g. "Run setup again"
             }
         }
-        .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet() } }
+        .background { Color.clear.sheet(isPresented: $consent, onDismiss: setUp) { ConsentSheet(settings: settings) } }
         .sheet(item: Binding(get: { app.aiConsentRun.map(PendingRun.init) }, set: { app.aiConsentRun = $0?.task })) { pending in
             SendConsentSheet(settings: settings, model: settings.pendingConsent.model, jev: settings.pendingConsent.jev) {
                 Task { await app.startAgent(pending.task) }
             }
         }
+        .sheet(item: $callGuide.pending) { pending in
+            CallSetupSheet(pending: pending) {
+                if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
+            }
+        }
+        .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
         .onAppear {
-            if privacyAsked { setUp() } else { consent = true }  // what is kept, before setup
+            if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
         }
+        .modifier(HandsyKeyOffer())
         .onOpenURL { url in
             if url.isFileURL && url.pathExtension.lowercased() == IntentArchive.fileExtension {  // shared intents
                 app.importIntents(url)
@@ -101,12 +110,17 @@ struct RootView: View {
                 do { try app.importRuns(url) } catch { app.say("import: \(error.localizedDescription)") }
                 return
             }
+            if !url.isFileURL { DebugLog.write("open url: \(url.scheme ?? "?")://\(url.host ?? "")") }
+            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity
             guard url.scheme == "iphoneagent", url.host == "run" else { return }
             let id = url.lastPathComponent
             if id.hasPrefix("rec-") { return }  // a recording: its draft opens by itself
-            if app.agent.running { app.tab = .agent } else { app.openReview(run: id) }
+            if app.agent.running {
+                app.live.opened()  // stale ("Paused by iOS — tap to continue"): the run sends the app away again
+                app.tab = .agent
+            } else { app.openReview(run: id) }
         }
     }
 
@@ -119,4 +133,15 @@ struct RootView: View {
 private struct PendingRun: Identifiable {
     let task: String
     var id: String { task }
+}
+
+extension RootView {
+    static func name(_ phase: ScenePhase) -> String {
+        switch phase {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
+    }
 }

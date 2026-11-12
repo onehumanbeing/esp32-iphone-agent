@@ -1,5 +1,11 @@
 import Foundation
 
+/// The screen feed is gone; acting now would be guessing.
+struct BlindError: LocalizedError {
+    var reason = "lost the phone screen: reconnect Screen Mirroring"
+    var errorDescription: String? { reason }
+}
+
 /// Self-healing after a lost link: which part is missing (board, hotspot, mirroring, fresh image), when to ask the user,
 /// and when to give up. Pure: the caller polls it with the link state and the time.
 struct Recovery {
@@ -91,7 +97,7 @@ extension Recovery.Stage {
                                 look: nil, minimal: String(localized: "Mirror"))
         case (.mirroring, true):
             return IslandStatus(short: String(localized: "Start Mirroring"),
-                                full: String(localized: "Tap Screen Mirroring → ESP32 Agent to continue"),
+                                full: String(localized: "Tap Screen Mirroring → \(BoardName.current) to continue"),
                                 look: nil, minimal: String(localized: "Mirror"))
         case (.frames, false):
             return IslandStatus(short: String(localized: "Waiting frame…"),
@@ -111,9 +117,9 @@ extension Recovery.Stage {
         case (.hotspot, false): return String(localized: "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…")
         case (.hotspot, true): return String(localized: "Join the board's Wi-Fi in Settings › Wi-Fi; the run goes on when it is back.")
         case (.mirroring, false): return String(localized: "Board is back. Waiting for Screen Mirroring to resume…")
-        case (.mirroring, true): return String(localized: "Open Control Center, tap Screen Mirroring → ESP32 Agent; the run goes on from here.")
+        case (.mirroring, true): return String(localized: "Open Control Center, tap Screen Mirroring → \(BoardName.current); the run goes on from here.")
         case (.frames, false): return status.full
-        case (.frames, true): return String(localized: "Stop and restart Screen Mirroring → ESP32 Agent; I’ll continue when a fresh image arrives.")
+        case (.frames, true): return String(localized: "Stop and restart Screen Mirroring → \(BoardName.current); I’ll continue when a fresh image arrives.")
         }
     }
 }

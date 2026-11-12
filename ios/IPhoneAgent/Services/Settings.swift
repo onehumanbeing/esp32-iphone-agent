@@ -52,10 +52,13 @@ import UIKit
         }
     }
     static let agentNameKey = "agentName"
-    static var defaultAgentName: String { String(localized: "ESP32 Agent") }
+    static var defaultAgentName: String { AppName.current }
     /// The name, for code without a Settings instance (Live Activity).
     static var storedAgentName: String { UserDefaults.standard.string(forKey: agentNameKey) ?? defaultAgentName }
     @Published var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }
+    @Published var restoreKeyboardAfterRun: Bool { didSet { defaults.set(restoreKeyboardAfterRun, forKey: "restoreKeyboardAfterRun") } }
+    /// Intents learn their steps from runs that worked (IntentLearner). On by default (Henry 2026-11-12).
+    @Published var learnFromRuns: Bool { didSet { defaults.set(learnFromRuns, forKey: "learnFromRuns") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
@@ -76,6 +79,8 @@ import UIKit
         apiKey = Self.stored(keychain.get("llm-api-key")) ?? preset("IAPresetKey") ?? ""
         agentName = defaults.string(forKey: Self.agentNameKey) ?? Self.defaultAgentName
         onboarded = defaults.bool(forKey: "onboarded")
+        restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
+        learnFromRuns = defaults.object(forKey: "learnFromRuns") as? Bool ?? true
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         provider = defaults.string(forKey: "modelProvider").flatMap(ModelProvider.init(rawValue:))
             ?? ModelProvider.infer(baseURL: baseURL, model: model)
@@ -312,38 +317,75 @@ import UIKit
         (try? JSONSerialization.jsonObject(with: Data(extraBody.utf8))) as? [String: Any] ?? [:]
     }
 
-    /// The free line builds the screen tree on Spark, unless Jev runs in the app (own TypeSafe key) and needs it here.
-    static func serverTree(_ provider: ModelProvider) -> Bool { provider == .handsyTrial && !JevConfig.ownActive }
+    /// The free line builds the screen tree on Spark, unless Jev runs in the app (own TypeSafe key) and needs it here,
+    /// or a Debug build picked Tree source › On-device.
+    static func serverTree(_ provider: ModelProvider, source: TreeSource = .current) -> Bool {
+        provider == .handsyTrial && !JevConfig.ownActive && source == .server
+    }
+
+    /// The actor's tree headers on the free line: Spark builds it (X-Handsy-Tree: slim), or the phone did and says so.
+    static func treeHeaders(_ role: String, _ provider: ModelProvider, source: TreeSource = .current) -> [String: String] {
+        guard role == "actor", provider == .handsyTrial else { return [:] }
+        if serverTree(provider, source: source) { return ["X-Handsy-Tree": "slim"] }
+        return source == .device ? ["X-Handsy-Tree-Source": "device"] : [:]
+    }
 
     /// role "planner" or "actor": its own model if set, else the shared one.
-    func client(_ role: String) async throws -> LLMClient {
-        let own = role == "planner" ? plannerModel : actorModel
+    func client(_ role: String, freeLineModel: String = Trial.model) async throws -> LLMClient {
+        // free line: its one model with the gateway's own parameters. Advanced overrides (models, token
+        // parameter, Extra body) are for one's own endpoint; the gateway refuses them.
+        let freeLine = provider == .handsyTrial
+        let own = freeLine ? freeLineModel : role == "planner" ? plannerModel : actorModel
         let model = own.isEmpty ? try await resolvedModel() : own
-        var extra = extra
+        var extra = freeLine ? [:] : extra
         if provider == .openRouter, model.hasSuffix(":free"), extra["models"] == nil {
             // When that free model's providers are rate-limited or down, OpenRouter tries two other free vision models.
             let others = freeModels.filter { $0 != model && $0.hasSuffix(":free") }.sorted().prefix(2)
             if !others.isEmpty { extra["models"] = [model] + others }
         }
         // free line: the actor's steps go to Jev first when the deciders say so (race: Jev and the model at
-        // once, the first sure answer wins)
-        let jev = role == "actor" && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
-            .freeLineHeader(race: defaults.bool(forKey: Deciders.raceKey)) : [:]
+        // once, the first sure answer wins). Read per request: JevGate.hold changes during the run.
+        let defaults = defaults
+        let jev = { role == "actor" && freeLineModel == Trial.model && !JevConfig.ownActive ? Deciders.load(freeLine: true, defaults: defaults)
+            .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
-        let tree = role == "actor" && Self.serverTree(provider) ? ["X-Handsy-Tree": "slim"] : [:]
-        let headers: (() throws -> [String: String])? = provider == .handsyTrial
-            ? { try Trial.shared.headers().merging(jev) { a, _ in a }.merging(tree) { a, _ in a } } : nil
-        return LLMClient(baseURL: baseURL, model: model, apiKey: apiKey, extra: extra, tokenParam: tokenParam, headers: headers)
+        let tree = Self.treeHeaders(role, provider)
+        // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
+        let step = { role == "actor" ? StepReport.shared.take() : [:] }
+        let headers: (() throws -> [String: String])? = freeLine
+            ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
+                .merging(step()) { a, _ in a } } : nil
+        return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
+                         tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
+    }
+
+    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Handsy key (paid
+    /// per call) or where the server allows it (owner phones); else nil. Own endpoint: the Planner model, else the shared one.
+    func recordingClient() async throws -> LLMClient? {
+        guard provider == .handsyTrial else { return try await client("planner") }
+        guard Trial.shared.canRecord else { return nil }
+        return LLMClient(baseURL: Trial.recordingBaseURL, model: Trial.recordingModel, tokenParam: "auto",
+                         headers: { try Trial.shared.recordingHeaders() })
+    }
+
+    /// The model for a run's checkpoints (AgentLoop+Checkpoint), asked like the actor. Free line: the gateway's
+    /// planner (same tree headers, no Jev). Own endpoint: the Planner model, when set and not the actor's model.
+    func checkpointClient() async throws -> LLMClient? {
+        if provider == .handsyTrial { return try await client("actor", freeLineModel: Trial.plannerModel) }
+        guard !plannerModel.isEmpty else { return nil }
+        let actor = actorModel.isEmpty ? try await resolvedModel() : actorModel
+        return plannerModel == actor ? nil : try await client("planner")
     }
 
     /// Own model with Jev on (and agreed to): the run's actor, Jev and the model in the deciders' order.
     /// Nil means the plain model. The free line does this on its server instead (see `client`).
     /// What a run still needs a yes for: the model's host, Jev (when it is on).
     var pendingConsent: (model: Bool, jev: Bool) {
-        let freeLine = provider == .handsyTrial
-        let jev = Trial.available && Deciders.load(freeLine: freeLine, defaults: defaults).isOn(.jev)
-        return (!AIConsent.granted(baseURL), jev && JevConsent.needed(freeLine: freeLine))
+        (!AIConsent.granted(baseURL), jevOn && JevConsent.needed(freeLine: provider == .handsyTrial))
     }
+
+    /// Jev decides steps on this line (on by default on the free line, off on one's own model).
+    var jevOn: Bool { Trial.available && Deciders.load(freeLine: provider == .handsyTrial, defaults: defaults).isOn(.jev) }
 
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
         let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key
@@ -351,7 +393,7 @@ import UIKit
         let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }
         return JevDeciderModel(inner: actor, jev: JevConfig.client(), mode: deciders.mode,
-                               race: defaults.bool(forKey: Deciders.raceKey))
+                               race: Deciders.race(defaults))
     }
 }
 
@@ -455,4 +497,22 @@ struct CustomEndpoint: Identifiable, Equatable {
         guard let url = URL(string: baseURL), let host = url.host else { return baseURL }
         return url.port.map { "\(host):\($0)" } ?? host
     }
+}
+
+/// Where the free line's actor tree is built. Spark (the gateway) by default again: the phone's tree took ~117 ms in a
+/// foreground benchmark (Wiki #956 §12) but 0.8-2.9 s per step in a real run (2026-11-11 Maps run: Vision OCR 1.1-2.9 s
+/// with the app in the background decoding video, CPU ~50%), against ~290 ms for the Spark round trip. Debug builds
+/// can switch: Settings › Developer › Tree source, `-tree-source device|server`, `iphoneagent://tree?source=device`.
+enum TreeSource: String, CaseIterable {
+    case server, device
+    static let key = "treeSource"
+    static var fallback: TreeSource { .server }
+    static var current: TreeSource {
+        #if DEBUG
+        TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? fallback
+        #else
+        .server
+        #endif
+    }
+    static func set(_ source: TreeSource) { UserDefaults.standard.set(source.rawValue, forKey: key) }
 }

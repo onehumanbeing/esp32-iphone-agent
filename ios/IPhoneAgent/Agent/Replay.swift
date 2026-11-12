@@ -28,6 +28,9 @@ enum IntentFrames {
 
     static func folder(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString) }
 
+    /// The screens of the steps before the last learned ones (IntentLearner), for Undo.
+    static func previous(_ id: UUID) -> URL { root.appendingPathComponent(id.uuidString + ".prev") }
+
     static func url(_ id: UUID, _ name: String?) -> URL? {
         guard let name, !name.isEmpty, !name.contains("/"), !name.contains("..") else { return nil }
         return folder(id).appendingPathComponent(name)
@@ -35,7 +38,10 @@ enum IntentFrames {
 
     static func data(_ id: UUID, _ name: String?) -> Data? { url(id, name).flatMap { try? Data(contentsOf: $0) } }
 
-    static func delete(_ id: UUID) { try? FileManager.default.removeItem(at: folder(id)) }
+    static func delete(_ id: UUID) {
+        try? FileManager.default.removeItem(at: folder(id))
+        try? FileManager.default.removeItem(at: previous(id))
+    }
 }
 
 /// Tap first, ask later: a saved intent's recorded steps are done without the model while the screen matches
@@ -87,16 +93,30 @@ struct Replay {
     mutating func restart() { next = 0; over = false; loops = 0 }
 
     /// Moves that can be repeated blindly; anything else (notes, done, unknown words) goes to the model.
-    static let replayable: Set<String> = ["tap", "swipe", "type", "home", "back", "key", "wait"]
+    static let replayable: Set<String> = ["tap", "swipe", "type", "clear", "home", "back", "key", "wait", "open"]
 
     static func decide(_ step: Step, screen: Data?) -> Decision {
         let name = step.action["action"]?.str ?? ""
         guard replayable.contains(name) else { return .handOver("not a move") }
         guard step.sure else { return .handOver("unsure") }
+        if name == "open" { return .perform }  // opens the app from any screen
         if name == "type", (step.action["text"]?.str ?? "").isEmpty { return .handOver("unknown text") }
         guard let frame = step.frame else { return .handOver("no reference screen") }
         guard Vision.similar(frame, screen) else { return .handOver("miss (screen differs)") }
         return .perform
+    }
+
+    /// Henry 2026-11-12: a demonstrated tap names what was tapped ("label"), so it is replayed by that name, not by
+    /// its spot: a chat list in another order still finds the row. The OCR line that reads it, nearest to the
+    /// recorded spot; nil when the screen doesn't show it (the model repairs the step).
+    static func locate(_ label: String, near x: Int, _ y: Int, in lines: [DemoAnalysis.Line]) -> (x: Int, y: Int)? {
+        func plain(_ s: String) -> String { s.lowercased().filter { !$0.isWhitespace } }
+        let want = plain(label)
+        guard !want.isEmpty else { return nil }
+        let hits = lines.filter { plain($0.text) == want }
+        let found = hits.isEmpty ? lines.filter { plain($0.text).contains(want) } : hits
+        return found.min { hypot(Double($0.x - x), Double($0.y - y)) < hypot(Double($1.x - x), Double($1.y - y)) }
+            .map { ($0.x, $0.y) }
     }
 
     /// The steps for the model's prompt, the ones already done marked.

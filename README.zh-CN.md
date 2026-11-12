@@ -224,6 +224,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 `harness/run.sh "<任务>"` 跑任务，`harness/logs.sh` 拉取日志。Mac 只在一次性 `net sta` 时用蓝牙连板子。
 设置（Lightning iPhone 需相机转接器）和安全说明见 [harness/README.md](harness/README.md)。
 
+手机不在身边（例如用蜂窝网络）时：可选、默认关闭的[远程调试日志](docs/remote-debug-log.zh-CN.md)会把 App 的文本日志上传到你自己部署的服务器。
+
 ## 路线图
 
 - [x] 去掉电脑：板子负责镜像和点击，手机上的 App 负责思考

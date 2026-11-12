@@ -38,6 +38,103 @@ import UIKit
         XCTAssertEqual(Replay.decide(.init(action: note, sure: true, frame: a), screen: a), .handOver("not a move"))
     }
 
+    /// Henry 2026-11-12: a demonstrated tap is replayed by what it tapped, wherever that is on the screen now.
+    func testALabelledTapFindsItsRowWherever() {
+        let lines = [DemoAnalysis.Line(text: "微信", x: 500, y: 30), DemoAnalysis.Line(text: "my family", x: 400, y: 340),
+                     DemoAnalysis.Line(text: "文件传输助手", x: 380, y: 700), DemoAnalysis.Line(text: "微信", x: 80, y: 960)]
+        XCTAssertEqual(Replay.locate("文件传输助手", near: 287, 345, in: lines)?.y, 700, "the row moved down: tapped where it is")
+        XCTAssertEqual(Replay.locate("微信", near: 90, 940, in: lines)?.x, 80, "two of them: the one nearest the recorded spot")
+        XCTAssertEqual(Replay.locate("My Family", near: 0, 0, in: lines)?.y, 340, "case and spaces don't matter")
+        XCTAssertNil(Replay.locate("Taobao", near: 500, 500, in: lines))
+    }
+
+    func testIntentColourIsSavedAndExported() {
+        let draft = ReviewDraft(source: .run, folder: nil, runID: "r", outcome: .done, steps: [], name: "n", prompt: "p")
+        draft.color = "teal"
+        let item = draft.intent(existing: nil)
+        XCTAssertEqual(item.color, "teal")
+        XCTAssertEqual(IntentArchive.item(item, screenshots: false).color, "teal")
+        draft.color = "accent"
+        XCTAssertNil(draft.intent(existing: item).color)
+    }
+
+    /// Henry 2026-11-12: a run that worked after the replay missed becomes the intent's steps.
+    func testAnIntentLearnsFromARunThatWorked() async throws {
+        let replayed: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(2), "replay": .bool(true)]
+        let model: JObject = ["action": .str("tap"), "x": .int(437), "y": .int(696)]
+        XCTAssertTrue(IntentLearner.shouldLearn([replayed, model, ["action": .str("done")]], done: true))
+        XCTAssertFalse(IntentLearner.shouldLearn([replayed, model], done: false), "only a run that worked")
+        XCTAssertFalse(IntentLearner.shouldLearn([replayed, ["action": .str("done")]], done: true), "the replay did it all")
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let frame = dir.appendingPathComponent("1.jpg"); try a.write(to: frame)
+        let run = Run(id: "r1", folder: dir, task: "t", date: Date(), steps: [
+            .init(id: 1, action: ["action": .str("plan"), "plan": .str("1. x")], frame: nil, t: nil),
+            .init(id: 2, action: ["action": .str("open"), "app": .str("WeChat")], frame: frame, t: nil),
+            .init(id: 3, action: ["action": .str("tap"), "x": .int(10), "y": .int(10), "changed": .bool(false)], frame: frame, t: nil),
+            .init(id: 4, action: model.merging(["think_s": .num(1)]), frame: frame, t: nil),
+            .init(id: 5, action: ["action": .str("done"), "answer": .str("ok")], frame: frame, t: nil),
+        ])
+        let id = UUID()
+        defer { IntentFrames.delete(id) }
+        let learned = try await IntentLearner.steps(from: run, for: id)
+        XCTAssertEqual(learned?.map { $0.object?["action"]?.str }, ["open", "tap"], "moves that changed the screen")
+        XCTAssertNil(learned?[1].object?["think_s"])
+        XCTAssertNotNil(IntentFrames.data(id, learned?[1].frame))
+        XCTAssertEqual(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "文件传输助手", x: 300, y: 350)]), "文件传输助手")
+        XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "far", x: 800, y: 900)]))
+        XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "x", x: 290, y: 350)]), "one character names nothing")
+        XCTAssertEqual(Replay.decide(.init(action: ["action": .str("open"), "app": .str("WeChat")], sure: true, frame: nil), screen: b), .perform)
+    }
+
+    func testAnIntentWithoutStepsCanUndoWhatItLearned() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "typed", prompt: "p")
+        item.steps = [RecordedStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(1)], sure: true, frame: nil)]
+        item.learnedFrom = "r1"
+        item.refRun = "r1"
+        store.upsert(item)
+        store.undoLearned(item.id)
+        store.clearReference(item.id)
+        XCTAssertNil(store.item(item.id)?.steps, "back to no steps")
+        XCTAssertNil(store.item(item.id)?.refRun)
+    }
+
+    func testLearnedStepsCanBeUndone() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "n", prompt: "p")
+        item.steps = [RecordedStep(action: ["action": .str("tap"), "x": .int(1), "y": .int(1)], sure: true, frame: nil)]
+        item.previousSteps = [RecordedStep(action: ["action": .str("home")], sure: true, frame: nil)]
+        item.learnedFrom = "r1"
+        store.upsert(item)
+        store.record(item.id, RunStat(run: "r1", ok: true, seconds: 3))
+        store.markLastRun(item.id, ok: false)
+        XCTAssertEqual(store.item(item.id)?.runs.last?.ok, false, "✗ on the island: the run counts as failed")
+        store.undoLearned(item.id)
+        XCTAssertEqual(store.item(item.id)?.steps?.first?.object?["action"]?.str, "home")
+        XCTAssertNil(store.item(item.id)?.learnedFrom)
+    }
+
+    func testADoneRunsLessonsJoinTheChecklistAndLeaveOnAWrong() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "n", prompt: "p")
+        item.hints = ["mine"]
+        store.upsert(item)
+        let run: [JObject] = [["action": .str("tap")], ["action": .str("learn"), "text": .str("WeChat: in the Photo & Video folder")],
+                              ["action": .str("learn"), "text": .str(" ")], ["action": .str("done")]]
+        let lessons = IntentLearner.lessons(run)
+        XCTAssertEqual(lessons, ["WeChat: in the Photo & Video folder"])
+        store.addLessons(item.id, lessons)
+        store.addLessons(item.id, lessons)
+        XCTAssertEqual(store.item(item.id)?.checklist, ["mine", "WeChat: in the Photo & Video folder"], "once, after what the user wrote")
+        store.addLessons(item.id, (1...20).map { "lesson \($0)" })
+        XCTAssertEqual(store.item(item.id)?.checklist.count, IntentLearner.checklistLimit)
+        store.removeLessons(item.id, lessons)
+        XCTAssertEqual(store.item(item.id)?.checklist.first, "mine")
+        XCTAssertFalse(store.item(item.id)?.checklist.contains(lessons[0]) ?? true)
+    }
+
     private func steps(_ frames: [Data?]) -> Replay {
         Replay(steps: frames.enumerated().map { i, f in
             .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)
@@ -125,10 +222,10 @@ import UIKit
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws { taps += 1; onTap(taps) }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws {}
     func drag(_ points: [CGPoint], hold: Bool) async throws {}
-    func type(_ text: String) async throws {}
+    func type(_ text: String) async throws -> String? { nil }
     func key(_ combo: String) async throws {}
-    func goHome() async throws {}
-    func openApp(_ name: String) async throws {}
+    func goHome(again: Bool) async throws {}
+    func openApp(_ name: String) async throws -> OpenResult { .opened }
     func goBack() async throws {}
     func reset() async throws {}
 }

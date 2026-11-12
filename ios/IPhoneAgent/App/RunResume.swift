@@ -28,7 +28,10 @@ extension AppModel {
 
     func resumeRun(_ run: Run) async {
         guard canResume(run) else { return }
-        if !(run.id == runID && canResume) { agent.restore(task: run.task, steps: run.steps.map(\.action)) }
+        if !(run.id == runID && canResume) {
+            agent.restore(task: run.task, steps: run.steps.map(\.action))
+            traces.open(run.folder)  // its trace goes on in the same folder: one run, not two
+        }
         await resumeRun()
     }
 

@@ -28,7 +28,7 @@ struct AgentStatusWidget: Widget {
             AgentWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("ESP32 Agent")
+        .configurationDisplayName(AppName.current)
         .description("See whether the agent is ready and run your saved intents.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
     }
@@ -67,7 +67,7 @@ struct AgentWidgetView: View {
         VStack(alignment: .leading, spacing: 6) {
             face.frame(width: 52, height: 58)
             Spacer(minLength: 0)
-            Text(verbatim: "ESP32 Agent").font(.caption).foregroundStyle(.secondary)
+            Text(verbatim: AppName.current).font(.caption).foregroundStyle(.secondary)
             statusText.font(.headline).lineLimit(1).minimumScaleFactor(0.8)
             if snap.status == .running {
                 Text(verbatim: snap.task).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
@@ -125,7 +125,7 @@ struct AgentWidgetView: View {
                 Text(verbatim: run.task).font(.caption).lineLimit(1)
                 Text(run.date, style: .relative).font(.caption2).foregroundStyle(.secondary)
             } else {
-                Text(verbatim: "ESP32 Agent").font(.headline)
+                Text(verbatim: AppName.current).font(.headline)
                 statusText.font(.caption)
             }
         }
@@ -142,7 +142,7 @@ struct RunLastIntentControl: ControlWidget {
             }
         }
         .displayName("Run Last Intent")
-        .description("Runs the saved intent you ran last on ESP32 Agent.")
+        .description("Runs the saved intent you ran last.")
     }
 }
 
@@ -150,10 +150,10 @@ struct StopAgentControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "StopAgent") {
             ControlWidgetButton(action: StopAgentIntent()) {
-                Label("Stop ESP32 Agent", systemImage: "stop.fill")
+                Label("Stop \(AppName.current)", systemImage: "stop.fill")
             }
         }
-        .displayName("Stop ESP32 Agent")
+        .displayName("Stop \(AppName.current)")
         .description("Stops the running task and lets go of the screen.")
     }
 }

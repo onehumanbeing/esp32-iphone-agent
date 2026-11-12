@@ -15,6 +15,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Store-only sources never belong in this repository (scripts/check-public.sh).
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-public.sh
+
   # PRs only run the jobs whose inputs changed. Skipping is done with `if:` (not on.paths) so the
   # required checks `ios` / `firmware` still report "skipped" = success instead of staying pending.
   # Branch pushes run everything.

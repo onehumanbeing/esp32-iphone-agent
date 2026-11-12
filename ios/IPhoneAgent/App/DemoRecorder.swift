@@ -1,7 +1,10 @@
+import Combine
 import Foundation
 import UIKit
 
-/// Captures settled mirror frames, then creates an editable demonstration draft.
+/// Captures settled mirror frames into a run folder (Documents/traces/<id>), names the action of every change
+/// as it goes (DemoAnalysis), and writes the result as a run: listed in Runs, reviewed like one, saved as an
+/// intent and continued from where the person stopped (Henry 2026-11-12: a recording must be a run).
 @MainActor final class DemoRecorder: ObservableObject {
     @Published private(set) var recording = false
     @Published private(set) var inferring = false
@@ -17,7 +20,9 @@ import UIKit
     private var bytes = 0
     private var startedAt = 0.0  // now() when capture began: frames captured before it are from the setup
     private var inference: Task<String, Error>?
-    static let maxFrames = 12
+    private var windows: [Int: Task<String, Error>] = [:]  // DemoAnalysis calls by first screen (0-based)
+    private var nextWindow = 0, analysing = 0
+    private var videoSink: AnyCancellable?
     static let captureLimit = 120
     /// One countdown from the tap: long enough for the app to leave and the Home Screen to settle.
     static let countdown: TimeInterval = 5
@@ -33,7 +38,8 @@ import UIKit
         }
         if let name = try? String(contentsOf: Self.pendingURL, encoding: .utf8),
            !name.isEmpty, !name.contains("/"), !name.contains("..") {
-            folder = Self.root.appendingPathComponent(name)
+            let run = app.traces.root.appendingPathComponent(name)
+            folder = FileManager.default.fileExists(atPath: run.path) ? run : Self.root.appendingPathComponent(name)
             keyframes = capturedFrames.count
             if keyframes > 0 { error = String(localized: "An unfinished recording is ready to retry.") }
         }
@@ -42,7 +48,10 @@ import UIKit
     static var root: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(MockMode.on ? "demo-recordings" : "recordings")
     }
-    private static var pendingURL: URL { root.appendingPathComponent("pending.txt") }
+    private static var pendingURL: URL {
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root.appendingPathComponent("pending.txt")
+    }
     private var capturedFrames: [URL] {
         guard let folder else { return [] }
         return ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
@@ -56,7 +65,12 @@ import UIKit
             error = String(localized: "Connect the board, start Screen Mirroring, and set up a model first.")
             return false
         }
-        let dir = Self.root.appendingPathComponent(UUID().uuidString)
+        // Henry 2026-11-12: Handsy Free does not read recordings; a Handsy key (paid) or one's own model does.
+        if !MockMode.on, app.settings.provider == .handsyTrial, !Trial.shared.canRecord {
+            error = String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model.")
+            return false
+        }
+        let dir = app.traces.root.appendingPathComponent(TraceStore.folderName())
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             try dir.lastPathComponent.write(to: Self.pendingURL, atomically: true, encoding: .utf8)
@@ -64,6 +78,7 @@ import UIKit
         folder = dir
         keyframes = 0
         bytes = 0
+        (windows, nextWindow, analysing) = ([:], 0, 0)
         error = nil
         started = Date()
         countdownEnds = started.addingTimeInterval(Self.countdown)
@@ -82,6 +97,14 @@ import UIKit
         return true
     }
 
+    /// A screen kept still this long is a step's result (the stream is ≤5 fps: two frames alike).
+    static let still = 0.35
+
+    nonisolated private static func differs(_ a: Data?, _ b: Data) async -> Bool {
+        guard let a else { return true }
+        return await Task.detached(priority: .userInitiated) { Vision.changed(a, b) }.value
+    }
+
     private func capture() async {
         do {
             if !MockMode.on {
@@ -89,7 +112,11 @@ import UIKit
                 try await leaveApp()
             }
             try await countDown()
-            var last: Data?
+            // Henry 2026-11-12: waiting for each screen to settle (up to 4 s) missed the screens of a person going at
+            // a normal pace. Now every streamed frame (≤5 fps) is looked at, nothing waits: a screen that stays
+            // `still` seconds is kept, if it differs from the last kept one. Handsy's own screens are not kept.
+            var kept: Data?, seen: Data?, seenAt = -1.0
+            var candidate: Data?, candidateSince = 0.0
             var staleSince = now()
             while recording && !Task.isCancelled {
                 if !MockMode.on && (!app.board.connected || app.board.status?.ap != "streaming") {
@@ -99,21 +126,27 @@ import UIKit
                     Task { await self.stop() }
                     return
                 }
+                let stamp = MockMode.on ? now() : (app.feed.capturedAt > 0 ? app.feed.capturedAt : app.feed.updated)
                 let frame = MockMode.on ? AppModel.mockFrame : freshFrame()
                 if frame == nil, !MockMode.on, now() - staleSince > 2 {
                     await requestFrame()
                     staleSince = now()
                 }
-                if let frame, MockMode.on || Vision.changed(last, frame) {
-                    if !MockMode.on { await app.feed.settled() }
-                    try Task.checkCancellation()
-                    guard recording else { return }
-                    let settled = MockMode.on ? frame : (freshFrame() ?? frame)
-                    try save(settled)
-                    last = settled
+                if let frame, stamp != seenAt {  // a new frame from the stream
+                    staleSince = now()
+                    seenAt = stamp
+                    let before = seen
+                    if await Self.differs(before, frame) { (candidate, candidateSince) = (frame, now()) }
+                    seen = frame
                 }
-                if frame != nil { staleSince = now() }
-                try await Task.sleep(nanoseconds: MockMode.on ? 1_500_000_000 : 400_000_000)
+                if let shot = candidate, now() - candidateSince >= Self.still {
+                    candidate = nil
+                    if app.appIsBackgrounded || MockMode.on, await Self.differs(kept, shot) {
+                        try save(shot)
+                        kept = shot
+                    }
+                }
+                try await Task.sleep(nanoseconds: MockMode.on ? 1_500_000_000 : 120_000_000)
             }
         } catch is CancellationError {
             return
@@ -149,6 +182,7 @@ import UIKit
         app.live.update(mood: .listening, step: 0, line: String(localized: "Do the task yourself. I'm watching."),
                         phase: .recording, status: .watching, since: started)
         DebugLog.write("recording: started")
+        startVideo()
     }
 
     /// The shown frame, only if captured after the recording began: the feed still holds the last screen from the
@@ -169,10 +203,22 @@ import UIKit
         do { _ = try await feed.snap() } catch { DebugLog.write("recording: snap failed: \(error.localizedDescription)") }
     }
 
+    /// The mirror at ~2 fps in video/, like a run's, so the review shows what happened between the screens.
+    private func startVideo() {
+        guard !MockMode.on, let dir = folder?.appendingPathComponent("video") else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        videoSink = app.feed.$frame.compactMap { $0 }
+            .throttle(for: .milliseconds(500), scheduler: RunLoop.main, latest: true)
+            .sink { jpeg in try? jpeg.write(to: dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg")) }
+    }
+
     private func save(_ jpeg: Data) throws {
         guard let folder else { return }
-        try jpeg.write(to: folder.appendingPathComponent(String(format: "k%03d.jpg", keyframes + 1)), options: .atomic)
+        let name = String(format: "k%03d.jpg", keyframes + 1)
+        try jpeg.write(to: folder.appendingPathComponent(name), options: .atomic)
+        Self.append("\(name) \(now())\n", to: folder.appendingPathComponent("keyframes.txt"))
         keyframes += 1
+        analyseWhileRecording()
         bytes += jpeg.count
         app.live.update(mood: .listening, step: keyframes,
                         line: String(localized: "\(keyframes) screens captured. Stop when you're done."), phase: .recording)
@@ -187,6 +233,7 @@ import UIKit
 
     private func finishCapture() async {
         recording = false
+        videoSink = nil
         countdownEnds = nil
         loop?.cancel()
         await loop?.value
@@ -237,8 +284,12 @@ import UIKit
     func retry() async {
         guard !busy, !app.agent.running, !app.startingAgent, let folder else { return }
         if hasDraft {
-            app.review = ReviewDraft(source: .recording, folder: folder, runID: nil, outcome: nil,
-                                     steps: [], name: "", prompt: "")
+            if FileManager.default.fileExists(atPath: folder.appendingPathComponent("steps.jsonl").path) {
+                app.openReview(run: folder.lastPathComponent)
+            } else {  // a recording from before they were runs
+                app.review = ReviewDraft(source: .recording, folder: folder, runID: nil, outcome: nil,
+                                         steps: [], name: "", prompt: "")
+            }
             return
         }
         inferring = true
@@ -248,30 +299,30 @@ import UIKit
             self?.endBackground()
         }
         defer { inferring = false; app.runMood = nil; inference = nil; endBackground() }
-        let picked = Self.sample(capturedFrames, Self.maxFrames)
-        guard picked.count >= 2 else {
+        let frames = capturedFrames
+        guard frames.count >= 2 else {
             error = String(localized: "Capture at least two screens before creating an intent.")
             return
         }
         do {
             let task = Task {
-                let reply = MockMode.on ? try await Self.mockReply() : try await self.infer(picked)
+                let reply = MockMode.on ? try await Self.mockReply() : try await self.analyse(frames)
                 try Task.checkCancellation()
                 return reply
             }
             inference = task
             let reply = try await task.value
             try Task.checkCancellation()
-            let draft = Self.draft(reply, frames: picked, folder: folder)
+            let draft = Self.draft(reply, frames: frames, folder: folder)
             guard !draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, draft.steps.contains(where: { $0.name != "note" }) else {
                 throw DeviceError(message: String(localized: "The model returned no usable steps. Retry with the captured screens."))
             }
-            try draft.persistEdits()
+            let review = try writeRun(draft, folder: folder)
             error = String(localized: "Your recording draft is ready to review.")
             app.notifier.post(.done, title: String(localized: "Intent draft ready"),
-                              body: String(localized: "\(draft.steps.count) steps. Check the yellow ones."),
-                              run: "rec-" + folder.lastPathComponent)
-            app.review = draft
+                              body: String(localized: "\(review.steps.count) steps. Check the yellow ones."),
+                              run: folder.lastPathComponent)
+            app.review = review
         } catch { self.error = error.localizedDescription }
     }
 
@@ -284,31 +335,86 @@ import UIKit
         } catch { self.error = error.localizedDescription }
     }
 
-    private func infer(_ frames: [URL]) async throws -> String {
-        let images = try frames.map { try Data(contentsOf: $0) }
-        let r = try await app.settings.client("planner").chat(system: Self.inferPrompt, text:
-            "These are \(images.count) keyframes in order (frame 1 first). Infer the steps.",
-            images: images, maxTokens: 1200, temperature: 0)
-        return r.text
+    // MARK: - analysis (DemoAnalysis) and the run it becomes
+
+    /// While recording: each full window of screens is named in the background, at most two calls at a time.
+    private func analyseWhileRecording() {
+        guard !MockMode.on, analysing < 2, nextWindow + DemoAnalysis.window < keyframes else { return }
+        let start = nextWindow
+        nextWindow += DemoAnalysis.window
+        windows[start] = window(start, Array(capturedFrames[start...(start + DemoAnalysis.window)]))
     }
 
-    static func sample(_ frames: [URL], _ n: Int) -> [URL] {
-        guard n > 0 else { return [] }
-        guard n > 1 else { return Array(frames.prefix(1)) }
-        guard frames.count > n else { return frames }
-        return (0..<n).map { frames[$0 * (frames.count - 1) / (n - 1)] }
+    private func window(_ start: Int, _ screens: [URL]) -> Task<String, Error> {
+        analysing += 1
+        return Task { [weak self] in
+            defer { Task { @MainActor in self?.analysing -= 1; self?.analyseWhileRecording() } }
+            guard let self else { throw CancellationError() }
+            let saved = screens[0].deletingLastPathComponent().appendingPathComponent("analysis-\(start).txt")
+            if let text = try? String(contentsOf: saved, encoding: .utf8) { return text }  // a retry after a relaunch
+            let model = try await self.app.recordingModel()
+            let text = try await DemoAnalysis.ask(model, screens: try screens.map { try Data(contentsOf: $0) }, first: start + 1)
+            try? text.write(to: saved, atomically: true, encoding: .utf8)
+            DebugLog.write("recording: changes \(start + 1)-\(start + screens.count - 1) named")
+            return text
+        }
     }
 
-    static let inferPrompt = """
-    You watch keyframes of a person using an iPhone, in order. Fingers are not visible: infer each action \
-    from how the screen changed between two frames. Coordinates are 0-1000 of the screen width and height. \
-    Reply in this format only:
-    NAME: <short name for the task>
-    PROMPT: <one instruction that would make an AI agent repeat this task>
-    STEP <frame number the action was done on>: <command> | sure or unsure
-    Commands: tap X Y, swipe X1 Y1 X2 Y2, type "text", home, back, wait, ai "what to achieve", read "what".
-    Use tap / swipe / type for controls that stay in the same place every time. When a step depends on what     the screen shows this time (a search result, an item in a list that changes, a message), write     ai "what to achieve" instead, e.g. ai "open the newest video in the list". When the person was reading or     collecting information off the screen, write read "what", e.g. read "video titles".
-    """
+    /// Every change named (the windows started while recording, the rest now), then the task's name and prompt.
+    private func analyse(_ frames: [URL]) async throws -> String {
+        var steps: [String] = []
+        for start in stride(from: 0, to: frames.count - 1, by: DemoAnalysis.window) {
+            let end = min(start + DemoAnalysis.window, frames.count - 1)
+            let job = windows[start] ?? window(start, Array(frames[start...end]))
+            windows[start] = job
+            steps += try await job.value.split(separator: "\n").map(String.init)
+                .filter { $0.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("STEP") }
+        }
+        let summary = try await DemoAnalysis.summarize(try await app.recordingModel(), steps: steps)
+        return summary + "\n" + steps.joined(separator: "\n")
+    }
+
+    /// The draft written as the run in its folder: a task row, one step per action on the screen it was done on
+    /// (when it was captured), and `stopped`, so Runs lists it and Continue goes on from it.
+    private func writeRun(_ draft: ReviewDraft, folder: URL) throws -> ReviewDraft {
+        let times = Self.keyframeTimes(folder)
+        let trace = TraceStore(root: folder.deletingLastPathComponent())
+        trace.open(folder)
+        trace.write(kind: "task", ["task": .str(draft.prompt), "demo": .bool(true)])
+        var last = times.values.max() ?? now()
+        for step in draft.steps {
+            var row = step.action.merging(["changed": .bool(true), "demo": .bool(true), "sure": .bool(!step.uncertain)])
+            if let frame = step.frame?.lastPathComponent {
+                row["frame"] = .str(frame)
+                if let t = times[frame] { row["t"] = .num(t); last = t }
+            }
+            trace.write(kind: "step", row)
+        }
+        trace.write(kind: "step", ["action": .str("stopped"), "demo": .bool(true), "t": .num(last)])
+        app.runs.reload()
+        guard let run = RunStore.load(folder) else { throw DeviceError(message: "the recording could not be read back") }
+        let review = ReviewDraft(run: run)
+        (review.name, review.prompt, review.icon) = (draft.name, draft.prompt, "record.circle")
+        try review.persistEdits()
+        return review
+    }
+
+    static func keyframeTimes(_ folder: URL) -> [String: Double] {
+        let text = (try? String(contentsOf: folder.appendingPathComponent("keyframes.txt"), encoding: .utf8)) ?? ""
+        return Dictionary(text.split(separator: "\n").compactMap { line -> (String, Double)? in
+            let parts = line.split(separator: " ")
+            guard parts.count == 2, let t = Double(parts[1]) else { return nil }
+            return (String(parts[0]), t)
+        }, uniquingKeysWith: { $1 })
+    }
+
+    private static func append(_ text: String, to url: URL) {
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile(); h.write(Data(text.utf8)); try? h.close()
+        } else {
+            try? Data(text.utf8).write(to: url)
+        }
+    }
 
     /// Parses the model's reply into a draft (unparseable or "unsure" steps are marked uncertain).
     static func draft(_ reply: String, frames: [URL], folder: URL) -> ReviewDraft {
@@ -323,12 +429,24 @@ import UIKit
             let command = parts.first.map(String.init) ?? ""
             let sure = parts.count > 1 && parts[1].trimmingCharacters(in: .whitespaces).lowercased() == "sure"
             let validFrame = n > 0 && n <= frames.count
-            let action = Self.parseDemonstratedAction(command) ?? ["action": .str("note"), "text": .str(command)]
+            let (bare, label) = Self.splitLabel(command)
+            if bare.lowercased() == "none" || bare.lowercased() == "wait" { continue }  // nothing done by the person
+            var action = Self.parseDemonstratedAction(bare) ?? ["action": .str("note"), "text": .str(command)]
+            if let label, action["action"]?.str == "tap" { action["label"] = .str(label) }
             steps.append(DraftStep(action: action, frame: validFrame ? frames[n - 1] : nil,
                                    uncertain: !sure || !validFrame || action["action"]?.str == "note"))
         }
         return ReviewDraft(source: .recording, folder: folder, runID: nil, outcome: nil, steps: steps, name: name,
                            prompt: prompt, icon: "record.circle")
+    }
+
+    /// `tap X Y "label"` → (`tap X Y`, label); any other command is left as it is.
+    static func splitLabel(_ command: String) -> (String, String?) {
+        let text = command.trimmingCharacters(in: .whitespaces)
+        guard text.lowercased().hasPrefix("tap "), let open = text.firstIndex(of: "\""), text.last == "\"",
+              open < text.index(before: text.endIndex) else { return (text, nil) }
+        let label = String(text[text.index(after: open)..<text.index(before: text.endIndex)])
+        return (text[..<open].trimmingCharacters(in: .whitespaces), label.isEmpty ? nil : label)
     }
 
     /// Only the documented demonstration commands are accepted; malformed actions stay editable notes.
@@ -365,5 +483,15 @@ import UIKit
         STEP 5: swipe 397 300 397 200 | unsure
         STEP 6: tap 150 395 | sure
         """
+    }
+}
+
+extension AppModel {
+    /// The recording reader (Settings.recordingClient); none: the free line on a phone the server doesn't allow.
+    func recordingModel() async throws -> LLMClient {
+        guard let model = try await settings.recordingClient() else {
+            throw DeviceError(message: String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model."))
+        }
+        return model
     }
 }

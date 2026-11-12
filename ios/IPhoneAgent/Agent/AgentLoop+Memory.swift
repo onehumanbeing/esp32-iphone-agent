@@ -8,7 +8,10 @@ extension AgentLoop {
         var out = ""
         let remembered = MemoryStore.promptSection(recalled)
         if !remembered.isEmpty { out += "\n\n" + remembered }
-        if !chatContext.isEmpty { out += "\n\nEarlier in this chat:\n" + chatContext }
+        if !chatContext.isEmpty {  // what those runs did is not this run's progress
+            out += "\n\nEarlier runs in this chat (finished before this run started; what they did or showed is not "
+                + "progress of this run):\n" + chatContext
+        }
         return out
     }
 
@@ -38,6 +41,15 @@ extension AgentLoop {
             let text = act["text"]?.str ?? ""
             if !text.isEmpty { learned.append(text) }
             act["reason"] = .str("kept if the task ends with done")
+        case "tool":
+            let line = act["text"]?.str ?? ""
+            guard lookedUp.count < ToolStore.perRun else {
+                act["reason"] = .str("not looked up: this task already used its \(ToolStore.perRun) tool calls; go on with what is on screen")
+                break
+            }
+            let answer = await ToolRunner.run(line, run: Trial.shared.runID)
+            lookedUp.append("\(line)\n\(answer)")
+            act["reason"] = .str("looked up: " + String(answer.prefix(160)))
         case "write":
             act["reason"] = .str(try await writeOut())
         default:
@@ -53,6 +65,16 @@ extension AgentLoop {
             return "could not put the notebook on the clipboard: type the items instead"
         }
         return "the clipboard holds all \(notebook.items.count) items: open the target app, tap the text field, "
+            + "then key cmd+v and check the result"
+    }
+
+    /// `type` with text the board cannot type (Scripts.needsPaste: Japanese, Korean …): on the clipboard instead, the
+    /// way `write` does it; the app hop leaves the target app, so the actor opens it again and pastes.
+    func pasteInstead(_ text: String) async throws -> String {
+        let not = "nothing typed: the board cannot type this script"
+        guard let onWrite else { return "\(not), and the clipboard is not available here" }
+        guard try await onWrite(text) else { return "\(not), and the text could not be put on the clipboard" }
+        return "\(not), so the text is on the clipboard instead: open the target app again, tap the text field, "
             + "then key cmd+v and check the result"
     }
 

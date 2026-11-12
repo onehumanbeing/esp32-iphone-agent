@@ -51,8 +51,11 @@ struct ReviewView: View {
                          ?? String(localized: "The run is still active. Return to the Home Screen to continue."))
                         .font(.subheadline).multilineTextAlignment(.center)
                     if !app.startingAgent {
-                        Button("Stop", systemImage: "stop.fill") { Task { await app.stopAgent() } }
+                        Button(app.stopping ? LocalizedStringKey("Stopping…") : "Stop", systemImage: "stop.fill") {
+                            Task { await app.stopAgent() }
+                        }
                             .buttonStyle(.bordered)
+                            .disabled(app.stopping)
                     }
                 }
                 .padding(Space.l)

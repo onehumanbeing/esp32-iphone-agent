@@ -9,7 +9,7 @@ extension AppModel {
         agent.link = { [unowned self] in
             Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen)
+                          stalled: feed.frozen || feed.undecodable)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -32,7 +32,8 @@ extension AppModel {
             return
         }
         let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated, stalled: feed.frozen)
+                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
+                                 stalled: feed.frozen || feed.undecodable)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -50,6 +51,7 @@ extension AppModel {
         let was = recovering
         recovering = stage
         guard let stage else {
+            if agent.running { RunMarker.set("running") }
             notifier.clearLinkAsks()
             runMood = .thinking
             return
@@ -59,6 +61,7 @@ extension AppModel {
             DebugLog.write("recover: board rebooted \(up / 1000) s ago (reset: \(board.status?.rst ?? "?"))")
         }
         DebugLog.write("recover: \(stage.logLine)")
+        if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
         if stage.ask { notifier.post(kind(stage.part), title: title(stage.part), body: stage.line, run: runID) }

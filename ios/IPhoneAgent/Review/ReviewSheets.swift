@@ -146,11 +146,25 @@ struct SaveIntentSheet: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: Space.m) {
                         ForEach(Self.icons, id: \.self) { icon in
                             Button { draft.icon = icon; Haptics.tick() } label: {
-                                SettingsIcon(symbol: icon, color: draft.icon == icon ? .accentColor : Color(uiColor: .systemGray3))
+                                SettingsIcon(symbol: icon, color: draft.icon == icon ? IntentTint.color(draft.color) : Color(uiColor: .systemGray3))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(Text(verbatim: icon))
                             .accessibilityAddTraits(draft.icon == icon ? .isSelected : [])
+                        }
+                    }
+                    .padding(.vertical, Space.xs)
+                    HStack(spacing: 0) {
+                        ForEach(IntentTint.names, id: \.self) { name in
+                            let chosen = (draft.color ?? "accent") == name
+                            Button { draft.color = name; Haptics.tick() } label: {
+                                Circle().fill(IntentTint.color(name)).frame(width: 22, height: 22)
+                                    .overlay(Circle().strokeBorder(Color.primary.opacity(chosen ? 0.7 : 0), lineWidth: 2).padding(-4))
+                                    .frame(maxWidth: .infinity, minHeight: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text(verbatim: name))
+                            .accessibilityAddTraits(chosen ? .isSelected : [])
                         }
                     }
                     .padding(.vertical, Space.xs)

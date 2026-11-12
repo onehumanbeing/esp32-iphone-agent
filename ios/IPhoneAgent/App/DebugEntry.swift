@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 #if DEBUG
 /// Explicit developer input, separate from UserDefaults' temporary argument overrides.
@@ -58,6 +59,7 @@ struct ModelLaunchConfiguration {
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
+///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
 /// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
@@ -80,8 +82,19 @@ extension AppModel {
             debugCommand(host)
         case "status":
             say(statusSummary)
+        case "intent":
+            guard let prompt = arg("prompt"), !prompt.isEmpty else { return false }
+            if let old = arg("replace"), !old.isEmpty {  // intents with this name, or whose words start with it, go first
+                intents.items.filter { $0.name == old || $0.prompt.hasPrefix(old) }.forEach { intents.delete($0.id) }
+            }
+            intents.add(name: arg("name") ?? "", prompt: prompt)
+        case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
+            CallGuide.seen = false
         case "bench":
             debugCommand("bench", kb: Int(arg("kb") ?? "") ?? 256)
+        case "tree":
+            guard let source = arg("source").flatMap(TreeSource.init(rawValue:)) else { return false }
+            setTreeSource(source)
         default:
             return false
         }
@@ -127,6 +140,9 @@ extension AppModel {
                 self.say("ota: installing \(release.version)")
                 self.firmware.install()
             }
+        #if DEBUG
+        case "treebench": treeBench(Int(rest) ?? 30)
+        #endif
         case "mode":
             if let mode = FrameMode(rawValue: rest) { setFrameMode(mode) } else { say("frame mode: \(FrameMode.current.rawValue)") }
         default: say("debug: unknown app command \"\(line.prefix(40))\"")
@@ -163,6 +179,12 @@ extension AppModel {
             + "model \(model); run \(run); screen \(Int(DeviceScreen.size.width))x\(Int(DeviceScreen.size.height))"
     }
 
+    /// Debug: -tree-source device|server, iphoneagent://tree?source=device (Settings › Developer › Tree source).
+    func setTreeSource(_ source: TreeSource) {
+        TreeSource.set(source)
+        say("debug: tree source \(source.rawValue) (next run)")
+    }
+
     /// Launch arguments, once at startup.
     func handleLaunchArguments(_ args: [String] = ProcessInfo.processInfo.arguments) {
         func value(after flag: String) -> String? {
@@ -188,6 +210,11 @@ extension AppModel {
             return true
         }
         if !keyed.isEmpty { say("debug: keys stored for " + keyed.map(\.title).joined(separator: ", ")) }
+        // -import-intents <file>: an .esp32intent copied into Documents (devicectl), imported like an opened file
+        if let name = value(after: "-import-intents"), !name.contains("/"),
+           let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            importIntents(docs.appendingPathComponent(name))
+        }
         if args.contains("-delete-intent") {
             guard args.filter({ $0 == "-delete-intent" }).count == 1,
                   let raw = value(after: "-delete-intent"), let id = UUID(uuidString: raw) else {
@@ -206,6 +233,8 @@ extension AppModel {
         if args.contains("-test-model") { Task { await pingLLM() } }
         if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
         if let commands = value(after: "-hid") { harnessHID(commands) }  // harness/hid.sh
+        if let source = value(after: "-tree-source").flatMap(TreeSource.init(rawValue:)) { setTreeSource(source) }
+        if args.contains("-treebench") { treeBench(Int(value(after: "-treebench") ?? "") ?? 30) }
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
@@ -280,6 +309,69 @@ extension AppModel {
             self?.handleLaunchArguments(["harness"] + args)
         }
         HarnessLink.shared.start()
+    }
+
+    /// "-treebench n" / app command "treebench n": the on-device tree (UITree) of the mirrored frame n times
+    /// ~1 s apart, at the model's 540-wide copy and at the full stream frame, then p50/p90 of total/ocr/cv ms
+    /// into debug.log. No run, no taps. Without mirroring it uses Documents/treebench/*.jpg (still frames
+    /// copied in with devicectl) and says so. cpu = the app's CPU time during a build (all its threads).
+    func treeBench(_ n: Int) {
+        Task { [weak self] in
+            guard let self else { return }
+            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("treebench")
+            let live = await waitReady(mirroring: true, timeout: 10)
+            let streaming = feed.streamOn
+            if live && !streaming { try? await feed.stream(true) }
+            if live { _ = await feed.fresh(since: now(), timeout: 3) }
+            let stills = live ? [] : ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension == "jpg" }.sorted { $0.path < $1.path }.compactMap { try? Data(contentsOf: $0) }
+            guard live || !stills.isEmpty else { return say("treebench: no mirroring and no Documents/treebench/*.jpg") }
+            UIApplication.shared.isIdleTimerDisabled = true  // auto-lock suspends the app mid-bench
+            defer { UIApplication.shared.isIdleTimerDisabled = false }
+            say("treebench: \(n) builds on \(live ? "live mirrored frames" : "\(stills.count) still frames (no mirroring)"), "
+                + "thermal \(ProcessInfo.processInfo.thermalState.rawValue)")
+            var stats: [String: [(tree: UITree, cpu: Double)]] = [:]
+            var idle: [Double] = []
+            for i in 0..<n {
+                guard let frame = live ? feed.frame : stills[i % stills.count] else { continue }
+                let small = ModelImage.shrink(frame)
+                for (name, jpeg) in [("model", small), ("full", frame)] where name == "model" || small != frame {
+                    let c0 = Self.cpuSeconds()
+                    let made = await Task.detached(priority: .userInitiated) { await UITree.build(jpeg: jpeg, cache: nil) }.value  // every build runs Vision
+                    let cpu = Self.cpuSeconds() - c0
+                    guard let tree = made else { continue }
+                    stats[name, default: []].append((tree, cpu))
+                    DebugLog.write("treebench \(i + 1)/\(n) \(name) " + tree.timingLine
+                                   + String(format: ", cpu %.0f ms (%.0f%% of one core)", cpu * 1000, cpu / max(tree.totalSeconds, 1e-6) * 100))
+                }
+                let c0 = Self.cpuSeconds(), t0 = now()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                idle.append((Self.cpuSeconds() - c0) / max(now() - t0, 1e-6))
+            }
+            if live && !streaming { try? await feed.stream(false) }
+            func pct(_ xs: [Double]) -> String {
+                let s = xs.sorted()
+                guard !s.isEmpty else { return "-" }
+                return String(format: "p50 %.0f p90 %.0f max %.0f", s[s.count / 2], s[min(s.count - 1, s.count * 9 / 10)], s.last!)
+            }
+            for name in ["model", "full"] {
+                guard let r = stats[name], let t = r.first?.tree else { continue }
+                say("treebench \(name) \(t.w)x\(t.h), \(r.count) builds: total \(pct(r.map { $0.tree.totalSeconds * 1000 })) ms; "
+                    + "ocr \(pct(r.map { $0.tree.ocrSeconds * 1000 })); cv \(pct(r.map { $0.tree.cvSeconds * 1000 })); "
+                    + "elements \(pct(r.map { Double($0.tree.elements.count) })); "
+                    + "compact \(pct(r.map { Double($0.tree.candidates.filter { $0.role != "container" }.count) })); "
+                    + "cpu ms \(pct(r.map { $0.cpu * 1000 }))")
+            }
+            say("treebench: done; idle app cpu between builds \(pct(idle.map { $0 * 100 }))% of one core, "
+                + "thermal \(ProcessInfo.processInfo.thermalState.rawValue)")
+        }
+    }
+
+    /// The app's CPU time so far (user + system, all threads).
+    nonisolated static func cpuSeconds() -> Double {
+        var u = rusage()
+        getrusage(RUSAGE_SELF, &u)
+        return Double(u.ru_utime.tv_sec + u.ru_stime.tv_sec) + Double(u.ru_utime.tv_usec + u.ru_stime.tv_usec) / 1e6
     }
 
     /// Raw board commands ("key ctrl+space; type abc"), one after another, each reply logged: harness experiments.
