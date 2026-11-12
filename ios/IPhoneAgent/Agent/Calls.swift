@@ -105,7 +105,7 @@ extension Calls {
          ai("Live Speech is open: its text field is focused with the keyboard at the bottom (its button does not stay lit; never tap it again, never tap the field or the call buttons). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter. Done once it is typed."),
          answered,
          move(["action": .str("key"), "combo": .str("enter")]),
-         ai("Hold the call for the goal. Your first sentence is already said: never say it, or anything you said before, again. Read what they said since your last line in Live Captions and answer that with `say` (one short sentence); with nothing new from them, `wait`. Live Captions shrunk to a small round bubble: tap it once to open the captions. Caption text can be misheard: answer what it most likely means for the goal. Once the goal is done (or they say goodbye), `say` a short thanks and goodbye, then tap End. Done with a summary of what was said.", budget: 30, end: ended),
+         ai("Hold the call for the goal. Your first sentence is already said: never say it, or anything you said before, again. Read what they said since your last line in Live Captions and answer that with `say` (one short sentence); with nothing new from them, `wait`. Caption text can be misheard: answer what it most likely means for the goal. Once the goal is done (or they say goodbye), `say` a short thanks and goodbye, then tap End. Done with a summary of what was said.", budget: 30, end: ended),
          controlCenter, button("Live Captions", at: captions), move(["action": .str("home")]),
          ai("If the Live Speech text field still shows, close it; done once it is gone (or was not there).", budget: 4)]
 
