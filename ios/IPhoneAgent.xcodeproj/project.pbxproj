@@ -129,6 +129,7 @@
 		7D859BE4F1E945FE96CD8C61 /* AgentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDFF66F3082E46B88130ABC /* AgentTests.swift */; };
 		7F412478410DC75BC26A0D5C /* ModelSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B94481DB51BD93A2900698F /* ModelSettingsView.swift */; };
 		7F507E00732D8B71CA6C8BB7 /* AgentLoop+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = D69B04CFAFBE69DC6F202672 /* AgentLoop+Progress.swift */; };
+		803CD2EBAAC5BE3DDE0877A6 /* call-captions.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 2725D352573F5F66E2AC97B1 /* call-captions.mp4 */; };
 		80BF77BBF075F791F47BB2FE /* FirmwareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8010C509732EAC9AD491C7B7 /* FirmwareTests.swift */; };
 		80EA74A9A970F441C661524C /* StepText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2169FBFC7A60B9FC1FF1E724 /* StepText.swift */; };
 		812925C7EC9F24F99DC06037 /* AppPresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25891E89F3EF8CFF37935661 /* AppPresence.swift */; };
@@ -324,6 +325,7 @@
 		24A4292E1153548AEB53299E /* IPhoneAgentTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = IPhoneAgentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24E3598C8B1D1025A419CE5D /* ModelPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPicker.swift; sourceTree = "<group>"; };
 		25891E89F3EF8CFF37935661 /* AppPresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPresence.swift; sourceTree = "<group>"; };
+		2725D352573F5F66E2AC97B1 /* call-captions.mp4 */ = {isa = PBXFileReference; includeInIndex = 1; path = "call-captions.mp4"; sourceTree = "<group>"; };
 		2732CFF0E55395C82C4A329B /* DecidersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecidersPanel.swift; sourceTree = "<group>"; };
 		27A03E1A122C50B8ED88AC91 /* LiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity.swift; sourceTree = "<group>"; };
 		2A44F1AFB66E6208FD9D06E4 /* MemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTests.swift; sourceTree = "<group>"; };
@@ -897,6 +899,7 @@
 			isa = PBXGroup;
 			children = (
 				C0ACCA190E9EA26B6D540488 /* call-setup.mp4 */,
+				2725D352573F5F66E2AC97B1 /* call-captions.mp4 */,
 			);
 			name = Resources;
 			path = Resources;
@@ -1074,6 +1077,7 @@
 				EF83C4DFA24497FDB0BF123E /* mock-frame.jpg in Resources */,
 				D04078EE246F6B5EB38D64B5 /* prompts in Resources */,
 				B35ED5794429E6BB79ED7FAB /* call-setup.mp4 in Resources */,
+				803CD2EBAAC5BE3DDE0877A6 /* call-captions.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -52,7 +52,12 @@ struct CallSetupSheet: View {
                         .frame(maxWidth: .infinity)
                     step(1, "Turn on Live Speech", "Settings › Accessibility › Live Speech.")
                     step(2, "Let the agent read call captions",
-                         "Settings › Accessibility › Live Captions › Keep Call Captions › 1 Hour. With 1 Minute, iOS keeps call captions out of Screen Mirroring and the agent cannot hear the other side. With 1 Hour, iOS tells everyone on the call that it is being transcribed.")
+                         "Settings › Accessibility › Live Captions › Keep Call Captions › 1 Hour. With 1 Minute, iOS keeps call captions out of Screen Mirroring and the agent cannot hear the other side. With 1 Hour, iOS tells everyone on the call that it is being transcribed. Under Language, pick the language the call is in.")
+                    LoopingClip(name: "call-captions")
+                        .aspectRatio(360 / 782, contentMode: .fit)
+                        .frame(maxHeight: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .frame(maxWidth: .infinity)
                     step(3, "Add Live Speech and Live Captions to Control Center",
                          "Touch and hold Control Center, tap Add a Control, search for each one.")
                     step(4, "Make both large, on the bottom row",
