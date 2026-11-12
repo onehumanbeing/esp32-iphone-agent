@@ -671,12 +671,12 @@
         }
       }
     },
-    "Tap Edit and fill in the parts in [brackets], such as who to text or call, before running it." : {
+    "Tap the instruction and fill in the parts in [brackets], such as who to text or call, before running it." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点「编辑」填好方括号 [ ] 里的内容（比如发给谁、打给谁），才能运行。"
+            "value" : "点一下指令，把方括号 [ ] 里的内容填好（比如发给谁、打给谁），才能运行。"
           }
         }
       }
