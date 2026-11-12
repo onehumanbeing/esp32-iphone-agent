@@ -112,6 +112,8 @@ struct DeveloperView: View {
     @State private var testing = false
     @State private var callNumber = ""
     @State private var callLine = "Hello, this is a call test. Can you hear me?"
+    @AppStorage("callTestCaptions") private var captionsAt = "809 606"  // Control Center spots, 0-1000
+    @AppStorage("callTestSpeech") private var speechAt = "189 701"
 
     var body: some View {
         List {
@@ -132,8 +134,12 @@ struct DeveloperView: View {
             Section {
                 TextField(text: $callNumber) { Text(verbatim: "Number to call") }.keyboardType(.phonePad)
                 TextField(text: $callLine) { Text(verbatim: "Line to say") }
-                Button { Task { await app.run(Calls.test(number: callNumber, line: callLine).prompt,
-                                              intent: Calls.test(number: callNumber, line: callLine)) } } label: {
+                TextField(text: $captionsAt) { Text(verbatim: "Live Captions at (x y, empty = by name)") }
+                TextField(text: $speechAt) { Text(verbatim: "Live Speech at (x y, empty = by name)") }
+                Button {
+                    let test = Calls.test(number: callNumber, line: callLine, captions: spot(captionsAt), speech: spot(speechAt))
+                    Task { await app.run(test.prompt, intent: test) }
+                } label: {
                     Text(verbatim: "Run call test")
                 }
                 .disabled(callNumber.filter(\.isNumber).count < 3 || callLine.isEmpty)
@@ -170,6 +176,12 @@ struct DeveloperView: View {
             }
         }
         .navigationTitle("Developer")
+    }
+
+    /// "809 606" → a 0-1000 spot; anything else → nil (found by name).
+    private func spot(_ text: String) -> (x: Int, y: Int)? {
+        let n = text.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Int($0) }
+        return n.count == 2 ? (n[0], n[1]) : nil
     }
 }
 

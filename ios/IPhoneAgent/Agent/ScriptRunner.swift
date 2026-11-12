@@ -29,7 +29,7 @@ extension AgentLoop {
                 guard try await repair(step, n, "not on screen in time") else { return .ended }
                 break
             }
-        case _ where step.action["blind"] == .bool(true) && name != "tap":  // a fixed move: no reference screen to match
+        case _ where step.action["blind"] == .bool(true):  // a fixed move: no reference screen to match
             _ = try await move(step)
         case _ where Actions.notebookActions.contains(name):
             var act = step.action

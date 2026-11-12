@@ -38,7 +38,9 @@ enum Calls {
 /// Settings › Developer › Call test (Debug builds only, never TestFlight or the App Store): the call flow as a
 /// script, one step at a time, with the person on the other phone in the loop (`manual` waits for them).
 extension Calls {
-    static func test(number: String, line: String) -> SavedTask {
+    /// `captions` / `speech`: where those Control Center buttons are (0-1000), when the person marked them; else they
+    /// are looked for by name (wide buttons show it) and the model repairs a miss.
+    static func test(number: String, line: String, captions: (x: Int, y: Int)? = nil, speech: (x: Int, y: Int)? = nil) -> SavedTask {
         func ai(_ goal: String) -> RecordedStep { RecordedStep(action: ["action": .str("ai"), "goal": .str(goal)], sure: true, frame: nil) }
         func manual(_ reason: String) -> RecordedStep { RecordedStep(action: ["action": .str("manual"), "reason": .str(reason)], sure: true, frame: nil) }
         func move(_ a: JObject) -> RecordedStep {
@@ -46,8 +48,12 @@ extension Calls {
             a["blind"] = .bool(true)
             return RecordedStep(action: a, sure: true, frame: nil)
         }
-        func tapLabel(_ label: String) -> RecordedStep {  // found by its name (OCR); the model repairs a miss
-            RecordedStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(500), "label": .str(label)], sure: true, frame: nil)
+        func tapLabel(_ label: String, at spot: (x: Int, y: Int)?) -> RecordedStep {
+            guard let spot else {  // found by its name (OCR); the model repairs a miss
+                return RecordedStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(500), "label": .str(label)], sure: true, frame: nil)
+            }
+            return RecordedStep(action: ["action": .str("tap"), "x": .int(spot.x), "y": .int(spot.y), "blind": .bool(true),
+                                         "note": .str(label)], sure: true, frame: nil)
         }
         let controlCenter = move(["action": .str("swipe"), "x1": .int(930), "y1": .int(5), "x2": .int(930), "y2": .int(450)])
         // the call screen's timer (0:05, 00:05) shows once the other side answers; "Calling…" before
@@ -56,14 +62,14 @@ extension Calls {
         return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
                          steps: [
                             ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
-                            controlCenter, tapLabel("Live Captions"), tapLabel("Live Speech"),
+                            controlCenter, tapLabel("Live Captions", at: captions), tapLabel("Live Speech", at: speech),
                             move(["action": .str("type"), "text": .str(line)]),
                             answered,
                             move(["action": .str("key"), "combo": .str("enter")]),
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
                             ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
-                            controlCenter, tapLabel("Live Captions"), move(["action": .str("home")]),
+                            controlCenter, tapLabel("Live Captions", at: captions), move(["action": .str("home")]),
                          ])
     }
 }
