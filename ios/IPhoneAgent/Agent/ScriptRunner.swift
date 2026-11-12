@@ -121,10 +121,13 @@ extension AgentLoop {
         plan = goal
         inPart = true
         defer { task = whole; plan = ""; inPart = false }
+        // Watched between the model's looks too: "Call Ended" shows for ~2 s, then Recents; checked only before a step it
+        // was missed and the model went on in Control Center and Recents, about to call again (2026-11-13).
+        let watch = endText.map { EndWatch(pattern: $0, frame: { [weak self] in self?.screen?.frame }) }
+        defer { watch?.stop() }
         for _ in 0..<budget {
-            if let endText, let frame = screen?.frame,
-               let hit = await DemoAnalysis.texts(frame, limit: 80).first(where: { $0.text.range(of: endText, options: [.regularExpression, .caseInsensitive]) != nil }) {
-                record(frame, ["action": .str("ai done"), "answer": .str("ended: \"\(hit.text)\" showed")])
+            if let watch, let hit = await watch.hit() {
+                record(screen?.frame, ["action": .str("ai done"), "answer": .str("ended: \"\(hit)\" showed")])
                 return true
             }
             guard try await step() else { continue }
@@ -217,5 +220,38 @@ extension AgentLoop {
         DebugLog.write("replay step \(n): \(why) → AI")
         replay.stop()
         return .handOver
+    }
+}
+
+/// Reads the live screen every 0.7 s for a line matching `pattern` (OCR) and keeps the first one seen.
+@MainActor final class EndWatch {
+    private var seen: String?
+    private var task: Task<Void, Never>?
+    private let pattern: String
+    private let frame: () -> Data?
+
+    init(pattern: String, frame: @escaping () -> Data?) {
+        self.pattern = pattern
+        self.frame = frame
+        task = Task { [weak self] in
+            while !Task.isCancelled, let self, self.seen == nil {
+                await self.look()
+                try? await Task.sleep(nanoseconds: 700_000_000)
+            }
+        }
+    }
+
+    /// The matching line seen so far, or on the screen now.
+    func hit() async -> String? {
+        if seen == nil { await look() }
+        return seen
+    }
+
+    func stop() { task?.cancel() }
+
+    private func look() async {
+        guard seen == nil, let f = frame() else { return }
+        seen = await DemoAnalysis.texts(f, limit: 80)
+            .first { $0.text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil }?.text
     }
 }
