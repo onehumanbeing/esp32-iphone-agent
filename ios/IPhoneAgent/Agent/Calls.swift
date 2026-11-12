@@ -20,11 +20,13 @@ enum Calls {
             + "remove a wrong number with `key backspace` once per digit before typing it again. Check the whole number "
             + "shows once, `confirm`, then tap the call button once. Keep the call on the iPhone itself: if the call "
             + "screen shows Speaker on, tap Audio (or Speaker) and pick iPhone. Call sound never goes over AirPlay, so the "
-            + "only way to hear the other side is Live Captions on screen (turn them on in Control Center if they are "
-            + "not showing). To speak, open Live Speech (Control Center › Live Speech, or the AssistiveTouch menu) and "
-            + "give `say \"TEXT\"`: the iPhone says TEXT into the call. Open it while the call still rings and `type` the "
-            + "first sentence into its field without enter; the moment they answer (the call timer starts), `key enter` "
-            + "says it. One or two short sentences per say, in the other side's language, then wait and read the captions. Keep to the goal, never promise or agree to anything it "
+            + "only way to hear the other side is Live Captions on screen. Both are buttons in Control Center (swipe down "
+            + "from the top right corner): while the call still rings, turn Live Captions on there, then tap Live Speech "
+            + "and `type` the first sentence into its field without enter; the moment they answer (the call timer "
+            + "starts), `key enter` says it. Live Captions stay on screen until turned off: after hanging up, turn them "
+            + "off in Control Center and check they are gone before `done`. If either button is not in Control Center, "
+            + "`fail` and say which one to add (Control Center › + › Add a Control). To speak again, `say \"TEXT\"`: the "
+            + "iPhone says TEXT into the call. One or two short sentences per say, in the other side's language, then wait and read the captions. Keep to the goal, never promise or agree to anything it "
             + "does not ask for, and hang up when it is done or the other side ends; `done` then sums up what was said."
     }
 }
@@ -39,11 +41,12 @@ extension Calls {
         return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
                          steps: [
                             ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
-                            ai("While it rings: open Live Speech and `type \"\(line)\"` into its field, without enter."),
+                            ai("While it rings: in Control Center turn Live Captions on, then tap Live Speech and `type \"\(line)\"` into its field, without enter."),
                             ai("Watch with `wait` until the call timer starts (the other phone answered), then at once `key enter` to say the line."),
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
                             ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
+                            ai("Open Control Center, turn Live Captions off and check the caption panel is gone."),
                          ])
     }
 }
