@@ -33,9 +33,9 @@ the page, opened its tab) and it is not shown, do not wander off to other screen
 found, and say what the screen did not show.
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
-Chinese text is typed word by word through the iPhone's pinyin keyboard and committed for you; the result
-says when part of it could not be typed, and what is left.
-key ctrl+space switches the keyboard between English and Chinese pinyin (pinyin: the space bar shows 拼).
+Type Chinese as the characters themselves (type 你好, not ni hao), never as pinyin letters: the app switches to the
+pinyin keyboard, picks the words and commits them for you, and switches back for English. Never switch the
+keyboard yourself. The result says when part of it could not be typed, and what is left.
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
 (100-250 units) and check the result; repeat if needed rather than one big swipe.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
@@ -54,7 +54,7 @@ Actions:
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (English, Chinese or accented Latin; emoji are dropped; tap the input field first)
   clear                     (empty the focused text field; the result says if text is left)
-  key COMBO                 (enter, backspace, esc, cmd+a, ctrl+space, ...)
+  key COMBO                 (enter, backspace, esc, cmd+a, ...)
   open APP                  (start the app by its name, from any screen; the result says whether it opened)
   home | back | wait
   done ANSWER               (the whole goal is reached and visible; ANSWER is the result for the user)

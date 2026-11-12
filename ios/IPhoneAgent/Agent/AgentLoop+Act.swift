@@ -83,7 +83,11 @@ extension AgentLoop {
             try await phone.key("enter")
             return nil
         case "clear": return try await phone.clearField().map { ("cleared", $0) }
-        case "key": try await phone.key(a["combo"]?.str ?? "")
+        case "key":
+            // `type` picks the keyboard itself: the model's own ctrl+space flipped it back to English right before a
+            // type, and the pinyin it then typed went in as letters (2026-11-13)
+            if Actions.isKeyboardSwitch(a) { return ("result", "not sent: type switches the keyboard itself; type the text as is, Chinese as characters") }
+            try await phone.key(a["combo"]?.str ?? "")
         case "home": try await phone.goHome(again: homeAgain)
         case "open": return ("opened", try await phone.openApp(a["app"]?.str ?? "").rawValue)
         case "back": try await phone.goBack()

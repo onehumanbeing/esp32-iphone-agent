@@ -15,7 +15,8 @@ enum Calls {
 
     static func prompt(_ task: String) -> String {
         guard isCall(task) else { return "" }
-        return "\n\nPhone calls: `confirm` before dialing. To speak, open Live Speech (Control Center › Live Speech, "
+        return "\n\nPhone calls: a number goes in with `type` on Phone's Keypad (the board is a keyboard). Check the "
+            + "whole number shows, `confirm`, then tap the call button once. To speak, open Live Speech (Control Center › Live Speech, "
             + "or the AssistiveTouch menu) and give `say \"TEXT\"`: the iPhone says TEXT into the call. One or two short "
             + "sentences per say, in the other side's language, then wait and listen. To hear, read Live Captions on "
             + "screen (turn them on in Control Center if they are not showing) and the \"Phone audio\" line. Keep to the "

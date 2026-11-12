@@ -48,7 +48,14 @@ import NaturalLanguage
             let row = last.map { Self.candidateRow(now, before: $0, ignoring: lastRow) } ?? []
             var ok = true
             if let pending {
-                ok = Self.count(pending.word, in: Self.fieldText(now, minus: row)) > Self.count(pending.word, in: pending.base)
+                let field = Self.fieldText(now, minus: row)
+                ok = Self.count(pending.word, in: field) > Self.count(pending.word, in: pending.base)
+                // OCR often misses one or two characters in a message box: 我 was there and the typing stopped
+                // anyway, four times in one message (2026-11-13). Its pinyin gone from the box = committed.
+                if !ok, !field.lowercased().contains(Pointer.typeable(pending.word)) {
+                    ok = true
+                    DebugLog.write("type: \"\(pending.word)\" not read back, but its pinyin is gone; taken as committed")
+                }
             }
             return (now, row, ok)
         }
