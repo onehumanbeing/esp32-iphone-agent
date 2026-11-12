@@ -19,6 +19,8 @@ import SwiftUI
         let intent: SavedTask?
     }
     @Published var pending: Pending?
+    /// "It's Set Up, Call Now": the run it starts goes through once; the next call shows the guide again.
+    var passOnce = false
 
     static var seen: Bool {
         get { UserDefaults.standard.bool(forKey: seenKey) }
@@ -27,6 +29,7 @@ import SwiftUI
 
     /// True when the call has to wait for the guide (shown now).
     func holds(_ task: String, intent: SavedTask?) -> Bool {
+        if passOnce { passOnce = false; return false }
         guard !Self.seen else { return false }
         pending = Pending(task: task, intent: intent)
         return true
@@ -69,7 +72,7 @@ struct CallSetupSheet: View {
                 VStack(spacing: Space.s) {
                     Button {
                         dismiss()
-                        if pending.task != nil { start() }
+                        if pending.task != nil { CallGuide.shared.passOnce = true; start() }
                     } label: {
                         Text(pending.task == nil ? "Done" : "It's Set Up, Call Now").frame(maxWidth: .infinity)
                     }
