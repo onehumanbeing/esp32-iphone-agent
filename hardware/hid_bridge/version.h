@@ -5,7 +5,7 @@
 #if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, versioned so the app offers it
 #define FW_VERSION "9.9.9"
 #else
-#define FW_VERSION "0.2.4"
+#define FW_VERSION "0.2.5"
 #endif
 
 // The name the board shows in Screen Mirroring and Bluetooth (plus " 1A2B" there). A release build may set its

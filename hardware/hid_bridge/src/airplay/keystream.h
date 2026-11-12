@@ -19,6 +19,8 @@ typedef struct {
 } keystream;
 
 // Does the plaintext start like an AVCC frame: a NAL length that fits, forbidden bit 0, an H.264 type 1-12?
+// AES-CTR over a PSRAM buffer, through an internal-RAM bounce buffer (mirror task only; see keystream.c).
+void ks_ctr(const mbedtls_aes_context *aes, size_t n, size_t *off, uint8_t iv[16], uint8_t stream[16], uint8_t *buf);
 bool ks_plausible(const uint8_t *p, size_t n);
 // The keystream as mbedtls_aes_crypt_ctr leaves it after pos bytes.
 void ks_at(const ks_key *key, keystream *k, uint64_t pos);

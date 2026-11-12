@@ -16,6 +16,7 @@ import UIKit
     @Published private(set) var customEndpoints: [CustomEndpoint] = []
     @Published private(set) var activeCustomID: String? { didSet { defaults.set(activeCustomID, forKey: "customEndpointID") } }
     private let defaults: UserDefaults
+    private let keychain: KeychainStoring
     private var backupObserver: NSObjectProtocol?
     @Published var baseURL: String { didSet {
         defaults.set(baseURL, forKey: "baseURL")
@@ -32,7 +33,7 @@ import UIKit
     @Published var actorModel: String { didSet { defaults.set(actorModel, forKey: "actorModel"); configurationRevision += 1 } }        // "" = model
     @Published var tokenParam: String { didSet { defaults.set(tokenParam, forKey: "tokenParam"); configurationRevision += 1 } }        // auto | ...
     @Published var extraBody: String { didSet { defaults.set(extraBody, forKey: "extraBody"); configurationRevision += 1 } }          // JSON object
-    @Published var apiKey: String { didSet { Keychain.set(apiKey, for: "llm-api-key"); DebugLog.redact([apiKey])
+    @Published var apiKey: String { didSet { keychain.set(apiKey, for: "llm-api-key"); DebugLog.redact([apiKey])
         if apiKey != oldValue { modelsChanged() } } }
     /// What the agent is called (Agent tab title, greeting, Live Activity); empty = the default.
     /// The endpoint's model list (GET /models), for the pickers; empty until loaded or when it can't be fetched.
@@ -61,8 +62,11 @@ import UIKit
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
-    init(defaults: UserDefaults = .standard, info: [String: Any]? = Bundle.main.infoDictionary) {
+    /// keychain: where the API keys are kept; tests pass an in-memory one, as CI has no Keychain.
+    init(defaults: UserDefaults = .standard, info: [String: Any]? = Bundle.main.infoDictionary,
+         keychain: KeychainStoring = SystemKeychain()) {
         self.defaults = defaults
+        self.keychain = keychain
         if defaults === UserDefaults.standard { SettingsBackup.restoreIfFresh(defaults) }  // tests use their own suite
         let preset = { (key: String) in Self.stored((info?[key] as? String)?.trimmingCharacters(in: .whitespaces)) }
         baseURL = Self.stored(defaults.string(forKey: "baseURL")) ?? preset("IAPresetBaseURL") ?? Self.defaultBaseURL
@@ -72,7 +76,7 @@ import UIKit
         actorModel = defaults.string(forKey: "actorModel") ?? ""
         tokenParam = defaults.string(forKey: "tokenParam") ?? "auto"
         extraBody = defaults.string(forKey: "extraBody") ?? "{}"
-        apiKey = Self.stored(Keychain.get("llm-api-key")) ?? preset("IAPresetKey") ?? ""
+        apiKey = Self.stored(keychain.get("llm-api-key")) ?? preset("IAPresetKey") ?? ""
         agentName = defaults.string(forKey: Self.agentNameKey) ?? Self.defaultAgentName
         onboarded = defaults.bool(forKey: "onboarded")
         restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
@@ -155,7 +159,7 @@ import UIKit
         }
         let changedEndpoint = baseURL != choice.baseURL
         baseURL = choice.baseURL
-        if changedEndpoint { apiKey = Keychain.get("llm-endpoint-" + baseURL) ?? "" }
+        if changedEndpoint { apiKey = keychain.get("llm-endpoint-" + baseURL) ?? "" }
         model = choice == .openRouter ? "openrouter/free" : ""  // works with any key, no model to pick first
         if choice == .handsyTrial { model = Trial.model }  // free line: its one model
         plannerModel = ""
@@ -193,7 +197,7 @@ import UIKit
 
     /// Remember the live configuration under its provider (or custom endpoint) and its key under its endpoint.
     func saveCurrent() {
-        Keychain.set(apiKey, for: "llm-endpoint-" + baseURL)  // an empty key removes this endpoint's saved key
+        keychain.set(apiKey, for: "llm-endpoint-" + baseURL)  // an empty key removes this endpoint's saved key
         guard provider == .others else { return defaults.set(currentProfile, forKey: Self.profileKey(provider)) }
         guard isConfigured else { return }  // a blank new endpoint isn't kept
         let id = activeCustomID
@@ -223,7 +227,7 @@ import UIKit
         let url = p["baseURL"] ?? baseURL
         let changedEndpoint = url != baseURL
         baseURL = url
-        if changedEndpoint { apiKey = url.isEmpty ? "" : Keychain.get("llm-endpoint-" + url) ?? "" }
+        if changedEndpoint { apiKey = url.isEmpty ? "" : keychain.get("llm-endpoint-" + url) ?? "" }
         model = p["model"] ?? ""
         plannerModel = p["plannerModel"] ?? ""
         actorModel = p["actorModel"] ?? ""
@@ -239,7 +243,7 @@ import UIKit
         if p == provider { return isConfigured && !apiKey.isEmpty }
         let url = (defaults.dictionary(forKey: Self.profileKey(p)) as? [String: String])?["baseURL"] ?? p.baseURL
         guard let host = URL(string: url)?.host, !host.isEmpty else { return false }
-        return Keychain.get("llm-endpoint-" + url)?.isEmpty == false
+        return keychain.get("llm-endpoint-" + url)?.isEmpty == false
     }
 
     /// The shared model; a tested one also brings the request parameters it was measured with.
@@ -391,6 +395,19 @@ import UIKit
         return JevDeciderModel(inner: actor, jev: JevConfig.client(), mode: deciders.mode,
                                race: Deciders.race(defaults))
     }
+}
+
+/// Where Settings keeps its API keys. Tests pass an in-memory implementation: an unsigned
+/// simulator build (CI runs with CODE_SIGNING_ALLOWED=NO) has no Keychain.
+protocol KeychainStoring {
+    func get(_ account: String) -> String?
+    func set(_ value: String, for account: String)
+}
+
+/// The real Keychain.
+struct SystemKeychain: KeychainStoring {
+    func get(_ account: String) -> String? { Keychain.get(account) }
+    func set(_ value: String, for account: String) { Keychain.set(value, for: account) }
 }
 
 enum Keychain {
