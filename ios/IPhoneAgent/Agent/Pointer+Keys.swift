@@ -148,6 +148,20 @@ extension Pointer {
         log(await Self.sameApp(before, screen.frame) ? "home: still in the app after two flicks" : "home: the second flick left the app")
     }
 
+    /// The Home Screen's Search button (the low "Search" / "搜索" label), tapped precisely; false = not on screen.
+    func tapSearchButton() async throws -> Bool {
+        guard let screen, screen.live, let jpeg = screen.frame, let image = Vision.image(jpeg) else { return false }
+        let h = Double(image.height), w = Double(image.width)
+        let hit = await UITreeOCR.lines(image).first { line in
+            let text = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "Q. ")).lowercased()
+            return (text == "search" || text == "搜索") && Double(line.box[1]) / h > 0.6
+        }
+        guard let box = hit?.box else { log("open: cmd+space brought nothing up and no Search button is on screen"); return false }
+        log("open: cmd+space brought nothing up; tapping the Search button")
+        try await tap(Double(box[0] + box[2]) / 2 / w, Double(box[1] + box[3]) / 2 / h, aim: true)
+        return true
+    }
+
     /// Most of the text on `before` is still on `after`: the same app (scrolled, perhaps), not the Home Screen.
     static func sameApp(_ before: Data?, _ after: Data?) async -> Bool {
         func words(_ jpeg: Data?) async -> Set<String> {

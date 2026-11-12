@@ -540,7 +540,8 @@ import UIKit
             // Chinese names need zh-Hans named (the automatic pick drops small ones), the device's language too
             let languages = UITreeOCR.languages(for: name)
             return await UITreeOCR.lines(image, languages: languages, whole: true).map(\.text)  // "App Store" stays one
-        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false }, paste: nil)  // no clipboard: pasting into Spotlight asks for permission, a box the board can rarely reach (Henry 2026-11-12)
+        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false }, paste: nil,
+           searchButton: { [weak self] in try await self?.tapSearchButton() ?? false })  // no clipboard: pasting into Spotlight asks for permission, a box the board can rarely reach (Henry 2026-11-12)
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
         return result

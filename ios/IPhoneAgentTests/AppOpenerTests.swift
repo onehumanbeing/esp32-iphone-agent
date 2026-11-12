@@ -150,4 +150,19 @@ import XCTest
         XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type WeChat"])
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
     }
+
+    /// cmd+space brought nothing up (2026-11-13): the next try taps the Home Screen's Search button instead.
+    func testSearchButtonWhenCmdSpaceBringsNothingUp() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, home, home, spotlight, app]
+        var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.searchButton = { sent.append("search button"); return true }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1)
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 1)
+    }
 }

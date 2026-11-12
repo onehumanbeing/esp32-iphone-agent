@@ -32,6 +32,8 @@ enum OpenResult: String {
     var language = AppNames.deviceLanguage
     /// Puts text on the clipboard (the agent app hops to the front and back home); nil = no clipboard here.
     var paste: ((String) async throws -> Bool)?
+    /// Taps the Home Screen's Search button; false = none on screen. Used only after cmd+space brought nothing up.
+    var searchButton: (() async throws -> Bool)?
     static let tries = 2
     static let relooks = 2
 
@@ -55,11 +57,12 @@ enum OpenResult: String {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let labels = AppNames.labels(name, language: language)
+        var button = false  // cmd+space did not bring Spotlight up last try (2026-11-13, twice in one run)
         for _ in 0..<Self.tries {
             try await home()
             try await pause(0.4)
             let homeFrame = await look()
-            try await key("cmd+space")
+            if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
             try await pause(0.7)
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")
@@ -80,7 +83,7 @@ enum OpenResult: String {
                 lines = await read(again)
             }
             if !Self.listed(name, in: lines, as: labels) {
-                if same(results, homeFrame) { continue }  // Spotlight did not come up
+                if same(results, homeFrame) { button = true; continue }  // Spotlight did not come up
                 return .notFound  // Spotlight stays for the model
             }
             try await key("enter")  // opens the top hit
