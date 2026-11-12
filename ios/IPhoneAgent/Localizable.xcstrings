@@ -10922,6 +10922,26 @@
           }
         }
       }
+    },
+    "Let the agent read call captions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 Agent 能读到通话字幕"
+          }
+        }
+      }
+    },
+    "Settings › Accessibility › Live Captions › Keep Call Captions › 1 Hour. With 1 Minute, iOS keeps call captions out of Screen Mirroring and the agent cannot hear the other side. With 1 Hour, iOS tells everyone on the call that it is being transcribed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置 › 辅助功能 › 实时字幕 › 保留通话字幕 › 1 小时。选 1 分钟时，iOS 不让通话字幕出现在屏幕镜像里，Agent 听不到对方。选 1 小时，iOS 会提示通话双方「此通话正在被转写」。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

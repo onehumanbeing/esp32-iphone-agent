@@ -51,9 +51,11 @@ struct CallSetupSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                         .frame(maxWidth: .infinity)
                     step(1, "Turn on Live Speech", "Settings › Accessibility › Live Speech.")
-                    step(2, "Add Live Speech and Live Captions to Control Center",
+                    step(2, "Let the agent read call captions",
+                         "Settings › Accessibility › Live Captions › Keep Call Captions › 1 Hour. With 1 Minute, iOS keeps call captions out of Screen Mirroring and the agent cannot hear the other side. With 1 Hour, iOS tells everyone on the call that it is being transcribed.")
+                    step(3, "Add Live Speech and Live Captions to Control Center",
                          "Touch and hold Control Center, tap Add a Control, search for each one.")
-                    step(3, "Make both large, on the bottom row",
+                    step(4, "Make both large, on the bottom row",
                          "Live Speech on the left, Live Captions on the right, as in the video. The agent taps them at those spots to be ready in seconds.")
                     Text("Phone calls are in beta: they may miss a word or take a moment to answer.")
                         .font(.footnote).foregroundStyle(.secondary)
