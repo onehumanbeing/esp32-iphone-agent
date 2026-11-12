@@ -43,9 +43,16 @@ struct IntentDetailView: View {
                               selection: $selection, axis: .vertical)
                         .focused($typing)
                         .onChange(of: typing) { _, on in on ? selectBlank(item) : savePrompt(item) }
+                    // Follows the words ("Call …" turns it on) until switched by hand; on: always the call routine.
+                    Toggle(isOn: Binding(get: { Calls.isCall(draft ?? item.prompt, kind: item.kind) },
+                                         set: { on in var copy = item; copy.kind = on ? "call" : "task"; intents.upsert(copy) })) {
+                        HStack(spacing: Space.s) { Text("Phone call"); BetaBadge() }
+                    }
                 } header: { Text("Instruction") } footer: {
                     if IntentStore.unfilled(draft ?? item.prompt) {
                         Text("Tap the instruction and fill in the parts in [brackets], such as who to text or call, before running it.")
+                    } else {
+                        Text("Phone call: the agent dials, speaks with Live Speech and listens with Live Captions. On when the instruction starts with Call.")
                     }
                 }
                 ScriptSection(intents: intents, item: item)

@@ -17,8 +17,11 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
     var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
     var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
+    var kind: String?        // "call": always a phone call; "task": never; nil: by its words (Calls.dials)
 
-    var symbol: String { icon ?? (Calls.dials(prompt) ? "phone.fill" : "bolt.fill") }  // a call shows as one
+    var symbol: String { icon ?? (isCall ? "phone.fill" : "bolt.fill") }  // a call shows as one
+    /// Runs as a phone call (Calls.script): the Phone call switch, or else the words ("Call …", "打电话给…").
+    var isCall: Bool { Calls.isCall(prompt, kind: kind) }
     /// A template's blanks ("[who]") are still in it: edit them before it can run.
     var unfilled: Bool { IntentStore.unfilled(prompt) }
     var checklist: [String] { hints ?? [] }
@@ -73,7 +76,8 @@ struct RunStat: Codable, Equatable, Hashable {
     }
     static var call: SavedTask {
         SavedTask(name: String(localized: "Call someone"),
-                  prompt: String(localized: "Call [who] and talk about [topic]"), icon: "phone.fill", color: "blue")
+                  prompt: String(localized: "Call [who] and talk about [topic]"), icon: "phone.fill", color: "blue",
+                  kind: "call")
     }
     nonisolated static let blanks = ["[who]", "[message]", "[topic]", "[联系人]", "[内容]", "[话题]"]
     nonisolated static func unfilled(_ prompt: String) -> Bool { blanks.contains { prompt.contains($0) } }

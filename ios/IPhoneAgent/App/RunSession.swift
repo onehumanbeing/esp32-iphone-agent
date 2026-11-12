@@ -18,7 +18,7 @@ extension AppModel {
             notice = String(localized: "Edit the parts in [brackets] first, such as who to text or call.")
             return
         }
-        if Calls.dials(task), CallGuide.shared.holds(task, intent: intent) { return }  // a call: the setup guide first, until Don't Show Again
+        if Calls.isCall(task, kind: intent?.kind), CallGuide.shared.holds(task, intent: intent) { return }  // a call: the setup guide first, until Don't Show Again
         currentIntent = intent
         var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped
@@ -29,7 +29,7 @@ extension AppModel {
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
-        if agent.replay.steps.isEmpty, Calls.dials(task) {  // a call: the fast scripted way (Calls.script)
+        if agent.replay.steps.isEmpty, Calls.isCall(task, kind: intent?.kind) {  // a call: the fast scripted way (Calls.script)
             agent.replay = Replay(steps: Calls.script(task).compactMap { s in s.object.map { Replay.Step(action: $0, sure: true, frame: nil) } })
             DebugLog.write("call: scripted (\(agent.replay.steps.count) steps)")
         }

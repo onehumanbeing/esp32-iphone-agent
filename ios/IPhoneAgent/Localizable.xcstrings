@@ -10902,6 +10902,26 @@
           }
         }
       }
+    },
+    "Phone call" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电话"
+          }
+        }
+      }
+    },
+    "Phone call: the agent dials, speaks with Live Speech and listens with Live Captions. On when the instruction starts with Call." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电话：Agent 拨号，用「实时语音」说话，用「实时字幕」听对方。指令以「打电话给」或 Call 开头时自动打开。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

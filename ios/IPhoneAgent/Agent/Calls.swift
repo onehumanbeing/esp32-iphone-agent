@@ -47,6 +47,9 @@ extension Calls {
         dialing.contains { task.range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil }
     }
 
+    /// A saved intent's Phone call switch wins ("call" / "task"); without one, the words decide.
+    static func isCall(_ task: String, kind: String?) -> Bool { kind.map { $0 == "call" } ?? dials(task) }
+
     /// The call screen once either side hung up.
     static let ended = #"^(call ended|通话结束)"#
     /// The call screen right after dialing: the dial part ends here without a model round to say so.
