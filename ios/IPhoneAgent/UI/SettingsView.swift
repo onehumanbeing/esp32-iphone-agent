@@ -14,7 +14,7 @@ struct SettingsView: View {
             List {
                 Section {
                     NavigationLink { ModelSettingsView(app: app, settings: settings) } label: {
-                        row("Model", "brain", .pink, value: app.modelReady ? (MockMode.on ? "Demo" : settings.currentModel ?? String(localized: "Auto")) : nil)
+                        row("Model", "brain", .pink, value: app.modelReady ? modelName : nil)
                     }
                     NavigationLink { BoardSettingsView(app: app, board: board) } label: {
                         row("Board", "cable.connector", .blue,
@@ -91,6 +91,15 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+    }
+
+    /// What the user picked, never the free line's internal model id (handsy-qwen).
+    private var modelName: String {
+        if MockMode.on { return "Demo" }
+        if settings.provider == .handsyTrial {
+            return Trial.shared.keyed ? String(localized: "Handsy Plan") : ModelProvider.handsyTrial.title
+        }
+        return settings.currentModel ?? String(localized: "Auto")
     }
 
     private func row(_ title: LocalizedStringKey, _ symbol: String, _ color: Color, value: String?) -> some View {

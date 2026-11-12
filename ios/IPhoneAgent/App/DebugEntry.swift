@@ -59,6 +59,7 @@ struct ModelLaunchConfiguration {
 /// Drive the app without touching the phone, for development:
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
+///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
 /// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
@@ -81,6 +82,9 @@ extension AppModel {
             debugCommand(host)
         case "status":
             say(statusSummary)
+        case "intent":
+            guard let prompt = arg("prompt"), !prompt.isEmpty else { return false }
+            intents.add(name: arg("name") ?? "", prompt: prompt)
         case "bench":
             debugCommand("bench", kb: Int(arg("kb") ?? "") ?? 256)
         case "tree":

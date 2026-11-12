@@ -40,7 +40,7 @@ struct ModelSettingsView: View {
                     }
                 }
                 .disabled(testing || !app.modelReady)
-                ModelTestTimingView(app: app)
+                if app.modelTestStarted != nil || app.modelTestSeconds != nil { ModelTestTimingView(app: app) }  // no empty row
                 if let error = app.modelError {
                     Text(verbatim: error).font(.footnote).foregroundStyle(Palette.stop)
                 }

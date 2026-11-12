@@ -122,3 +122,12 @@ enum SwipeClamp {
         return (x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, true)
     }
 }
+
+/// A tap outside the 0-1000 screen is never sent: clamped, it lands on the screen's edge (the home bar, Control
+/// Center), where a press sets off system gestures the model never asked for.
+enum OffScreen {
+    static func reason(_ a: JObject) -> String? {
+        guard let x = a["x"]?.double, let y = a["y"]?.double, !(0...1000).contains(x) || !(0...1000).contains(y) else { return nil }
+        return "not tapped: \(Int(x)), \(Int(y)) is off the screen; x and y run 0-1000"
+    }
+}

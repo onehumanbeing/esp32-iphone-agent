@@ -116,6 +116,7 @@ import UIKit
     private(set) lazy var calibrator = AutoCalibrator(app: self)
     let probe = TouchProbe()
     private var lastStatus = ""
+    private var lastBoardBoot = 0.0
     private var lastTick = now()
     private var lastStreamLog = 0.0
     private var timers: [Task<Void, Never>] = []
@@ -405,8 +406,25 @@ import UIKit
         DebugLog.write(line)
         if let up = s.up, up < 30_000 {  // a link drop that is really the board rebooting (crash, brownout, ...)
             DebugLog.write("board: booted \(up / 1000) s ago (reset: \(s.rst ?? "?"), heap \((s.heap ?? 0) / 1024) KB)")
+            reportBoardReboot(s, up: up)
             // On another Wi-Fi with the board (station mode, harness/board.py net sta) there is no hotspot to rejoin.
             if (wasOnBoardWiFi || hotspotSSID != nil) && board.net?.mode != "sta" { rejoinAfterReboot() }
+        }
+    }
+
+    /// Every board reboot goes to usage stats, with the
+    /// board's crash dump when it has one (`crash`: task, PC, backtrace, and whether the dump is this build's). The
+    /// board erases the dump once read at boot, so each one is reported for the boot it belongs to.
+    private func reportBoardReboot(_ s: BoardStatus, up: Int) {
+        let bootedAt = now() - Double(up) / 1000
+        guard abs(bootedAt - lastBoardBoot) > 60 else { return }  // the same boot, seen again
+        lastBoardBoot = bootedAt
+        Task { [weak self] in
+            guard let self else { return }
+            let crash = await BoardLogDump.crash(self.board.commands)
+            DebugLog.write("board: crash record: \(crash ?? "-")")
+            Analytics.capture("board_reboot", ["reset": s.rst ?? "?", "fw": Firmware.version(of: s), "up_s": up / 1000,
+                                               "heap_kb": (s.heap ?? 0) / 1024, "dump": crash ?? ""])
         }
     }
 

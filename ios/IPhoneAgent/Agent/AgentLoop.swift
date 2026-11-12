@@ -559,6 +559,12 @@ extension Gestures {
                     }
                 }
                 if name == "swipe" { SwipeClamp.apply(&act) }
+                if name == "tap", let off = OffScreen.reason(act) {  // y 1108 tapped the home bar's edge (2026-11-13)
+                    act["result"] = .str(off)
+                    DebugLog.write("step: tap not sent, \(off)")
+                    record(planned.shot, act)
+                    return false
+                }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
