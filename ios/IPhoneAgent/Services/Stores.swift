@@ -18,7 +18,7 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
     var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
 
-    var symbol: String { icon ?? "bolt.fill" }
+    var symbol: String { icon ?? (Calls.dials(prompt) ? "phone.fill" : "bolt.fill") }  // a call shows as one
     /// A template's blanks ("[who]") are still in it: edit them before it can run.
     var unfilled: Bool { IntentStore.unfilled(prompt) }
     var checklist: [String] { hints ?? [] }

@@ -44,6 +44,15 @@ struct SettingsView: View {
                     NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
                         row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
                     }
+                    Button { CallGuide.shared.pending = CallGuide.Pending(task: nil, intent: nil) } label: {
+                        HStack {
+                            SettingsLabel(title: "Phone Calls", symbol: "phone.fill", color: .green)
+                            BetaBadge()
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .tint(.primary)
                     Picker(selection: $askMode) {
                         ForEach(AskMode.allCases) { Text($0.title).tag($0) }
                     } label: {

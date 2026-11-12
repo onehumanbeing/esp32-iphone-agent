@@ -10772,6 +10772,136 @@
           }
         }
       }
+    },
+    "Turn on Live Speech" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开「实时语音」"
+          }
+        }
+      }
+    },
+    "Settings › Accessibility › Live Speech." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置 › 辅助功能 › 实时语音。"
+          }
+        }
+      }
+    },
+    "Add Live Speech and Live Captions to Control Center" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把「实时语音」和「实时字幕」加到控制中心"
+          }
+        }
+      }
+    },
+    "Touch and hold Control Center, tap Add a Control, search for each one." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在控制中心长按空白处，轻点「添加控制」，分别搜索这两项。"
+          }
+        }
+      }
+    },
+    "Make both large, on the bottom row" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两个都调成大尺寸，放在最下面一排"
+          }
+        }
+      }
+    },
+    "Live Speech on the left, Live Captions on the right, as in the video. The agent taps them at those spots to be ready in seconds." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左边「实时语音」，右边「实时字幕」，和视频里一样。Agent 按这两个位置直接点，几秒内就能准备好。"
+          }
+        }
+      }
+    },
+    "Calls work best in English: Live Captions understands it best. Call audio never goes through Screen Mirroring." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话用英文效果最好：实时字幕最能听懂英文。通话声音不会经过屏幕镜像。"
+          }
+        }
+      }
+    },
+    "Watch the setup video" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "观看设置视频"
+          }
+        }
+      }
+    },
+    "It's Set Up, Call Now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置好了，现在打"
+          }
+        }
+      }
+    },
+    "Phone Calls" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话"
+          }
+        }
+      }
+    },
+    "Don't Show Again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再显示"
+          }
+        }
+      }
+    },
+    "Before You Call" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话之前"
+          }
+        }
+      }
+    },
+    "Phone calls are in beta: they may miss a word or take a moment to answer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打电话目前是 Beta 功能：可能听漏个别词，回复也可能慢一点。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

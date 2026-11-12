@@ -18,6 +18,7 @@ extension AppModel {
             notice = String(localized: "Edit the parts in [brackets] first, such as who to text or call.")
             return
         }
+        if Calls.dials(task), CallGuide.shared.holds(task, intent: intent) { return }  // a call: the setup guide first, until Don't Show Again
         currentIntent = intent
         var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped

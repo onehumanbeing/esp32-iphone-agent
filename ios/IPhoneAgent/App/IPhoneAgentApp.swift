@@ -46,6 +46,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scene
     @AppStorage(RunShare.askedKey) private var privacyAsked = false
     @State private var consent = false
+    @ObservedObject private var callGuide = CallGuide.shared
 
     var body: some View {
         TabView(selection: $app.tab) {
@@ -87,6 +88,11 @@ struct RootView: View {
         .sheet(item: Binding(get: { app.aiConsentRun.map(PendingRun.init) }, set: { app.aiConsentRun = $0?.task })) { pending in
             SendConsentSheet(settings: settings, model: settings.pendingConsent.model, jev: settings.pendingConsent.jev) {
                 Task { await app.startAgent(pending.task) }
+            }
+        }
+        .sheet(item: $callGuide.pending) { pending in
+            CallSetupSheet(pending: pending) {
+                if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
             }
         }
         .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
