@@ -20,12 +20,15 @@ enum Calls {
             + "remove a wrong number with `key backspace` once per digit before typing it again. Check the whole number "
             + "shows once, `confirm`, then tap the call button once. Keep the call on the iPhone itself: if the call "
             + "screen shows Speaker on, tap Audio (or Speaker) and pick iPhone. Call sound never goes over AirPlay, so the "
-            + "only way to hear the other side is Live Captions on screen. Both are buttons in Control Center (swipe down "
+            + "only way to hear the other side is Live Captions on screen, and they understand English only: speak "
+            + "English on a call, and if the goal needs another language, `fail` and say calls work in English for now. Both are buttons in Control Center (swipe down "
             + "from the top right corner): while the call still rings, turn Live Captions on there, then tap Live Speech "
             + "and `type` the first sentence into its field without enter; the moment they answer (the call timer "
             + "starts), `key enter` says it. Live Captions stay on screen until turned off: after hanging up, turn them "
-            + "off in Control Center and check they are gone before `done`. If either button is not in Control Center, "
-            + "`fail` and say which one to add (Control Center › + › Add a Control). To speak again, `say \"TEXT\"`: the "
+            + "off in Control Center and check they are gone before `done`. Find each button by its name (Live Captions, "
+            + "Live Speech) and tap it once: a lit button is on, never tap it again. If a button is not there by name, "
+            + "`fail` and say which one to add or widen (Control Center › + › Add a Control; drag its corner so its name "
+            + "shows). To speak again, `say \"TEXT\"`: the "
             + "iPhone says TEXT into the call. One or two short sentences per say, in the other side's language, then wait and read the captions. Keep to the goal, never promise or agree to anything it "
             + "does not ask for, and hang up when it is done or the other side ends; `done` then sums up what was said."
     }
@@ -38,15 +41,29 @@ extension Calls {
     static func test(number: String, line: String) -> SavedTask {
         func ai(_ goal: String) -> RecordedStep { RecordedStep(action: ["action": .str("ai"), "goal": .str(goal)], sure: true, frame: nil) }
         func manual(_ reason: String) -> RecordedStep { RecordedStep(action: ["action": .str("manual"), "reason": .str(reason)], sure: true, frame: nil) }
+        func move(_ a: JObject) -> RecordedStep {
+            var a = a
+            a["blind"] = .bool(true)
+            return RecordedStep(action: a, sure: true, frame: nil)
+        }
+        func tapLabel(_ label: String) -> RecordedStep {  // found by its name (OCR); the model repairs a miss
+            RecordedStep(action: ["action": .str("tap"), "x": .int(500), "y": .int(500), "label": .str(label)], sure: true, frame: nil)
+        }
+        let controlCenter = move(["action": .str("swipe"), "x1": .int(930), "y1": .int(5), "x2": .int(930), "y2": .int(450)])
+        // the call screen's timer (0:05, 00:05) shows once the other side answers; "Calling…" before
+        let answered = RecordedStep(action: ["action": .str("waittext"), "pattern": .str(#"^\d{1,2}:\d{2}$"#), "seconds": .num(60)],
+                                    sure: true, frame: nil)
         return SavedTask(name: "Call test", prompt: "Call test: phone \(number), say one line, listen to the reply, hang up.",
                          steps: [
                             ai("Open Phone's Keypad, type \(number), check the whole number shows, then tap the call button once."),
-                            ai("While it rings: in Control Center turn Live Captions on, then tap Live Speech and `type \"\(line)\"` into its field, without enter."),
-                            ai("Watch with `wait` until the call timer starts (the other phone answered), then at once `key enter` to say the line."),
+                            controlCenter, tapLabel("Live Captions"), tapLabel("Live Speech"),
+                            move(["action": .str("type"), "text": .str(line)]),
+                            answered,
+                            move(["action": .str("key"), "combo": .str("enter")]),
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
                             ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
-                            ai("Open Control Center, turn Live Captions off and check the caption panel is gone."),
+                            controlCenter, tapLabel("Live Captions"), move(["action": .str("home")]),
                          ])
     }
 }

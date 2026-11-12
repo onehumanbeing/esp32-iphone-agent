@@ -24,6 +24,13 @@ extension AgentLoop {
             guard try await subGoal(step.action["goal"]?.str ?? "") else { return .ended }
         case "manual":
             guard try await handToUser(step.action["reason"]?.str ?? "") else { return .ended }
+        case "waittext":  // watch the screen until a line matches, without the model
+            guard try await waitText(step.action["pattern"]?.str ?? "", seconds: step.action["seconds"]?.double ?? 60) else {
+                guard try await repair(step, n, "not on screen in time") else { return .ended }
+                break
+            }
+        case _ where step.action["blind"] == .bool(true) && name != "tap":  // a fixed move: no reference screen to match
+            _ = try await move(step)
         case _ where Actions.notebookActions.contains(name):
             var act = step.action
             try await notebookAction(&act)
@@ -70,6 +77,24 @@ extension AgentLoop {
         _ = await settle()
         act["changed"] = .bool(Vision.changed(seen, screen?.frame))
         record(seen, act)
+    }
+
+    /// Polls the screen's text (OCR, about twice a second) until a line below the status bar matches `pattern` (a
+    /// regex). False = timed out.
+    func waitText(_ pattern: String, seconds: Double) async throws -> Bool {
+        let until = now() + seconds
+        onDoing?(.looking)
+        while now() < until {
+            try Task.checkCancellation()
+            if let frame = screen?.frame,
+               let hit = await DemoAnalysis.texts(frame, limit: 80).first(where: {  // below the status bar (its clock reads 2:47)
+                   $0.y > 60 && $0.text.range(of: pattern, options: .regularExpression) != nil }) {
+                record(frame, ["action": .str("waited"), "reason": .str("\"\(hit.text)\" showed")])
+                return true
+            }
+            try await Task.sleep(nanoseconds: 400_000_000)
+        }
+        return false
     }
 
     /// Where a demonstrated tap's label reads on this screen (OCR), nearest to the recorded spot.

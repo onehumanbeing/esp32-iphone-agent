@@ -102,7 +102,7 @@ extension AgentLoop {
 /// 100-250, the code holds it to that. A swipe from a screen edge (Control Center, Notification Center, Back)
 /// keeps its length.
 enum SwipeClamp {
-    static let limit = 300.0, edge = 40.0
+    static let limit = 300.0, edge = 80.0  // Control Center swipes start ~50 from the top
 
     /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
     static func apply(_ a: inout JObject) {

@@ -77,7 +77,7 @@ enum LoopGuard {
 /// A swipe on the Home Screen pages through apps or pulls down Search: `open` starts any app from there. Held
 /// back once; a swipe from a screen edge (Control Center, Notification Center) is not.
 enum HomeSwipeGuard {
-    static let edge = 40.0
+    static let edge = 80.0
 
     /// The screen is the Home Screen: the run's start, or a `home` since, with only swipes after it.
     static func onHome(_ steps: [JObject], startsOnHome: Bool) -> Bool {
