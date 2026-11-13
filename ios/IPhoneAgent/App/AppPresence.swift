@@ -55,19 +55,21 @@ extension AppModel {
         let usb = board.status?.usb ?? "?", mouse = PhoneMouse.connected
         DebugLog.write("leave app: the board took every gesture, the app stayed in front (usb \(usb), mouse on this iPhone: \(mouse))")
         Analytics.capture("app_left_failed", ["usb": usb, "mouse": mouse])
-        if usb == "off" {
+        if board.status?.needsUSBHost == true {
             throw DeviceError(message: String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
         }
-        // just powered up: its USB drops reports for up to a minute (AutoCalibrator.settledAfter); once more after
-        if let ms = board.status?.up, Double(ms) / 1000 < AutoCalibrator.youngBelow {
-            let wait = max(AutoCalibrator.settledAfter - Double(ms) / 1000, 10)
-            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+        // A newly powered USB board may drop input reports until it settles.
+        if let retry = AutoCalibrator.usbStartupRetry(board.status) {
+            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
             homeHint = String(localized: "The board just started. One moment…")
-            try await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+            try await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
             homeHint = nil
             if try await leaveApp() { return true }
         }
         if mouse || PhoneMouse.connected { return try await askUserToLeave() }  // the board drives this iPhone: the user swipes up once
+        if board.status?.isWirelessHID == true {
+            throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
+        }
         throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
     }
 
@@ -104,11 +106,12 @@ extension AppModel {
         let began = now()
         var waited = false
         while true {
-            while !board.connected {
+            while !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
                 try Task.checkCancellation()
-                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.board)) }
+                let part: Recovery.Part = board.connected && board.status?.isWirelessHID == true ? .pointer : .board
+                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(part)) }
                 waited = true
-                let stage = Recovery.Stage(part: .board, ask: now() - began >= Recovery.quiet[.board]!)
+                let stage = Recovery.Stage(part: part, ask: now() - began >= Recovery.quiet[part]!)
                 if stage != recovering {
                     DebugLog.write(String(format: "startup board wait: %@ after %.1f s", stage.logLine, now() - began))
                     recover(stage)
@@ -195,10 +198,10 @@ extension AppModel {
             guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.frames)) }
             try Task.checkCancellation()
             guard appIsBackgrounded else { throw onScreenError() }
-            if hasFrame(), board.connected, !snapMode || receivedSnapshot {
+            if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, !snapMode || receivedSnapshot {
                 await feed.settled(most: 1.5)  // the nudged cursor keeps fading for seconds; the Home Screen is still
                 try Task.checkCancellation()
-                if hasFrame(), board.connected, appIsBackgrounded {
+                if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, appIsBackgrounded {
                     if recovering != nil { recover(nil) }
                     return source
                 }
@@ -209,8 +212,8 @@ extension AppModel {
                 DebugLog.write(feed.undecodable ? "startup: frames arrive but none decodes (a lost packet; no keyframe yet); Screen Mirroring has to restart"
                                : "startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
-            let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
-                                     frameAt: hasFrame() ? now() : 0, stalled: stalled)
+            let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
+                                     frameAt: hasFrame() ? now() : 0, stalled: stalled, needsPointer: board.status?.needsWirelessPointer == true)
             var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
             case .live: break
@@ -229,7 +232,10 @@ extension AppModel {
                 shownPoll = poll
                 RunMarker.set("startup: " + (stage.map { "waiting, \($0.part)\($0.ask ? ", asked the user" : "")" } ?? "waiting for a frame"))
             }
-            if !board.connected { try await waitForStartupBoard(); continue }
+            if !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
+                try await waitForStartupBoard()
+                continue
+            }
             if now() < streamDeadline {
                 try await Task.sleep(nanoseconds: UInt64(poll * 1e9))
                 continue

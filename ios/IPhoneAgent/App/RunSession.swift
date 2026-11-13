@@ -101,13 +101,21 @@ extension AppModel {
         }
         // The board has power but no USB host (a charger, a power bank, a hub): nothing it sends reaches this
         // iPhone. Say so now, not after the leave-app gestures fail.
-        if board.connected, board.status?.usb == "off" {
+        if board.connected, board.status?.needsUSBHost == true {
             try? await board.refreshStatus()  // the last status may be older than the plug
-            if board.connected, board.status?.usb == "off" {
+            if board.connected, board.status?.needsUSBHost == true {
                 Analytics.capture("run_blocked", ["reason": "usb_off"])
                 blocked(String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
                 return
             }
+        }
+        if board.connected && board.status?.inputState == nil {
+            blocked(String(localized: "Waiting for the mouse…"))
+            return
+        }
+        if board.status?.needsWirelessPointer == true {
+            blocked(String(localized: "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings."))
+            return
         }
         usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
         guard await calibrator.ensureCalibrated() else {

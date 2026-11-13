@@ -222,7 +222,7 @@ struct BoardSettingsView: View {
                 }
                 .padding(.vertical, Space.xs)
                 if board.connected, let s = board.status {
-                    ValueRow(title: "Mouse", value: s.usb ?? "–")
+                    ValueRow(title: "Mouse", value: s.inputState ?? "–")
                     ValueRow(title: "Mirroring", value: s.ap ?? "–")
                 }
             }

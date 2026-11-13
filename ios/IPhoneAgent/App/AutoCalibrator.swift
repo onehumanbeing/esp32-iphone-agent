@@ -49,8 +49,8 @@ import UIKit
 
     var busy: Bool { phase.step != nil }
 
-    /// The mouse is up (board connected, USB HID mounted).
-    var boardReady: Bool { app.board.connected && app.board.status?.usb == "ok" }
+    /// Calibration needs both the control link and a working pointer.
+    var boardReady: Bool { app.board.connected && app.board.status?.inputReady == true }
     var mirroring: Bool { app.board.status?.ap == "streaming" }
 
     /// Calibration is due: never done, the screen shape changed, or the learned correction drifted.
@@ -140,11 +140,15 @@ import UIKit
         await videoCalibrate(noTaps: noTaps)
     }
 
-    /// The fallback: find the pointer in the mirrored video.
     /// Right after it powers up, the board's USB drops reports for up to a minute: moves land short and clicks
     /// go missing (2026-11-11, users' diagnostics: probe clicks 3 of 10 arrived, 15-60 s after power-up; check
     /// taps rejected far off). A calibration that went wrong then is tried once more after the board settled.
-    static let settledAfter = 60.0, youngBelow = 90.0
+    static func usbStartupRetry(_ status: BoardStatus?) -> (uptime: Double, delay: Double)? {
+        guard let status, !status.isWirelessHID, status.inputState != nil, let ms = status.up else { return nil }
+        let uptime = Double(ms) / 1000
+        guard uptime < 90 else { return nil }
+        return (uptime, max(60 - uptime, 10))
+    }
 
     private func shaky(_ r: TouchResult) -> Bool {
         if case .done(let error) = r { return error > Self.rejectAbove }
@@ -154,17 +158,17 @@ import UIKit
     /// Waits for a board that powered up moments ago; false (at once) for one that has been up a while.
     private func waitForYoungBoard() async -> Bool {
         try? await app.board.refreshStatus()
-        guard let ms = app.board.status?.up, Double(ms) / 1000 < Self.youngBelow else { return false }
-        let wait = max(Self.settledAfter - Double(ms) / 1000, 10)
-        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+        guard let retry = Self.usbStartupRetry(app.board.status) else { return false }
+        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
         reason = String(localized: "the board just started; trying again")
         progress = nil
-        try? await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+        try? await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
         return !Task.isCancelled
     }
 
+    /// The fallback: find the pointer in the mirrored video.
     private func videoCalibrate(noTaps: Bool) async {
-        let diagnosis = noTaps ? Self.noTapsText : nil
+        let diagnosis = noTaps ? noTapsText : nil
         guard mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }
         guard FrameMode.current == .stream else {  // the video finder needs the live stream
             app.say("calibration: video fallback skipped in snap mode")
@@ -188,8 +192,11 @@ import UIKit
         }
     }
 
-    static var noTapsText: String {
-        String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
+    private var noTapsText: String {
+        if app.board.status?.isWirelessHID == true {
+            return String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone.")
+        }
+        return String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
     }
 
     func finished(_ error: Double) {

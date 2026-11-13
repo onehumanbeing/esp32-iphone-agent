@@ -16,3 +16,7 @@ work credits it visibly, for example:
 
   Based on ESP32 iPhone Agent by Henry Yuan
   https://github.com/onehumanbeing/esp32-iphone-agent
+
+The Note 4 battery estimate uses the voltage curve from zectrix-note4-epd-demo by Zectrix Lab.
+Copyright (c) 2026 Zectrix Lab. Licensed under the MIT License; see hardware/hid_bridge/LICENSE-ZECTRIX.
+Source: https://github.com/itopinion/zectrix-note4-epd-demo

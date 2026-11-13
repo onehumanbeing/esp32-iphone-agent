@@ -3,7 +3,8 @@ import XCTest
 final class IntentFlowTests: XCTestCase {
     @MainActor private func launch(largeText: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-mock", "-freshRecordings", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+        // Keep the live release feed from presenting a firmware update over this unrelated UI flow.
+        app.launchArguments = ["-mock", "-mockFirmware", "99.0.0", "-freshRecordings", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         continueAfterFailure = false
@@ -151,7 +152,7 @@ final class IntentFlowTests: XCTestCase {
 final class ModelSearchTests: XCTestCase {
     @MainActor func testModelSearchActivatesInSheet() {
         let app = XCUIApplication()
-        app.launchArguments = ["-mock", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+        app.launchArguments = ["-mock", "-mockFirmware", "99.0.0", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
                                "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         continueAfterFailure = false
         app.launch()

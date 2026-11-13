@@ -7,9 +7,9 @@ extension AppModel {
 
     func wireRecovery() {
         agent.link = { [unowned self] in
-            Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+            Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen || feed.undecodable)
+                          stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -31,9 +31,9 @@ extension AppModel {
             linkRecoveryDisplay = nil
             return
         }
-        let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+        let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                                  frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
-                                 stalled: feed.frozen || feed.undecodable)
+                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -80,7 +80,7 @@ extension AppModel {
 
     private func kind(_ part: Recovery.Part) -> Notifier.Kind {
         switch part {
-        case .board: return .board
+        case .board, .pointer: return .board
         case .hotspot: return .wifi
         case .mirroring, .frames: return .mirroring
         }
@@ -88,6 +88,7 @@ extension AppModel {
 
     private func title(_ part: Recovery.Part) -> String {
         switch part {
+        case .pointer: return String(localized: "Pair the Bluetooth pointer")
         case .board: return String(localized: "Board disconnected")
         case .hotspot: return String(localized: "iPhone left the board's Wi-Fi")
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")

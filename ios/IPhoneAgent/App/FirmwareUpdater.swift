@@ -51,12 +51,13 @@ struct FirmwareReminder {
     }
 
     var busy: Bool { phase == .downloading || phase == .sending || phase == .restarting }
+    var usesUSBRelease: Bool { app.board.connected && app.board.status?.acceptsUSBRelease == true }
     var current: FirmwareVersion { Firmware.version(of: app.board.status) }
-    var available: Bool { app.board.connected && (release.map { $0.ver > current } ?? false) }
+    var available: Bool { usesUSBRelease && (release.map { $0.ver > current } ?? false) }
     /// Older than this app works with.
-    var belowMinimum: Bool { app.board.connected && current < Firmware.required }
+    var belowMinimum: Bool { usesUSBRelease && current < Firmware.required }
     /// Behind the newest release and able to take it over Wi-Fi: asked for on every connection, can be skipped.
-    var outdated: Bool { app.board.connected && FirmwareReminder.outdated(current, latest: release) }
+    var outdated: Bool { usesUSBRelease && FirmwareReminder.outdated(current, latest: release) }
     /// The sheet opens by itself, titled Board Update Required.
     var required: Bool { belowMinimum || outdated }
     /// Below the minimum and possible now: the sheet can't be put off (an old board needing USB, or no release found, can).
@@ -67,13 +68,14 @@ struct FirmwareReminder {
     /// Why Update can't start now, if it can't.
     var blocker: String? {
         if !app.board.connected { return String(localized: "Connect the board first.") }
+        guard usesUSBRelease else { return String(localized: "Firmware updates in this app are for the USB board only.") }
         if current < Firmware.firstOTA { return String(localized: "This board needs one update over USB first (hardware/flash.sh).") }
         if taskRunning { return String(localized: "Wait until the task or recording ends.") }
         return nil
     }
 
     func check() async {
-        guard !checking, !busy else { return }
+        guard usesUSBRelease, !checking, !busy else { return }
         checking = true
         checkError = nil
         defer { checking = false }
@@ -197,6 +199,7 @@ struct FirmwareReminder {
     private func boardAddress(within seconds: Double) async -> (String, String)? {
         let end = now() + seconds
         while now() < end {
+            if app.board.connected && !usesUSBRelease { return nil }
             if app.board.connected, let ip = app.board.net?.ip, let token = app.board.net?.vtok,
                !ip.isEmpty, ip != "0.0.0.0", !token.isEmpty { address = (ip, token) }
             if let address { return address }

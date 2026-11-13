@@ -31,6 +31,13 @@ import Foundation
     var onLinkDown: (() -> Void)?
     private var lastNotify = 0.0  // last notification of any kind, to tell a supervision timeout from a peer drop
     private var statusRevision = 0
+    private var revisionAtDisconnect = 0
+    private var wirelessBoardID: UUID?
+    private var currentStatus: BoardStatus? { statusRevision == revisionAtDisconnect ? nil : status }
+    var needsWirelessPointer: Bool {
+        if let currentStatus { return currentStatus.isWirelessHID && (!connected || !currentStatus.inputReady) }
+        return wirelessBoardID != nil && pairedID == wirelessBoardID
+    }
     private var readySince = 0.0
     var log: (String) -> Void = { print($0) }
 
@@ -126,6 +133,7 @@ import Foundation
 
     /// Connect to a board and remember it; reading `net` then triggers the iOS pairing prompt.
     func pair(_ id: UUID) {
+        if id != pairedID { status = nil; wirelessBoardID = nil }
         if mock { return mockPair(id) }
         stopScan()
         pairedID = id
@@ -154,6 +162,8 @@ import Foundation
         peripheral = nil
         if let previous { central?.cancelPeripheralConnection(previous) }
         pairedID = nil
+        status = nil
+        wirelessBoardID = nil
         signalStrength = nil
         UserDefaults.standard.removeObject(forKey: Self.pairedKey)
         setDisconnected()
@@ -319,14 +329,21 @@ import Foundation
         self.net = net
         pairedID = pairedID ?? UUID()
         found = [Found(id: UUID(), name: "\(AppName.current) 7C3E", rssi: -71)]
+        status = currentStatus
         connected = true
         commands.linkUp()
         onLinkUp?()
     }
 
-    func mockStatus(_ s: BoardStatus) {
-        status = s
-        onStatus?(s)
+    func updateStatus(_ s: BoardStatus) {
+        let merged = currentStatus?.merged(with: s) ?? s
+        if status?.isWirelessHID == true && status?.inputReady == true && merged.needsWirelessPointer {
+            commands.inputLinkLost()
+        }
+        wirelessBoardID = merged.isWirelessHID ? (peripheral?.identifier ?? pairedID) : nil
+        statusRevision += 1
+        status = merged
+        onStatus?(merged)
     }
 
     private func mockReply(_ line: String) {
@@ -359,11 +376,13 @@ import Foundation
         }
     }
 
-    private func setDisconnected() {
+    func setDisconnected() {
         statusReads?.cancel()
         connectionDeadline?.cancel()
         connecting = false
         net = nil
+        revisionAtDisconnect = statusRevision
+        if status?.isWirelessHID == true { status = nil }
         let was = connected
         connected = false
         linking = false
@@ -516,6 +535,8 @@ extension BoardLink: CBPeripheralDelegate {
                     if linking && subscribed.isSuperset(of: [BoardUUID.reply, BoardUUID.status, BoardUUID.video]) {
                         connectionDeadline?.cancel()
                         stopScan()
+                        // Keep offline diagnostics until reconnect; a status may already have arrived during pairing.
+                        status = currentStatus
                         connected = true
                         linking = false
                         lastError = ""
@@ -540,12 +561,7 @@ extension BoardLink: CBPeripheralDelegate {
             case BoardUUID.video: onVideo?(v)
             case BoardUUID.reply: commands.handleReply(String(decoding: v, as: UTF8.self))
             case BoardUUID.status:
-                if let s = BoardStatus.decode(v) {
-                    let merged = status?.merged(with: s) ?? s
-                    statusRevision += 1
-                    status = merged
-                    onStatus?(merged)
-                }
+                if let s = BoardStatus.decode(v) { updateStatus(s) }
             default: break
             }
         }

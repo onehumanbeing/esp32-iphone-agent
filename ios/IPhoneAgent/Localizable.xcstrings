@@ -10942,6 +10942,146 @@
           }
         }
       }
+    },
+    "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "告诉我任务，我会通过屏幕镜像查看这台 iPhone，用指针进行操作。"
+          }
+        }
+      }
+    },
+    "Keep the Bluetooth board powered on and near this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让蓝牙开发板保持通电，并放在这台 iPhone 附近。"
+          }
+        }
+      }
+    },
+    "the board connected in this app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 中连接的同一块开发板"
+          }
+        }
+      }
+    },
+    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@. Then select the paired device and set Button 2 to Home." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。然后选择已配对的设备，将“按钮 2”设为“主屏幕”。"
+          }
+        }
+      }
+    },
+    "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对蓝牙指针"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在这台 iPhone 的辅助触控设置中配对蓝牙指针。"
+          }
+        }
+      }
+    },
+    "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查这台 iPhone 上的蓝牙开发板配对状态和辅助触控设置。"
+          }
+        }
+      }
+    },
+    "The Bluetooth pointer did not reconnect in 5 minutes." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针在五分钟内未能重新连接。"
+          }
+        }
+      }
+    },
+    "Waiting for the Bluetooth pointer…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待蓝牙指针连接…"
+          }
+        }
+      }
+    },
+    "Firmware updates in this app are for the USB board only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用内固件更新仅支持 USB 开发板。"
+          }
+        }
+      }
+    },
+    "Use firmware made for Note 4. Back up the board and follow its USB installation guide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用适用于 Note 4 的固件。先备份开发板，再按指南通过 USB 安装。"
+          }
+        }
+      }
+    },
+    "Bluetooth HID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针"
+          }
+        }
+      }
+    },
+    "Use firmware for your board model. Back up the board and follow its installation guide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用适用于当前板型的固件。先备份开发板，再按指南安装。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

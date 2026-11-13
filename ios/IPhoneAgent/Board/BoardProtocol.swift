@@ -28,6 +28,8 @@ struct BoardStatus: Codable, Equatable {
     var heap: Int?
     var psram: Int?
     var usb: String?   // ok | asleep | off
+    var board: String? // Board model; absent on stock USB firmware.
+    var hid: String?   // BLE HID on this connection: ok once paired and subscribed.
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
@@ -40,12 +42,22 @@ struct BoardStatus: Codable, Equatable {
     var ble: BLE?
     var udp: UDP?
 
+    var isWirelessHID: Bool { hid != nil }
+    // A named board must report its input capability: its USB port may only supply power.
+    var inputState: String? { hid ?? (board == nil ? usb : nil) }
+    var inputReady: Bool { inputState == "ok" }
+    var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
+    var needsUSBHost: Bool { !isWirelessHID && inputState == "off" }
+    // The signed feed ships only standard USB images; wait for positive identification.
+    var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
+
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
     /// A small MTU makes the board notify a reduced object (up, usb, net, ap, ble.mtu); a `status` read returns
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
+        m.board = n.board ?? board; m.hid = n.hid ?? hid
         m.fw = n.fw ?? fw
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap

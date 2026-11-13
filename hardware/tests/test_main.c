@@ -267,6 +267,10 @@ void cli_random(uint8_t *p, size_t n) {
 
 // docs/cli-protocol.md vectors (cli/testdata/vectors.json, made with Python's cryptography).
 static void test_cli_proto(void) {
+  // Wi-Fi fits the full audio, board and HID status; small MTUs need the compact report.
+  CHECK(cli_ctrl_room(1463) >= 519 && cli_ctrl_room(1463) == BOARD_STATUS_CAP - 1);
+  CHECK(cli_ctrl_room(517) == 496 && cli_ctrl_room(247) == 226 && cli_ctrl_room(185) == 164);
+  CHECK(cli_ctrl_room(23) == 2 && cli_ctrl_room(0) == 0);
   uint8_t b_priv[32], c_pub[32], b_pub[32], k[32], want[32], id[16], mac[16], cn[16], bn[16], c2b[16], b2c[16];
   hex("65666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081828384", b_priv);
   hex("07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c", c_pub);

@@ -419,6 +419,8 @@ struct HomeView: View {
     /// The first thing missing before a run, and the setup page that fixes it.
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
+        if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
+        if let status = board.status, status.board != nil, status.inputState == nil { return ("Waiting for the mouse…", .act) }
         if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
