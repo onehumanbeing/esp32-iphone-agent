@@ -89,7 +89,11 @@ extension AgentLoop {
             // type, and the pinyin it then typed went in as letters (2026-11-13)
             if Actions.isKeyboardSwitch(a) { return ("result", "not sent: type switches the keyboard itself; type the text as is, Chinese as characters") }
             try await phone.key(a["combo"]?.str ?? "")
-        case "home": try await phone.goHome(again: homeAgain)
+        case "home":
+            // keyOnly: the Home key once, no flick after it (a call's Control Center: the Live Captions panel stays
+            // on screen in every app, so "the app's words are still there" always held, and the two flicks that
+            // followed collapsed the panel mid-call, 2026-11-14)
+            if a["keyOnly"]?.bool == true { try await phone.homeKey() } else { try await phone.goHome(again: homeAgain) }
         case "open": return ("opened", try await phone.openApp(a["app"]?.str ?? "").rawValue)
         case "back": try await phone.goBack()
         case "wait": break

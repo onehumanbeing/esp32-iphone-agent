@@ -12,6 +12,8 @@ import Foundation
     func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
     /// again: the previous step was Home too and changed little (Pointer.goHome).
     func goHome(again: Bool) async throws
+    /// The Home key alone, never a flick after it.
+    func homeKey() async throws
     func openApp(_ name: String) async throws -> OpenResult
     func goBack() async throws
     func reset() async throws
@@ -26,6 +28,7 @@ extension Pointer: Gestures {}
 extension Gestures {
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
     func pointerSeen(near p: CGPoint) async -> Bool? { nil }
+    func homeKey() async throws { try await goHome(again: false) }  // fakes
 }
 
 /// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own

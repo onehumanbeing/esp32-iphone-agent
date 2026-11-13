@@ -103,12 +103,12 @@ extension Calls {
          move(["action": .str("open"), "app": .str("Phone")]),  // by code: the model's own open cost a round
          ai("Phone should be open (if not, open it by the name this iPhone shows). Place the call the goal asks for. A number in the goal: open the Keypad tab, `type` the whole number, check every digit shows, then tap the call button; never a row in Recents (a row can be a cut-off or different number). A name: search Contacts and tap the match whose name is exactly it. Tap the call button once. The call is what the user asked for: no `confirm`.", end: calling),
          controlCenter, button("Live Captions", at: captions), button("Live Speech", at: speech),
-         move(["action": .str("home")]),  // Control Center stays over Live Speech until closed (the model took ~25 s to close it)
+         move(["action": .str("home"), "keyOnly": .bool(true)]),  // Control Center stays over Live Speech until closed (the model took ~25 s to close it)
          ai("Live Speech is open: its text field is focused with the keyboard at the bottom (its button does not stay lit; never tap it again, never tap the field or the call buttons). `type` the first short sentence to say for the goal (a greeting and why you call, in the goal's language), without enter.", endAfter: "type"),
          answered,
          move(["action": .str("key"), "combo": .str("enter")]),
          ai("Hold the call for the goal. Your first sentence is already said: never say it, or anything you said before, again. Read what they said since your last line in Live Captions and answer that with `say` (one short sentence); with nothing new from them, `wait`. Caption text can be misheard: answer what it most likely means for the goal. When they accept or say goodbye ('got it', 'see you', 'have a good one'), the goal is done: never ask them to confirm it again; `say` a short thanks and goodbye, then tap End. Done with a summary of what was said.", budget: 30, end: ended),
-         controlCenter, button("Live Captions", at: captions), move(["action": .str("home")]),
+         controlCenter, button("Live Captions", at: captions), move(["action": .str("home"), "keyOnly": .bool(true)]),
          ai("If the Live Speech text field still shows, close it; done once it is gone (or was not there).", budget: 4)]
 
     }
@@ -132,7 +132,7 @@ extension Calls {
                             manual("Did the other phone hear it? Say one short sentence back, then resume."),
                             ai("Read what the other side just said from Live Captions; done with it as the answer."),
                             ai("Hang up the call."),
-                            controlCenter, button("Live Captions", at: captions), move(["action": .str("home")]),
+                            controlCenter, button("Live Captions", at: captions), move(["action": .str("home"), "keyOnly": .bool(true)]),
                          ])
     }
 }

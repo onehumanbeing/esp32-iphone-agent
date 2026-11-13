@@ -462,6 +462,17 @@ import XCTest
         func waitConnected(_ timeout: TimeInterval) async -> Bool { true }
     }
 
+    /// 2026-11-14: closing a call's Control Center with goHome flicked twice (the Live Captions panel's words stay
+    /// on screen in every app) and the flicks collapsed the panel. The call script's home steps are the key alone.
+    func testACallsHomeStepIsTheHomeKeyAlone() async throws {
+        let device = FakeDevice()
+        try await pointer(device).homeKey()
+        XCTAssertEqual(device.sent, ["homescreen"])
+        let homes = Calls.script("Call 10086 and ask the balance").compactMap(\.object).filter { $0["action"]?.str == "home" }
+        XCTAssertFalse(homes.isEmpty)
+        XCTAssertTrue(homes.allSatisfy { $0["keyOnly"]?.bool == true })
+    }
+
     func testAbsolutePointerSwitchesBackWithAFlickAlongTheHomeBar() async throws {
         let device = FakeDevice()
         let pointer = pointer(device)
