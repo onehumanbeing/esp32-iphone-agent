@@ -11232,6 +11232,16 @@
           }
         }
       }
+    },
+    "and %lld more" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还有 %lld 条"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

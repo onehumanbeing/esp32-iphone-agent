@@ -85,6 +85,7 @@ extension Gestures {
     enum Doing { case looking, waiting, planning, thinking, retrying, acting(JObject) }
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
+    var inventory = Inventory()  // a task over many items: list, confirm, then act (AgentLoop+Inventory)
     var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
@@ -157,6 +158,7 @@ extension Gestures {
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         steering = []
+        inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
         helpAsked = 0
         droppingChosenGesture = false
@@ -462,11 +464,13 @@ extension Gestures {
 
     /// The actor asked before a risky step. True = the run is over (stopped).
     private func confirm(_ reason: String) async throws -> Bool {
-        guard let onConfirm, (askMode ?? .current).asks(reason) else {
+        let mode = askMode ?? .current
+        guard let onConfirm, mode.asks(reason) || (inventory.needed && mode != .never) else {
             record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (no need to ask for this): \(reason)")])
             return false
         }
-        let choice = await onConfirm(reason)
+        if inventory.needed { Analytics.capture("confirm_shown", ["kind": "inventory", "items": notebook.items.count]) }
+        let choice = await onConfirm(inventoryReason(reason))
         try Task.checkCancellation()
         switch choice {
         case .stop:
@@ -566,6 +570,11 @@ extension Gestures {
                 if name == "tap", let off = OffScreen.reason(act) {  // y 1108 tapped the home bar's edge (2026-11-13)
                     act["result"] = .str(off)
                     DebugLog.write("step: tap not sent, \(off)")
+                    record(planned.shot, act)
+                    return false
+                }
+                if name == "tap", let held = await inventoryHold(act, on: planned.shot ?? seen) {
+                    act["result"] = .str(held)
                     record(planned.shot, act)
                     return false
                 }

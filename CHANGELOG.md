@@ -4,6 +4,10 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Agent: a task over many items or that deletes (delete, clear, unfollow, all, every, or a repeat-until intent)
+  lists the matching items first and asks once with how many and which, even when Ask first is Payments only; the
+  first delete-like tap before that is held once and the AI is told to list first. The question shows up to five
+  of the items collected.
 - App: Standby in Dynamic Island (Settings, off by default): between runs the island shows your three most used
   intents and New Task. An intent tapped there runs on the app you are in; New Task (also a Control Center control)
   opens a quick sheet to type a task or pick an intent, and the run goes back to the app you came from first. While
