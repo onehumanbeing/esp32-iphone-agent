@@ -305,7 +305,10 @@ struct CalibrationRow: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Calibration")
-                        if let span = pointer.span {
+                        if pointer.absolute {
+                            Text("Absolute mouse: no calibration needed")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else if let span = pointer.span {
                             Text(verbatim: "\(pointer.quality.map(CalibrationText.percent) ?? "–") · \(span.w) × \(span.h)")
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         }

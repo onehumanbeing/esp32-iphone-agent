@@ -11272,6 +11272,16 @@
           }
         }
       }
+    },
+    "Absolute mouse: no calibration needed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绝对坐标鼠标：无需校准"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

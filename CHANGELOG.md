@@ -4,6 +4,11 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Firmware (optional build) · App: an absolute mouse, `hardware/flash.sh --abs` (#99, by @chenshaorong0118). With
+  AssistiveTouch on, a tap lands at its screen fraction (`abs X Y`): no homing, calibration or aiming. The status
+  says `abs: 1` and the app sends coordinates; a board flashed back answers `err unknown` and the app goes back to
+  the relative mouse. Home, back and the switch to the previous app are fast strokes; drags glide at the relative
+  mouse's speed. The default firmware is unchanged.
 - Agent: a task over many items may run up to 1000 steps (others stay at 300); Home shows the step and how many
   items are listed instead of "up to 300". Every 10 steps the run saves its listed items, so Continue picks them up.
 - Agent: in a task over many items, taps that followed the same tap the same way twice (say "…", then Delete,

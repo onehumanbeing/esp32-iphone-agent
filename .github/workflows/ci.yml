@@ -111,6 +111,8 @@ jobs:
           arduino-cli lib install "NimBLE-Arduino@2.5.1"
       - name: Build
         run: hardware/flash.sh --build-only
+      - name: Build (absolute mouse)
+        run: hardware/flash.sh --abs --build-only
       - name: Host tests (bplist, GOP buffer, CLI protocol, Bonjour TXT, …)
         run: |
           sudo apt-get install -y libmbedtls-dev

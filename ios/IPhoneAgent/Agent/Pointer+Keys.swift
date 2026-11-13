@@ -120,6 +120,8 @@ extension Pointer {
     /// (2026-11-11: it waited for a 0.3 s still screen after at least 0.6 s, up to 2 s; with an app that kept moving
     /// that was 2.2 s before the flick). Leaving an app shows as a big change in the first frames already.
     func goHome(again: Bool = false) async throws {
+        // An absolute mouse (#99): iOS ignored AC Home there, and an animated screen (Weather) looked like it worked.
+        if absolute { return try await homeSwipe() }
         let before = screen?.live == true ? screen?.frame : nil
         let sent = now()
         do {
