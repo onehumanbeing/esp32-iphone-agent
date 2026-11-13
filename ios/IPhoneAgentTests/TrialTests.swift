@@ -93,6 +93,10 @@ import XCTest
         let text = String(data: try JSONSerialization.data(withJSONObject: body), encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("secret"))  // the model's reason text never leaves the phone
         XCTAssertNil(RunEnd(reason: .startFailed, stage: .startup).json["fw"])
+        // the gateway reads "0.2.5"; the app shows v0.2.5 (2026-11-13)
+        let board = try XCTUnwrap(FirmwareVersion("v0.2.5"))
+        XCTAssertEqual(RunEnd(reason: .userStop, stage: .running, firmware: board.plain).json["fw"] as? String, "0.2.5")
+        XCTAssertEqual(board.description, "v0.2.5")
         XCTAssertEqual(RunEnd(reason: .startFailed, stage: .startup).outcome, "failed")
         XCTAssertEqual(RunEnd(reason: .userStop, stage: .startup).outcome, "stopped")
         XCTAssertEqual(RunEnd(reason: .stall, stage: .running, steps: 99_999).json["steps"] as? Int, 10_000)

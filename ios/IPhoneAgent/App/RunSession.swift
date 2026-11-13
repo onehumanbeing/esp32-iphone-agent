@@ -220,7 +220,7 @@ extension AppModel {
                 usedInput = false
             }
             Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
-                                    firmware: board.status?.fw?.description))  // free line
+                                    firmware: board.status?.fw?.plain))  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
                 "seconds": Int(now() - t0), "from_intent": currentIntent != nil
@@ -352,7 +352,7 @@ extension AppModel {
     func ended() {
         RunMarker.clear()
         Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
-                                firmware: board.status?.fw?.description))  // free line
+                                firmware: board.status?.fw?.plain))  // free line
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
