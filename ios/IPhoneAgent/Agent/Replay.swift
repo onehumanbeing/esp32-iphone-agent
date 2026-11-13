@@ -52,6 +52,8 @@ struct Replay {
         var action: JObject
         var sure: Bool
         var frame: Data?
+        /// An unlabelled tap: the text near its spot on `frame` (OCR), once looked up (ScriptRunner).
+        var seen: String?
     }
 
     enum Decision: Equatable { case perform, handOver(String) }
@@ -59,6 +61,9 @@ struct Replay {
     private(set) var steps: [Step]
     private(set) var next = 0
     private(set) var over = false
+    /// Recorded moves (indices into steps) that missed in this run: the screen differed, their label wasn't on it, or
+    /// they changed nothing. A run that doesn't finish demotes them in its intent (IntentLearner.demoted).
+    private(set) var missed: Set<Int> = []
     /// A script repeats until this holds ("结束了吗"), at most maxLoops rounds; loops counts the rounds done.
     var until: String?
     var maxLoops = 5
@@ -90,7 +95,12 @@ struct Replay {
     var current: Step? { over || next >= steps.count ? nil : steps[next] }
     mutating func advance() { next += 1 }
     mutating func stop() { over = true }
-    mutating func restart() { next = 0; over = false; loops = 0 }
+    mutating func name(_ i: Int, seen: String) { if steps.indices.contains(i) { steps[i].seen = seen } }
+    mutating func restart() { next = 0; over = false; loops = 0; missed = [] }
+    /// The current step missed (`why` from decide, a label not found, or "no change"); other hand-overs aren't misses.
+    mutating func miss(_ why: String) {
+        if why.hasPrefix("miss") || why == "no change" || why.hasSuffix("not on screen") { missed.insert(next) }
+    }
 
     /// Moves that can be repeated blindly; anything else (notes, done, unknown words) goes to the model.
     static let replayable: Set<String> = ["tap", "swipe", "type", "clear", "home", "back", "key", "wait", "open"]
@@ -119,14 +129,43 @@ struct Replay {
             .map { ($0.x, $0.y) }
     }
 
-    /// The steps for the model's prompt, the ones already done marked.
+    /// The steps for the model's prompt, the ones already done marked. In words, never a spot (see `words`).
     var hints: [String] {
         steps.enumerated().compactMap { i, s in
             let name = s.action["action"]?.str ?? ""
-            let text = name == "note" ? (s.action["text"]?.str ?? "")
-                : name == "ai" ? "(AI) " + (s.action["goal"]?.str ?? "") : PyJSON.dumps(s.action, ascii: false)
+            let text = name == "ai" ? "(AI) " + (s.action["goal"]?.str ?? "") : Self.words(s.action, seen: s.seen)
             guard !text.isEmpty else { return nil }
             return "Recorded step \(i + 1)\(i < next ? " (done)" : ""): \(text)"
+        }
+    }
+
+    /// A recorded step in words for the model, without its x/y (2026-11-13: "Do the equivalent of recorded step 4 on
+    /// this screen: {"action": "tap", "x": 613, …}" made the model tap 613, 702 on other screens: the U key, a group
+    /// chat, a photo; and the JSON showed in the status). A tap is named by its label, else by `seen` (the text near
+    /// its spot on its reference screen), else as something nothing names.
+    static func words(_ action: JObject, seen: String? = nil) -> String {
+        let n = { (k: String) in action[k]?.double ?? 0 }
+        switch action["action"]?.str ?? "" {
+        case "tap":
+            if let label = action["label"]?.str, label.count >= 2 { return "Tap \"\(label)\"" }
+            if let seen { return "Tap \"\(seen)\"" }
+            return "Tap an icon or picture (no text names it)"
+        case "swipe":
+            let (dx, dy) = (n("x2") - n("x1"), n("y2") - n("y1"))
+            return "Swipe " + (abs(dy) >= abs(dx) ? (dy < 0 ? "up" : "down") : (dx < 0 ? "left" : "right"))
+        case "path": return "Draw the recorded path"
+        case "circle": return "Draw a circle"
+        case "type": return "Type \"\(action["text"]?.str ?? "")\""
+        case "clear": return "Clear the text field"
+        case "key": return "Press \(action["combo"]?.str ?? "a key")"
+        case "home": return "Go to the Home Screen"
+        case "back": return "Go back"
+        case "open": return "Open \(action["app"]?.str ?? "the app")"
+        case "wait": return "Wait a moment"
+        case "note": return action["text"]?.str ?? ""
+        case "ai": return action["goal"]?.str ?? ""
+        case "waittext": return "Wait until \"\(action["pattern"]?.str ?? "")\" shows"
+        default: return PyJSON.dumps(action, ascii: false)  // a script's other steps (read, manual…): no spot in them
         }
     }
 }

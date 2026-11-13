@@ -135,6 +135,43 @@ import UIKit
         XCTAssertFalse(store.item(item.id)?.checklist.contains(lessons[0]) ?? true)
     }
 
+    /// Henry 2026-11-13: a run that did not finish demotes the steps that missed; the others stay, with Undo.
+    func testARunThatDidNotFinishDemotesItsMissedSteps() async throws {
+        let id = UUID()
+        defer { IntentFrames.delete(id) }
+        try FileManager.default.createDirectory(at: IntentFrames.folder(id), withIntermediateDirectories: true)
+        let words = UIImage(cgImage: ChineseOCRTests.screen([["Photo & Video"]], points: 30)).jpegData(compressionQuality: 0.9)!
+        try words.write(to: IntentFrames.folder(id).appendingPathComponent("s02.jpg"))
+        try a.write(to: IntentFrames.folder(id).appendingPathComponent("s01.jpg"))
+        let read = await DemoAnalysis.texts(words, limit: 80)
+        let spot = try XCTUnwrap(read.first { $0.text.contains("Video") }, "OCR reads the label: \(read)")
+        let old = [
+            RecordedStep(action: ["action": .str("tap"), "x": .int(613), "y": .int(702)], sure: true, frame: "s01.jpg"),
+            RecordedStep(action: ["action": .str("tap"), "x": .int(spot.x + 20), "y": .int(spot.y)], sure: true, frame: "s02.jpg"),
+            RecordedStep(action: ["action": .str("tap"), "x": .int(287), "y": .int(345), "label": .str("文件传输助手")], sure: true, frame: nil),
+            RecordedStep(action: ["action": .str("type"), "text": .str("ok")], sure: true, frame: nil),
+        ]
+        let none = await IntentLearner.demoted(old, missed: [], for: id)
+        XCTAssertNil(none)
+        let result = await IntentLearner.demoted(old, missed: [0, 1, 2], for: id)
+        let demoted = try XCTUnwrap(result)
+        XCTAssertEqual(demoted.map { $0.object?["action"]?.str }, ["ai", "ai", "type"], "the tap nothing names is gone")
+        XCTAssertEqual(demoted[0].object?["goal"], .str("Tap \"\(spot.text)\""), "named by the text near its spot")
+        XCTAssertEqual(demoted[0].frame, "s02.jpg")
+        XCTAssertEqual(demoted[1].object?["goal"], .str("Tap \"文件传输助手\""))
+        XCTAssertEqual(demoted[2], old[3])
+
+        let store = IntentStore(defaults: UserDefaults(suiteName: "learn-" + UUID().uuidString)!)
+        var item = SavedTask(name: "n", prompt: "p"); item.id = id; item.steps = old
+        store.upsert(item)
+        store.demote(id, to: demoted, from: "r2")
+        XCTAssertEqual(store.item(id)?.steps, demoted)
+        XCTAssertEqual(store.item(id)?.learnedFrom, "r2")
+        store.undoLearned(id)
+        XCTAssertEqual(store.item(id)?.steps, old)
+        XCTAssertEqual(IntentFrames.data(id, "s01.jpg"), a, "the same screens after Undo")
+    }
+
     private func steps(_ frames: [Data?]) -> Replay {
         Replay(steps: frames.enumerated().map { i, f in
             .init(action: ["action": .str("tap"), "x": .int(100 * (i + 1)), "y": .int(500)], sure: true, frame: f)
@@ -165,6 +202,8 @@ import UIKit
         await agent.run()
         XCTAssertEqual(phone.taps, 0)
         XCTAssertEqual(model.prompts.count, 2)
+        XCTAssertEqual(agent.replay.missed, [0])
+        XCTAssertFalse(agent.actorPrompt.contains("\"x\""), "the hints say what the steps did, not where")
     }
 
     /// A replayed tap that changes nothing stops the replay; the second step is never tried.
@@ -178,6 +217,7 @@ import UIKit
         XCTAssertEqual(phone.taps, 1)
         XCTAssertEqual(agent.steps.first { $0["replay"] == .bool(true) }?["changed"], .bool(false))
         XCTAssertEqual(model.prompts.count, 2)
+        XCTAssertEqual(agent.replay.missed, [0])
     }
 
     /// Saving a demonstration: unsure and wrong steps, a fixed position, screens copied next to the intent.

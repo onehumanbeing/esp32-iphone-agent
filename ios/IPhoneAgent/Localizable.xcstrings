@@ -10942,6 +10942,16 @@
           }
         }
       }
+    },
+    "Some saved steps missed in that run, which did not finish: taps nothing names were removed, the others are now AI steps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那次运行没有完成，其中有些保存的步骤没对上：没有文字能指明的点按已删除，其余的改成了 AI 步骤。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

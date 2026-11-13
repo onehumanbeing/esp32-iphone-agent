@@ -384,7 +384,7 @@ extension AppModel {
         }
         if let intent = currentIntent {
             intents.record(intent.id, RunStat(run: runID, ok: outcome == .done, seconds: seconds))
-            learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done)
+            learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done, missed: agent.replay.missed)
         }
         threads.append(ChatTurn(ask: agent.task, run: runID, outcome: last?["action"]?.str ?? "stopped",
                                 answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",

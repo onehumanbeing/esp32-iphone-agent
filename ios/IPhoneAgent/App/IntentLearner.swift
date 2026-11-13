@@ -60,6 +60,35 @@ enum IntentLearner {
         return result
     }
 
+    /// The text near a recorded tap's spot on the screen it was done on (OCR), nil when none names it.
+    static func text(near action: JObject, on frame: Data?) async -> String? {
+        guard action["action"]?.str == "tap", let frame, let x = action["x"]?.int, let y = action["y"]?.int else { return nil }
+        return label(at: x, y, in: await DemoAnalysis.texts(frame, limit: 80))
+    }
+
+    /// Henry 2026-11-13: a run of an intent that did not finish (failed, or stopped by the user) where recorded moves
+    /// missed: those moves stop being replayed. A tap nothing names (no label, no text near its spot on its screen) is
+    /// dropped, since its spot means nothing on another screen (the folder tap at 613, 702 hit the U key and a group
+    /// chat); any other becomes an AI step that says what it did ("Tap \"文件传输助手\""). The other steps stay.
+    /// nil = nothing to change.
+    static func demoted(_ steps: [RecordedStep], missed: Set<Int>, for id: UUID) async -> [RecordedStep]? {
+        guard !missed.isEmpty else { return nil }
+        var result: [RecordedStep] = [], i = -1, changed = false
+        for step in steps {
+            guard let action = step.object else { result.append(step); continue }
+            i += 1  // the index Replay(intent:) gave it: steps that don't parse aren't in the replay
+            let name = action["action"]?.str ?? ""
+            guard missed.contains(i), Replay.replayable.contains(name) else { result.append(step); continue }
+            changed = true
+            let named = (action["label"]?.str?.count ?? 0) >= 2
+            let seen = name == "tap" && !named ? await text(near: action, on: IntentFrames.data(id, step.frame)) : nil
+            if name == "tap" && !named && seen == nil { continue }
+            result.append(RecordedStep(action: ["action": .str("ai"), "goal": .str(Replay.words(action, seen: seen))],
+                                       sure: true, frame: step.frame))
+        }
+        return changed ? result : nil
+    }
+
     /// The text at a tap's spot: the nearest OCR line within `reach`.
     static func label(at x: Int, _ y: Int, in lines: [DemoAnalysis.Line]) -> String? {
         func distance(_ l: DemoAnalysis.Line) -> Double { hypot(Double(l.x - x), Double(l.y - y)) }
@@ -135,6 +164,19 @@ extension IntentStore {
         try? FileManager.default.moveItem(at: previous, to: folder)
     }
 
+    /// Steps demoted after a run that did not finish (IntentLearner.demoted): the same Undo as learned steps. The
+    /// screens stay; a copy goes to IntentFrames.previous so Undo puts the same ones back.
+    func demote(_ id: UUID, to steps: [RecordedStep], from run: String) {
+        guard var item = item(id) else { return }
+        let folder = IntentFrames.folder(id), previous = IntentFrames.previous(id)
+        try? FileManager.default.removeItem(at: previous)
+        try? FileManager.default.copyItem(at: folder, to: previous)  // none: it had no screens
+        item.previousSteps = item.steps
+        item.steps = steps
+        item.learnedFrom = run
+        upsert(item)
+    }
+
     /// Back to the steps before the last learned ones (their screens too).
     func undoLearned(_ id: UUID) {
         guard var item = item(id), item.learnedFrom != nil else { return }
@@ -153,13 +195,15 @@ extension AppModel {
     /// After a run of an intent (RunSession.ended): learn its steps when the replay missed and the run worked.
     /// Henry 2026-11-12: any intent, when Settings › Intents learn from runs is on. An intent typed in (no reference
     /// run yet) gets its first run that worked as its reference run, and its steps.
-    func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool) {
+    /// `missed`: the recorded steps that missed in the run (Replay.missed); a run that did not finish demotes them.
+    func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool, missed: Set<Int> = []) {
         guard settings.learnFromRuns else { return }
         if done, !IntentLearner.rejected.contains(runID) {
             let lessons = IntentLearner.lessons(steps)
             intents.addLessons(intent.id, lessons)
             if !lessons.isEmpty { DebugLog.write("intent \"\(intent.name)\": checklist +\(lessons.count) lesson(s) from run \(runID)") }
         }
+        if !done { return demoteMissed(intent, run: runID, missed: missed) }
         guard IntentLearner.shouldLearn(steps, done: done) else { return }
         Task {
             guard !IntentLearner.rejected.contains(runID),  // ✗ came first
@@ -177,6 +221,20 @@ extension AppModel {
             } catch {
                 DebugLog.write("intent \"\(item.name)\": learning from \(runID) failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// A run that did not finish: its missed steps leave the intent's replay (IntentLearner.demoted), with Undo.
+    private func demoteMissed(_ intent: SavedTask, run runID: String, missed: Set<Int>) {
+        guard !missed.isEmpty, let steps = intent.steps else { return }
+        Task {
+            guard !IntentLearner.rejected.contains(runID),
+                  let demoted = await IntentLearner.demoted(steps, missed: missed, for: intent.id),
+                  !IntentLearner.rejected.contains(runID),
+                  intents.item(intent.id)?.steps == steps else { return }  // edited meanwhile: those are the user's
+            intents.demote(intent.id, to: demoted, from: runID)
+            DebugLog.write("intent \"\(intent.name)\": \(missed.count) missed step(s) demoted after run \(runID) "
+                           + "(\(steps.count) → \(demoted.count) steps)")
         }
     }
 }

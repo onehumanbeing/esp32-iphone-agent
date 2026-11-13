@@ -63,7 +63,7 @@ struct IntentDetailView: View {
                         }
                     }
                 }
-                if let run = item.learnedFrom {  // IntentLearner: the steps came from a run that worked
+                if let run = item.learnedFrom {  // IntentLearner: the steps came from a run (that worked, or not: demoted)
                     Section {
                         Button { app.openReview(run: run) } label: {
                             Label("Steps learned from the run \(run)", systemImage: "wand.and.stars")
@@ -72,7 +72,11 @@ struct IntentDetailView: View {
                             Label("Undo: Use the Previous Steps", systemImage: "arrow.uturn.backward")
                         }
                     } footer: {
-                        Text("The AI did part of this task itself and the run worked, so that run's steps are now the saved steps.")
+                        if item.runs.last(where: { $0.run == run })?.ok == false {
+                            Text("Some saved steps missed in that run, which did not finish: taps nothing names were removed, the others are now AI steps.")
+                        } else {
+                            Text("The AI did part of this task itself and the run worked, so that run's steps are now the saved steps.")
+                        }
                     }
                 }
                 Section {
