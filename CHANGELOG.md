@@ -2,8 +2,13 @@
 
 Full changelog with board firmware and every channel: [handsy.tech/docs/changelog](https://handsy.tech/docs/changelog).
 
-## Unreleased (main)
+## App 1.0.6 (TestFlight)
 
+- Calls: Control Center is closed with the Home key alone, and Home flicks up at most once, only when the key did
+  nothing: the extra flicks folded the Live Captions panel away mid-call. To hang up, the agent closes Live Speech
+  first (its keyboard covers the End button) and checks that the call screen says the call ended.
+- Dynamic Island: the step counter stays on one line, a waiting timer replaces the progress bar and the buttons are
+  small, so nothing is cut off.
 - App · CLI: one memory on the phone and the computer. Settings › Memory › ⋯ exports `MEMORY.md` and imports another
   copy (an entry with the same id or words keeps the newer one; passwords, codes and long numbers never come in).
   The CLI keeps the same file: `esp32agent memory list | add | rm | search | export | import`, and the MCP tools
