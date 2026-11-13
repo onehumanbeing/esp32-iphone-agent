@@ -17,6 +17,17 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 - App: the free-line run end sends the board firmware as `0.2.5`, not `v0.2.5`.
 - App: usage stats for a run that could not start say at which startup step it stopped and a fixed error kind
   (never the error text or the task); the free-line run end sends the same step.
+- Agent: a tap on the Dynamic Island (where the run's Live Activity shows) is never sent: one just above a field
+  under the island moves a few units down into the field, one higher up goes back to the AI with where to tap
+  instead. Fixed a search field right under the island opening the agent app and leaving the task's app.
+- Agent: a tap on the Home Screen's Search pill that reads as no change is not pressed again by itself: Spotlight
+  over a plain wallpaper can look unchanged, and the second press landed on Spotlight's suggestions and opened
+  another app. Each tap logs where the pointer went from and to.
+- Agent: `home` flicks up from the home bar when the Home key left the same app on screen and only something that
+  moves by itself changed (an animated sheet), not only when nothing changed. An `open` whose Return did nothing
+  tells the AI to tap the app in Spotlight's results.
+- Prompt: a goal to look at, find or browse something ends with done once the screen shows a match, with a short
+  answer, instead of browsing on; never tap the Dynamic Island.
 
 ## App 1.0.5 · firmware v0.2.5 (TestFlight)
 
