@@ -154,6 +154,8 @@ import XCTest
 
     /// cmd+space brought nothing up (2026-11-13): the next try taps the Home Screen's Search button instead.
     func testSearchButtonWhenCmdSpaceBringsNothingUp() async throws {
+        AppOpener.buttonFirst = false  // a run before this one (this test too) left the Search button first
+        defer { AppOpener.buttonFirst = false }
         var sent: [String] = []
         var queue: [Data?] = [home, home, home, spotlight, app]
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
