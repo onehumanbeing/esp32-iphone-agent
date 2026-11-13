@@ -331,3 +331,26 @@ extension AppModel {
         return true
     }
 }
+
+/// Why a run's start failed, for the `run_ended` event (phase startup): fixed words only, never an error's text, the
+/// task or anything the user typed (2026-11-13: 42 startup failures in three days said no more than "failed").
+enum StartupFailure {
+    /// prepareAgent's steps after the run folder exists, in order.
+    enum Step: String, CaseIterable {
+        case stream, homeBar = "home_bar", leaveApp = "leave_app", firstFrame = "first_frame",
+             trialClaim = "trial_claim", agentStart = "agent_start"
+    }
+
+    static func kind(_ error: Error, cancelled: Bool, step: Step, boardConnected: Bool, usb: String?, mirroring: Bool,
+                     inFront: Bool) -> String {
+        if cancelled || error is CancellationError { return "cancelled" }
+        if let trial = error as? TrialError { return trial.ownText ? "trial_refused" : "busy" }
+        if !boardConnected { return "board_lost" }
+        if usb == "off" { return "usb_off" }
+        if !mirroring { return "mirroring_off" }
+        if inFront, step == .leaveApp || step == .firstFrame { return "on_screen" }  // the app never left the front
+        if error is URLError || (error as? DeviceError)?.message == "timeout" { return "timeout" }
+        if step == .firstFrame { return "no_frame" }
+        return "other"
+    }
+}

@@ -478,6 +478,8 @@ struct RunEnd: Equatable {
     var stage: Stage
     var steps = 0, calls = 0
     var firmware: String?
+    /// A failed start: the startup step it stopped at (StartupFailure.Step), sent as `step`.
+    var step: String?
 
     init(reason: Reason, stage: Stage, outcome: String? = nil, steps: Int = 0, calls: Int = 0, firmware: String? = nil) {
         self.reason = reason
@@ -521,6 +523,7 @@ struct RunEnd: Equatable {
                                    "steps": min(max(steps, 0), 10_000), "calls": min(max(calls, 0), 10_000),
                                    "app_version": Self.appVersion]
         if let firmware { body["fw"] = firmware }
+        if let step { body["step"] = step }
         return body
     }
 

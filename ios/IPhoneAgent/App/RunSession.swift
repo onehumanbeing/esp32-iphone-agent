@@ -152,6 +152,7 @@ extension AppModel {
         let snapMode = FrameMode.current == .snap
         live.start(task: task, runID: runID, limit: agent.maxSteps)
         mark("Live Activity requested")
+        var step = StartupFailure.Step.stream  // where a failed start stopped (run_ended)
         do {
             // Ready the screen while still in front: iOS cannot start the video decoder in the background.
             if snapMode {
@@ -170,6 +171,7 @@ extension AppModel {
             }
             try Task.checkCancellation()
             usedInput = true
+            step = .homeBar
             if !resume {  // resuming waits for the user to switch back: a pointer parked on the home bar only
                 // invites a stray stroke there (2026-11-12)
                 try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
@@ -184,6 +186,7 @@ extension AppModel {
             live.show(.leavingApp, mood: .acting)
             let requestedAt = appIsBackgrounded && backgroundEnteredAt > 0 ? backgroundEnteredAt : now()
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
+            step = .leaveApp
             let away = try await (resume ? waitForSwitchBack() : leaveForRun())
             try Task.checkCancellation()
             guard away else {  // never let the agent start on its own app
@@ -193,6 +196,7 @@ extension AppModel {
             homeHint = nil
             mark("app in background")
             if let prewarm = prewarmJob { await prewarm.value; mark("pre-warm done") }  // its snap holds the board
+            step = .firstFrame
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
             try Task.checkCancellation()
             guard appIsBackgrounded,
@@ -202,11 +206,13 @@ extension AppModel {
             }
             mark("first frame: " + frameSource)
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
+                step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
             agent.startsOnHome = !resume  // leaveForRun went to the Home Screen
+            step = .agentStart
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.
@@ -219,11 +225,15 @@ extension AppModel {
                 await returnInput(checkKeyboard: appIsBackgrounded)
                 usedInput = false
             }
-            Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
-                                    firmware: board.status?.fw?.plain))  // free line
+            let kind = StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board.connected,
+                                           usb: board.status?.usb, mirroring: board.status?.ap == "streaming",
+                                           inFront: !appIsBackgrounded)
+            var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
+            end.step = step.rawValue
+            Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
-                "seconds": Int(now() - t0), "from_intent": currentIntent != nil
+                "seconds": Int(now() - t0), "from_intent": currentIntent != nil, "stage": step.rawValue, "error": kind
             ]) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
