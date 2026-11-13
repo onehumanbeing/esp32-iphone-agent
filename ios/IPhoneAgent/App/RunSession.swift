@@ -424,6 +424,10 @@ extension AppModel {
     func openReview(run id: String) {
         runs.reload()
         guard let run = runs.run(id) else { return }
+        // The same run's review is up with the same steps: keep it. A new draft (a new id) makes the cover close and
+        // present again, and a second open while the first is still animating in can leave it closed (2026-11-13:
+        // the review of a stopped run showed for ~1 s, then Home).
+        if let open = review, open.runID == id, open.steps.count == run.steps.count { return }
         let intent = intents.items.first { $0.refRun == id || $0.runs.contains { $0.run == id } }
         review = ReviewDraft(run: run, intent: intent)
     }
