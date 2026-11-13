@@ -86,6 +86,8 @@ extension Gestures {
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
     var inventory = Inventory()  // a task over many items: list, confirm, then act (AgentLoop+Inventory)
+    var cache = ActionCache()  // taps that follow the same tap each time, done by code (ActionCache)
+    var cachedSteps = 0
     var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
@@ -158,6 +160,7 @@ extension Gestures {
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         steering = []
+        if !resume { (cache, cachedSteps) = (ActionCache(), 0) }
         inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
         helpAsked = 0
@@ -612,6 +615,7 @@ extension Gestures {
         if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed) }
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
         verdict(changed)
+        try await followCache(seen: seen)
         return false
     }
 
@@ -619,7 +623,7 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure"]
+                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached"]
         takeSteering()
         let history = steps.suffix(8).filter { $0["plan"] == nil && $0["action"]?.str != Self.steerAction }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)

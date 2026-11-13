@@ -380,7 +380,9 @@ extension AppModel {
         let outcome = Outcome(last: last?["action"]?.str, running: false)
         let seconds = Date().timeIntervalSince(runStarted)
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
-                                                               "seconds": Int(seconds), "from_intent": currentIntent != nil]) { $1 })
+                                                               "seconds": Int(seconds), "from_intent": currentIntent != nil,
+                                                               "cached_steps": agent.cachedSteps,
+                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 })
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
