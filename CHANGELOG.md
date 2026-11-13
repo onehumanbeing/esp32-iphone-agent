@@ -4,6 +4,20 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App: a recorded step that misses is described to the AI in words (its label, or the text near the tapped spot on
+  the recorded screen), never by its coordinates, and the AI may skip a step the screen or task no longer needs.
+  Fixed taps landed on the keyboard, a wrong chat or a photo, and the step's raw JSON showed in the status.
+- App: in an intent with AI steps, a recorded tap that nothing names is skipped when the screen differs, instead of
+  being tapped at its old spot.
+- App: a run of an intent that fails or is stopped demotes the recorded steps that missed: a tap nothing names is
+  removed, other steps become AI steps. Undo on the intent page puts the old steps back.
+- App: opening a run's review while it is already showing keeps it open instead of closing and presenting it again
+  (one possible cause of the review closing by itself right after a stopped run).
+- App: Home's intent list masks phone numbers in the instruction preview.
+- App: the free-line run end sends the board firmware as `0.2.5`, not `v0.2.5`.
+- App: usage stats for a run that could not start say at which startup step it stopped and a fixed error kind
+  (never the error text or the task); the free-line run end sends the same step.
+
 ## App 1.0.5 · firmware v0.2.5 (TestFlight)
 
 - App: **Tools (Beta)**: the agent can look things up on the web when a task needs it (search tool use), with
