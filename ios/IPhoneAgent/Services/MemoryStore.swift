@@ -55,6 +55,37 @@ struct MemoryEntry: Identifiable, Equatable {
         save()
     }
 
+    /// Another copy of MEMORY.md (the CLI's `memory export`, or this app's on another phone) folded in: an entry
+    /// with the same id or the same words keeps the newer one; the rest are added; sensitive lines never are.
+    @discardableResult
+    func merge(_ text: String) -> (added: Int, updated: Int) {
+        let (out, added, updated) = Self.merged(entries, Self.parse(text))
+        if added + updated > 0 { entries = out; save() }
+        return (added, updated)
+    }
+
+    static func merged(_ mine: [MemoryEntry], _ theirs: [MemoryEntry]) -> ([MemoryEntry], Int, Int) {
+        var out = mine, added = 0, updated = 0
+        for e in theirs where !e.text.isEmpty && !sensitive(e.text) {
+            let key = e.text.lowercased()
+            if let i = out.firstIndex(where: { $0.id == e.id || $0.text.lowercased() == key }) {
+                guard e.date > out[i].date else { continue }
+                out[i] = MemoryEntry(id: out[i].id, date: e.date, kind: e.kind, topic: e.topic, text: e.text)
+                updated += 1
+            } else {
+                out.append(e)
+                added += 1
+            }
+        }
+        return (out, added, updated)
+    }
+
+    /// The file to share; written first so an empty memory still exports a file.
+    func exportFile() -> URL {
+        save()
+        return file
+    }
+
     /// The entries most related to a task, best first. Preferences always count a little: they apply broadly.
     func recall(_ query: String, limit: Int = 5) -> [MemoryEntry] {
         let q = Self.bigrams(query)

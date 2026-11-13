@@ -98,4 +98,54 @@ import XCTest
         XCTAssertEqual(store.entries.map(\.text), ["Clock: type the time"])
         XCTAssertEqual(store.entries.first?.topic, "clock")
     }
+
+    // MARK: - the file the CLI shares (cli/testdata/memory/MEMORY.md, read by the Go tests too)
+
+    private func shared() throws -> String {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../cli/testdata/memory/MEMORY.md").standardized
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testTheCLIsFileRoundTripsUnchanged() throws {
+        let text = try shared()
+        let entries = MemoryStore.parse(text)
+        XCTAssertEqual(entries.map(\.id), ["a1b2c3d4", "b2c3d4e5", "c3d4e5f6", "d4e5f6a7"])
+        XCTAssertEqual(MemoryStore.render(entries), text)
+    }
+
+    func testRecallMatchesTheCLI() throws {
+        let store = MemoryStore(file: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "/MEMORY.md"))
+        store.merge(try shared())
+        // the same queries and order as cli/internal/memory's TestRecallMatchesTheApp
+        XCTAssertEqual(store.recall("open bilibili favorites").map(\.id).first, "a1b2c3d4")
+        XCTAssertEqual(store.recall("给文件传输助手发 ok").map(\.id).first, "c3d4e5f6")
+    }
+
+    func testMergeKeepsTheNewerAndSkipsSensitive() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "/MEMORY.md")
+        let store = MemoryStore(file: file)
+        XCTAssertEqual(store.merge(try shared()).added, 4)
+        let newer = """
+        <!-- 2026-11-10 09:00:00 [a1b2c3d4] -->
+        #preference [[bilibili]] Favorites moved to Me › Collections.
+
+        <!-- 2026-11-01 09:00:00 [b2c3d4e5] -->
+        #fact an older copy
+
+        <!-- 2026-11-10 09:00:00 [eeee0000] -->
+        #fact The WeChat password is hunter2
+
+        <!-- 2026-11-10 09:00:00 [ffff1111] -->
+        #fact Weekly report goes to the Ops group.
+        """
+        let r = store.merge(newer)
+        XCTAssertEqual(r.added, 1)
+        XCTAssertEqual(r.updated, 1)
+        XCTAssertEqual(store.entries.first?.text, "Favorites moved to Me › Collections.")
+        XCTAssertEqual(store.entries[1].text, "The family group in WeChat is called 家.")
+        XCTAssertFalse(store.entries.contains { $0.text.contains("password") })
+        XCTAssertEqual(MemoryStore(file: file).entries.count, 5, "saved")
+        XCTAssertEqual(store.merge(MemoryStore.render(store.entries)).added + store.merge(MemoryStore.render(store.entries)).updated, 0)
+    }
 }

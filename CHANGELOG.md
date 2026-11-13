@@ -4,6 +4,10 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App · CLI: one memory on the phone and the computer. Settings › Memory › ⋯ exports `MEMORY.md` and imports another
+  copy (an entry with the same id or words keeps the newer one; passwords, codes and long numbers never come in).
+  The CLI keeps the same file: `esp32agent memory list | add | rm | search | export | import`, and the MCP tools
+  `memory_recall` and `memory_add`.
 - Firmware (optional build) · App: an absolute mouse, `hardware/flash.sh --abs` (#99, by @chenshaorong0118). With
   AssistiveTouch on, a tap lands at its screen fraction (`abs X Y`): no homing, calibration or aiming. The status
   says `abs: 1` and the app sends coordinates; a board flashed back answers `err unknown` and the app goes back to
