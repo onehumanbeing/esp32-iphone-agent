@@ -56,7 +56,7 @@ import XCTest
         agent.replay = Replay(steps: [step(["action": .str("tap"), "x": .int(300), "y": .int(300)], frame: reference),
                                       step(["action": .str("read"), "what": .str("the title")])])
         await agent.run()
-        XCTAssertEqual(phone.taps, 1)
+        XCTAssertEqual(phone.taps, 2)  // the model's tap changed nothing on the still fake screen: pressed once more
         XCTAssertTrue(model.prompts[0].contains("Do the equivalent of recorded step 1 on this screen"))
         XCTAssertEqual(agent.notebook.items, ["X"])
         XCTAssertEqual(agent.steps.last?["answer"], .str("finished"))

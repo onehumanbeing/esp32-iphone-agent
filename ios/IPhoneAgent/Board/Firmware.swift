@@ -107,7 +107,7 @@ enum Firmware {
                 let (data, response) = try await session.data(for: request)
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw Failure("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)") }
                 let r = try JSONDecoder().decode(FirmwareRelease.self, from: data)
-                guard verify(r) else { throw Failure(String(localized: "The firmware release isn't signed by ESP32 Agent.")) }
+                guard verify(r) else { throw Failure(String(localized: "The firmware release isn't signed by \(AppName.current).")) }
                 found.append((r, response.url ?? url))
                 break  // the first source that answers is enough
             } catch {

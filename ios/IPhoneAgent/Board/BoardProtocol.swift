@@ -47,6 +47,7 @@ struct BoardStatus: Codable, Equatable {
     var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }
     var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
+    var needsUSBHost: Bool { !isWirelessHID && inputState == "off" }
     // The signed feed ships only standard USB images; wait for positive identification.
     var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
 

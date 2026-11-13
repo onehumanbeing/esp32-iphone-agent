@@ -136,7 +136,7 @@ struct RunHandsyTaskIntent: AppIntent {
         // request for a model host the person has not agreed to, so without this check the run
         // would start and then fail mid-way. Siri says where to fix it instead.
         guard AIConsent.granted(AppModel.shared.settings.baseURL) else {
-            return .result(dialog: "Open ESP32 Agent and allow sending screenshots and your task to this model, then ask again.")
+            return .result(dialog: "Open \(AppName.current) and allow sending screenshots and your task to this model, then ask again.")
         }
         let line = await AgentRequests.handle?(.runTask(request.sentence)) ?? AgentRequests.unavailable
         return .result(dialog: "\(line)")
@@ -191,7 +191,7 @@ struct HandsyRunStatusIntent: AppIntent {
 struct ReplayHandsyRunIntent: AppIntent {
     static let title: LocalizedStringResource = "Replay a Run"
     static let description = IntentDescription(
-        "Opens a recorded run in ESP32 Agent so the person can go through its steps and screens.")
+        "Opens a recorded run in the app so the person can go through its steps and screens.")
     static let supportedModes: IntentModes = .foreground(.immediate)
 
     @Parameter(title: "Run", description: "The run to open.")

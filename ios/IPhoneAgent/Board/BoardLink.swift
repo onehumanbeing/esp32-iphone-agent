@@ -121,7 +121,7 @@ import Foundation
         }
         // A board already connected by another app may no longer advertise.
         for p in central.retrieveConnectedPeripherals(withServices: [BoardUUID.service]) {
-            discovered(p, name: p.name ?? "ESP32 Agent", rssi: 0)
+            discovered(p, name: p.name ?? BoardName.current, rssi: 0)
         }
     }
 
@@ -198,7 +198,7 @@ import Foundation
     /// it drops a new bond, and iOS then keeps a bond the board no longer has. Fix: replug the board, forget it on
     /// the phone, pair again. Apps cannot forget a bond themselves.
     static var forgetBoard: String {
-        String(localized: "Pairing failed. Replug the board, then forget ESP32 Agent in Settings › Bluetooth.")
+        String(localized: "Pairing failed. Replug the board, then forget \(BoardName.current) in Settings › Bluetooth.")
     }
 
     /// iOS says "Peer removed pairing information" when the board was reflashed or refused a new bond.
@@ -241,6 +241,7 @@ import Foundation
         }
         peripheral.delegate = self
         name = peripheral.name ?? name
+        BoardName.seen(name)
         connecting = true
         log("BLE connecting to \(name)")
         connectionDeadline?.cancel()
@@ -308,7 +309,7 @@ import Foundation
     func mockFound() {
         state = .poweredOn
         pairedID = nil
-        found = [Found(id: UUID(), name: "ESP32 Agent 7C3E", rssi: -58)]
+        found = [Found(id: UUID(), name: "\(AppName.current) 7C3E", rssi: -58)]
     }
 
     private func mockPair(_ id: UUID) {
@@ -316,7 +317,7 @@ import Foundation
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             scanning = false
-            mockConnect(name: "ESP32 Agent 7C3E",
+            mockConnect(name: "\(AppName.current) 7C3E",
                         net: NetConfig(mode: "ap", ssid: "ESP32Agent-7C3E", pass: "demo-pass", ip: "192.168.4.1"))
         }
     }
@@ -327,7 +328,7 @@ import Foundation
         self.name = name
         self.net = net
         pairedID = pairedID ?? UUID()
-        found = [Found(id: UUID(), name: "ESP32 Agent 7C3E", rssi: -71)]
+        found = [Found(id: UUID(), name: "\(AppName.current) 7C3E", rssi: -71)]
         status = currentStatus
         connected = true
         commands.linkUp()
@@ -421,7 +422,8 @@ extension BoardLink: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didDiscover p: CBPeripheral,
                                     advertisementData: [String: Any], rssi: NSNumber) {
         MainActor.assumeIsolated {
-            let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? p.name ?? "ESP32 Agent"
+            let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? p.name ?? BoardName.current
+            BoardName.seen(name)
             discovered(p, name: name, rssi: rssi.intValue)
         }
     }
@@ -431,6 +433,7 @@ extension BoardLink: CBCentralManagerDelegate {
             guard p === peripheral else { return }
             connecting = false
             name = p.name ?? name
+            BoardName.seen(name)
             linking = true
             log("board connected, discovering")
             p.discoverServices([BoardUUID.service])
@@ -562,5 +565,26 @@ extension BoardLink: CBPeripheralDelegate {
             default: break
             }
         }
+    }
+}
+
+/// The name the board shows in Screen Mirroring and Bluetooth, without its " 1A2B" suffix. Texts that point at it
+/// use the board last seen (kept across launches): firmware builds can carry different names. Before any board
+/// was seen it is the app's own name, which a board on this build's firmware carries too.
+enum BoardName {
+    static let key = "boardFamilyName"
+    nonisolated static var current: String { UserDefaults.standard.string(forKey: key) ?? AppName.current }
+
+    /// "ESP32 Agent 7C3E" → "ESP32 Agent"; a name without the suffix is kept whole.
+    nonisolated static func family(_ name: String) -> String? {
+        let parts = name.split(separator: " ")
+        let suffixed = parts.count > 1 && parts.last!.count == 4 && parts.last!.allSatisfy(\.isHexDigit)
+        let family = (suffixed ? parts.dropLast() : parts[...]).joined(separator: " ")
+        return family.isEmpty ? nil : family
+    }
+
+    nonisolated static func seen(_ name: String) {
+        guard let family = family(name), family != UserDefaults.standard.string(forKey: key) else { return }
+        UserDefaults.standard.set(family, forKey: key)
     }
 }

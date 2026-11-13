@@ -65,13 +65,35 @@ import UIKit
     struct Toast: Equatable { let id = UUID(); let text: String }
     @Published var departing = false  // the character's take-off before a run
     var startupTask: Task<Void, Never>?
+    var returningInput = false
+    @Published var stopping = false  // Stop was tapped; input is being handed back
+    var handoffStop = AsyncStream<Void>.makeStream()
+    var lastPartialReleaseNoticeLink: Int?
+    var runModelRevision = 0
     var startupBoardIssue = false
     var startupDeadline = 0.0
     var backgroundEnteredAt = 0.0
+    /// Whether the app is in the background (tests stand in for UIKit's application state).
+    var isBackground: () -> Bool = { UIApplication.shared.applicationState == .background }
     var linkRecoveryDisplay: Recovery?
     var lastRunDoing: AgentLoop.Doing?
     /// A banner on Home: the app could not leave by itself (swipe up), or the run waits while the app is in front.
-    @Published var homeHint: String?
+    /// Published only when it changes: wait loops set the same line many times a second, also in the background,
+    /// and every change notice re-renders the whole app on the main thread.
+    var homeHint: String? {
+        get { shownHomeHint }
+        set {
+            probeCounts.hintWrites += 1
+            guard newValue != shownHomeHint else { return }
+            probeCounts.hintChanges += 1
+            shownHomeHint = newValue
+        }
+    }
+    @Published private var shownHomeHint: String?
+    /// Counts behind the once-a-minute background summary (BackgroundProbe.swift).
+    var probeCounts = BackgroundCounters()
+    private var backgroundSummary = MinuteSummary()
+    private var noticeSink: AnyCancellable?
     var resumeAsked = 0.0  // when Continue was tapped in the app
     /// Text the agent's `write` wants on the clipboard; written the next time the app is in front (ClipboardHop).
     var pendingClipboard: String?
@@ -94,6 +116,7 @@ import UIKit
     private(set) lazy var calibrator = AutoCalibrator(app: self)
     let probe = TouchProbe()
     private var lastStatus = ""
+    private var lastBoardBoot = 0.0
     private var lastTick = now()
     private var lastStreamLog = 0.0
     private var timers: [Task<Void, Never>] = []
@@ -110,6 +133,7 @@ import UIKit
         pointer = Pointer(device: board.commands, calibrationFile: support.appendingPathComponent("calibration.json"),
                           screen: feed)
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
+        PhoneMouse.start()
         agent.metrics = metrics
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
@@ -121,6 +145,7 @@ import UIKit
         pointer.log = say
         pointer.screenAspect = { DeviceScreen.aspect }
         pointer.locate = { [weak self] jpeg in await self?.locatePointer(jpeg) }
+        pointer.ownAppInFront = { [weak self] in self.map { !$0.appIsBackgrounded } ?? false }
         // Lines come from any thread (a firmware check, MetricKit's crash report): hop to the main actor when
         // needed instead of asserting, which crashed build 24 and then every launch that got the report.
         DebugLog.relay = { [weak self] line in
@@ -138,11 +163,16 @@ import UIKit
             DebugLog.write("app command ignored in this build: \(line.prefix(20))")
             #endif
         }
+        let previous = RunMarker.takePrevious().map {
+            String(format: "; the previous process ended mid-run (last stage: %@, set %.0f s before this launch)", $0.stage, $0.ago)
+        } ?? ""
         DebugLog.write("app launched \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "")"
-                       + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))")
+                       + " (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))" + previous)
+        noticeSink = objectWillChange.sink { [weak self] _ in self?.probeCounts.modelNotices += 1 }
         #if DEBUG
         startHarnessLink()
         #endif
+        startRemoteLog()  // off (no network) until an endpoint and token are set: RemoteLog.swift
         settingsSink = settings.$configurationRevision.dropFirst().sink { [weak self] _ in
             self?.modelOK = nil
             self?.modelError = nil
@@ -199,7 +229,7 @@ import UIKit
             prewarmStream()
         }
         board.onLinkDown = { [weak self] in
-            self?.pointer.boardPace = nil
+            self?.pointer.boardPace = nil; self?.pointer.flickInOne = nil
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)
@@ -208,6 +238,11 @@ import UIKit
         board.commands.onTimeout = { [weak self] command in await self?.commandTimedOut(command) }
         DebugLog.write("frame mode: \(FrameMode.current.rawValue)")
         board.commands.onTiming = { [weak self] name, ms in self?.metrics.hidMs[name] = ms }
+        agent.beforeFinish = { [weak self] in
+            guard let self else { return }
+            await self.returnInput(checkKeyboard: true)
+            try? await self.feed.stream(false)
+        }
         agent.onFinish = { [weak self] in self?.agentFinished() }
         agent.onStep = { [weak self] in self?.stepped() }
         agent.onDoing = { [weak self] d in self?.doing(d) }
@@ -220,13 +255,20 @@ import UIKit
         }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
+        pointer.clipboard = agent.onWrite
         AgentControl.handle = { [weak self] command in await self?.control(command) }
+        AgentControl.verdict = { [weak self] run, correct in self?.runVerdict(run, correct: correct) }
         Trial.shared.attach(self)  // free line
         AgentRequests.handle = { [weak self] request in await self?.handle(request) ?? AgentRequests.unavailable }
         notifier.onAction = { [weak self] action, run, kind in self?.notificationAction(action, run: run, kind: kind) }
         wireRecovery()
 
-        timers.append(Task { [weak self] in await self?.board.commands.keepAwake(screenLive: { self?.feed.live ?? false }) })
+        timers.append(Task { [weak self] in
+            await self?.board.commands.keepAwake {
+                guard let self else { return false }
+                return self.feed.live && !self.returningInput
+            }
+        })
         timers.append(Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -267,6 +309,7 @@ import UIKit
     /// Every second: metrics; a suspension note; the stream's numbers every 10 s while a run goes.
     private func tick() {
         refreshLinkRecoveryDisplay()
+        summarizeBackground()
         let before = metrics.suspensions, gap = now() - lastTick
         metrics.tick()
         lastTick = now()
@@ -290,6 +333,20 @@ import UIKit
                                   s?.udp?.kbps ?? 0, s?.kbps ?? 0, s?.fps ?? 0, feed.updated > 0 ? now() - feed.updated : -1,
                                   metrics.drops, w.nacks, w.lost, s?.udp?.drop ?? 0))
         }
+    }
+
+    /// Once a minute while a run (or its start) is in the background: what kept the main thread busy.
+    private func summarizeBackground() {
+        let active = (startingAgent || agent.running) && appIsBackgrounded
+        var totals = probeCounts  // two cheap syscalls a second
+        totals.videoUnits = feed.unitsReceived
+        totals.framesDecoded = feed.framesShown
+        totals.faceTicks = FaceTicks.count
+        totals.cpu = ProcessCPU.seconds()
+        totals.mainCPU = ProcessCPU.mainThreadSeconds()
+        guard let line = backgroundSummary.tick(totals, at: now(), active: active) else { return }
+        DebugLog.write(line)
+        metrics.backgroundSummary = line
     }
 
     /// A command timed out: video may be starving the board's control traffic. Stop the stream and run
@@ -350,8 +407,25 @@ import UIKit
         DebugLog.write(line)
         if let up = s.up, up < 30_000 {  // a link drop that is really the board rebooting (crash, brownout, ...)
             DebugLog.write("board: booted \(up / 1000) s ago (reset: \(s.rst ?? "?"), heap \((s.heap ?? 0) / 1024) KB)")
+            reportBoardReboot(s, up: up)
             // On another Wi-Fi with the board (station mode, harness/board.py net sta) there is no hotspot to rejoin.
             if (wasOnBoardWiFi || hotspotSSID != nil) && board.net?.mode != "sta" { rejoinAfterReboot() }
+        }
+    }
+
+    /// Every board reboot goes to usage stats, with the
+    /// board's crash dump when it has one (`crash`: task, PC, backtrace, and whether the dump is this build's). The
+    /// board erases the dump once read at boot, so each one is reported for the boot it belongs to.
+    private func reportBoardReboot(_ s: BoardStatus, up: Int) {
+        let bootedAt = now() - Double(up) / 1000
+        guard abs(bootedAt - lastBoardBoot) > 60 else { return }  // the same boot, seen again
+        lastBoardBoot = bootedAt
+        Task { [weak self] in
+            guard let self else { return }
+            let crash = await BoardLogDump.crash(self.board.commands)
+            DebugLog.write("board: crash record: \(crash ?? "-")")
+            Analytics.capture("board_reboot", ["reset": s.rst ?? "?", "fw": Firmware.version(of: s), "up_s": up / 1000,
+                                               "heap_kb": (s.heap ?? 0) / 1024, "dump": crash ?? ""])
         }
     }
 
@@ -468,22 +542,28 @@ import UIKit
     }
 
     /// Ping the LLM every 2 s for `seconds` (switch to another app meanwhile) and report what survived.
+    /// The free line is shared: there it asks the line's status every 10 s instead, never a model call or a lease.
     func backgroundTest(seconds: Double = 600) async {
         let id = UIApplication.shared.beginBackgroundTask(withName: "bgtest")
         defer { UIApplication.shared.endBackgroundTask(id) }
-        guard let client = try? await settings.client("actor") else { return say("background test: no model") }
+        let freeLine = settings.provider == .handsyTrial
+        let client = freeLine ? nil : try? await settings.client("actor")
+        guard freeLine || client != nil else { return say("background test: no model") }
         let started = now()
         var ok = 0, failed = 0, decodedBefore = metrics.decodeErrors
         say("background test: \(Int(seconds)) s, switch to another app now")
         try? await feed.stream(true)
         while now() - started < seconds && !Task.isCancelled {
-            do { _ = try await client.chat(system: "Reply with OK.", text: "ping", image: nil, maxTokens: 600, temperature: 0); ok += 1 }
-            catch { failed += 1 }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            var reached = false
+            if let client {
+                reached = (try? await client.chat(system: "Reply with OK.", text: "ping", image: nil, maxTokens: 600, temperature: 0)) != nil
+            } else { reached = await Trial.shared.reachable() }
+            if reached { ok += 1 } else { failed += 1 }
+            try? await Task.sleep(nanoseconds: freeLine ? 10_000_000_000 : 2_000_000_000)
         }
         try? await feed.stream(false)
         decodedBefore = metrics.decodeErrors - decodedBefore
-        say("background test: LLM \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
+        say("background test: \(freeLine ? "free line status" : "LLM") \(ok) ok / \(failed) failed, decode errors \(decodedBefore), "
             + "suspensions \(metrics.suspensions), background alive \(Int(metrics.backgroundAlive)) s")
     }
 }

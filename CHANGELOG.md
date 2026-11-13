@@ -4,9 +4,59 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+## App 1.0.5 · firmware v0.2.5 (TestFlight)
+
+- App: **Tools (Beta)**: the agent can look things up on the web when a task needs it (search tool use), with
+  tools exported and imported as JSON.
+- App: **Phone calls and text messages (Beta, experimental)**: Call and Text templates. A call dials, speaks through
+  iOS Live Speech and hears the other side through Live Captions, as a script: code opens Phone and the Control
+  Center buttons, the model dials, talks and hangs up. A setup guide (with a clip) shows before each call until
+  Don't Show Again; it needs Live Captions › Keep Call Captions › 1 Hour, or iOS keeps call captions out of Screen
+  Mirroring. An intent has a Phone call switch that follows its words ("Call …") until set by hand. Calls are not
+  stable yet: see #150.
+- App: **intents improve themselves**: when an intent's saved steps miss and the AI finishes the task, that run's
+  steps replace them; a typed-in intent's first run that works becomes its reference; lessons from done runs go on
+  its checklist (up to 8). Wrong in the Dynamic Island (90 s) or Undo on the intent takes it back; Settings › Intents
+  learn from runs turns it off.
+- App: a recording is a run: every change is named and kept as a trace, reviewed, continued and saved as an intent.
+- App: open APP is done by code and read back: Spotlight (or the Home Screen's Search button when cmd+space does
+  nothing), only the name asked for; the model picks another name in the iPhone's language.
+- App: Chinese, accented and other scripts typed or pasted reliably; a full-width "？" read by OCR is not a wrong symbol.
+- App: taps outside the screen are not sent; a confirmed or self-moving target is never pressed twice; Home flick
+  in one board command; Pause drops a gesture already chosen.
+- App: Handsy key: runs on a plan's key instead of the free runs.
+- App: the name is a build setting (`IA_APP_NAME`, shown on the Home Screen and in texts about the app). TestFlight
+  and source builds stay ESP32 Agent. The board keeps its names in Screen Mirroring and Bluetooth (ESP32 Agent),
+  so setup texts that point at them are unchanged. Permission prompts and Shortcuts descriptions no longer carry
+  the app's name.
+- App: Settings › Privacy shows the installation ID Handsy Free keeps records under, with a mail link that asks
+  to delete them (the privacy policy pointed at an ID the app did not show).
+- Firmware: the board's name in Screen Mirroring and Bluetooth is a build option (`flash.sh --name NAME`, default
+  ESP32 Agent); the hotspot name is unchanged. The app's setup texts name the board it last saw.
+- App: what is sent and to whom reads the same everywhere. The send sheet names who runs Handsy Free (Holomix, Inc.)
+  next to its address and says that simple steps may go to its provider TypeSafe; Your Data no longer says run data
+  is never uploaded without saying what a run sends. Demo data asks for the same consent before its first run when
+  a model is set up, and the first setup page offers the demo to try the app without a board (No board yet? Try the
+  demo). The privacy manifest lists the installation ID and run content of Handsy Free.
+- App: one agreement at first launch. Your Data now also states the risks, and Agree and Continue accepts them and
+  allows sending to Handsy Free when nothing else is set up yet, so the model page does not ask again. The welcome
+  page has no switch: Get Started, or Accept and Get Started after Not Now. Another service or Jev still asks.
+- App: Pause finishes the gesture already in flight, then does not send one the model had chosen. The next
+  look decides from the screen in front. Frames from while the run is paused are left out of its video.
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+
+## Firmware v0.2.5 (TestFlight)
+
+- Board: a mirrored video packet it has to drop for good is logged (header and first bytes) and counted as
+  `lost` in the status, so the app can tell a broken picture from a still screen and ask for mirroring to
+  restart at once.
+- Board: `press_for MS`, a held press that comes up by itself (long press, or a press then moves to drag).
+- Board: `flick DX DY SPEED`, press, move and release in one command, so the Home Screen flick never lingers into the app switcher.
+- Board: `result ID` answers the last 8 replies again, for a reply that never arrived.
+- Board: the CLI's `net` goes through while the app drives the board, so the board can always be put back on a
+  network.
 
 ## App 1.0.4 (TestFlight)
 

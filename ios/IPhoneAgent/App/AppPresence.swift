@@ -1,11 +1,19 @@
 import Foundation
+import GameController
 import UIKit
+
+/// Whether this iPhone itself has a mouse plugged in (the board's USB HID), as iOS lists it to GameController.
+/// Only a "yes" is trusted: discovery is asynchronous, so an empty list right after launch proves nothing.
+@MainActor enum PhoneMouse {
+    static func start() { _ = GCMouse.mice() }  // begins discovery; mice then arrive by notification
+    static var connected: Bool { !GCMouse.mice().isEmpty }
+}
 
 /// The agent works on the phone this app runs on, so the app must be out of the way: Start sends it to the
 /// Home Screen (and checks that iOS really put it in the background), and a run holds while it is in front.
 extension AppModel {
 
-    var appIsBackgrounded: Bool { UIApplication.shared.applicationState == .background }
+    var appIsBackgrounded: Bool { isBackground() }
 
     /// Each fallback is a distinct gesture; never treat the board's ACK as a successful departure.
     func leaveApp() async throws -> Bool {
@@ -40,14 +48,29 @@ extension AppModel {
     /// is only for a board that isn't answering.
     func leaveForRun() async throws -> Bool {
         if try await leaveApp() { return true }
-        guard startupBoardIssue || !board.connected else {
-            DebugLog.write("leave app: the board acknowledged every gesture, but the app stayed in front")
-            if board.status?.isWirelessHID == true {
-                throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
-            }
-            throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
+        if startupBoardIssue || !board.connected { return try await askUserToLeave() }
+        // Why the gestures didn't take (2026-11-11: users with the board plugged in got "isn't controlling"):
+        // its USB unused (a charger, a hub, nothing), or this iPhone has it and only the Home gestures failed.
+        try? await board.refreshStatus()
+        let usb = board.status?.usb ?? "?", mouse = PhoneMouse.connected
+        DebugLog.write("leave app: the board took every gesture, the app stayed in front (usb \(usb), mouse on this iPhone: \(mouse))")
+        Analytics.capture("app_left_failed", ["usb": usb, "mouse": mouse])
+        if board.status?.needsUSBHost == true {
+            throw DeviceError(message: String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
         }
-        return try await askUserToLeave()
+        // A newly powered USB board may drop input reports until it settles.
+        if let retry = AutoCalibrator.usbStartupRetry(board.status) {
+            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
+            homeHint = String(localized: "The board just started. One moment…")
+            try await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
+            homeHint = nil
+            if try await leaveApp() { return true }
+        }
+        if mouse || PhoneMouse.connected { return try await askUserToLeave() }  // the board drives this iPhone: the user swipes up once
+        if board.status?.isWirelessHID == true {
+            throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
+        }
+        throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
     }
 
     /// Keep the manual instruction visible; a normal disconnect pauses this wait and retries departure.
@@ -89,7 +112,10 @@ extension AppModel {
                 guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(part)) }
                 waited = true
                 let stage = Recovery.Stage(part: part, ask: now() - began >= Recovery.quiet[part]!)
-                if stage != recovering { recover(stage) }
+                if stage != recovering {
+                    DebugLog.write(String(format: "startup board wait: %@ after %.1f s", stage.logLine, now() - began))
+                    recover(stage)
+                }
                 homeHint = stage.line
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
@@ -130,7 +156,7 @@ extension AppModel {
         if let stage = recovering, stage.ask, stage.part != .board {
             return DeviceError(message: stage.line)
         }
-        return DeviceError(message: String(localized: "ESP32 Agent is still on screen"))
+        return DeviceError(message: String(localized: "\(AppName.current) is still on screen"))
     }
 
     /// Try a short stream wait, then explicitly snap; a static Home Screen must not stall startup.
@@ -157,6 +183,8 @@ extension AppModel {
                 && boundary.accepts(capturedAt: feed.capturedAt, backgroundEnteredAt: backgroundEnteredAt)
         }
         var logged = 0.0
+        var shownStage: Recovery.Stage?, shownPoll = 0.0  // for the log: transitions only
+        RunMarker.set("startup: waiting for the first frame")
         while true {
             if now() - logged >= 1 {  // why there is no usable frame yet, once a second
                 logged = now()
@@ -178,26 +206,38 @@ extension AppModel {
                     return source
                 }
             }
-            let stalled = airplayStalled()
+            let stalled = airplayStalled() || feed.undecodable
             if stalled && !stallLogged {
                 stallLogged = true
-                DebugLog.write("startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
+                DebugLog.write(feed.undecodable ? "startup: frames arrive but none decodes (a lost packet; no keyframe yet); Screen Mirroring has to restart"
+                               : "startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
             let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled, needsPointer: board.status?.needsWirelessPointer == true)
+            var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
             case .live: break
-            case .wait(let stage):
-                if stage != recovering { recover(stage) }
-                homeHint = stage.line
+            case .wait(let s):
+                stage = s
+                waiting = s.part != .frames  // board, hotspot or mirroring down
+                if s != recovering { recover(s) }
+                homeHint = s.line
             case .giveUp(let reason): throw DeviceError(message: reason)
+            }
+            let poll = Self.startupPoll(waiting: waiting)
+            if stage != shownStage || poll != shownPoll {
+                DebugLog.write(String(format: "startup wait: %@ at %.1f s, poll %.1f s",
+                                      stage?.logLine ?? "links up", now() - began, poll))
+                shownStage = stage
+                shownPoll = poll
+                RunMarker.set("startup: " + (stage.map { "waiting, \($0.part)\($0.ask ? ", asked the user" : "")" } ?? "waiting for a frame"))
             }
             if !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
                 try await waitForStartupBoard()
                 continue
             }
             if now() < streamDeadline {
-                try await Task.sleep(nanoseconds: 100_000_000)
+                try await Task.sleep(nanoseconds: UInt64(poll * 1e9))
                 continue
             }
             do {
@@ -257,8 +297,9 @@ extension AppModel {
             pendingClipboard = nil
             DebugLog.write("clipboard: wrote \(text.count) chars for the agent")
         }
-        let ours = now() - agent.lastActed < 3 || now() - resumeAsked < 5
-        DebugLog.write("run: ESP32 Agent is in front (\(ours ? "after an agent action" : "opened by the user")); holding")
+        let stuckTap = live.takeStuckTap()  // the user tapped a stale Live Activity: "tap to continue"
+        let ours = stuckTap || now() - agent.lastActed < 3 || now() - resumeAsked < 5
+        DebugLog.write("run: ESP32 Agent is in front (\(stuckTap ? "tapped a stale Live Activity" : ours ? "after an agent action" : "opened by the user")); holding")
         let since = now()
         var away = false
         if ours { away = try await leaveApp() }
@@ -279,6 +320,10 @@ extension AppModel {
         await feed.settled()
         DebugLog.write("run: app in background again, going on")
     }
+
+    /// How often the startup wait looks for its first frame: often while frames may be on the way, slower
+    /// while a link is down (no frame can come until it is back, and the app is in the background).
+    static func startupPoll(waiting: Bool) -> Double { waiting ? 0.5 : 0.1 }
 
     private func waitForBackground(_ seconds: Double, stopOnBoardLoss: Bool = false) async throws -> Bool {
         let deadline = now() + seconds

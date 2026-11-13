@@ -35,38 +35,78 @@ struct UITree {
     let w: Int, h: Int
     let nodes: [UINode]
     var lines: [(text: String, box: [Int])] = []  // the OCR input, for parity checks against tree.py
-    var ocrSeconds = 0.0, cvSeconds = 0.0
+    /// ocr: Vision's wall time (0 when the cache had the frame); cv: CV compute, pre (raster, edges, filled
+    /// rects, run alongside Vision) + post (the stages that need the lines); total: wall clock, JPEG in to tree out.
+    var ocrSeconds = 0.0, cvSeconds = 0.0, totalSeconds = 0.0
+    var preSeconds = 0.0, postSeconds = 0.0, ocrCached = false
 
     static let ocrPad = 3
+    static let ocrCache = OCRCache()
 
-    /// The tree of one frame (the 540-wide JPEG the model sees).
-    static func build(jpeg: Data) async -> UITree? {
+    typealias Lines = [(text: String, box: [Int])]
+
+    /// The tree of one frame (the 540-wide JPEG the model sees). Vision and the OCR-independent CV run at
+    /// the same time; a frame byte-identical to the last one reuses its lines.
+    static func build(jpeg: Data, cache: OCRCache? = ocrCache,
+                      ocr: @escaping @Sendable (CGImage) async -> Lines = { await UITreeOCR.lines($0) }) async -> UITree? {
+        let start = Date()
         guard let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        let t0 = Date()
-        let lines = await UITreeOCR.lines(image)
-        let t1 = Date()
-        guard let raster = Raster(image) else { return nil }
-        var tree = build(raster, lines)
+        let cached = cache?.lines(for: jpeg)
+        async let read: (Lines, Double) = {
+            if let cached { return (cached, 0) }
+            let t = Date()
+            let lines = await ocr(image)
+            return (lines, Date().timeIntervalSince(t))
+        }()
+        async let early: (CVPass?, Double) = offPool {
+            let t = Date()
+            return (Raster(image).map(prepare), Date().timeIntervalSince(t))
+        }
+        let (lines, ocrSeconds) = await read
+        let (pass, preSeconds) = await early
+        guard let pass else { return nil }
+        if cached == nil { cache?.store(jpeg, lines) }
+        let t = Date()
+        var tree = build(pass, lines)
+        tree.postSeconds = Date().timeIntervalSince(t)
         tree.lines = lines
-        tree.ocrSeconds = t1.timeIntervalSince(t0)
-        tree.cvSeconds = Date().timeIntervalSince(t1)
+        tree.ocrSeconds = ocrSeconds
+        tree.ocrCached = cached != nil
+        tree.preSeconds = preSeconds
+        tree.cvSeconds = preSeconds + tree.postSeconds
+        tree.totalSeconds = Date().timeIntervalSince(start)
         return tree
     }
 
-    /// tree.py build() after OCR.
-    static func build(_ img: Raster, _ lines: [(text: String, box: [Int])]) -> UITree {
-        let W = img.w, H = img.h
-        let textBoxes = lines.map(\.box)
+    private static func offPool<T>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { done in DispatchQueue.global(qos: .userInitiated).async { done.resume(returning: work()) } }
+    }
+
+    /// The CV that does not need the OCR lines.
+    struct CVPass: @unchecked Sendable {
+        let img: Raster, edges: Plane, rects: [[Int]]
+    }
+
+    static func prepare(_ img: Raster) -> CVPass {
         let edges = UITreeCV.edgeMap(img)
+        return CVPass(img: img, edges: edges, rects: filledRects(edges, img.w, img.h))
+    }
+
+    /// tree.py build() after OCR.
+    static func build(_ img: Raster, _ lines: Lines) -> UITree { build(prepare(img), lines) }
+
+    static func build(_ pass: CVPass, _ lines: Lines) -> UITree {
+        let img = pass.img, W = img.w, H = img.h
+        let textBoxes = lines.map(\.box)
         var leaves = lines.map { UINode("text", $0.box, label: $0.text) }
-        for (kind, b) in blobs(edges, textBoxes, W, H) where kind == "blob" {
+        for (kind, b) in blobs(pass.edges, textBoxes, W, H) where kind == "blob" {
             if Double(textBoxes.reduce(0) { $0 + inter(b, $1) }) < 0.5 * Double(area(b)) {
                 leaves.append(UINode(classify(img, b, W), b))
             }
         }
         labelIcons(leaves)
-        let rects = filledRects(edges, W, H).map { UINode("container", $0) }
+        let rects = pass.rects.map { UINode("container", $0) }
         var top = prune(nest(rects, leaves), W, H)
         top = xyCut(top, [0, 0, W, H])
         finish(&top, W, H)
@@ -96,9 +136,13 @@ struct UITree {
     /// Non-text leaves: closed edge blobs with the text pixels removed.
     static func blobs(_ edges: Plane, _ textBoxes: [[Int]], _ W: Int, _ H: Int) -> [(String, [Int])] {
         var e = edges
-        for b in textBoxes {
-            for y in max(0, b[1] - ocrPad)..<min(H, b[3] + ocrPad) {
-                for x in max(0, b[0] - ocrPad)..<min(W, b[2] + ocrPad) { e.v[y * W + x] = 0 }
+        e.v.withUnsafeMutableBufferPointer { v in
+            for b in textBoxes {
+                let x0 = max(0, b[0] - ocrPad), x1 = min(W, b[2] + ocrPad)
+                guard x1 > x0 else { continue }
+                for y in max(0, b[1] - ocrPad)..<max(max(0, b[1] - ocrPad), min(H, b[3] + ocrPad)) {
+                    (v.baseAddress! + y * W + x0).update(repeating: 0, count: x1 - x0)
+                }
             }
         }
         let closed = UITreeCV.close(UITreeCV.dilate(e, 3), 7)
@@ -265,9 +309,11 @@ struct UITree {
     // MARK: what the model sees
 
     /// handsy_trial.treetext.candidates minus layout rows / cells: what `#ID` numbers.
-    var elements: [UINode] {
-        let all = Self.walk(nodes).filter { Double(Self.area($0.box)) < 0.4 * Double(w * h) }
-        return all.prefix(150).filter { $0.role != "row" && $0.role != "cell" }
+    var elements: [UINode] { candidates.filter { $0.role != "row" && $0.role != "cell" } }
+
+    /// handsy_trial.treetext.candidates itself: what Spark's listing numbers, rows and cells included.
+    var candidates: [UINode] {
+        Array(Self.walk(nodes).filter { Double(Self.area($0.box)) < 0.4 * Double(w * h) }.prefix(150))
     }
 
     func point(_ n: UINode) -> (Int, Int) {
@@ -286,8 +332,33 @@ struct UITree {
     }
 
     /// "tap #12" -> "tap 503 871" (this frame's element 12); an unknown id is left as it is (the parser rejects it).
-    func resolve(_ reply: String) -> String {
-        let ids = elements
+    /// The free line's compact list, byte for byte treetext.listing(compact=True): no plain containers, labels
+    /// cut at 40, ids numbered over `candidates`.
+    var compactListing: String {
+        let lines = candidates.enumerated().compactMap { i, n -> String? in
+            guard n.role != "container" else { return nil }
+            let (x, y) = point(n)
+            let label = String(String.UnicodeScalarView((n.label ?? "").unicodeScalars.prefix(40)))
+            return "#\(i + 1) \(n.role) \"\(label)\" at \(x) \(y)"
+        }
+        return "\n\nScreen elements parsed from the screenshot (id, role, label, center x y in 0-1000):\n"
+            + lines.joined(separator: "\n") + "\nTo tap one of these you may write: tap #ID"
+    }
+
+    /// One log line per build: size, total/ocr/cv ms and element counts (listed, compact, all nodes).
+    var timingLine: String {
+        let ms = { (s: Double) in Int((s * 1000).rounded()) }
+        return "tree: \(w)x\(h) total \(ms(totalSeconds)) ms wall, ocr \(ms(ocrSeconds))\(ocrCached ? " cached" : "") "
+            + "cv \(ms(cvSeconds)) (pre \(ms(preSeconds)) alongside ocr, post \(ms(postSeconds))), "
+            + "\(elements.count) elements, \(candidates.filter { $0.role != "container" }.count) compact, "
+            + "\(Self.walk(nodes).count) nodes, \(lines.count) ocr lines"
+    }
+
+    /// `spark`: the ids of Spark's listing, numbered over `candidates` (treetext.by_listing_id); the app's own
+    /// `listing` numbers `elements`. Resolving Spark's ids over `elements` was off by the rows/cells before the id
+    /// (2026-11-11).
+    func resolve(_ reply: String, spark: Bool = false) -> String {
+        let ids = spark ? candidates : elements
         let pattern = try! NSRegularExpression(pattern: "(?im)^(\\s*DO\\s*[:：]\\s*tap\\s+)#(\\d+)")
         var out = reply
         for m in pattern.matches(in: reply, range: NSRange(reply.startIndex..., in: reply)).reversed() {
@@ -323,5 +394,27 @@ extension UITree {
             return n
         }
         self.init(w: w, h: h, nodes: nodes.compactMap(node))
+    }
+}
+
+/// The last frame's OCR lines, reused only for byte-identical JPEG bytes. One entry; cleared when a run starts.
+final class OCRCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: (jpeg: Data, lines: UITree.Lines)?
+
+    func lines(for jpeg: Data) -> UITree.Lines? {
+        lock.lock(); defer { lock.unlock() }
+        guard let last, last.jpeg == jpeg else { return nil }
+        return last.lines
+    }
+
+    func store(_ jpeg: Data, _ lines: UITree.Lines) {
+        lock.lock(); defer { lock.unlock() }
+        last = (jpeg, lines)
+    }
+
+    func clear() {
+        lock.lock(); defer { lock.unlock() }
+        last = nil
     }
 }

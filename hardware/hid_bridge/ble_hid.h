@@ -6,7 +6,7 @@ class NimBLEServer;
 void ble_hid_begin(NimBLEServer *server);
 void ble_hid_disconnected(uint16_t handle);
 bool ble_hid_ready();
-void ble_hid_poll();
+void ble_hid_poll(bool timedHold);
 uint32_t ble_hid_session();
 bool ble_hid_allows(int handle);
 void ble_hid_claim(uint16_t handle, bool subscribed);

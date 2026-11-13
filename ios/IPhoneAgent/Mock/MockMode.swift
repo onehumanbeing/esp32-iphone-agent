@@ -50,7 +50,7 @@ extension AppModel {
     /// Demo data after setup: everything is ready, whatever was skipped.
     func mockReady() {
         if !board.connected {
-            board.mockConnect(name: "ESP32 Agent 7C3E",
+            board.mockConnect(name: "\(AppName.current) 7C3E",
                               net: NetConfig(mode: "ap", ssid: "ESP32Agent-7C3E", pass: nil, ip: "192.168.4.1"))
         }
         hotspotSSID = "ESP32Agent-7C3E"

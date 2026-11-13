@@ -91,16 +91,17 @@ bool ble_hid_command_ok() {
 
 static void send(int input, const void *data, size_t size) {
   if (failed) return;
+  // A notification can also fail during timer expiry or disconnect cleanup, outside a command.
   int handle = BleHidTarget::peer(lastGeneration);
   uint32_t start = millis();
   for (;;) {
-    if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) { failed = true; return; }
+    if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) { failed = releasePending = true; return; }
     // As in the video path, retry only when the host runs out of buffers.
     os_mbuf *packet = ble_hs_mbuf_from_flat(data, size);
     int rc = packet ? ble_gatts_notify_custom(handle, inputs[input]->getHandle(), packet) : BLE_HS_ENOMEM;
     if (rc == 0) { lastReportAt = millis(); return; }
     if (rc != BLE_HS_ENOMEM || millis() - start >= 100) {
-      failed = true;
+      failed = releasePending = true;
 #if DEBUG_SERIAL
       Serial.printf("BLE HID report failed: rc=%d\n", rc);
 #endif
@@ -110,15 +111,15 @@ static void send(int input, const void *data, size_t size) {
   }
 }
 
-void ble_hid_poll() {
+void ble_hid_poll(bool timedHold) {
   uint32_t now = millis();
   if (hidDevice && now - batteryAt >= 30000) {
     hidDevice->setBatteryLevel(board_battery_percent(), true);
     batteryAt = now;
   }
-  // shortcut: idle mouse holds expire after five seconds; extend the lease if longer holds are needed.
-  if (ble_hid_ready() && (releasePending || (mouseButtons && now - lastReportAt >= 5000))) {
-    if (!ble_hid_command_begin(target.session())) return;
+  // An explicit press_for has its own deadline. Unbounded idle presses still expire after five seconds.
+  if (ble_hid_ready() && (releasePending || (!timedHold && mouseButtons && now - lastReportAt >= 5000))) {
+    if (!ble_hid_command_begin(lastGeneration)) return;
     uint8_t zero[8] = {};
     send(0, zero, 5);
     send(1, zero, 8);

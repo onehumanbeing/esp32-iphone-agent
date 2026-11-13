@@ -24,6 +24,18 @@ enum ProbeFit {
         return Line(a: a, b: b, rms: rms)
     }
 
+    /// The line without its worst sample when that one alone is far off (a dropped report right after the board
+    /// powered up, a tap caught late): with five or more samples, one over 2% off and well outside the rest's fit.
+    static func robustLine(_ samples: [(Double, Double)]) -> Line? {
+        guard let all = line(samples), samples.count >= 5 else { return line(samples) }
+        let off = samples.map { abs($0.1 - (all.a * $0.0 + all.b)) }
+        guard let worst = off.indices.max(by: { off[$0] < off[$1] }), off[worst] > 0.02 else { return all }
+        var rest = samples
+        let dropped = rest.remove(at: worst)
+        guard let fit = line(rest), abs(dropped.1 - (fit.a * dropped.0 + fit.b)) > 3 * max(fit.rms, 0.005) else { return all }
+        return fit
+    }
+
     /// One sample and no offset: the line through home (0, 0).
     static func throughHome(_ s: (Double, Double)) -> Line? {
         s.0 > 0 && s.1 > 0 ? Line(a: s.1 / s.0, b: 0, rms: 0) : nil

@@ -6,16 +6,24 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var name: String
     var prompt: String
     var icon: String?
+    var color: String?       // IntentTint name; nil = the app's accent
     var hints: [String]?     // checklist, appended to the actor prompt as hints when it runs
     var refRecording: String? // folder name of the original demonstration
     var refRun: String?      // the run it was made from
     var steps: [RecordedStep]? // replayed before asking the model (Replay)
+    var previousSteps: [RecordedStep]? // before IntentLearner replaced them (Undo)
+    var learnedFrom: String? // the run the steps were learned from (IntentLearner)
     var history: [RunStat]?  // its runs, newest last
     var builtin: String?     // "diagnostics": runs in the app (sends the report), no board or model
     var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
     var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
+    var kind: String?        // "call": always a phone call; "task": never; nil: by its words (Calls.dials)
 
-    var symbol: String { icon ?? "bolt.fill" }
+    var symbol: String { icon ?? (isCall ? "phone.fill" : "bolt.fill") }  // a call shows as one
+    /// Runs as a phone call (Calls.script): the Phone call switch, or else the words ("Call …", "打电话给…").
+    var isCall: Bool { Calls.isCall(prompt, kind: kind) }
+    /// A template's blanks ("[who]") are still in it: edit them before it can run.
+    var unfilled: Bool { IntentStore.unfilled(prompt) }
     var checklist: [String] { hints ?? [] }
     var runs: [RunStat] { history ?? [] }
     var successRate: Double? { runs.isEmpty ? nil : Double(runs.filter(\.ok).count) / Double(runs.count) }
@@ -35,6 +43,7 @@ struct RunStat: Codable, Equatable, Hashable {
     private let defaults: UserDefaults
     private static let key = "savedTasks"
     private static let diagnosticsKey = "seededDiagnosticsIntent"
+    private static let callsKey = "seededTextAndCallIntents"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -44,15 +53,35 @@ struct RunStat: Codable, Equatable, Hashable {
                 defaults.set(true, forKey: Self.diagnosticsKey)
                 if !items.contains(where: { $0.builtin == Self.diagnostics.builtin }) { items.append(Self.diagnostics); save() }
             }
+            if !defaults.bool(forKey: Self.callsKey) {  // Henry 2026-11-12: text and call at the top, once
+                defaults.set(true, forKey: Self.callsKey)
+                items.insert(contentsOf: [Self.text, Self.call], at: 0)
+                save()
+            }
         } else {
             defaults.set(true, forKey: Self.diagnosticsKey)
-            items = Self.examples
+            defaults.set(true, forKey: Self.callsKey)
+            items = [Self.text, Self.call] + Self.examples
             save()
         }
     }
 
     /// First launch: one intent for Notes and one for Clock (the demo run is the alarm).
     static var examples: [SavedTask] { [note, alarm, diagnostics] }
+    /// Templates (Henry 2026-11-12): who, and what to say or talk about, are the user's to fill in; until the
+    /// "[…]" blanks are edited the intent does not run.
+    static var text: SavedTask {
+        SavedTask(name: String(localized: "Text someone"),
+                  prompt: String(localized: "Send a text message to [who]: [message]"), icon: "message.fill", color: "green")
+    }
+    static var call: SavedTask {
+        SavedTask(name: String(localized: "Call someone"),
+                  prompt: String(localized: "Call [who] and talk about [topic]"), icon: "phone.fill", color: "blue",
+                  kind: "call")
+    }
+    nonisolated static let blanks = ["[who]", "[message]", "[topic]", "[联系人]", "[内容]", "[话题]"]
+    nonisolated static func unfilled(_ prompt: String) -> Bool { blanks.contains { prompt.contains($0) } }
+
     static var note: SavedTask {
         SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))
     }
@@ -148,6 +177,8 @@ struct Run: Identifiable, Equatable {
     }
 
     var moves: [Step] { steps.filter(\.isMove) }
+    /// Recorded from the person's own taps (DemoRecorder), not run by the agent.
+    var isDemo: Bool { steps.contains { $0.action["demo"] == .bool(true) } }
     /// From someone else's shared archive: replay only.
     var imported: Bool { RunShare.isImported(folder) }
     var outcome: Outcome { Outcome(last: steps.last?.name, running: false) }
@@ -174,8 +205,29 @@ struct Run: Identifiable, Equatable {
 
     init(traces: TraceStore) { self.traces = traces }
 
+    /// Runs read before, by folder, with their steps.jsonl's size and date then: a reload reads only what changed.
+    /// 2026-11-11: every recorded step (several a round, during a run) parsed all 30 runs' steps again on the main
+    /// thread, between the model's reply and the first gesture.
+    private var cache: [URL: (stamp: Stamp, run: Run?)] = [:]
+    struct Stamp: Equatable { let size: Int, date: Date }
+
     func reload(limit: Int = 30) {
-        runs = traces.runs().prefix(limit).compactMap(Self.load)
+        var kept: [URL: (stamp: Stamp, run: Run?)] = [:]
+        runs = traces.runs().prefix(limit).compactMap { folder in
+            let stamp = Self.stamp(folder)
+            let run: Run?
+            if let stamp, let old = cache[folder], old.stamp == stamp { run = old.run } else { run = Self.load(folder) }
+            if let stamp { kept[folder] = (stamp, run) }
+            return run
+        }
+        cache = kept
+    }
+
+    static func stamp(_ folder: URL) -> Stamp? {
+        let path = folder.appendingPathComponent("steps.jsonl").path
+        guard let a = try? FileManager.default.attributesOfItem(atPath: path), let size = a[.size] as? NSNumber,
+              let date = a[.modificationDate] as? Date else { return nil }
+        return Stamp(size: size.intValue, date: date)
     }
 
     static func load(_ folder: URL) -> Run? {
@@ -189,6 +241,12 @@ struct Run: Identifiable, Equatable {
             case "task": task = rec["task"]?.str ?? ""
             case "step": steps.append(Run.Step(id: steps.count, action: rec.without(["n", "t", "kind", "frame"]), frame: frame,
                                                t: rec["t"]?.double))
+            case "verdict":  // the step's result, so a run continued from disk still says "-> screen changed"
+                if let last = steps.popLast(), let changed = rec["changed"] {
+                    var action = last.action
+                    action["changed"] = changed
+                    steps.append(Run.Step(id: last.id, action: action, frame: last.frame, t: last.t))
+                }
             case "llm":
                 calls += 1
                 if case .obj(let u) = rec["usage"] {

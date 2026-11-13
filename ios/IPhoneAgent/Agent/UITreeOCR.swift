@@ -6,9 +6,41 @@ import Vision
 /// (which reads PP-OCR quads on Spark). Same request as Keyboard.swift: accurate, zh-Hans + en-US.
 /// Vision reads whole lines; PP-OCR boxes words, so a line is split at spaces (each word its own `#ID`).
 /// `languages` nil: Vision picks them itself (reads kana and other scripts; for the language on the screen), lines
-/// stay whole, and unsure lines are dropped (an icon on the home screen read as Arabic, 2026-11-07).
+/// stay whole, and unsure lines are dropped (an icon on the home screen read as Arabic, 2026-11-07). That pick
+/// drops small Chinese words, though (a candidate bar's 今天 at 15 pt): reads that need Chinese name zh-Hans, and
+/// `whole` keeps their lines whole ("App Store" one line).
 enum UITreeOCR {
-    static func lines(_ image: CGImage, languages: [String]? = ["zh-Hans", "en-US"]) async -> [(text: String, box: [Int])] {
+    static let chinese = ["zh-Hans", "en-US"]
+
+    /// The iPhone's own language ahead of `chinese` when Vision reads it (Spotlight lists the apps under their
+    /// names in that language). The first language leads: after zh-Hans, Vision dropped French and German
+    /// accents and misread kana and Hangul; first, it read them, and Chinese and English still came through.
+    static let device: [String] = {
+        let supported = (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? []
+        return withLanguage(Locale.preferredLanguages.first ?? "en", supported: supported)
+    }()
+
+    static func withLanguage(_ preferred: String, supported: [String]) -> [String] {
+        func parts(_ id: String) -> (code: String?, script: String?) {
+            let full = Locale.Language(identifier: Locale.Language(identifier: id).maximalIdentifier)
+            return (full.languageCode?.identifier, full.script?.identifier)
+        }
+        let want = parts(preferred)
+        guard let hit = supported.first(where: { parts($0) == want }), !chinese.contains(where: { parts($0) == want })
+        else { return chinese }
+        return [hit] + chinese
+    }
+
+    /// The languages to read Spotlight's results for an app `name` with: named ones for ASCII and Chinese names
+    /// or on a device whose language Vision reads, else Vision's automatic pick (kana and other scripts).
+    static func languages(for name: String, device: [String] = device) -> [String]? {
+        name.unicodeScalars.allSatisfy(\.isASCII) || HanTyper.isHan(name) || device.count > chinese.count ? device : nil
+    }
+
+    /// `cells`: a word that is a run of Han characters is cut into the candidate-bar cells it spans (HanTyper.cells):
+    /// Vision reads the pinyin keyboard's tight candidate bar as one word ("北方北方人北房被杯背倍北").
+    static func lines(_ image: CGImage, languages: [String]? = chinese, whole: Bool = false,
+                      cells: Bool = false) async -> [(text: String, box: [Int])] {
         let w = Double(image.width), h = Double(image.height)
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
@@ -22,13 +54,25 @@ enum UITreeOCR {
                           !top.string.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
                     let text = top.string
                     let words = text.split(whereSeparator: \.isWhitespace)
-                    guard words.count > 1, languages != nil else { return [(text, pixels(o.boundingBox))] }  // whole lines for the language
-                    let boxes = words.map { word -> (text: String, box: [Int])? in
-                        guard let r = try? top.boundingBox(for: word.startIndex..<word.endIndex) else { return nil }
-                        return (String(word), pixels(r.boundingBox))
+                    guard words.count > 1 || cells, languages != nil, !whole else { return [(text, pixels(o.boundingBox))] }  // whole lines for the language
+                    var split: [(text: String, box: [Int])] = []
+                    for word in words {
+                        guard let r = try? top.boundingBox(for: word.startIndex..<word.endIndex) else { split = []; break }
+                        let box = pixels(r.boundingBox)
+                        if cells, HanTyper.isHan(String(word)) {
+                            let chars = word.indices.map { i -> HanTyper.Glyph in
+                                let b = (try? top.boundingBox(for: i..<word.index(after: i)))
+                                    .map { pixels($0.boundingBox) } ?? [0, 0, 0, 0]
+                                return HanTyper.Glyph(char: word[i], x0: b[0], x1: b[2], height: b[3] - b[1])
+                            }
+                            if let found = HanTyper.cells(chars) {
+                                split += found.map { ($0.text, [$0.x0, box[1], $0.x1, box[3]]) }
+                                continue
+                            }
+                        }
+                        split.append((String(word), box))
                     }
-                    let split = boxes.compactMap { $0 }
-                    return split.count == words.count ? split : [(text, pixels(o.boundingBox))]
+                    return split.isEmpty ? [(text, pixels(o.boundingBox))] : split
                 }
                 done.resume(returning: lines)
             }

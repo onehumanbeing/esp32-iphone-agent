@@ -8,7 +8,7 @@ extension AppModel {
         pendingClipboard = text
         clipboardWritten = false
         defer { pendingClipboard = nil }
-        let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "ESP32 Agent"
+        let name = AppName.current
         try await pointer.goHome()
         try await Task.sleep(for: .milliseconds(800))
         try await pointer.swipe(0.5, 0.35, 0.5, 0.6, hold: false)  // Spotlight from the middle of the Home Screen

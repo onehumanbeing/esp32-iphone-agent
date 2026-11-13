@@ -36,7 +36,7 @@ struct ListenSection: View {
 
     private var footer: Text {
         switch listen ? audio.state : nil {
-        case .denied?: return Text("Speech recognition is off for ESP32 Agent. Turn it on in Settings › ESP32 Agent.")
+        case .denied?: return Text("Speech recognition is off for \(AppName.current). Turn it on in Settings › \(AppName.current).")
         case .unavailable(let why)?: return Text(verbatim: why)  // already localized
         default: return Text("While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone.")
         }

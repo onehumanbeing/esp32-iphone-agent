@@ -19,7 +19,7 @@ enum { CLI_PAIR = 0x01, CLI_PAIRED = 0x81, CLI_HELLO = 0x02, CLI_WELCOME = 0x82,
 #define CLI_HDR_LEN 5          // type + ctr
 #define CLI_OVERHEAD (CLI_HDR_LEN + CLI_TAG_LEN)
 
-enum { BOARD_STATUS_CAP = 704 };  // Full status message including its null terminator.
+enum { BOARD_STATUS_CAP = 768 };  // Full status message including its null terminator.
 
 static inline size_t cli_ctrl_room(uint16_t mtu) {
   const size_t overhead = 3 + CLI_OVERHEAD + 1;  // ATT header, encrypted envelope and message type.

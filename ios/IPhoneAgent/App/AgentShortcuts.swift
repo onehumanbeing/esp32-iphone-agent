@@ -5,11 +5,11 @@ import SwiftUI
 /// background (the run itself happens on the Home Screen) and may start the Live Activity.
 struct RunTaskIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Run a Task"
-    static let description = IntentDescription("Asks ESP32 Agent to do a task on this phone, like \"Open Settings and go to Wi-Fi\".")
+    static let description = IntentDescription("Asks the agent to do a task on this phone, like \"Open Settings and go to Wi-Fi\".")
 
     @Parameter(title: "Task", requestValueDialog: "What should I do?") var task: String
 
-    static var parameterSummary: some ParameterSummary { Summary("Ask ESP32 Agent to \(\.$task)") }
+    static var parameterSummary: some ParameterSummary { Summary("Ask the agent to \(\.$task)") }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let line = await AgentRequests.handle?(.runTask(task)) ?? AgentRequests.unavailable
@@ -20,7 +20,7 @@ struct RunTaskIntent: LiveActivityIntent {
 /// Calibration catches taps on this app's own screen, so it opens the app.
 struct CalibrateIntent: AppIntent {
     static let title: LocalizedStringResource = "Calibrate the Pointer"
-    static let description = IntentDescription("Opens ESP32 Agent and calibrates the pointer.")
+    static let description = IntentDescription("Opens the app and calibrates the pointer.")
     static let openAppWhenRun = true
 
     @MainActor

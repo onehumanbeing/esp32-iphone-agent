@@ -120,7 +120,7 @@ extension BoardTransport {
         }
     }
 
-    /// 回执超时先降低视频负载，只有可重复执行的命令才重试。
+    /// Reduce video traffic on a reply timeout before retrying eligible commands.
     var onTimeout: ((String) async -> Void)?
 
     /// Send one command; returns the text after "ok" (e.g. bench's ms). Throws DeviceError on err/timeout.
@@ -131,10 +131,10 @@ extension BoardTransport {
         } catch let e as BoardTimeout {
             guard command != "ping", !command.hasPrefix("stream"), let onTimeout else { throw e }
             await onTimeout(command)
-            // 回执可能丢在执行后。仅重试能查询或设定同一状态的命令，避免重复操作手机。
+            // The board may already have acted. Retry only queries and commands that reapply the same state.
             let name = command.split(separator: " ", maxSplits: 1).first
             switch name {
-            case "home", "pace", "release", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
+            case "home", "pace", "release", "reset", "snap", "bench", "logs", "vdbg", "crash", "res", "fps", "txpower", "coex": break
             default: throw e
             }
             DebugLog.write("cmd retry after timeout: \(command.prefix(40))")
@@ -145,12 +145,16 @@ extension BoardTransport {
     /// A timeout is the board being slow (e.g. a snap while it also streams), not a lost link: it throws
     /// BoardTimeout and keeps the connection; only a real CoreBluetooth disconnect fails as link lost.
     @discardableResult
-    func send(_ command: String, timeout custom: Double?) async throws -> String {
+    func send(_ command: String, timeout custom: Double?, checking: () throws -> Void = {}) async throws -> String {
         guard connected, let transport else { throw DeviceError(message: "board not connected") }
         let timeout = custom ?? Self.timeout(command)
         let name = String(command.split(separator: " ").first ?? "")
         await lock.lock()
         defer { lock.unlock() }
+        // A cancelled gesture still needs to release held input and wait for the board's reply.
+        let releasesInput = command == "release" || command == "reset"
+        if !releasesInput { try Task.checkCancellation() }
+        try checking()
         let started = now()
         let id = nextID
         nextID += 1
@@ -170,6 +174,7 @@ extension BoardTransport {
                     }
                 }
             } onCancel: {
+                guard !releasesInput else { return }
                 Task { @MainActor [weak self] in self?.fail(id, CancellationError()) }
             }
         } catch is CancellationError {
@@ -227,11 +232,16 @@ extension BoardTransport {
             do {
                 // nudge only a phone that is awake and mirroring: there is nothing to keep awake otherwise
                 if now() - last > idle && screenLive() {
-                    try await send("move 1 0")
-                    try await send("move -1 0")
+                    for move in ["move 1 0", "move -1 0"] {
+                        try await send(move, timeout: nil) {
+                            guard screenLive() else { throw CancellationError() }
+                        }
+                    }
                 } else {
                     try await send("ping")
                 }
+            } catch is CancellationError {
+                continue
             } catch {
                 log("board gone: \(error.localizedDescription)")
             }

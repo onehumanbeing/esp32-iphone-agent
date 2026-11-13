@@ -12,13 +12,20 @@ import UIKit
     /// before every tap opened Control Center and the Screen Mirroring panel 4 times in one run (2026-11-06).
     /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
     static let rehomeEvery = 10
-    static let samplesVersion = 3  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently
+    static let samplesVersion = 4  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently; 4: video recalibration samples lacked the origin
     static let hold = 0.25                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
     static let aimTolerance = 0.008         // screen fraction; a bigger miss is corrected before pressing
     static let maxMiss = 0.06               // bigger misses are still corrected, but not learned from
     static let agree = 0.02                 // a far reading is taken again; both must agree this closely
+    static let sameSpot = 0.03              // a far reading this close to the last far one, for targets
+    static let apart = 0.1                  // this far apart, is something moving by itself, not the pointer
+    static let watch = 0.3                  // s the screen is watched before a nudge, for what moves by itself
+    static let flickSpeed = 40              // the home flick's speed per report: the firmware's top (`move dx dy speed`)
+    static let gentleFlickSpeed = 20        // Settings > Gentle Home swipe (default): half that, still a flick
+    static let gentleHomeKey = "gentleHomeSwipe"
+    static var gentleHome: Bool { UserDefaults.standard.object(forKey: gentleHomeKey) as? Bool ?? true }
 
     struct Span: Codable, Equatable {
         var w: Int, h: Int
@@ -46,8 +53,12 @@ import UIKit
     /// How far a move goes at a slower speed per report, relative to `speed`: (speed, ratio), measured at calibration.
     /// iOS accelerates the pointer by speed, so a short move or a correction (under one full report) falls short.
     private(set) var gain: [(Double, Double)] = []
+    var recalibration = Recalibration()  // a landing far off target calibrates again before the next tap
     private var pos: (Int, Int)?  // pointer position in mouse units; nil = unknown
     private var moves = 0
+    private var lastFar: (target: CGPoint, found: CGPoint)?  // the last reading far off its target (measureSure)
+    /// The last measure's wiggle, for a second reading from its move back (`reread`).
+    private var wiggle: (after: Data, back: Double, shift: Double, quiet: [CGRect])?
     private var link = 0  // device.links when the pointer was last homed
     /// where the pointer really landed (seen on screen) for the fraction we aimed at, per axis; a line fit
     /// through them corrects every later move, so taps get better as the agent works
@@ -57,7 +68,13 @@ import UIKit
     private(set) var pace = 1  // the board's move pacing ("pace") when calibrated; 1 = firmware before it answered
     /// The connected board's pacing; a calibration made under another one no longer fits (iOS accelerates by speed).
     @Published var boardPace: Int?
+    /// The board takes `flick` (firmware 0.2.5); nil until tried, reset by a new board connection.
+    var flickInOne: Bool?
     var log: (String) -> Void = { print($0) }
+    /// This app is in front (it must not be: open checks the app it opened is not this one).
+    var ownAppInFront: (() -> Bool)?
+    /// Puts text on the clipboard (ClipboardHop), for app names the board cannot type (AppOpener.paste).
+    var clipboard: ((String) async throws -> Bool)?
     /// The device screen's width / height (iPhone or iPad), stored with a calibration.
     var screenAspect: () -> Double = { 9 / 19.5 }
     /// Last-resort pointer finder on a frame (the vision model), when the pixel diff finds nothing.
@@ -133,14 +150,20 @@ import UIKit
             return false
         }
         span = s
-        (quality, aspect) = (nil, screenAspect())
+        // the corner the board homes to is not exactly (0, 0): fit that offset from the same two stops. Keeping an
+        // older one (a touch probe's 0.142) while the samples left it out made `fix` learn a -7% x shift: every tap
+        // landed left of its target after a mid-run recalibration (2026-11-11 Maps run).
+        let (u1, x1, y1) = found[0]
+        origin = CGPoint(x: x1 - Double(u1) / Double(s.w), y: y1 - Double(u1) / Double(s.h))
+        if abs(origin.x) > 0.2 || abs(origin.y) > 0.2 { origin = .zero }  // not a corner: fall back to none
+        (quality, aspect) = (nil, screenAspect())  // the speed gain (applySpeeds) still holds
         seen = ["x": [], "y": []]
-        for (units, x, y) in found {  // where each stop landed, so moves are corrected for the offset too
-            remember("x", (Double(units) / Double(s.w), x))
-            remember("y", (Double(units) / Double(s.h), y))
+        for (units, x, y) in found {  // where each stop landed, in the same terms as dx/dy aim
+            remember("x", (Double(units) / Double(s.w) + origin.x, x))
+            remember("y", (Double(units) / Double(s.h) + origin.y, y))
         }
         save()
-        log("calibration: span \(s.w) x \(s.h)")
+        log(String(format: "calibration: span %d x %d, offset %.3f / %.3f", s.w, s.h, origin.x, origin.y))
         return true
     }
 
@@ -255,6 +278,14 @@ import UIKit
         let fx = Double(found.x), fy = Double(found.y)
         learn(x, y, found)
         if abs(fx - x) <= Self.aimTolerance && abs(fy - y) <= Self.aimTolerance { return }
+        // A far reading is either the tracked position gone wrong or a wrong reading (two agreeing readings of a
+        // map's own marker): moving by the difference then threw the pointer to the screen's edge (2026-11-11, a
+        // +254 move from a reading at 0.46 x). From the corner again is right in both cases.
+        if max(abs(fx - x), abs(fy - y)) > Self.maxMiss {
+            pos = nil
+            try await moveTo(dx(x), dy(y))
+            return
+        }
         let mx = Int(((x - fx) * Double(span.w)).rounded(.toNearestOrEven)), my = Int(((y - fy) * Double(span.h)).rounded(.toNearestOrEven))
         let (sx, sy) = paced(mx, my)
         let previousPosition = pos
@@ -264,11 +295,18 @@ import UIKit
     }
 
     /// Learn from where a move to (x, y) really landed: normal drift only, never a stray reading.
-    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) {
-        guard max(abs(Double(found.x) - x), abs(Double(found.y) - y)) <= Self.maxMiss else { return }
+    /// True = re-home before the next gesture instead of calibrating again (Recalibration).
+    @discardableResult
+    private func learn(_ x: Double, _ y: Double, _ found: CGPoint) -> Bool {
+        // a reading past maxMiss comes back from measureSure only when a second reading agreed with it
+        let far = max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss
+        let rehome = recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels, confirmed: far)
+        if rehome { log("pointer: far landing seen twice; re-homing, calibrating again only if the next one is far too") }
+        guard !far else { return rehome }
         remember("x", (fix(x, "x"), Double(found.x)))
         remember("y", (fix(y, "y"), Double(found.y)))
         save()
+        return rehome
     }
 
     /// After a tap at (x, y) that changed nothing: where the pointer really is (pixels only, no model), learned
@@ -283,19 +321,46 @@ import UIKit
         return found
     }
 
+    /// Whether the pointer shows on screen at all: wiggled twice and looked for near `p`, then anywhere (TouchCheck).
+    /// nil = no live screen or calibration, or the board did not answer.
+    func pointerSeen(near p: CGPoint) async -> Bool? {
+        guard let screen, screen.live, span != nil else { return nil }
+        do {
+            for _ in 0..<2 { if try await measure(p.x, p.y, model: false) != nil { return true } }
+        } catch { return nil }
+        return false
+    }
+
     /// measure (pixels only), with a reading far from the target taken again: a word tile flying into Duolingo's
     /// answer row once read as the pointer 60% away (2026-11-06). nil when not found; when the two readings
     /// disagree the position is unknown too, so the next gesture starts from the corner.
     private func measureSure(_ x: Double, _ y: Double) async throws -> CGPoint? {
         func off(_ p: CGPoint, _ x: Double, _ y: Double) -> Double { max(abs(Double(p.x) - x), abs(Double(p.y) - y)) }
         guard let first = try await measure(x, y, model: false) else { return nil }
-        guard off(first, x, y) > Self.maxMiss else { return first }
-        guard let again = try await measure(x, y, model: false), off(again, Double(first.x), Double(first.y)) <= Self.agree else {
+        guard off(first, x, y) > Self.maxMiss else { lastFar = nil; return first }
+        // the second reading from the same wiggle's move back first, a whole new wiggle only if that shows nothing
+        // (2026-11-11: two wiggles took 2.5 s; the move back gives a reading from two other frames for ~0.4 s)
+        var reading = await reread(x, y)
+        if reading == nil { reading = try await measure(x, y, model: false) }
+        guard let again = reading, off(again, Double(first.x), Double(first.y)) <= Self.agree else {
             log(String(format: "pointer: far reading (%.3f, %.3f) not seen again; position unknown", first.x, first.y))
             pos = nil
             return nil
         }
+        defer { lastFar = (CGPoint(x: x, y: y), again) }
+        if let last = lastFar, Self.stuckReading(again, target: CGPoint(x: x, y: y), last: last) {
+            log(String(format: "pointer: far reading (%.3f, %.3f) stays put while targets move; not the pointer", again.x, again.y))
+            pos = nil
+            return nil
+        }
         return again
+    }
+
+    /// A far reading at the spot of the last far reading although the targets are far apart: the pointer went
+    /// elsewhere, so it is something that moves on screen by itself (e.g. a clock), not the pointer.
+    static func stuckReading(_ found: CGPoint, target: CGPoint, last: (target: CGPoint, found: CGPoint)) -> Bool {
+        func off(_ a: CGPoint, _ b: CGPoint) -> Double { max(abs(Double(a.x - b.x)), abs(Double(a.y - b.y))) }
+        return off(found, last.found) <= sameSpot && off(target, last.target) > apart
     }
 
     /// Wiggle the pointer and find it on screen, near the target first, then anywhere. model: ask the vision
@@ -304,7 +369,14 @@ import UIKit
         guard let screen, let span else { return nil }
         let nudge = x < 0.9 ? Self.nudge : -Self.nudge  // stay clear of the screen edge
         let started = now()
+        wiggle = nil
         await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
+        // what moves by itself (a clock, a spinner) in a short look before the nudge can't be the pointer. The time
+        // the settled screen has already shown no change counts toward that look (2026-11-11: the full 0.3 s on top
+        // of every settle; the frame is the same one throughout, so the look sees the same)
+        let base = screen.frame
+        let stillFor = now() - screen.changed
+        if stillFor < Self.watch { try? await Task.sleep(nanoseconds: UInt64((Self.watch - stillFor) * 1e9)) }
         let before = screen.frame, sent = now()
         // 任一微移可能已执行但丢失回执，往返均确认后才能恢复位置缓存。
         let previousPosition = pos
@@ -315,6 +387,7 @@ import UIKit
             await screen.settled(quiet: 0.1, least: 0.05, most: 0.4)
             after = screen.frame
         }
+        let back = now()
         try await device.send("move \(-nudge) 0")
         pos = previousPosition
         let shift = Double(nudge) / Double(span.w)
@@ -323,15 +396,36 @@ import UIKit
             return nil
         }
         let looked = now()
-        let p = await Vision.off {
-            Vision.pointer(before, after, near: CGPoint(x: x, y: y), shift: shift)
-                ?? Vision.pointer(before, after, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5))
+        let (p, quiet) = await Vision.off {
+            let quiet = Vision.motion(base, before)
+            return (Self.find(before, after, near: CGPoint(x: x, y: y), shift: shift, quiet: quiet), quiet)
         }
+        wiggle = (after, back, shift, quiet)
         // where a slow search spends its time (2026-11-07: taps took 9-26 s with seconds between commands)
         log(String(format: "pointer: measure %.1f s (settle %.1f, frames %.1f, search %.1f)%@", now() - started,
                    sent - started, looked - sent, now() - looked, p == nil ? ", not found" : ""))
         if let p { return p }
         return model ? await locate?(before) : nil
+    }
+
+    /// The pointer in `a`, moved by `shift` (fraction of width) in `b`: near the target, else anywhere.
+    nonisolated private static func find(_ a: Data, _ b: Data, near: CGPoint, shift: Double, quiet: [CGRect]) -> CGPoint? {
+        Vision.pointer(a, b, near: near, shift: shift, quiet: quiet)
+            ?? Vision.pointer(a, b, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
+    }
+
+    /// A second reading of where the last measure found the pointer, from its move back (the frame after the nudge
+    /// against one after the move back: two other frames, the pointer going the other way). Something that moved by
+    /// itself in the first pair rarely moves back the same way; the readings must still agree (measureSure).
+    private func reread(_ x: Double, _ y: Double) async -> CGPoint? {
+        guard let screen, let w = wiggle else { return nil }
+        wiggle = nil
+        guard await screen.fresh(since: w.back, timeout: 1.2) != nil else { return nil }
+        await screen.settled(quiet: 0.1, least: 0.05, most: 0.4)
+        guard let back = screen.frame else { return nil }
+        let p = await Vision.off { Self.find(w.after, back, near: CGPoint(x: x, y: y), shift: -w.shift, quiet: w.quiet) }
+        // found where it was after the nudge: where it was before it is one shift to the left
+        return p.map { CGPoint(x: $0.x - w.shift, y: $0.y) }
     }
 
     /// Calibration check without tapping: move to a known point and measure the miss (fraction of the screen).
@@ -395,6 +489,7 @@ import UIKit
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
     func tap(_ x: Double, _ y: Double, aim: Bool = false) async throws {
+        if recalibration.tap() { try await recalibrate() }
         try await point(x, y, aim: aim)
         try await device.send("click")
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
@@ -426,97 +521,38 @@ import UIKit
         try await device.send("scroll \(lines) 0")
     }
 
-    /// The board types printable ASCII only (one key per character). Chinese goes in as toneless pinyin, which
-    /// most Chinese apps' search boxes accept; other non-ASCII (emoji, accents) is folded or dropped. The clipboard
-    /// is no route: iOS refuses a background app's write (a Mac's Universal Clipboard text got pasted instead,
-    /// 2026-10-20) and other apps ask "Allow Paste" every time.
-    func type(_ text: String) async throws {
-        let ascii = Self.typeable(text)
-        if ascii != text { DebugLog.write("type: \(text.count) chars as ASCII \"\(ascii)\"") }
-        guard !ascii.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII only)") }
-        try await matchKeyboard(pinyin: ascii != text && text.unicodeScalars.contains { (0x3400...0x9fff).contains($0.value) })
-        _ = try await device.send("type \(ascii)")
-    }
-
-    /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
-    /// letters; models rarely notice (2026-11-03 runs). Read the keyboard off the screen and switch (ctrl+space).
-    private func matchKeyboard(pinyin: Bool) async throws {
-        guard let screen, screen.live else { return }
-        for _ in 0..<2 {
-            guard let frame = screen.frame else { return }
-            let layout = await KeyboardLayout.read(frame)
-            if layout == .none || (layout == .pinyin) == pinyin { return }
-            log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
-            let sent = now()
-            try await key("ctrl+space")
-            _ = await screen.fresh(since: sent, timeout: 1.5)
-            await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
-        }
-    }
-
-    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
-    static func typeable(_ text: String) -> String {
-        guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
-        var out = ""
-        for ch in text {
-            let s = String(ch)
-            let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
-            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
-                .applyingTransform(.stripDiacritics, reverse: false) ?? s
-            let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
-            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
-        }
-        return out.trimmingCharacters(in: .whitespaces)
-    }
-    /// Models write "delete" for the Mac's backspace key; the board knows it as "backspace" (2026-11-02 log).
-    func key(_ combo: String) async throws {
-        let keys = combo.split(separator: "+").map { $0 == "delete" ? "backspace" : String($0) }
-        try await device.send("key \(keys.joined(separator: "+"))")
-    }
-    /// The board's consumer-control Home key ("AC Home"), which iOS treats like a keyboard's home key. Boards
-    /// without it (older firmware) answer an error: then Cmd+H and the flick up from the home bar (a flick, not
-    /// a rest: resting opens the app switcher). An acknowledged key that left the screen as it was gets the flick
-    /// too: a contacts-sharing sheet and Calendar stayed through a dozen "homescreen → ok" (2026-11-03).
-    func goHome() async throws {
-        let before = screen?.live == true ? screen?.frame : nil
-        do {
-            try await device.send("homescreen")
-        } catch let error as DeviceError where error.message.hasPrefix("err ") {
-            // 开发板明确拒绝时可尝试旧固件的快捷键，回执超时则交给上层重新观察。
-            try await key("cmd+h")
-            try await Task.sleep(nanoseconds: 350_000_000)
-            return try await homeSwipe()
-        }
-        guard let screen, let before else { return }
-        await screen.settled(quiet: 0.3, least: 0.6, most: 2.0)
-        let after = screen.frame
-        if await Vision.off({ Vision.changed(before, after) }) { return }
-        log("home: the Home key left the screen unchanged; flicking up from the home bar")
-        try await homeSwipe()
-    }
-
-    /// Spotlight (cmd+space) with the app's name typed: tapping Home's Search pill with the pointer mostly did
-    /// nothing (2026-11-03: 20+ taps in one run). The model taps the app in the results: return opens the top
-    /// hit, which was a text message mentioning the app.
+    /// Spotlight (cmd+space) with the app's name typed, opened and read back by AppOpener: tapping Home's Search
+    /// pill with the pointer mostly did nothing (2026-11-03: 20+ taps in one run), and a tap on the results
+    /// that misses closes Spotlight.
     /// Only the Home key first, never goHome's flick: on the Home Screen the key changes nothing, and the flick
     /// then opened the App Switcher (2026-11-06). Spotlight opens from any app anyway.
-    /// The results show up a moment after the name: wait for them, or the model sees the screen from before
-    /// and sends home + open again (2026-11-06, Brain task #885).
-    func openApp(_ name: String) async throws {
+    /// The results show up a moment after the name: wait for them (2026-11-06, Brain task #885).
+    func openApp(_ name: String) async throws -> OpenResult {
         guard !name.isEmpty else { throw DeviceError(message: "open needs an app name") }
-        if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
-        try await Task.sleep(nanoseconds: 400_000_000)
-        try await key("cmd+space")
-        try await Task.sleep(nanoseconds: 700_000_000)
-        try await type(name)
-        await screen?.settled(quiet: 0.5, least: 1.0, most: 3.0)
+        let opener = AppOpener(home: { [self] in
+            if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+        }, key: { [self] in try await key($0) }, type: { [self] in _ = try await type($0) }, look: { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.5, least: 1.0, most: 3.0)
+            return screen.frame
+        }, read: { jpeg in
+            guard let image = Vision.image(jpeg) else { return [] }
+            // Chinese names need zh-Hans named (the automatic pick drops small ones), the device's language too
+            let languages = UITreeOCR.languages(for: name)
+            return await UITreeOCR.lines(image, languages: languages, whole: true).map(\.text)  // "App Store" stays one
+        }, ownAppInFront: { [weak self] in self?.ownAppInFront?() ?? false }, paste: nil,
+           searchButton: { [weak self] in try await self?.tapSearchButton() ?? false })  // no clipboard: pasting into Spotlight asks for permission, a box the board can rarely reach (Henry 2026-11-12)
+        let result = try await opener.open(name)
+        log("open \(name): \(result.rawValue)")
+        return result
     }
 
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
     func aimHomeBar() async throws { try await point(0.5, 0.995) }
 
     /// A real home-bar flick, independent of consumer-key and keyboard acknowledgements.
-    func homeSwipe() async throws {
+    /// `full`: the board's top speed even with the gentle setting (a second try after a flick that did not take).
+    func homeSwipe(full: Bool = false) async throws {
         defer { pos = nil }  // edge clamping or a cancelled stroke invalidates the tracked position
         try Task.checkCancellation()
         try await point(0.5, 0.995)
@@ -524,9 +560,24 @@ import UIKit
         // left it above the home bar on an iPhone 17 Pro Max (2026-11-02).
         guard let span else { return }
         try await device.send("move 0 \(span.h / 10)")
+        let speed = (boardPace ?? pace) >= 3 ? " \(Self.gentleHome && !full ? Self.gentleFlickSpeed : Self.flickSpeed)" : ""
+        // Firmware 0.2.5: press, move and release in one command. Three commands left a pause before the release,
+        // and iOS took the lingering stroke for "show the app switcher" (iddzz 2026-11-12).
+        if flickInOne != false {
+            do {
+                try await device.send("flick 0 \(-Int(Double(span.h) * 0.85))" + speed)
+                flickInOne = true
+                return
+            } catch let error as DeviceError where error.message.contains("unknown command") {
+                flickInOne = false  // older firmware: the three-command stroke below
+            }
+        }
         do {
             try await device.send("press")
-            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))")  // to the middle only (0.45) left the app card half-way (2026-10-19)
+            // to the middle only (0.45) left the app card half-way (2026-10-19). At the board's top speed per report
+            // (40, firmware pace 3): at the default 10 the stroke took 1.2 s (2026-11-11); a flick is fast anyway
+            // 2026-11-11 Henry: the top-speed flick at a run's start is too abrupt; gentle by default
+            try await device.send("move 0 \(-Int(Double(span.h) * 0.85))" + speed)
         } catch {
             _ = try? await device.send("release")
             throw error

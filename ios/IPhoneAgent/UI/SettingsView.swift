@@ -7,13 +7,14 @@ struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var board: BoardLink
     @AppStorage(AskMode.key) private var askMode = AskMode.current
+    @AppStorage(Pointer.gentleHomeKey) private var gentleHome = true
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     NavigationLink { ModelSettingsView(app: app, settings: settings) } label: {
-                        row("Model", "brain", .pink, value: app.modelReady ? (MockMode.on ? "Demo" : settings.currentModel ?? String(localized: "Auto")) : nil)
+                        row("Model", "brain", .pink, value: app.modelReady ? modelName : nil)
                     }
                     NavigationLink { BoardSettingsView(app: app, board: board) } label: {
                         row("Board", "cable.connector", .blue,
@@ -29,7 +30,7 @@ struct SettingsView: View {
                     }
                     .tint(.primary)
                 } footer: {
-                    Text("ESP32 Agent follows your iPhone's language. To change it just for this app, open Settings › ESP32 Agent › Language.")
+                    Text("\(AppName.current) follows your iPhone's language. To change it just for this app, open Settings › \(AppName.current) › Language.")
                 }
                 Section {
                     Button { UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!) } label: {
@@ -43,6 +44,15 @@ struct SettingsView: View {
                     NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
                         row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
                     }
+                    Button { CallGuide.shared.pending = CallGuide.Pending(task: nil, intent: nil) } label: {
+                        HStack {
+                            SettingsLabel(title: "Phone Calls", symbol: "phone.fill", color: .green)
+                            BetaBadge()
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .tint(.primary)
                     Picker(selection: $askMode) {
                         ForEach(AskMode.allCases) { Text($0.title).tag($0) }
                     } label: {
@@ -52,6 +62,19 @@ struct SettingsView: View {
                     Text("Runs")
                 } footer: {
                     Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
+                }
+                Section {
+                    Toggle(isOn: $settings.restoreKeyboardAfterRun) {
+                        SettingsLabel(title: "Restore on-screen keyboard after runs", symbol: "keyboard", color: .blue)
+                    }
+                    Toggle(isOn: $gentleHome) {
+                        SettingsLabel(title: "Gentle Home swipe", symbol: "arrow.up.to.line", color: .gray)
+                    }
+                    Toggle(isOn: $settings.learnFromRuns) {
+                        SettingsLabel(title: "Intents learn from runs", symbol: "wand.and.stars", color: .indigo)
+                    }
+                } footer: {
+                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it.")
                 }
                 ListenSection(app: app, audio: app.audio)
                 Section {
@@ -79,6 +102,15 @@ struct SettingsView: View {
         }
     }
 
+    /// What the user picked, never the free line's internal model id (handsy-qwen).
+    private var modelName: String {
+        if MockMode.on { return "Demo" }
+        if settings.provider == .handsyTrial {
+            return Trial.shared.keyed ? String(localized: "Handsy Plan") : ModelProvider.handsyTrial.title
+        }
+        return settings.currentModel ?? String(localized: "Auto")
+    }
+
     private func row(_ title: LocalizedStringKey, _ symbol: String, _ color: Color, value: String?) -> some View {
         HStack {
             SettingsLabel(title: title, symbol: symbol, color: color)
@@ -88,13 +120,18 @@ struct SettingsView: View {
     }
 }
 
-/// Settings › Developer: demo data, and checks that need no other app (the phone audio round trip).
+/// Settings › Developer: demo data, the remote debug log, and checks that need no other app (the phone audio round trip).
 struct DeveloperView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(MockMode.key) private var demoData = false
+    @AppStorage(TreeSource.key) private var treeSource = TreeSource.fallback.rawValue
     @State private var language = "ja-JP"
     @State private var testing = false
+    @State private var callNumber = ""
+    @State private var callLine = "Hello, this is a call test. Can you hear me?"
+    @AppStorage("callTestCaptions") private var captionsAt = "707 820"  // Control Center spots, 0-1000; empty = by name
+    @AppStorage("callTestSpeech") private var speechAt = "290 820"
 
     var body: some View {
         List {
@@ -103,6 +140,34 @@ struct DeveloperView: View {
             } footer: {
                 Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
             }
+            #if DEBUG
+            Section {
+                Picker(selection: $treeSource) {
+                    Text(verbatim: "Server (Spark)").tag(TreeSource.server.rawValue)
+                    Text(verbatim: "On-device").tag(TreeSource.device.rawValue)
+                } label: { Text(verbatim: "Tree source") }
+            } footer: {
+                Text(verbatim: "Free line: where the screen tree for the actor is built. Takes effect on the next run.")
+            }
+            Section {
+                TextField(text: $callNumber) { Text(verbatim: "Number to call") }.keyboardType(.phonePad)
+                TextField(text: $callLine) { Text(verbatim: "Line to say") }
+                TextField(text: $captionsAt) { Text(verbatim: "Live Captions at (x y, empty = by name)") }
+                TextField(text: $speechAt) { Text(verbatim: "Live Speech at (x y, empty = by name)") }
+                Button {
+                    let test = Calls.test(number: callNumber, line: callLine, captions: spot(captionsAt), speech: spot(speechAt))
+                    Task { await app.run(test.prompt, intent: test) }
+                } label: {
+                    Text(verbatim: "Run call test")
+                }
+                .disabled(callNumber.filter(\.isNumber).count < 3 || callLine.isEmpty)
+            } header: {
+                Text(verbatim: "Call test")
+            } footer: {
+                Text(verbatim: "Debug builds only. Before: Live Speech and Live Captions on (Settings › Accessibility), Live Speech in Control Center, Listen to phone audio on. Steps: dial, you answer on the other phone, open Live Speech, say the line, you reply, read the reply, hang up. Each step is in the run's trace.")
+            }
+            #endif
+            RemoteLogSection()
             Section {
                 Picker("Phrase", selection: $language) {
                     ForEach(AudioTest.phrases.keys.sorted(), id: \.self) { Text(verbatim: SpeechLanguages.name($0)).tag($0) }
@@ -130,6 +195,12 @@ struct DeveloperView: View {
         }
         .navigationTitle("Developer")
     }
+
+    /// "809 606" → a 0-1000 spot; anything else → nil (found by name).
+    private func spot(_ text: String) -> (x: Int, y: Int)? {
+        let n = text.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Int($0) }
+        return n.count == 2 ? (n[0], n[1]) : nil
+    }
 }
 
 /// Settings › Model: base URL and key (placeholders only), Test Connection, and an Advanced disclosure with
@@ -144,7 +215,7 @@ struct BoardSettingsView: View {
                 HStack(spacing: Space.l) {
                     AgentFace(mood: board.connected ? .idle : .sleeping).frame(width: 52, height: 58)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: board.name.isEmpty ? "ESP32 Agent" : board.name).font(.headline)
+                        Text(verbatim: board.name.isEmpty ? BoardName.current : board.name).font(.headline)
                         Text(board.connected ? "Connected" : board.pairedID != nil ? "Connecting…" : "Not paired")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
@@ -201,7 +272,7 @@ struct BoardSettingsView: View {
                     Button("Unpair Board", role: .destructive) { Task { await board.unpair() } }
                     Button("Forget in This App", role: .destructive) { board.forget() }
                 } footer: {
-                    Text("Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"ESP32 Agent\" in Settings › Bluetooth and choose Forget This Device.")
+                    Text("Unpair erases the bonds on the board. iOS keeps its own: also tap (i) next to \"\(BoardName.current)\" in Settings › Bluetooth and choose Forget This Device.")
                 }
             }
         }

@@ -1,9 +1,7 @@
+import Accelerate
 import CoreGraphics
 import Foundation
 
-/// The classic-CV half of the virtual UI tree, in plain Swift (no OpenCV on the phone): the same steps and
-/// constants as handsy-trial-gateway `handsy_trial/tree.py` (edge_map, blobs, filled_rects, classify).
-/// Images are 8-bit, row-major; boxes are pixels [x1, y1, x2, y2) like OpenCV's x + w.
 struct Raster {
     let w: Int, h: Int
     var px: [UInt8]  // RGB, 3 bytes per pixel
@@ -22,298 +20,278 @@ struct Raster {
         }
         guard drawn, w > 0, h > 0 else { return nil }
         var rgb = [UInt8](repeating: 0, count: w * h * 3)
-        for i in 0..<(w * h) {
-            rgb[i * 3] = rgba[i * 4]
-            rgb[i * 3 + 1] = rgba[i * 4 + 1]
-            rgb[i * 3 + 2] = rgba[i * 4 + 2]
+        rgba.withUnsafeMutableBytes { s in
+            rgb.withUnsafeMutableBytes { d in
+                var src = vImage_Buffer(data: s.baseAddress, height: vImagePixelCount(h), width: vImagePixelCount(w), rowBytes: w * 4)
+                var dst = vImage_Buffer(data: d.baseAddress, height: vImagePixelCount(h), width: vImagePixelCount(w), rowBytes: w * 3)
+                _ = vImageConvert_RGBA8888toRGB888(&src, &dst, vImage_Flags(kvImageNoFlags))
+            }
         }
         px = rgb
     }
 }
 
-/// A binary or gray plane.
 struct Plane {
     let w: Int, h: Int
     var v: [UInt8]
     init(w: Int, h: Int, fill: UInt8 = 0) { self.w = w; self.h = h; v = [UInt8](repeating: fill, count: w * h) }
 }
 
-enum UITreeCV {
-    // MARK: edges
+/// Raw pointers handed to concurrent row bands; every band writes only its own rows.
+struct Ptr<T>: @unchecked Sendable {
+    let p: UnsafeMutablePointer<T>
+    init(_ b: UnsafeMutableBufferPointer<T>) { p = b.baseAddress! }
+    init(_ b: UnsafeBufferPointer<T>) { p = UnsafeMutablePointer(mutating: b.baseAddress!) }
+}
 
-    /// Color-aware edges: max Canny(30, 90) over the Lab channels of the 3x3-blurred image.
-    static func edgeMap(_ img: Raster) -> Plane {
-        let blurred = blur3(img)
-        let lab = labPlanes(blurred, w: img.w, h: img.h)
-        var out = Plane(w: img.w, h: img.h)
-        for channel in lab {
-            let e = canny(channel, low: 30, high: 90)
-            for i in 0..<out.v.count where e.v[i] != 0 { out.v[i] = 255 }
-        }
-        return out
+enum UITreeCV {
+
+    /// Runs body(y0, y1) over row bands of 0..<h concurrently.
+    static func bands(_ h: Int, _ body: (Int, Int) -> Void) {
+        let n = min(h, 16)
+        DispatchQueue.concurrentPerform(iterations: n) { i in body(h * i / n, h * (i + 1) / n) }
     }
 
-    /// GaussianBlur((3, 3), 0): [1 2 1] / 4 both ways, BORDER_REFLECT_101.
+    static func edgeMap(_ img: Raster) -> Plane {
+        cannyAny(labPlanes(blur3(img), w: img.w, h: img.h), low: 30, high: 90)
+    }
+
+    static func reflect(_ i: Int, _ n: Int) -> Int { n == 1 ? 0 : i < 0 ? -i : i >= n ? 2 * n - 2 - i : i }
+
+    /// 3x3 [1 2 1] Gaussian, OpenCV's reflect-101 border and rounding.
     static func blur3(_ img: Raster) -> [UInt8] {
-        let w = img.w, h = img.h
-        func reflect(_ i: Int, _ n: Int) -> Int { n == 1 ? 0 : i < 0 ? -i : i >= n ? 2 * n - 2 - i : i }
-        var rows = [Int](repeating: 0, count: w * h * 3)
-        for y in 0..<h {
-            for x in 0..<w {
-                let l = (y * w + reflect(x - 1, w)) * 3, c = (y * w + x) * 3, r = (y * w + reflect(x + 1, w)) * 3
-                for k in 0..<3 { rows[c + k] = Int(img.px[l + k]) + 2 * Int(img.px[c + k]) + Int(img.px[r + k]) }
-            }
-        }
+        let w = img.w, h = img.h, rowLen = w * 3
+        var rows = [UInt16](repeating: 0, count: w * h * 3)
         var out = [UInt8](repeating: 0, count: w * h * 3)
-        for y in 0..<h {
-            let up = reflect(y - 1, h) * w, mid = y * w, down = reflect(y + 1, h) * w
-            for x in 0..<w {
-                for k in 0..<3 {
-                    let s = rows[(up + x) * 3 + k] + 2 * rows[(mid + x) * 3 + k] + rows[(down + x) * 3 + k]
-                    out[(mid + x) * 3 + k] = UInt8((s + 8) >> 4)
+        let l0 = reflect(-1, w) * 3, rEnd = reflect(w, w) * 3, last = (w - 1) * 3
+        img.px.withUnsafeBufferPointer { s in
+            rows.withUnsafeMutableBufferPointer { r in
+                out.withUnsafeMutableBufferPointer { o in
+                    let s = Ptr(s), r = Ptr(r), o = Ptr(o)
+                    bands(h) { y0, y1 in
+                        for y in y0..<y1 {
+                            let a = s.p + y * rowLen, d = r.p + y * rowLen
+                            for k in 0..<3 {
+                                d[k] = UInt16(a[l0 + k]) &+ 2 &* UInt16(a[k]) &+ UInt16(a[(w == 1 ? 0 : 3) + k])
+                                if w > 1 {
+                                    d[last + k] = UInt16(a[last - 3 + k]) &+ 2 &* UInt16(a[last + k]) &+ UInt16(a[rEnd + k])
+                                }
+                            }
+                            if w > 2 {
+                                for i in 3..<last { d[i] = UInt16(a[i - 3]) &+ 2 &* UInt16(a[i]) &+ UInt16(a[i + 3]) }
+                            }
+                        }
+                    }
+                    bands(h) { y0, y1 in
+                        for y in y0..<y1 {
+                            let up = r.p + reflect(y - 1, h) * rowLen, mid = r.p + y * rowLen
+                            let down = r.p + reflect(y + 1, h) * rowLen, d = o.p + y * rowLen
+                            for i in 0..<rowLen { d[i] = UInt8(truncatingIfNeeded: (up[i] &+ 2 &* mid[i] &+ down[i] &+ 8) >> 4) }
+                        }
+                    }
                 }
             }
         }
         return out
     }
 
-    /// cvtColor(BGR2LAB) for 8-bit images, OpenCV's fixed-point path (RGB2Lab_b: sRGB gamma table, cube-root
-    /// table, 12/15-bit shifts), so the planes match cv2 to the bit: L * 255 / 100, a + 128, b + 128 (D65).
-    static func labPlanes(_ rgb: [UInt8], w: Int, h: Int) -> [Plane] {
-        let gammaShift = 3, labShift = 12, labShift2 = 15
-        let gamma: [Int] = (0..<256).map { i in
-            let x = Float(i) * (1 / 255)
-            let v = x <= 0.04045 ? x * (1 / 12.92) : Float(pow((Double(x) + 0.055) * (1 / 1.055), 2.4))
-            return Int((255 * Float(1 << gammaShift) * v).rounded())
-        }
-        let cbrtTab: [Int] = (0..<(256 * 3 / 2 * (1 << gammaShift))).map { i in
-            let x = Float(i) * (1 / (255 * Float(1 << gammaShift)))
-            return Int((Float(1 << labShift2) * (x < 0.008856 ? x * 7.787 + 0.13793103448275862 : cbrtf(x))).rounded())
-        }
+    private static let gammaShift = 3, labShift = 12, labShift2 = 15
+    private static let gammaTab: [Int] = (0..<256).map { i in
+        let x = Float(i) * (1 / 255)
+        let v = x <= 0.04045 ? x * (1 / 12.92) : Float(pow((Double(x) + 0.055) * (1 / 1.055), 2.4))
+        return Int((255 * Float(1 << gammaShift) * v).rounded())
+    }
+    private static let cbrtTab: [Int] = (0..<(256 * 3 / 2 * (1 << gammaShift))).map { i in
+        let x = Float(i) * (1 / (255 * Float(1 << gammaShift)))
+        return Int((Float(1 << labShift2) * (x < 0.008856 ? x * 7.787 + 0.13793103448275862 : cbrtf(x))).rounded())
+    }
+    private static let labCoeffs: [Int] = {
         let m: [Double] = [0.412453, 0.357580, 0.180423, 0.212671, 0.715160, 0.072169, 0.019334, 0.119193, 0.950227]
         let white: [Double] = [0.950456, 1, 1.088754]
-        let c = (0..<9).map { Int((m[$0] * Double(1 << labShift) / white[$0 / 3]).rounded()) }
-        func descale(_ x: Int, _ n: Int) -> Int { (x + (1 << (n - 1))) >> n }
-        let lScale = (116 * 255 + 50) / 100, lShift = -((16 * 255 * (1 << labShift2) + 50) / 100)
-        let clamp = { (v: Int) in UInt8(max(0, min(255, v))) }
-        var planes = [Plane(w: w, h: h), Plane(w: w, h: h), Plane(w: w, h: h)]
-        for i in 0..<(w * h) {
-            let r = gamma[Int(rgb[i * 3])], g = gamma[Int(rgb[i * 3 + 1])], b = gamma[Int(rgb[i * 3 + 2])]
-            let fx = cbrtTab[descale(r * c[0] + g * c[1] + b * c[2], labShift)]
-            let fy = cbrtTab[descale(r * c[3] + g * c[4] + b * c[5], labShift)]
-            let fz = cbrtTab[descale(r * c[6] + g * c[7] + b * c[8], labShift)]
-            planes[0].v[i] = clamp(descale(lScale * fy + lShift, labShift2))
-            planes[1].v[i] = clamp(descale(500 * (fx - fy) + 128 * (1 << labShift2), labShift2))
-            planes[2].v[i] = clamp(descale(200 * (fy - fz) + 128 * (1 << labShift2), labShift2))
-        }
-        return planes
-    }
+        return (0..<9).map { Int((m[$0] * Double(1 << labShift) / white[$0 / 3]).rounded()) }
+    }()
 
-    /// cv2.Canny(img, low, high): 3x3 Sobel (BORDER_REPLICATE), L1 magnitude, OpenCV's non-maximum
-    /// suppression (TG22 fixed point, > / >= tie rules) and 8-connected hysteresis.
-    static func canny(_ src: Plane, low: Int, high: Int) -> Plane {
-        let w = src.w, h = src.h
-        func at(_ x: Int, _ y: Int) -> Int { Int(src.v[min(max(y, 0), h - 1) * w + min(max(x, 0), w - 1)]) }
-        var dx = [Int](repeating: 0, count: w * h), dy = dx, mag = [Int](repeating: 0, count: (w + 2) * (h + 2))
-        for y in 0..<h {
-            for x in 0..<w {
-                let gx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1))
-                let gy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1))
-                dx[y * w + x] = gx
-                dy[y * w + x] = gy
-                mag[(y + 1) * (w + 2) + x + 1] = abs(gx) + abs(gy)  // zero border, as OpenCV pads mag
+    /// OpenCV's 8-bit RGB -> Lab (integer path), one plane per channel.
+    static func labPlanes(_ rgb: [UInt8], w: Int, h: Int) -> [Plane] {
+        let c = labCoeffs, ls = labShift, ls2 = labShift2
+        let lScale = (116 * 255 + 50) / 100, lShift = -((16 * 255 * (1 << ls2) + 50) / 100)
+        let half = 1 << (ls - 1), half2 = 1 << (ls2 - 1), ab = 128 * (1 << ls2)
+        var planes = [UInt8](repeating: 0, count: w * h * 3)
+        rgb.withUnsafeBufferPointer { s in
+            planes.withUnsafeMutableBufferPointer { o in
+                gammaTab.withUnsafeBufferPointer { g in
+                    cbrtTab.withUnsafeBufferPointer { t in
+                        let s = Ptr(s), o = Ptr(o), g = Ptr(g), t = Ptr(t), n = w * h
+                        bands(h) { y0, y1 in
+                            for i in (y0 * w)..<(y1 * w) {
+                                let r = g.p[Int(s.p[i * 3])], gr = g.p[Int(s.p[i * 3 + 1])], b = g.p[Int(s.p[i * 3 + 2])]
+                                let fx = t.p[(r * c[0] + gr * c[1] + b * c[2] + half) >> ls]
+                                let fy = t.p[(r * c[3] + gr * c[4] + b * c[5] + half) >> ls]
+                                let fz = t.p[(r * c[6] + gr * c[7] + b * c[8] + half) >> ls]
+                                o.p[i] = clamp8((lScale * fy + lShift + half2) >> ls2)
+                                o.p[n + i] = clamp8((500 * (fx - fy) + ab + half2) >> ls2)
+                                o.p[2 * n + i] = clamp8((200 * (fy - fz) + ab + half2) >> ls2)
+                            }
+                        }
+                    }
+                }
             }
         }
-        let tg22 = 13573  // tan(22.5°) << 15
-        // 0: not an edge, 1: weak, 2: strong
-        var map = [UInt8](repeating: 0, count: w * h)
-        var stack: [Int] = []
-        for y in 0..<h {
+        return (0..<3).map { k in
+            var p = Plane(w: w, h: h)
+            p.v = Array(planes[(k * w * h)..<((k + 1) * w * h)])
+            return p
+        }
+    }
+
+    @inline(__always) static func clamp8(_ v: Int) -> UInt8 { UInt8(truncatingIfNeeded: max(0, min(255, v))) }
+
+    static func canny(_ src: Plane, low: Int, high: Int) -> Plane { cannyAny([src], low: low, high: high) }
+
+    /// OpenCV-style Canny (L1 gradient, replicated border for Sobel) of each plane, OR-ed into one 0/255 map.
+    static func cannyAny(_ planes: [Plane], low: Int, high: Int) -> Plane {
+        let w = planes[0].w, h = planes[0].h, n = w * h, pw = w + 2, pn = pw * (h + 2), c = planes.count
+        var src = [UInt8](), dx = [Int16](repeating: 0, count: c * n), dy = dx
+        src.reserveCapacity(c * n)
+        for p in planes { src.append(contentsOf: p.v) }
+        var mag = [Int32](repeating: 0, count: c * pn), map = [UInt8](repeating: 0, count: c * n)
+        let nb = min(h, 16)
+        var strong = [[Int32]](repeating: [], count: nb * c)
+        var out = Plane(w: w, h: h)
+        src.withUnsafeBufferPointer { sb in
+            dx.withUnsafeMutableBufferPointer { dxb in
+                dy.withUnsafeMutableBufferPointer { dyb in
+                    mag.withUnsafeMutableBufferPointer { mb in
+                        map.withUnsafeMutableBufferPointer { mapb in
+                            strong.withUnsafeMutableBufferPointer { stb in
+                                out.v.withUnsafeMutableBufferPointer { ob in
+                                    let s = Ptr(sb), gx = Ptr(dxb), gy = Ptr(dyb), m = Ptr(mb), mp = Ptr(mapb), st = Ptr(stb), o = Ptr(ob)
+                                    DispatchQueue.concurrentPerform(iterations: nb) { band in  // Sobel
+                                        for k in 0..<c {
+                                            sobel(s.p + k * n, gx.p + k * n, gy.p + k * n, m.p + k * pn, w, h, h * band / nb, h * (band + 1) / nb)
+                                        }
+                                    }
+                                    DispatchQueue.concurrentPerform(iterations: nb) { band in  // non-maximum suppression
+                                        for k in 0..<c {
+                                            st.p[band * c + k] = suppress(gx.p + k * n, gy.p + k * n, m.p + k * pn, mp.p + k * n, w,
+                                                                        h * band / nb, h * (band + 1) / nb, low, high)
+                                        }
+                                    }
+                                    DispatchQueue.concurrentPerform(iterations: c) { k in  // hysteresis
+                                        var stack = (0..<nb).flatMap { st.p[$0 * c + k] }
+                                        let map = mp.p + k * n
+                                        while let i32 = stack.popLast() {
+                                            let i = Int(i32), x = i % w, y = i / w
+                                            for ny in max(0, y - 1)...min(h - 1, y + 1) {
+                                                for nx in max(0, x - 1)...min(w - 1, x + 1) where map[ny * w + nx] == 1 {
+                                                    map[ny * w + nx] = 2
+                                                    stack.append(Int32(ny * w + nx))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    bands(h) { y0, y1 in
+                                        for i in (y0 * w)..<(y1 * w) {
+                                            var e = false
+                                            for k in 0..<c where mp.p[k * n + i] == 2 { e = true }
+                                            if e { o.p[i] = 255 }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    private static func sobel(_ s: UnsafeMutablePointer<UInt8>, _ dx: UnsafeMutablePointer<Int16>, _ dy: UnsafeMutablePointer<Int16>,
+                              _ mag: UnsafeMutablePointer<Int32>, _ w: Int, _ h: Int, _ y0: Int, _ y1: Int) {
+        for y in y0..<y1 {
+            let a = s + max(y - 1, 0) * w, b = s + y * w, d = s + min(y + 1, h - 1) * w
+            let mrow = mag + (y + 1) * (w + 2) + 1
             for x in 0..<w {
-                let m = mag[(y + 1) * (w + 2) + x + 1]
+                let xm = max(x - 1, 0), xp = min(x + 1, w - 1)
+                let gx = (Int(a[xp]) + 2 * Int(b[xp]) + Int(d[xp])) - (Int(a[xm]) + 2 * Int(b[xm]) + Int(d[xm]))
+                let gy = (Int(d[xm]) + 2 * Int(d[x]) + Int(d[xp])) - (Int(a[xm]) + 2 * Int(a[x]) + Int(a[xp]))
+                dx[y * w + x] = Int16(truncatingIfNeeded: gx)
+                dy[y * w + x] = Int16(truncatingIfNeeded: gy)
+                mrow[x] = Int32(truncatingIfNeeded: abs(gx) + abs(gy))  // zero border, as OpenCV pads mag
+            }
+        }
+    }
+
+    /// Marks rows y0..<y1: 2 strong, 1 weak edge; returns the strong pixels.
+    private static func suppress(_ dx: UnsafeMutablePointer<Int16>, _ dy: UnsafeMutablePointer<Int16>, _ mag: UnsafeMutablePointer<Int32>,
+                                 _ map: UnsafeMutablePointer<UInt8>, _ w: Int, _ y0: Int, _ y1: Int, _ low: Int, _ high: Int) -> [Int32] {
+        let tg22 = 13573  // tan(22.5°) << 15
+        var strong: [Int32] = []
+        for y in y0..<y1 {
+            for x in 0..<w {
+                let row = (y + 1) * (w + 2) + x + 1, m = Int(mag[row])
                 guard m > low else { continue }
-                let xs = dx[y * w + x], ys = dy[y * w + x]
+                let xs = Int(dx[y * w + x]), ys = Int(dy[y * w + x])
                 let ax = abs(xs), ay = abs(ys) << 15, tg22x = ax * tg22
-                let row = (y + 1) * (w + 2) + x + 1, up = row - (w + 2), down = row + (w + 2)
+                let up = row - (w + 2), down = row + (w + 2)
                 let keep: Bool
                 if ay < tg22x {
-                    keep = m > mag[row - 1] && m >= mag[row + 1]
+                    keep = m > Int(mag[row - 1]) && m >= Int(mag[row + 1])
                 } else if ay > tg22x + (ax << 16) {
-                    keep = m > mag[up] && m >= mag[down]
+                    keep = m > Int(mag[up]) && m >= Int(mag[down])
                 } else {
                     let s = (xs ^ ys) < 0 ? -1 : 1
-                    keep = m > mag[up - s] && m > mag[down + s]
+                    keep = m > Int(mag[up - s]) && m > Int(mag[down + s])
                 }
                 guard keep else { continue }
                 if m > high {
                     map[y * w + x] = 2
-                    stack.append(y * w + x)
+                    strong.append(Int32(y * w + x))
                 } else {
                     map[y * w + x] = 1
                 }
             }
         }
-        while let i = stack.popLast() {
-            let x = i % w, y = i / w
-            for ny in max(0, y - 1)...min(h - 1, y + 1) {
-                for nx in max(0, x - 1)...min(w - 1, x + 1) where map[ny * w + nx] == 1 {
-                    map[ny * w + nx] = 2
-                    stack.append(ny * w + nx)
-                }
-            }
-        }
-        var out = Plane(w: w, h: h)
-        for i in 0..<map.count where map[i] == 2 { out.v[i] = 255 }
-        return out
+        return strong
     }
-
-    // MARK: morphology (square kernels; outside the image never adds (dilate) or removes (erode))
 
     static func dilate(_ p: Plane, _ k: Int) -> Plane { morph(p, k, max: true) }
     static func erode(_ p: Plane, _ k: Int) -> Plane { morph(p, k, max: false) }
     static func close(_ p: Plane, _ k: Int) -> Plane { erode(dilate(p, k), k) }
 
+    /// Square max / min filter over the pixels inside the image (vImage clips the kernel at the edges).
     private static func morph(_ p: Plane, _ k: Int, max isMax: Bool) -> Plane {
-        let r = k / 2, w = p.w, h = p.h
-        var tmp = Plane(w: w, h: h), out = Plane(w: w, h: h)
-        let hit: UInt8 = isMax ? 255 : 0
-        for y in 0..<h {  // separable: a square kernel is a row pass then a column pass
-            for x in 0..<w {
-                var v = isMax ? UInt8(0) : UInt8(255)
-                for nx in Swift.max(0, x - r)...Swift.min(w - 1, x + r) where p.v[y * w + nx] == hit { v = hit; break }
-                tmp.v[y * w + x] = v
-            }
-        }
-        for y in 0..<h {
-            for x in 0..<w {
-                var v = isMax ? UInt8(0) : UInt8(255)
-                for ny in Swift.max(0, y - r)...Swift.min(h - 1, y + r) where tmp.v[ny * w + x] == hit { v = hit; break }
-                out.v[y * w + x] = v
+        var out = Plane(w: p.w, h: p.h)
+        p.v.withUnsafeBytes { s in
+            out.v.withUnsafeMutableBytes { d in
+                var src = vImage_Buffer(data: UnsafeMutableRawPointer(mutating: s.baseAddress), height: vImagePixelCount(p.h),
+                                        width: vImagePixelCount(p.w), rowBytes: p.w)
+                var dst = vImage_Buffer(data: d.baseAddress, height: vImagePixelCount(p.h), width: vImagePixelCount(p.w), rowBytes: p.w)
+                let n = vImagePixelCount(k), flags = vImage_Flags(kvImageNoFlags)
+                _ = isMax ? vImageMax_Planar8(&src, &dst, nil, 0, 0, n, n, flags) : vImageMin_Planar8(&src, &dst, nil, 0, 0, n, n, flags)
             }
         }
         return out
     }
 
-    // MARK: regions
-
-    /// connectedComponentsWithStats(connectivity=8) without the background: boxes in label order (raster scan).
-    static func components(_ p: Plane) -> [[Int]] {
-        let w = p.w, h = p.h
-        var seen = [Bool](repeating: false, count: w * h)
-        var out: [[Int]] = []
-        var stack: [Int] = []
-        for start in 0..<(w * h) where p.v[start] != 0 && !seen[start] {
-            var box = [start % w, start / w, start % w, start / w]
-            seen[start] = true
-            stack.append(start)
-            while let i = stack.popLast() {
-                let x = i % w, y = i / w
-                box = [min(box[0], x), min(box[1], y), max(box[2], x), max(box[3], y)]
-                for ny in max(0, y - 1)...min(h - 1, y + 1) {
-                    for nx in max(0, x - 1)...min(w - 1, x + 1) where p.v[ny * w + nx] != 0 && !seen[ny * w + nx] {
-                        seen[ny * w + nx] = true
-                        stack.append(ny * w + nx)
-                    }
-                }
-            }
-            out.append([box[0], box[1], box[2] + 1, box[3] + 1])
-        }
-        return out
-    }
-
-    /// findContours(RETR_LIST) reduced to what filled_rects reads: every outer boundary and every hole of every
-    /// 8-connected blob, as (bounding box, contour area). Areas come from Pick's theorem on the traced pixels
-    /// (polygon through pixel centers), which is what contourArea measures.
-    static func contours(_ p: Plane, keep: ([Int]) -> Bool) -> [(box: [Int], area: Double)] {
-        let w = p.w, h = p.h
-        var label = [Int32](repeating: -1, count: w * h)
-        var blobs: [[Int]] = []  // pixel indices per 8-connected blob
-        for start in 0..<(w * h) where p.v[start] != 0 && label[start] < 0 {
-            let id = Int32(blobs.count)
-            var pixels = [start], k = 0
-            label[start] = id
-            while k < pixels.count {
-                let i = pixels[k], x = i % w, y = i / w
-                k += 1
-                for ny in max(0, y - 1)...min(h - 1, y + 1) {
-                    for nx in max(0, x - 1)...min(w - 1, x + 1) where p.v[ny * w + nx] != 0 && label[ny * w + nx] < 0 {
-                        label[ny * w + nx] = id
-                        pixels.append(ny * w + nx)
-                    }
-                }
-            }
-            blobs.append(pixels)
-        }
-        var out: [(box: [Int], area: Double)] = []
-        for (id, pixels) in blobs.enumerated() {
-            var b = [w, h, -1, -1]
-            for i in pixels { b = [min(b[0], i % w), min(b[1], i / w), max(b[2], i % w), max(b[3], i / w)] }
-            let outer = [b[0], b[1], b[2] + 1, b[3] + 1]
-            // a hole lies inside the blob's box, so a box too small for any kept contour needs no fill
-            guard keep(outer) || (outer[2] - outer[0] >= 40 && outer[3] - outer[1] >= 24) else { continue }
-            // 4-connected regions of everything that is not this blob, in its box padded by one pixel:
-            // the region touching the pad is the outside; the others are its holes.
-            let x0 = b[0] - 1, y0 = b[1] - 1, bw = b[2] - b[0] + 3, bh = b[3] - b[1] + 3
-            func mine(_ x: Int, _ y: Int) -> Bool {
-                x >= 0 && y >= 0 && x < w && y < h && label[y * w + x] == Int32(id)
-            }
-            var region = [Int32](repeating: -1, count: bw * bh)
-            var regions: [(count: Int, box: [Int])] = []
-            for s in 0..<(bw * bh) where region[s] < 0 && !mine(x0 + s % bw, y0 + s / bw) {
-                let r = Int32(regions.count)
-                var queue = [s], q = 0, box = [bw, bh, -1, -1]
-                region[s] = r
-                while q < queue.count {
-                    let i = queue[q], x = i % bw, y = i / bw
-                    q += 1
-                    box = [min(box[0], x), min(box[1], y), max(box[2], x), max(box[3], y)]
-                    for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
-                    where nx >= 0 && ny >= 0 && nx < bw && ny < bh && region[ny * bw + nx] < 0 && !mine(x0 + nx, y0 + ny) {
-                        region[ny * bw + nx] = r
-                        queue.append(ny * bw + nx)
-                    }
-                }
-                regions.append((queue.count, box))
-            }
-            // boundary pixels of the blob next to each region (4-neighbors), for Pick's B
-            var touching = [Int](repeating: 0, count: regions.count)
-            for i in pixels {
-                let x = i % w - x0, y = i / w - y0
-                var seen: Set<Int32> = []
-                for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] {
-                    let r = region[ny * bw + nx]
-                    if r >= 0, seen.insert(r).inserted { touching[Int(r)] += 1 }
-                }
-            }
-            if keep(outer) {  // outer contour: A = I + B/2 - 1 with I + B = the blob and all it encloses
-                let filled = bw * bh - regions[0].count
-                out.append((outer, Double(filled) - Double(touching[0]) / 2 - 1))
-            }
-            for r in 1..<max(1, regions.count) {  // a hole: its pixels inside the traced blob pixels around it
-                let hb = regions[r].box
-                let box = [x0 + hb[0] - 1, y0 + hb[1] - 1, x0 + hb[2] + 2, y0 + hb[3] + 2]
-                if keep(box) { out.append((box, Double(regions[r].count) + Double(touching[r]) / 2 - 1)) }
-            }
-        }
-        return out
-    }
-
-    /// Mean over R, G, B of each channel's standard deviation in the box (numpy std, population).
     static func colorSpread(_ img: Raster, _ box: [Int]) -> Double {
         let n = Double((box[2] - box[0]) * (box[3] - box[1]))
         guard n > 0 else { return 0 }
         var spread = 0.0
-        for k in 0..<3 {
-            var s = 0.0, s2 = 0.0
-            for y in box[1]..<box[3] {
-                for x in box[0]..<box[2] {
-                    let v = Double(img.px[(y * img.w + x) * 3 + k])
-                    s += v
-                    s2 += v * v
+        img.px.withUnsafeBufferPointer { px in
+            for k in 0..<3 {
+                var s = 0, s2 = 0  // exact integer sums: the same doubles as summing in Double
+                for y in box[1]..<box[3] {
+                    for x in box[0]..<box[2] {
+                        let v = Int(px[(y * img.w + x) * 3 + k])
+                        s += v
+                        s2 += v * v
+                    }
                 }
+                let mean = Double(s) / n
+                spread += (max(0, Double(s2) / n - mean * mean)).squareRoot()
             }
-            let mean = s / n
-            spread += (max(0, s2 / n - mean * mean)).squareRoot()
         }
         return spread / 3
     }

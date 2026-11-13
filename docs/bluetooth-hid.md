@@ -29,7 +29,7 @@ The standard BLE build uses the reference ESP32-S3 configuration with 8 MB flash
 
 ## Pair and verify
 
-1. Power on the board with the matching BLE firmware. Within the three-minute pairing window, connect to `ESP32 Agent …` in the app and confirm the iOS pairing request. The name starting with `CLI` is for the computer.
+1. Power on the board with the matching BLE firmware. Within the three-minute pairing window, select the board in the app and confirm the iOS pairing request. Its name begins with `ESP32 Agent` by default, or the name you passed to `--name`. The name starting with `CLI` is for the computer.
 2. On the iPhone, open **Settings → Accessibility → Touch → AssistiveTouch** and turn it on. Under **Devices**, select the same board and set **Button 2** to **Home**.
 3. In the app's diagnostics, check both the command connection and `hid: ok` before starting a task. The latter means the Bluetooth input link is ready.
 4. Calibrate the pointer and verify that it moves, clicks and types on the iPhone. If an older experimental firmware left a stale pairing, forget the old device in iOS Settings and pair again.

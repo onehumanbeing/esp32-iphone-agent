@@ -30,8 +30,11 @@ IA_STORE_BUILD = NO
 IA_TRIAL_ORIGIN =
 IA_APP_ATTEST_ENV = development
 
+// The name on the Home Screen and in texts about the app (AppName); a store build may set its own (fastlane).
+IA_APP_NAME = ESP32 Agent
+
 // The app and its widget extension share these; fastlane sets the build number for each upload.
-MARKETING_VERSION = 1.0.4
+MARKETING_VERSION = 1.0.5
 CURRENT_PROJECT_VERSION = 1
 
 #include? "Local.xcconfig"

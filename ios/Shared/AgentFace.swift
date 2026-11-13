@@ -9,6 +9,9 @@ enum Mood: String, Codable, Hashable {
 
 /// The character: the logo redrawn as vectors (rounded black board, two glowing eyes, a USB-C tab), so it can
 /// blink, look around and hop. Animations are short springs and stop under Reduce Motion.
+/// How often the animated face was drawn (the app's background summary logs it; a count only).
+enum FaceTicks { nonisolated(unsafe) static var count = 0 }
+
 struct AgentFace: View {
     var mood: Mood
     /// Where the eyes look, -1...1 on each axis (e.g. toward a tap point).
@@ -17,6 +20,8 @@ struct AgentFace: View {
     var lookRange: CGFloat = 1
     var animated = true
     var showsTab = true
+    /// "×" eyes over any mood: the Live Activity went stale because iOS suspended the app mid-run.
+    var crossed = false
     /// Hop / shake by itself when the mood changes (off while a poke drives the face).
     var reacts = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -28,7 +33,10 @@ struct AgentFace: View {
             let s = min(g.size.width, g.size.height / (showsTab ? 1.12 : 1))
             Group {
                 if animated && !reduceMotion {
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { t in face(s, t: t.date.timeIntervalSinceReferenceDate) }
+                    TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                        FaceTicks.count += 1
+                        return face(s, t: t.date.timeIntervalSinceReferenceDate)
+                    }
                 } else {
                     face(s, t: 0)
                 }
@@ -39,7 +47,7 @@ struct AgentFace: View {
         .aspectRatio(showsTab ? 1 / 1.12 : 1, contentMode: .fit)
         .onChange(of: mood) { _, m in react(to: m) }
         .accessibilityElement()
-        .accessibilityLabel(Text("ESP32 Agent"))
+        .accessibilityLabel(Text(verbatim: AppName.current))
         .accessibilityValue(Text(LocalizedStringKey(mood.rawValue)))
     }
 
@@ -115,6 +123,22 @@ struct AgentFace: View {
         let w = s * 0.14, h = s * 0.25, gap = s * 0.37
         let gaze = gazeOffset(t: t)
         let dx = gaze.x * s * 0.05 * lookRange, dy = gaze.y * s * 0.04 * lookRange
+        if crossed {
+            HStack(spacing: gap - w * 1.5) {
+                ForEach(0..<2, id: \.self) { _ in
+                    Cross().stroke(Self.glow, style: StrokeStyle(lineWidth: max(1, s * 0.055), lineCap: .round))
+                        .frame(width: w * 1.5, height: w * 1.5)
+                }
+            }
+            .shadow(color: Self.glow.opacity(0.8), radius: s * 0.04)
+            .offset(y: -s * 0.02)
+        } else {
+            moodEyes(s, t: t, w: w, h: h, gap: gap, dx: dx, dy: dy)
+        }
+    }
+
+    @ViewBuilder private func moodEyes(_ s: CGFloat, t: Double, w: CGFloat, h: CGFloat, gap: CGFloat,
+                                       dx: CGFloat, dy: CGFloat) -> some View {
         switch mood {
         case .sleeping:
             HStack(spacing: gap - w) {
@@ -211,6 +235,18 @@ struct Caret: Shape {
         p.move(to: CGPoint(x: r.minX, y: r.maxY))
         p.addLine(to: CGPoint(x: r.midX, y: r.minY))
         p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        return p
+    }
+}
+
+/// "×" for the eyes of a stuck run.
+struct Cross: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        p.move(to: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY))
         return p
     }
 }

@@ -23,6 +23,16 @@ video stream and replies: see [cli-protocol.md](cli-protocol.md).
 `<id>` is a decimal request id chosen by the app; the reply echoes it.
 Existing HID commands, unchanged semantics from the old TCP protocol:
 `ping`, `home`, `move DX DY`, `press`, `release`, `click`, `scroll A B`, `type TEXT`, `key COMBO`.
+
+The iOS runner sends `reset` when a task finishes, fails, or is stopped. A stopped task retains its plan, steps, and notebook for resume. Turning off keyboard restoration in Settings skips the screenshot checks and `key eject`.
+
+| Command | Behavior |
+| --- | --- |
+| `reset` | Takes no arguments. Releases all mouse buttons, keyboard keys (including modifiers), and consumer controls in place. Safe to retry. |
+| `key eject` | Sends one Consumer Control Eject press and release (`0x00B8`) to toggle the iOS on-screen keyboard. Do not retry after a lost reply because a second press reverses the first. |
+
+If older firmware explicitly rejects `reset` as an unknown command, the app sends `release` to release the left mouse button. Other held inputs remain unconfirmed. The app records this on every handoff and notifies the user once per connection.
+
 New:
 - `stream on|off` — continuously forward every access unit over `video` (default off).
 - `snap` — send SPS/PPS + every AU since the last IDR (the current GOP), then reply `ok`.
@@ -32,6 +42,12 @@ New:
 - `unpair` — erase all bonds and restart advertising.
 - `coex [bt|balance|wifi]` — Wi-Fi/BLE radio-share preference (A/B knob, not stored; every boot starts at
   `balance`). Replies `ok <current>`; bare `coex` just reports it.
+- `flick DX DY [SPEED]` (0.2.5) — press, move by DX DY (paced like `move`), release, with no pause between: a fast swipe such as the Home Screen flick from the home bar.
+- `press_for MS` (0.2.5) — hold the left button; it comes up by itself after MS (1–60000), or at `release`,
+  `click` or `reset`. Moves in between drag. A lost `release` never leaves the button held.
+- `result ID` (0.2.5) — the reply this side got (or should have got) for request `ID`, as `ok <that reply>`,
+  from the board's last 8; `err unknown id …` if it is not among them. Read only: ask it when a reply is late
+  instead of sending the command again.
 When the link drops, the board releases all buttons/keys (same as before).
 
 ## status (JSON, one notify per second, must fit one MTU; keep short keys)
@@ -48,6 +64,9 @@ When the link drops, the board releases all buttons/keys (same as before).
 `ble.n` = connected centrals.
 `udp` = the Wi-Fi video channel (below): `n` 1 while video goes over UDP, `kbps` bytes out (resends included),
 `nack` resend requests and `drop` datagrams the Wi-Fi driver had no room for, both since boot.
+`lost` (0.2.5) = AirPlay video packets the board dropped for good since boot (decrypted in step but not a
+frame). After one, the frames that follow may not decode until the next IDR: if decoding fails right after
+`lost` goes up, ask for screen mirroring to be restarted instead of waiting.
 
 Send priority: replies and status are queued and always go out before further video; video keeps at most
 ~8 ACL packets (~2 KB) in the controller, so a reply waits behind at most that much video. In `stream on`,
