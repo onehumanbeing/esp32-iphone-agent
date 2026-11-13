@@ -85,6 +85,7 @@ extension Gestures {
     enum Doing { case looking, waiting, planning, thinking, retrying, acting(JObject) }
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
+    var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
     /// What this run collected (read / note / progress), shown to the actor every step (AgentLoop+Memory).
@@ -155,6 +156,7 @@ extension Gestures {
         DebugLog.write("tools: " + (tools.isEmpty ? "none" : tools.map(\.id).joined(separator: ", ")))  // the system prompt is not in the trace
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
+        steering = []
         lastActed = 0
         helpAsked = 0
         droppingChosenGesture = false
@@ -609,13 +611,14 @@ extension Gestures {
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
                                    "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure"]
-        let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
+        takeSteering()
+        let history = steps.suffix(8).filter { $0["plan"] == nil && $0["action"]?.str != Self.steerAction }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
             + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
         let sound = heard?() ?? ""
-        let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
+        let prompt = "Goal: \(task)\(steeredSection)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
             + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
         var reply = ""
         let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)

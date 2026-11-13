@@ -4,6 +4,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Agent: words added while a run goes (the field under the running task on Home, the quick task sheet, or Siri
+  and Shortcuts while a run is on) join its next step: the review shows them, every later step sees them, and that
+  step goes to the planner so the plan follows.
 - Record: a demonstration is saved as what was meant. Opening an app from the Home Screen, a folder or Search
   becomes one `open` step; a tap is named by the text at its spot on the screen; taps on the on-screen keyboard
   are left out (the type step holds the text) and its return key becomes Return; a detour that ends back on the

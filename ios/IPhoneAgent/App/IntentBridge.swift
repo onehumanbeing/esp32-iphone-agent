@@ -4,6 +4,18 @@ import WidgetKit
 
 /// Siri, Shortcuts, widgets and controls → the app; and the app's state → the widgets (App Group snapshot).
 extension AppModel {
+    /// A task from the quick sheet (the island's New Task): it runs on the screen the user came from.
+    func runHere(_ task: String, intent: SavedTask?) async {
+        await run(task, intent: intent)
+    }
+
+    /// Words added to the running task (AgentLoop.steer). `from`: home, quick, siri (usage stats get only that).
+    @discardableResult func steer(_ text: String, from: String) -> Bool {
+        guard agent.steer(text) else { return false }
+        Analytics.capture("steer_added", ["source": from, "queued": agent.steering.count])
+        return true
+    }
+
     func handle(_ request: AgentRequest) async -> String {
         DebugLog.write("intent: \(request)")
         switch request {
@@ -32,7 +44,10 @@ extension AppModel {
     private func runFromIntent(_ task: String, intent: SavedTask?) async -> String {
         let task = task.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !task.isEmpty else { return String(localized: "The task is empty.") }
-        if agent.running { return String(localized: "Already running: \(agent.task)") }
+        if agent.running {  // Henry 2026-11-13: words said while a run goes join it
+            return steer(task, from: "siri") ? String(localized: "Added to the running task: \(task)")
+                : String(localized: "Already running: \(agent.task)")
+        }
         if !MockMode.on {
             guard settings.isConfigured else { return String(localized: "Set up the model in Settings first.") }
             guard pointer.calibrated else { return String(localized: "Calibrate the pointer in \(AppName.current) first.") }

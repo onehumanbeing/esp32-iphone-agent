@@ -11112,6 +11112,76 @@
           }
         }
       }
+    },
+    "You added: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你补充：%@"
+          }
+        }
+      }
+    },
+    "Add to the task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "补充到任务"
+          }
+        }
+      }
+    },
+    "Added. The agent reads it at its next step." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已补充，Agent 下一步就会看到。"
+          }
+        }
+      }
+    },
+    "Add to the running task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "补充到正在运行的任务"
+          }
+        }
+      }
+    },
+    "Add to the Task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "补充到任务"
+          }
+        }
+      }
+    },
+    "New Task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新任务"
+          }
+        }
+      }
+    },
+    "Added to the running task: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已补充到正在运行的任务：%@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

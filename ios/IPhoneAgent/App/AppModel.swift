@@ -64,6 +64,7 @@ import UIKit
     @Published var toast: Toast?
     struct Toast: Equatable { let id = UUID(); let text: String }
     @Published var departing = false  // the character's take-off before a run
+    @Published var quickAsk = false  // QuickAskSheet: the island's New Task, the Control Center control
     var startupTask: Task<Void, Never>?
     var returningInput = false
     @Published var stopping = false  // Stop was tapped; input is being handed back
