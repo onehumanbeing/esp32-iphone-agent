@@ -94,6 +94,8 @@ extension Gestures {
     private(set) var recalled: [MemoryEntry] = []
     /// Earlier turns of the chat this run belongs to (ChatContext), for planner and actor.
     var chatContext = ""
+    /// The Dynamic Island's touch area in 0-1000 units (IslandGuard.zone), nil = none on this iPhone.
+    var island: () -> CGRect? = { nil }
     /// The run starts on the Home Screen (RunSession left for it): `open` the app a task names, hold Home swipes.
     var startsOnHome = false
     /// A script's part is running (ScriptRunner.subGoal): its done needs no planner check, the script goes on.
@@ -560,6 +562,12 @@ extension Gestures {
                 }
                 if name == "swipe" { SwipeClamp.apply(&act) }
                 if name == "tap", let off = OffScreen.reason(act) {  // y 1108 tapped the home bar's edge (2026-11-13)
+                    act["result"] = .str(off)
+                    DebugLog.write("step: tap not sent, \(off)")
+                    record(planned.shot, act)
+                    return false
+                }
+                if name == "tap", let off = IslandGuard.apply(&act, zone: island()) {
                     act["result"] = .str(off)
                     DebugLog.write("step: tap not sent, \(off)")
                     record(planned.shot, act)

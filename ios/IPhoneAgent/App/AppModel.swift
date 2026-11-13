@@ -135,6 +135,7 @@ import UIKit
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
         PhoneMouse.start()
         agent.metrics = metrics
+        agent.island = { DeviceScreen.island }
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
         feed.device = board.commands
         feed.metrics = metrics

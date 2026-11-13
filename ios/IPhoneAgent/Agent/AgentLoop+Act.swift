@@ -27,7 +27,8 @@ extension AgentLoop {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
             + " (the search is still on screen): open it by the name this iPhone shows, in its language"
-        case .notOpened?: out += "; \(app) did not open"
+        case .notOpened?: out += "; \(app) did not open (Return on its top hit did nothing):"
+            + " if Spotlight still lists it, tap its icon there"
         default: break
         }
         if let typed = s["typed"]?.str { out += "; typing stopped: \(typed)" }
@@ -129,5 +130,38 @@ enum OffScreen {
     static func reason(_ a: JObject) -> String? {
         guard let x = a["x"]?.double, let y = a["y"]?.double, !(0...1000).contains(x) || !(0...1000).contains(y) else { return nil }
         return "not tapped: \(Int(x)), \(Int(y)) is off the screen; x and y run 0-1000"
+    }
+}
+
+/// The Dynamic Island at the top center: with a Live Activity in it (this agent's own, during a run) a tap there opens
+/// that activity's app and leaves the one the task is in. A search field right under the island drew such taps.
+/// A tap in the island's lowest `band` goes just below it (`below`), where a field under the island still is; one
+/// higher up is not sent and the model is told where to tap instead.
+enum IslandGuard {
+    static let band = 30.0, below = 8.0
+    /// Half the width of the island with a Live Activity's compact views beside it, of the screen's width.
+    static let halfWidth = 0.32
+
+    /// The island's touch area in 0-1000 screen units, from the window's top safe area in points (59-68 with an
+    /// island; 44-50 under a notch, 20 with a Home button) and the screen's size in points. nil: no island, or
+    /// not portrait.
+    static func zone(top: Double, size: CGSize) -> CGRect? {
+        guard size.width > 0, size.height > size.width, top >= 54 else { return nil }
+        let bottom = (top + 4) / Double(size.height) * 1000
+        return CGRect(x: 500 - halfWidth * 1000, y: 0, width: 2 * halfWidth * 1000, height: bottom)
+    }
+
+    /// nil = send the tap (moved below the island if it was in its lowest band, with a note); else why it is not sent.
+    static func apply(_ a: inout JObject, zone: CGRect?) -> String? {
+        guard let zone, let x = a["x"]?.double, let y = a["y"]?.double,
+              (zone.minX...zone.maxX).contains(x), y < zone.maxY else { return nil }
+        let to = Int((zone.maxY + below).rounded(.up))
+        guard y < zone.maxY - band else {
+            a["y"] = .int(to)
+            a["result"] = .str("moved down to y \(to): y \(Int(y)) is on the Dynamic Island, which a tap would open")
+            return nil
+        }
+        return "not tapped: \(Int(x)), \(Int(y)) is on the Dynamic Island (top center), where a tap leaves the app;"
+            + " tap the element left of x \(Int(zone.minX)), right of x \(Int(zone.maxX)) or below y \(to)"
     }
 }

@@ -490,7 +490,10 @@ import UIKit
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
     func tap(_ x: Double, _ y: Double, aim: Bool = false) async throws {
         if recalibration.tap() { try await recalibrate() }
+        let from = pos  // where the tracked pointer was, for a tap that set off something else (another app in front)
         try await point(x, y, aim: aim)
+        log(String(format: "tap (%.3f, %.3f): pointer from %@ to %@", x, y, from.map { "\($0.0) \($0.1)" } ?? "unknown",
+                   pos.map { "\($0.0) \($0.1)" } ?? "unknown"))
         try await device.send("click")
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
     }

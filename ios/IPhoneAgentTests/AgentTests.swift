@@ -425,6 +425,45 @@ import XCTest
         XCTAssertNil(Actions.key(agent.steps.last!)["landed"])
     }
 
+    func testATapOnTheDynamicIslandIsMovedBelowItOrNotSent() async throws {
+        let zone = IslandGuard.zone(top: 62, size: CGSize(width: 402, height: 874))!
+        XCTAssertEqual(zone.minX, 180)
+        XCTAssertEqual(zone.maxY, 75.5, accuracy: 0.1)
+        var low: JObject = ["action": .str("tap"), "x": .int(400), "y": .int(70)]  // a search field right under the island
+        XCTAssertNil(IslandGuard.apply(&low, zone: zone))
+        XCTAssertEqual(low["y"], .int(84))
+        XCTAssertNotNil(low["result"])
+        var high: JObject = ["action": .str("tap"), "x": .int(500), "y": .int(30)]
+        XCTAssertNotNil(IslandGuard.apply(&high, zone: zone))
+        XCTAssertEqual(high["y"], .int(30))
+        for (x, y) in [(100, 30), (900, 30), (500, 90)] {  // beside the island (the clock, battery), and below it
+            var a: JObject = ["action": .str("tap"), "x": .int(x), "y": .int(y)]
+            XCTAssertNil(IslandGuard.apply(&a, zone: zone))
+            XCTAssertNil(a["result"])
+        }
+        var any: JObject = ["action": .str("tap"), "x": .int(500), "y": .int(30)]
+        XCTAssertNil(IslandGuard.apply(&any, zone: nil), "no island on this iPhone")
+        XCTAssertNil(IslandGuard.zone(top: 47, size: CGSize(width: 390, height: 844)), "a notch, not an island")
+        XCTAssertNil(IslandGuard.zone(top: 20, size: CGSize(width: 375, height: 667)))
+        XCTAssertNil(IslandGuard.zone(top: 0, size: CGSize(width: 874, height: 402)), "landscape")
+    }
+
+    func testTheLoopMovesOrHoldsTapsOnTheDynamicIsland() async throws {
+        let phone = FakeGestures(), v = VisionTests(), screen = FakeScreen()
+        screen.frame = v.screen()
+        phone.onTap = { screen.frame = v.screen(button: true) }
+        var reply = "THINK: field\nDO: tap 400 70"
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in reply }, planner: nil, trace: nil)
+        agent.island = { IslandGuard.zone(top: 62, size: CGSize(width: 402, height: 874)) }
+        _ = try await agent.step()
+        XCTAssertEqual(phone.taps.first?.y ?? 0, 0.084, accuracy: 0.0001)
+        reply = "THINK: island\nDO: tap 500 20"
+        let sent = phone.taps.count
+        _ = try await agent.step()
+        XCTAssertEqual(phone.taps.count, sent, "not sent")
+        XCTAssertTrue(agent.steps.last?["result"]?.str?.hasPrefix("not tapped") == true)
+    }
+
     /// Pause holds at the gesture gate. Continue must not send a tap chosen for the screen from before the pause.
     func testPauseBeforeAChosenGestureDropsItAndLooksAgain() async throws {
         let phone = FakeGestures()

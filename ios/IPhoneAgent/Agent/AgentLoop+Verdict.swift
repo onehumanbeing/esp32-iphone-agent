@@ -20,6 +20,13 @@ extension AgentLoop {
         guard let phone, !confirmed, let x = steps[last]["x"]?.double, let y = steps[last]["y"]?.double,
               !Self.onTarget(steps[last]), !quiet.contains(where: { $0.contains(CGPoint(x: x / 1000, y: y / 1000)) })
         else { return false }
+        // The Home Screen's Search pill: Spotlight over a plain wallpaper (no on-screen keyboard with the board's) can
+        // look like no change, and the second press then landed on Spotlight's suggestions under the pointer and
+        // opened another app (a game, this agent).
+        if await SearchPill.tapped(seen, at: CGPoint(x: x / 1000, y: y / 1000)) {
+            DebugLog.write("step: the Search pill tap read as no change; not pressed again (Spotlight may be opening)")
+            return false
+        }
         if try await pausedBeforeGesture() { return false }  // they paused; the screen may not be the one tapped
         guard !connectionChanged(since: acceptedLookLinks) else { return false }
         DebugLog.write("step: the tap changed nothing; pressing once more with the pointer checked")
