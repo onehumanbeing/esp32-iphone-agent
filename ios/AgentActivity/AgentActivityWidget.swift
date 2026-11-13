@@ -30,14 +30,16 @@ struct AgentLiveActivity: Widget {
                     Eyes(state: s, stuck: stuck).padding(4).frame(width: 44, height: 44).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Counter(state: s).font(.headline).padding(.trailing, 4)
+                    Counter(state: s).font(.headline).lineLimit(1).minimumScaleFactor(0.6).padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if s.phase == .standby { Text("Ready for a task").font(.headline) }
                     else { Text(verbatim: context.attributes.task).font(.headline).lineLimit(1) }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    // The expanded island has a fixed height: a waiting timer replaces the progress bar, and the
+                    // buttons are small (2026-11-13: board lost mid-run, the buttons were cut off at the bottom).
+                    VStack(alignment: .leading, spacing: 6) {
                         Says(state: s, full: true, stuck: stuck).font(.subheadline.weight(.semibold))
                         if let since = s.waitingSince, !s.finished {
                             Text(since, style: .timer).monospacedDigit().font(.footnote)
@@ -46,10 +48,10 @@ struct AgentLiveActivity: Widget {
                         if s.line != s.labelFull && (s.phase != .running || s.finished) {
                             Text(verbatim: s.line).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                         }
-                        if s.phase == .running {
+                        if s.phase == .running && (s.waitingSince == nil || s.finished) {
                             ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)
                         }
-                        if !s.finished { Buttons(state: s) }
+                        if !s.finished { Buttons(state: s).controlSize(.small) }
                         if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID) }
                     }
                 }
