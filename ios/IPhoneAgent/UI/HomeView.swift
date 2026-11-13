@@ -321,7 +321,7 @@ struct HomeView: View {
                         SettingsIcon(symbol: item.symbol, color: IntentTint.color(item.color))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: item.name).font(.body).foregroundStyle(.primary)
-                            Text(verbatim: item.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(verbatim: IntentStore.maskingNumbers(item.prompt)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer()
                         Button { run(item) } label: {
