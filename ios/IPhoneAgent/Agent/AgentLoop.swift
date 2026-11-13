@@ -183,12 +183,12 @@ extension Gestures {
     }
 
     /// A run from Runs put back in memory so it can go on, also after a relaunch: its task, steps and last plan.
-    /// The notebook and screenshots are not in the trace's steps, so they start empty.
+    /// The screenshots are not in the trace's steps; the notebook comes back from its last checkpoint row.
     func restore(task: String, steps: [JObject]) {
         guard !running else { return }
         self.task = task; self.steps = steps; shots = [:]
         plan = steps.last { $0["action"]?.str == "plan" }?["plan"]?.str ?? ""
-        notebook = Notebook(); learned = []
+        notebook = Self.savedNotebook(steps); learned = []
     }
 
     func stop() {
@@ -387,7 +387,7 @@ extension Gestures {
             }
             while true {
                 rounds += 1
-                if rounds > maxSteps || stalls >= maxStalls {
+                if rounds > stepLimit || stalls >= maxStalls {
                     let reason = stalls >= maxStalls ? "\(Self.stallReason) in \(stalls) steps" : Self.stepLimitReason
                     record(nil, ["action": .str("fail"), "reason": .str(reason)])
                     guard try await askForHelp() else { return finish() }
@@ -616,6 +616,7 @@ extension Gestures {
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
         verdict(changed)
         try await followCache(seen: seen)
+        saveCheckpoint()
         return false
     }
 
@@ -625,7 +626,9 @@ extension Gestures {
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
                                    "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached"]
         takeSteering()
-        let history = steps.suffix(8).filter { $0["plan"] == nil && $0["action"]?.str != Self.steerAction }.map { s -> String in
+        let history = steps.suffix(8).filter {
+            $0["plan"] == nil && $0["action"]?.str != Self.steerAction && $0["action"]?.str != Self.checkpointAction
+        }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()

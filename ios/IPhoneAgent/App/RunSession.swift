@@ -154,7 +154,7 @@ extension AppModel {
         let startedAway = appIsBackgrounded && !resume
         if startedAway && !(feed.live && !feed.broken) { FrameMode.fallback = .snap }
         let snapMode = FrameMode.current == .snap
-        live.start(task: task, runID: runID, limit: agent.maxSteps)
+        live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
         mark("Live Activity requested")
         var step = StartupFailure.Step.stream  // where a failed start stopped (run_ended)
         do {
@@ -319,7 +319,7 @@ extension AppModel {
         runStarted = Date()
         runUsage = ModelUsage()
         if !early {
-            live.start(task: task, runID: runID, limit: agent.maxSteps)
+            live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
             if !MockMode.on { startVideo() }  // always: the review needs it, even for a run that stops at once
         }
         runs.reload()

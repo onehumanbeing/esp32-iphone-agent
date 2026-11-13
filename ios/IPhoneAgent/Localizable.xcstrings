@@ -11242,6 +11242,36 @@
           }
         }
       }
+    },
+    "Saved progress" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存进度"
+          }
+        }
+      }
+    },
+    "Step %lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 步"
+          }
+        }
+      }
+    },
+    "Step %lld · %lld items listed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 步 · 已列出 %lld 项"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

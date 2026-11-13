@@ -250,9 +250,12 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     }
-                    ProgressView(value: Double(min(card.moveCount, agent.maxSteps)), total: Double(agent.maxSteps))
-                    Text("Step \(card.moveCount) of up to \(agent.maxSteps)")
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    ProgressView(value: Double(min(card.moveCount, agent.stepLimit)), total: Double(agent.stepLimit))
+                    Group {
+                        if agent.notebook.items.isEmpty { Text("Step \(card.moveCount)") }
+                        else { Text("Step \(card.moveCount) · \(agent.notebook.items.count) items listed") }
+                    }
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     if agent.running { SteerField(app: app) }
                     if !agent.running && app.canResume {  // stopped before done: go on from its screen
                         Button { Task { await app.resumeRun() } } label: { Label("Continue", systemImage: "play.fill") }

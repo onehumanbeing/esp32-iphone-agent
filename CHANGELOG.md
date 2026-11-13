@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Agent: a task over many items may run up to 1000 steps (others stay at 300); Home shows the step and how many
+  items are listed instead of "up to 300". Every 10 steps the run saves its listed items, so Continue picks them up.
 - Agent: in a task over many items, taps that followed the same tap the same way twice (say "…", then Delete,
   then OK) are done by the app from the third time on, each found by its words on the screen and checked to change
   it; anything missing, or prices and paying on the screen, hands back to the AI. Fewer model calls per item.
