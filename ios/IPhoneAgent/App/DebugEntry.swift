@@ -171,7 +171,7 @@ extension AppModel {
         let boardText = board.connected ? "connected usb \(s?.usb ?? "-") ap \(s?.ap ?? "-") sta \(s?.sta.map(String.init) ?? "-")"
             : "not connected"
         let mirror = feed.live ? String(format: "live %.2f", feed.aspect) : "off"
-        let cal = pointer.span.map { "\($0.w)x\($0.h) " + (pointer.quality.map { String(format: "±%.1f%%", $0 * 100) } ?? "?") }
+        let cal = pointer.absolute ? "absolute" : pointer.span.map { "\($0.w)x\($0.h) " + (pointer.quality.map { String(format: "±%.1f%%", $0 * 100) } ?? "?") }
             ?? "none"
         let model = settings.isConfigured ? (settings.currentModel ?? "auto") : "not set"
         let run = agent.running ? "running step \(agent.steps.count)" : "idle"

@@ -57,4 +57,9 @@ enum ProbeFit {
     static var scale: CGFloat { scene?.screen.scale ?? 3 }
     static var aspect: Double { size.height > 0 ? size.width / size.height : 9 / 19.5 }
     static var foreground: Bool { UIApplication.shared.applicationState == .active }
+    /// The Dynamic Island's touch area in 0-1000 screen units; nil on an iPhone without one.
+    static var island: CGRect? {
+        guard let window = scene?.windows.first else { return nil }
+        return IslandGuard.zone(top: Double(window.safeAreaInsets.top), size: size)
+    }
 }

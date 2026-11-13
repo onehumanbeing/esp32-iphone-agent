@@ -90,12 +90,16 @@ struct RootView: View {
                 Task { await app.startAgent(pending.task) }
             }
         }
+        .sheet(isPresented: $app.quickAsk) { QuickAskSheet(app: app, intents: app.intents) }
         .sheet(item: $callGuide.pending) { pending in
             CallSetupSheet(pending: pending) {
                 if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
             }
         }
-        .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
+        .onChange(of: scene) { old, new in
+            DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
+            if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground
+        }
         .onAppear {
             if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
@@ -112,6 +116,7 @@ struct RootView: View {
             }
             if !url.isFileURL { DebugLog.write("open url: \(url.scheme ?? "?")://\(url.host ?? "")") }
             if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
+            if url.scheme == "iphoneagent", url.host == "quick" { app.quickAsk = true; return }  // the island's New Task
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity
             guard url.scheme == "iphoneagent", url.host == "run" else { return }

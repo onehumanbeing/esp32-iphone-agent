@@ -36,6 +36,10 @@ import Foundation
         Task { [weak self] in
             for leftover in Activity<AgentActivityAttributes>.activities
             where leftover.id != self?.activity?.id && !leftover.content.state.finished {
+                if leftover.content.state.phase == .standby, let self, self.activity == nil {  // waiting: keep it
+                    (self.activity, self.last, self.sent) = (leftover, leftover.content.state, leftover.content.state)
+                    continue
+                }
                 DebugLog.write("Live Activity: removed one left running by an earlier launch")
                 await leftover.end(nil, dismissalPolicy: .immediate)
             }
@@ -71,6 +75,53 @@ import Foundation
             DebugLog.write("Live Activity: start failed: \(error.localizedDescription)")
         }
     }
+
+    // MARK: - standby (Henry 2026-11-13)
+
+    /// Between runs the island waits with up to three intents and New Task (Settings › Standby in Dynamic Island).
+    /// Lower relevance than a run: navigation or music win the island while nothing runs. A run replaces it
+    /// (`start` ends it); after a run, its activity turns into the standby one (`end`), since an app in the
+    /// background cannot start a new Live Activity. iOS ends any activity after 8 hours: the next `standby` call
+    /// from the foreground starts a new one.
+    static let standbyRelevance = 10.0
+    /// The intents for the island, or nil when standby is off or something runs (set by the app).
+    var standbyPicks: (() -> [StandbyPick]?)?
+    var isStandby: Bool { last?.phase == .standby }
+
+    static func standbyState(_ picks: [StandbyPick]) -> State {
+        var state = State(mood: .sleeping, step: 0, limit: 0, line: String(localized: "Tap New Task, or run an intent."),
+                          phase: .standby)
+        state.label = String(localized: "Ready")
+        state.labelFull = String(localized: "Ready for a task")
+        state.minimalLabel = String(localized: "Ready")
+        state.picks = picks
+        return state
+    }
+
+    func standby(_ picks: [StandbyPick]) {
+        if let activity, activity.activityState != .active && activity.activityState != .stale {
+            (self.activity, last, sent) = (nil, nil, nil)  // ended by iOS (8 hours) or swiped away
+        }
+        let state = Self.standbyState(picks)
+        if let activity {
+            guard isStandby, last != state else { return }  // a run's activity: leave it to the run
+            (last, sent) = (state, state)
+            Task { await activity.update(.init(state: state, staleDate: nil, relevanceScore: Self.standbyRelevance)) }
+            return
+        }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        do {
+            activity = try Activity.request(attributes: AgentActivityAttributes(task: "", runID: AgentActivityAttributes.standbyID,
+                                                                                name: Settings.storedAgentName),
+                                            content: .init(state: state, staleDate: nil, relevanceScore: Self.standbyRelevance))
+            (last, sent) = (state, state)
+            DebugLog.write("Live Activity: standby (\(picks.count) intents)")
+        } catch {
+            DebugLog.write("Live Activity: standby failed: \(error.localizedDescription)")
+        }
+    }
+
+    func endStandby() { if isStandby { end(nil) } }
 
     /// Step counter, the model's words, the mood; `status` also changes what the character says and where it looks.
     func update(mood: Mood, step: Int, line: String, phase: AgentActivityAttributes.Phase? = nil, status: IslandStatus? = nil,
@@ -121,6 +172,18 @@ import Foundation
                 let until = Date().addingTimeInterval(Self.verdictWindow)
                 await activity.update(.init(state: state, staleDate: until, relevanceScore: Self.relevance))
                 try? await Task.sleep(nanoseconds: UInt64(Self.verdictWindow * 1_000_000_000))
+            }
+            // standby on: after the verdict window (or the answer), or 20 s of the outcome, the island waits again;
+            // not when a new run took over (`activity`) or the run was deleted (`recentlyEnded` cleared)
+            if outcome != nil, self.standbyPicks?() != nil {
+                if !ask { try? await Task.sleep(nanoseconds: 20_000_000_000) }
+                if self.activity == nil, self.recentlyEnded?.id == activity.id, let picks = self.standbyPicks?() {
+                    let waiting = Self.standbyState(picks)
+                    await activity.update(.init(state: waiting, staleDate: nil, relevanceScore: Self.standbyRelevance))
+                    if self.activity == nil { (self.activity, self.last, self.sent) = (activity, waiting, waiting) }
+                    DebugLog.write("Live Activity: back to standby")
+                    return
+                }
             }
             var final = state
             final.asksVerdict = false

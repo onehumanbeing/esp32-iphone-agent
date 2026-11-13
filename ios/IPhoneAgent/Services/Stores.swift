@@ -82,6 +82,22 @@ struct RunStat: Codable, Equatable, Hashable {
     nonisolated static let blanks = ["[who]", "[message]", "[topic]", "[联系人]", "[内容]", "[话题]"]
     nonisolated static func unfilled(_ prompt: String) -> Bool { blanks.contains { prompt.contains($0) } }
 
+    /// For list subtitles: phone-number-like runs (7+ digits, spaces, dashes, a leading +) keep their first 3 and last 2
+    /// digits (2026-11-13: Home's intent list showed whole numbers in every screen recording). The intent and its runs
+    /// keep the real text.
+    nonisolated static func maskingNumbers(_ text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\+?\d[\d \-]{5,}\d"#) else { return text }
+        var out = text
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
+            guard let range = Range(match.range, in: out) else { continue }
+            let run = String(out[range]), digits = run.filter(\.isNumber)
+            guard digits.count >= 7 else { continue }
+            out.replaceSubrange(range, with: (run.hasPrefix("+") ? "+" : "") + digits.prefix(3)
+                                + String(repeating: "•", count: digits.count - 5) + digits.suffix(2))
+        }
+        return out
+    }
+
     static var note: SavedTask {
         SavedTask(name: String(localized: "Note: hello"), prompt: String(localized: "Open Notes and write \"hello\""))
     }

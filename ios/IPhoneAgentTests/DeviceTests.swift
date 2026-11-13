@@ -423,6 +423,84 @@ import XCTest
         XCTAssertEqual(device.sent[2], "move 200 400")
     }
 
+    private func pointer(_ device: HIDDevice) -> Pointer {
+        Pointer(device: device, calibrationFile: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json"))
+    }
+
+    func testAbsolutePointerSendsCoordinatesWithoutHomingOrCalibration() async throws {
+        let device = FakeDevice()
+        let pointer = pointer(device)
+        XCTAssertFalse(pointer.calibrated)
+        pointer.absolute = true
+        XCTAssertTrue(pointer.calibrated)
+        for _ in 0..<11 { try await pointer.tap(0.5, 0.25) }
+        try await pointer.swipe(0.5, 0.75, 0.5, 0.25, hold: false)
+        XCTAssertFalse(device.sent.contains("home"))
+        XCTAssertEqual(Array(device.sent.prefix(3)), ["release", "abs 16384 8192", "click"])  // 16383.5 rounds to even
+        XCTAssertEqual(Array(device.sent.suffix(4)), ["abs 16384 24575", "press", "abs 16384 8192 2000", "release"])  // hold: false
+    }
+
+    func testAbsolutePointerGoesHomeWithAFlickNotTheHomeKey() async throws {
+        let device = FakeDevice()
+        let pointer = pointer(device)
+        pointer.absolute = true
+        try await pointer.goHome()
+        XCTAssertFalse(device.sent.contains("homescreen"))
+        XCTAssertEqual(Array(device.sent.suffix(3)), ["press", "abs 16384 4915 2000", "release"])  // a flick, not a glide
+    }
+
+    /// A board flashed back to the relative mouse answers `abs` with an error: the pointer stops sending it.
+    @MainActor private final class RelativeBoard: HIDDevice {
+        var links = 1
+        var connected = true
+        var sent: [String] = []
+        func send(_ command: String) async throws -> String {
+            sent.append(command)
+            if command.hasPrefix("abs ") { throw DeviceError(message: "err unknown command") }
+            return ""
+        }
+        func waitConnected(_ timeout: TimeInterval) async -> Bool { true }
+    }
+
+    /// 2026-11-14: closing a call's Control Center with goHome flicked twice (the Live Captions panel's words stay
+    /// on screen in every app) and the flicks collapsed the panel. The call script's home steps are the key alone.
+    func testACallsHomeStepIsTheHomeKeyAlone() async throws {
+        let device = FakeDevice()
+        try await pointer(device).homeKey()
+        XCTAssertEqual(device.sent, ["homescreen"])
+        let homes = Calls.script("Call 10086 and ask the balance").compactMap(\.object).filter { $0["action"]?.str == "home" }
+        XCTAssertFalse(homes.isEmpty)
+        XCTAssertTrue(homes.allSatisfy { $0["keyOnly"]?.bool == true })
+    }
+
+    func testAbsolutePointerSwitchesBackWithAFlickAlongTheHomeBar() async throws {
+        let device = FakeDevice()
+        let pointer = pointer(device)
+        pointer.absolute = true
+        try await pointer.switchToPreviousApp()
+        XCTAssertFalse(device.sent.contains { $0.hasPrefix("flick") || $0.hasPrefix("move") })
+        XCTAssertEqual(Array(device.sent.suffix(3)), ["press", "abs 26214 32734 2000", "release"])
+    }
+
+    func testAPointerFlashedBackToRelativeStopsSendingAbs() async throws {
+        let device = RelativeBoard()
+        let pointer = pointer(device)
+        pointer.absolute = true
+        do {
+            try await pointer.tap(0.5, 0.5)
+            XCTFail("expected the board's error")
+        } catch {}
+        XCTAssertFalse(pointer.absolute)
+        XCTAssertEqual(device.sent.filter { $0.hasPrefix("abs ") }.count, 1)
+    }
+
+    func testAbsIsNotCarriedOverFromAnOlderStatus() throws {
+        let abs = try XCTUnwrap(BoardStatus.decode(Data(#"{"fw":"0.2.4","abs":1,"usb":"ok"}"#.utf8)))
+        let relative = try XCTUnwrap(BoardStatus.decode(Data(#"{"fw":"0.2.4","usb":"ok"}"#.utf8)))
+        XCTAssertEqual(abs.merged(with: relative).abs, nil)
+        XCTAssertEqual(relative.merged(with: abs).abs, 1)
+    }
+
     /// No screen to read the candidates from: each word's pinyin is committed with space (HanTyper); accents go
     /// through Option keys (Accents).
     func testChineseIsTypedAsPinyinWordByWordNeverPasted() async throws {

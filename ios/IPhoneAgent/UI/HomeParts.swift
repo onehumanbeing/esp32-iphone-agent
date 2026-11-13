@@ -89,7 +89,7 @@ struct HelpPanel: View {
     }
 
     private var title: Text {
-        if limit { return Text("That's \(app.agent.maxSteps) steps") }
+        if limit { return Text("That's \(app.agent.stepLimit) steps") }
         if repeating { return Text("I keep repeating the same step") }
         if stalled { return Text("The screen hasn't changed in a while") }
         if touchless { return Text("My taps aren't reaching the iPhone") }

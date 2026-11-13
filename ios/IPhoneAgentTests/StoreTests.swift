@@ -3,6 +3,14 @@ import XCTest
 
 /// Runs read back from trace folders (what the Runs list and the replay player show), and saved intents.
 @MainActor final class StoreTests: XCTestCase {
+    /// 2026-11-13: Home's intent list never shows a whole phone number; the intent keeps it.
+    func testListSubtitlesMaskPhoneNumbers() {
+        XCTAssertEqual(IntentStore.maskingNumbers("Call 12345678901 and book"), "Call 123••••••01 and book")
+        XCTAssertEqual(IntentStore.maskingNumbers("Text +1 555-010-0199: hi"), "Text +155••••••99: hi")
+        XCTAssertEqual(IntentStore.maskingNumbers("给 123 4567 8901 发消息"), "给 123••••••01 发消息")
+        XCTAssertEqual(IntentStore.maskingNumbers("Set an alarm for 7:00, 3 times, room 12345"), "Set an alarm for 7:00, 3 times, room 12345")
+    }
+
     func testEmptyActiveRunIsNotFailedButAbandonedRunIs() {
         let run = Run(id: "pending", folder: URL(fileURLWithPath: "/tmp/pending"),
                       task: "Open Notes", date: Date(), steps: [])

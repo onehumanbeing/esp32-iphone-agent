@@ -250,9 +250,13 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     }
-                    ProgressView(value: Double(min(card.moveCount, agent.maxSteps)), total: Double(agent.maxSteps))
-                    Text("Step \(card.moveCount) of up to \(agent.maxSteps)")
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    ProgressView(value: Double(min(card.moveCount, agent.stepLimit)), total: Double(agent.stepLimit))
+                    Group {
+                        if agent.notebook.items.isEmpty { Text("Step \(card.moveCount)") }
+                        else { Text("Step \(card.moveCount) · \(agent.notebook.items.count) items listed") }
+                    }
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    if agent.running { SteerField(app: app) }
                     if !agent.running && app.canResume {  // stopped before done: go on from its screen
                         Button { Task { await app.resumeRun() } } label: { Label("Continue", systemImage: "play.fill") }
                             .buttonStyle(.bordered).controlSize(.small)
@@ -321,7 +325,7 @@ struct HomeView: View {
                         SettingsIcon(symbol: item.symbol, color: IntentTint.color(item.color))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: item.name).font(.body).foregroundStyle(.primary)
-                            Text(verbatim: item.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(verbatim: IntentStore.maskingNumbers(item.prompt)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer()
                         Button { run(item) } label: {

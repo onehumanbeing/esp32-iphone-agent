@@ -9,6 +9,7 @@ struct AgentActivityBundle: WidgetBundle {
         AgentLiveActivity()
         AgentStatusWidget()
         RunLastIntentControl()
+        QuickTaskControl()
         StopAgentControl()
     }
 }
@@ -21,7 +22,7 @@ struct AgentLiveActivity: Widget {
             LockScreenView(context: context)
                 .activityBackgroundTint(Color.black.opacity(0.85))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(AgentActivityAttributes.url(run: context.attributes.runID))
+                .widgetURL(link(context))
         } dynamicIsland: { context in
             let s = context.state, stuck = s.stuck(context.isStale)
             return DynamicIsland {
@@ -29,13 +30,16 @@ struct AgentLiveActivity: Widget {
                     Eyes(state: s, stuck: stuck).padding(4).frame(width: 44, height: 44).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Counter(state: s).font(.headline).padding(.trailing, 4)
+                    Counter(state: s).font(.headline).lineLimit(1).minimumScaleFactor(0.6).padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(verbatim: context.attributes.task).font(.headline).lineLimit(1)
+                    if s.phase == .standby { Text("Ready for a task").font(.headline) }
+                    else { Text(verbatim: context.attributes.task).font(.headline).lineLimit(1) }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    // The expanded island has a fixed height: a waiting timer replaces the progress bar, and the
+                    // buttons are small (2026-11-13: board lost mid-run, the buttons were cut off at the bottom).
+                    VStack(alignment: .leading, spacing: 6) {
                         Says(state: s, full: true, stuck: stuck).font(.subheadline.weight(.semibold))
                         if let since = s.waitingSince, !s.finished {
                             Text(since, style: .timer).monospacedDigit().font(.footnote)
@@ -44,10 +48,10 @@ struct AgentLiveActivity: Widget {
                         if s.line != s.labelFull && (s.phase != .running || s.finished) {
                             Text(verbatim: s.line).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                         }
-                        if s.phase == .running {
+                        if s.phase == .running && (s.waitingSince == nil || s.finished) {
                             ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)
                         }
-                        if !s.finished { Buttons(state: s) }
+                        if !s.finished { Buttons(state: s).controlSize(.small) }
                         if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID) }
                     }
                 }
@@ -75,10 +79,15 @@ struct AgentLiveActivity: Widget {
                     AgentMinimalStatus(state: s, stuck: stuck)
                 }
             }
-            .widgetURL(AgentActivityAttributes.url(run: context.attributes.runID))
+            .widgetURL(link(context))
             .keylineTint(s.phase == .help ? .orange : s.phase == .recording ? .red : .white)
         }
     }
+}
+
+/// Standby opens the quick task sheet; anything else its run.
+private func link(_ context: ActivityViewContext<AgentActivityAttributes>) -> URL {
+    context.state.phase == .standby ? AgentActivityAttributes.quickURL : AgentActivityAttributes.url(run: context.attributes.runID)
 }
 
 /// "3/12" while running, 3-2-1 before a recording, the elapsed time while recording.
@@ -94,7 +103,7 @@ private struct Counter: View {
             Text(state.since, style: .timer)
                 .monospacedDigit().foregroundStyle(.red).multilineTextAlignment(.trailing)
                 .timerAccessibility("Recording time")
-        } else {
+        } else if state.phase != .standby {
             Text(verbatim: "\(state.step)/\(state.limit)").monospacedDigit().foregroundStyle(.secondary)
         }
     }
@@ -142,9 +151,24 @@ private struct Buttons: View {
                     Label("Finish Recording", systemImage: "stop.fill").frame(maxWidth: .infinity)
                 }
                 .tint(.red)
+            case .standby:
+                ForEach(state.picks ?? [], id: \.self) { pick in
+                    Button(intent: RunSavedIntentIntent(intent: SavedIntentEntity(pick))) {
+                        Label { Text(verbatim: pick.name).lineLimit(1) } icon: { Image(systemName: pick.symbol) }
+                            .frame(maxWidth: .infinity)
+                    }
+                    .tint(.gray)
+                }
+                Link(destination: AgentActivityAttributes.quickURL) {
+                    Label("New Task", systemImage: "plus").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(.blue)
             case .running:
                 Button(intent: PauseAgentIntent()) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
                     .tint(.gray)
+                Link(destination: AgentActivityAttributes.quickURL) { Image(systemName: "text.bubble") }
+                    .buttonStyle(.borderedProminent).tint(.blue)
+                    .accessibilityLabel(Text("Add to the task"))
                 Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             case .resuming:
@@ -213,7 +237,8 @@ private struct LockScreenView: View {
                     Text(verbatim: name).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 }
                 HStack {
-                    Text(verbatim: context.attributes.task).font(.headline).lineLimit(1)
+                    if s.phase == .standby { Text("Ready for a task").font(.headline) }
+                    else { Text(verbatim: context.attributes.task).font(.headline).lineLimit(1) }
                     Spacer()
                     Counter(state: s).font(.subheadline)
                 }

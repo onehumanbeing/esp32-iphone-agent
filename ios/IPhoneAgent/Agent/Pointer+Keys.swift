@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Typing and keys through the board's keyboard: text, key combos and the Home key.
@@ -118,7 +119,14 @@ extension Pointer {
     /// The check looks at the first frame captured after the key, then at the screen once it was still for a moment
     /// (2026-11-11: it waited for a 0.3 s still screen after at least 0.6 s, up to 2 s; with an app that kept moving
     /// that was 2.2 s before the flick). Leaving an app shows as a big change in the first frames already.
+    func homeKey() async throws {
+        if absolute { return try await homeSwipe() }
+        if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+    }
+
     func goHome(again: Bool = false) async throws {
+        // An absolute mouse (#99): iOS ignored AC Home there, and an animated screen (Weather) looked like it worked.
+        if absolute { return try await homeSwipe() }
         let before = screen?.live == true ? screen?.frame : nil
         let sent = now()
         do {
@@ -134,10 +142,17 @@ extension Pointer {
         await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
         let after = screen.frame
         if await Vision.off({ Vision.bigChange(before, after) }) { return }
-        if !again, await Vision.off({ Vision.changed(before, after) }) { return }
+        let changed = await Vision.off { Vision.changed(before, after) }
+        // A small change can be the app moving by itself (an animated sheet) while the key did nothing: the step's
+        // verdict, which ignores what moves by itself, then reads "did NOT change" and no flick went out. The same
+        // app's words still on screen, and not the Home Screen (its Search pill), say the key missed.
+        let stayed = !again && changed && !overlayStays ? await Self.keyMissed(before, after) : false
+        guard Self.needsFlick(changed: changed, again: again, stayed: stayed) else { return }
         log(again ? "home: the Home key again changed little; flicking up from the home bar"
+                  : stayed ? "home: the Home key left the app's words on screen; flicking up from the home bar"
                   : "home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
+        if overlayStays { return }  // its words never leave: no second flick
         // 2026-11-13: in Messages the flick scrolled the list instead (the press landed on the app, not the home
         // bar). Still the same app's words on screen: once more at full speed, and the outcome goes in the log.
         await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
@@ -151,15 +166,29 @@ extension Pointer {
     /// The Home Screen's Search button (the low "Search" / "搜索" label), tapped precisely; false = not on screen.
     func tapSearchButton() async throws -> Bool {
         guard let screen, screen.live, let jpeg = screen.frame, let image = Vision.image(jpeg) else { return false }
-        let h = Double(image.height), w = Double(image.width)
-        let hit = await UITreeOCR.lines(image).first { line in
-            let text = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "Q. ")).lowercased()
-            return (text == "search" || text == "搜索") && Double(line.box[1]) / h > 0.6
+        guard let box = SearchPill.label(await UITreeOCR.lines(image), size: CGSize(width: image.width, height: image.height)) else {
+            log("open: cmd+space brought nothing up and no Search button is on screen")
+            return false
         }
-        guard let box = hit?.box else { log("open: cmd+space brought nothing up and no Search button is on screen"); return false }
         log("open: cmd+space brought nothing up; tapping the Search button")
-        try await tap(Double(box[0] + box[2]) / 2 / w, Double(box[1] + box[3]) / 2 / h, aim: true)
+        try await tap(Double(box.midX), Double(box.midY), aim: true)
         return true
+    }
+
+    /// After the Home key: flick up from the home bar? Not after a big change (handled before). `changed`: the
+    /// screen changed at all; `again`: the previous step was Home too; `stayed`: the change was small and the
+    /// app's words are still there, not on the Home Screen (`keyMissed`).
+    nonisolated static func needsFlick(changed: Bool, again: Bool, stayed: Bool) -> Bool {
+        again || !changed || stayed
+    }
+
+    /// The Home key left the app in front: most of its words are still there, and `before` was not the Home Screen
+    /// (where the key changes nothing and a flick could open the App Switcher).
+    static func keyMissed(_ before: Data?, _ after: Data?) async -> Bool {
+        guard let before, let image = Vision.image(before) else { return false }
+        let lines = await UITreeOCR.lines(image)
+        guard SearchPill.label(lines, size: CGSize(width: image.width, height: image.height)) == nil else { return false }
+        return await sameApp(before, after)
     }
 
     /// Most of the text on `before` is still on `after`: the same app (scrolled, perhaps), not the Home Screen.
@@ -171,5 +200,32 @@ extension Pointer {
         let a = await words(before), b = await words(after)
         guard a.count >= 3 else { return false }
         return Double(a.intersection(b).count) / Double(a.count) >= 0.4
+    }
+}
+
+/// The Home Screen's Search pill, found by its label ("Search" / "搜索") low on the screen.
+enum SearchPill {
+    /// The label's box in screen fractions; nil = no pill on these OCR lines of a frame of `size` pixels.
+    static func label(_ lines: [(text: String, box: [Int])], size: CGSize) -> CGRect? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let hit = lines.first { line in
+            let text = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "Q. ")).lowercased()
+            return (text == "search" || text == "搜索") && Double(line.box[1]) / size.height > 0.6
+        }
+        guard let b = hit?.box else { return nil }
+        let w = Double(size.width), h = Double(size.height)
+        return CGRect(x: Double(b[0]) / w, y: Double(b[1]) / h, width: Double(b[2] - b[0]) / w, height: Double(b[3] - b[1]) / h)
+    }
+
+    /// `p` (screen fractions) is on the pill: its label, widened by the pill's icon and padding.
+    static func covers(_ label: CGRect, _ p: CGPoint) -> Bool {
+        label.insetBy(dx: -0.08, dy: -0.02).contains(p)
+    }
+
+    /// A tap at `p` hit the pill on `jpeg`.
+    @MainActor static func tapped(_ jpeg: Data?, at p: CGPoint) async -> Bool {
+        guard let jpeg, let image = Vision.image(jpeg) else { return false }
+        let size = CGSize(width: image.width, height: image.height)
+        return label(await UITreeOCR.lines(image), size: size).map { covers($0, p) } ?? false
     }
 }

@@ -7,7 +7,8 @@ import Foundation
 /// - `read` / `note` / `progress` / `write` work on the notebook; `manual REASON` waits for the user;
 /// - with `until`, the script runs again until the condition holds on screen ("is it over?"), at most maxLoops.
 /// A plain recording (moves only, no `until`) keeps the old behaviour: the first miss hands the rest of the task
-/// to the model for good. In a script, a missed move is repaired by the model and the script goes on.
+/// to the model for good. In a script, a missed move is repaired by the model and the script goes on; a missed tap
+/// nothing names is skipped.
 extension AgentLoop {
     enum ScriptResult { case next, handOver, ended }
 
@@ -18,7 +19,7 @@ extension AgentLoop {
         let n = replay.next + 1
         let name = step.action["action"]?.str ?? ""
         // a plain recording replays moves only (a note in it goes to the model, as before)
-        if !replay.isScript && !Replay.replayable.contains(name) { return handOver(n, "not a move") }
+        if !replay.isScript && !Replay.replayable.contains(name) { return await handOver(n, "not a move") }
         switch name {
         case "ai":
             guard try await subGoal(step.action["goal"]?.str ?? "", budget: step.action["budget"]?.int ?? Self.subGoalSteps,
@@ -40,23 +41,31 @@ extension AgentLoop {
         case "tap" where (step.action["label"]?.str?.count ?? 0) >= 2:  // one character names nothing (IntentLearner)
             guard let at = await labelled(step) else {
                 let why = "\"\(step.action["label"]?.str ?? "")\" not on screen"
-                guard replay.isScript else { return handOver(n, why) }
+                guard replay.isScript else { return await handOver(n, why) }
                 guard try await repair(step, n, why) else { return .ended }
                 break
             }
             var found = step
             (found.action["x"], found.action["y"]) = (.int(at.x), .int(at.y))
             if !(try await move(found)) {
-                guard replay.isScript else { return handOver(n, "no change") }
+                guard replay.isScript else { return await handOver(n, "no change") }
                 guard try await repair(step, n, "no change") else { return .ended }
             }
         default:
             if case .handOver(let why) = Replay.decide(step, screen: screen?.frame) {
-                guard replay.isScript else { return handOver(n, why) }
-                guard try await repair(step, n, why) else { return .ended }
+                guard replay.isScript else { return await handOver(n, why) }
+                let seen = await nearText(step)
+                if name == "tap", why.hasPrefix("miss"), seen == nil {
+                    // 2026-11-13: only its spot is known, and on another screen that spot is something else (the
+                    // folder tap at 613, 702 hit the U key, then a group chat): skipped, not repaired by its spot
+                    replay.miss(why)
+                    record(screen?.frame, ["action": .str("skipped"), "reason": .str("skipped recorded tap: screen differs, nothing names it")])
+                } else {
+                    guard try await repair(step, n, why, seen: seen) else { return .ended }
+                }
             } else if !(try await move(step)) {
-                guard replay.isScript else { return handOver(n, "no change") }
-                guard try await repair(step, n, "no change") else { return .ended }
+                guard replay.isScript else { return await handOver(n, "no change") }
+                guard try await repair(step, n, "no change", seen: await nearText(step)) else { return .ended }
             }
         }
         DebugLog.write("script step \(n) (\(name)): done")
@@ -149,11 +158,25 @@ extension AgentLoop {
         return false
     }
 
-    /// The screen no longer matches a recorded move: the model does that step on the screen it sees.
-    private func repair(_ step: Replay.Step, _ n: Int, _ why: String) async throws -> Bool {
+    /// The screen no longer matches a recorded move: the model does that step on the screen it sees, or skips it.
+    /// `seen`: the text near an unlabelled tap's spot on its reference screen (`nearText`).
+    private func repair(_ step: Replay.Step, _ n: Int, _ why: String, seen: String? = nil) async throws -> Bool {
+        replay.miss(why)
         DebugLog.write("script step \(n): \(why) → AI repairs it")
-        return try await subGoal("Do the equivalent of recorded step \(n) on this screen: "
-                                 + PyJSON.dumps(Actions.key(step.action), ascii: false))
+        return try await subGoal(Self.repairGoal(step.action, n, seen: seen))
+    }
+
+    /// The step in words, never its x/y (Replay.words); subGoal adds the whole task. The model may skip a step that
+    /// this screen or the task doesn't need (2026-11-13: three minutes spent looking for a Send key with nothing typed).
+    nonisolated static func repairGoal(_ action: JObject, _ n: Int, seen: String?) -> String {
+        "Recorded step \(n) was: \(Replay.words(action, seen: seen)). Do that on this screen if it still applies. "
+            + "If it does not apply on this screen, or the task does not need it, say done to skip it."
+    }
+
+    /// What names an unlabelled tap: the text near its spot on its reference screen (OCR). nil for other steps.
+    private func nearText(_ step: Replay.Step) async -> String? {
+        guard (step.action["label"]?.str?.count ?? 0) < 2 else { return nil }
+        return await IntentLearner.text(near: step.action, on: step.frame)
     }
 
     /// A recorded move, done without the model. False = the screen did not change.
@@ -226,8 +249,14 @@ extension AgentLoop {
         return yes
     }
 
-    private func handOver(_ n: Int, _ why: String) -> ScriptResult {
+    /// A plain recording's miss: the model does the rest, with the steps as hints. The taps still to come that no
+    /// label names are named by the text near their spots first, so the hints say what they tapped (Replay.words).
+    private func handOver(_ n: Int, _ why: String) async -> ScriptResult {
         DebugLog.write("replay step \(n): \(why) → AI")
+        replay.miss(why)
+        for i in replay.next..<replay.steps.count {
+            if let seen = await nearText(replay.steps[i]) { replay.name(i, seen: seen) }
+        }
         replay.stop()
         return .handOver
     }

@@ -24,6 +24,8 @@ struct ReviewView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var index = 0
     @State private var playing = false
+    @AppStorage("blurScreens") private var blurScreens = true
+    @State private var revealed = false  // tapped once: this review shows its screens
     @State private var speed = 1.0
     @State private var showVideo = false
     @State private var videoTime = 0.0
@@ -121,7 +123,7 @@ struct ReviewView: View {
         .onAppear {
             video = draft.runID.flatMap { app.runs.run($0) }?.video ?? []
             videoTime = steps.first?.t ?? 0
-            if let firstUnsure = steps.firstIndex(where: \.uncertain) { index = firstUnsure }
+            index = 0  // Henry 2026-11-13: from the first step; "Next unsure" jumps to the yellow ones
         }
         .alert("Could not save changes", isPresented: Binding(get: { draft.persistenceError != nil }, set: { if !$0 { draft.persistenceError = nil } })) {
             Button("Try Again") { draft.saveEdits() }
@@ -193,10 +195,16 @@ struct ReviewView: View {
     private var media: some View {
         TabView(selection: $index) {
             ForEach(Array(steps.enumerated()), id: \.element.id) { i, s in
-                StepFrame(step: s, active: i == index).tag(i).padding(.horizontal, Space.l)
+                StepFrame(step: s, active: i == index, hidden: blurScreens && !revealed).tag(i).padding(.horizontal, Space.l)
+                    .onTapGesture { revealed = true }
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    /// The next yellow step after this one (or the first, from the last).
+    private var nextUnsure: Int? {
+        steps.indices.first { $0 > index && steps[$0].uncertain } ?? steps.indices.first { $0 < index && steps[$0].uncertain }
     }
 
     @ViewBuilder private var stepCard: some View {
@@ -209,7 +217,14 @@ struct ReviewView: View {
                         Label("Unsure", systemImage: "questionmark.circle").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(Color.yellow.opacity(0.35)))
                     }
+                    if step.action["detour"] == .bool(true) {
+                        Text("Detour · left out").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                    }
                     Spacer()
+                    if let next = nextUnsure {
+                        Button { index = next } label: { Label("Next Unsure", systemImage: "arrow.forward.circle") }
+                            .font(.caption.weight(.semibold)).tint(.orange)
+                    }
                 }
                 if let thought = step.action["thought"]?.str ?? step.action["plan"]?.str ?? step.action["reason"]?.str {
                     Text(verbatim: thought).font(.subheadline).foregroundStyle(.secondary).lineLimit(expanded ? nil : 2)

@@ -29,6 +29,7 @@ extension AppModel {
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
+        pointer.overlayStays = Calls.isCall(task, kind: intent?.kind)
         if agent.replay.steps.isEmpty, Calls.isCall(task, kind: intent?.kind) {  // a call: the fast scripted way (Calls.script)
             agent.replay = Replay(steps: Calls.script(task).compactMap { s in s.object.map { Replay.Step(action: $0, sure: true, frame: nil) } })
             DebugLog.write("call: scripted (\(agent.replay.steps.count) steps)")
@@ -149,9 +150,14 @@ extension AppModel {
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
+        // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
+        // works on that screen, and with no decoded stream in hand it snaps (the decoder can't start in the background).
+        let startedAway = appIsBackgrounded && !resume
+        if startedAway && !(feed.live && !feed.broken) { FrameMode.fallback = .snap }
         let snapMode = FrameMode.current == .snap
-        live.start(task: task, runID: runID, limit: agent.maxSteps)
+        live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
         mark("Live Activity requested")
+        var step = StartupFailure.Step.stream  // where a failed start stopped (run_ended)
         do {
             // Ready the screen while still in front: iOS cannot start the video decoder in the background.
             if snapMode {
@@ -170,6 +176,7 @@ extension AppModel {
             }
             try Task.checkCancellation()
             usedInput = true
+            step = .homeBar
             if !resume {  // resuming waits for the user to switch back: a pointer parked on the home bar only
                 // invites a stray stroke there (2026-11-12)
                 try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
@@ -184,6 +191,7 @@ extension AppModel {
             live.show(.leavingApp, mood: .acting)
             let requestedAt = appIsBackgrounded && backgroundEnteredAt > 0 ? backgroundEnteredAt : now()
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
+            step = .leaveApp
             let away = try await (resume ? waitForSwitchBack() : leaveForRun())
             try Task.checkCancellation()
             guard away else {  // never let the agent start on its own app
@@ -193,6 +201,7 @@ extension AppModel {
             homeHint = nil
             mark("app in background")
             if let prewarm = prewarmJob { await prewarm.value; mark("pre-warm done") }  // its snap holds the board
+            step = .firstFrame
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
             try Task.checkCancellation()
             guard appIsBackgrounded,
@@ -202,11 +211,14 @@ extension AppModel {
             }
             mark("first frame: " + frameSource)
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
+                step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
-            agent.startsOnHome = !resume  // leaveForRun went to the Home Screen
+            agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen
+            if startedAway { agent.hints.insert(Self.hereHint, at: 0) }
+            step = .agentStart
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.
@@ -219,11 +231,15 @@ extension AppModel {
                 await returnInput(checkKeyboard: appIsBackgrounded)
                 usedInput = false
             }
-            Trial.shared.end(RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup,
-                                    firmware: board.status?.fw?.description))  // free line
+            let kind = StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board.connected,
+                                           usb: board.status?.usb, mirroring: board.status?.ap == "streaming",
+                                           inFront: !appIsBackgrounded)
+            var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
+            end.step = step.rawValue
+            Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
-                "seconds": Int(now() - t0), "from_intent": currentIntent != nil
+                "seconds": Int(now() - t0), "from_intent": currentIntent != nil, "stage": step.rawValue, "error": kind
             ]) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
@@ -304,7 +320,7 @@ extension AppModel {
         runStarted = Date()
         runUsage = ModelUsage()
         if !early {
-            live.start(task: task, runID: runID, limit: agent.maxSteps)
+            live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
             if !MockMode.on { startVideo() }  // always: the review needs it, even for a run that stops at once
         }
         runs.reload()
@@ -352,7 +368,7 @@ extension AppModel {
     func ended() {
         RunMarker.clear()
         Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
-                                firmware: board.status?.fw?.description))  // free line
+                                firmware: board.status?.fw?.plain))  // free line
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
@@ -365,7 +381,9 @@ extension AppModel {
         let outcome = Outcome(last: last?["action"]?.str, running: false)
         let seconds = Date().timeIntervalSince(runStarted)
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
-                                                               "seconds": Int(seconds), "from_intent": currentIntent != nil]) { $1 })
+                                                               "seconds": Int(seconds), "from_intent": currentIntent != nil,
+                                                               "cached_steps": agent.cachedSteps,
+                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 })
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
@@ -384,7 +402,8 @@ extension AppModel {
         }
         if let intent = currentIntent {
             intents.record(intent.id, RunStat(run: runID, ok: outcome == .done, seconds: seconds))
-            learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done)
+            learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done, failed: outcome == .failed,
+                        missed: agent.replay.missed)
         }
         threads.append(ChatTurn(ask: agent.task, run: runID, outcome: last?["action"]?.str ?? "stopped",
                                 answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",
@@ -424,6 +443,10 @@ extension AppModel {
     func openReview(run id: String) {
         runs.reload()
         guard let run = runs.run(id) else { return }
+        // The same run's review is up with the same steps: keep it. A new draft (a new id) makes the cover close and
+        // present again, and a second open while the first is still animating in can leave it closed (2026-11-13:
+        // the review of a stopped run showed for ~1 s, then Home).
+        if let open = review, open.runID == id, open.steps.count == run.steps.count { return }
         let intent = intents.items.first { $0.refRun == id || $0.runs.contains { $0.run == id } }
         review = ReviewDraft(run: run, intent: intent)
     }

@@ -154,6 +154,8 @@ import XCTest
 
     /// cmd+space brought nothing up (2026-11-13): the next try taps the Home Screen's Search button instead.
     func testSearchButtonWhenCmdSpaceBringsNothingUp() async throws {
+        AppOpener.buttonFirst = false  // a run before this one (this test too) left the Search button first
+        defer { AppOpener.buttonFirst = false }
         var sent: [String] = []
         var queue: [Data?] = [home, home, home, spotlight, app]
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
@@ -165,5 +167,23 @@ import XCTest
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1)
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 1)
+    }
+
+    func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {
+        XCTAssertTrue(Pointer.needsFlick(changed: false, again: false, stayed: false), "nothing changed")
+        XCTAssertTrue(Pointer.needsFlick(changed: true, again: true, stayed: false), "home again, little change")
+        XCTAssertTrue(Pointer.needsFlick(changed: true, again: false, stayed: true), "a sheet that moves by itself, its words still there")
+        XCTAssertFalse(Pointer.needsFlick(changed: true, again: false, stayed: false), "a small change that left the app's words")
+    }
+
+    func testTheSearchPillIsFoundLowOnTheScreenAndCoversItsIcon() {
+        let size = CGSize(width: 1000, height: 2000)
+        let pill = SearchPill.label([("Calendar", [100, 300, 260, 340]), ("Q Search", [440, 1640, 560, 1680])], size: size)
+        XCTAssertEqual(pill?.minX ?? 0, 0.44, accuracy: 0.001)
+        XCTAssertTrue(SearchPill.covers(pill!, CGPoint(x: 0.5, y: 0.83)))
+        XCTAssertTrue(SearchPill.covers(pill!, CGPoint(x: 0.38, y: 0.83)), "the magnifier left of the label")
+        XCTAssertFalse(SearchPill.covers(pill!, CGPoint(x: 0.5, y: 0.9)), "the dock")
+        XCTAssertNotNil(SearchPill.label([("搜索", [460, 1640, 540, 1680])], size: size))
+        XCTAssertNil(SearchPill.label([("Search", [440, 120, 560, 160])], size: size), "an app's own search field at the top")
     }
 }

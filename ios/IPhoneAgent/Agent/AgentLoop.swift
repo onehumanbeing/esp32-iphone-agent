@@ -12,6 +12,8 @@ import Foundation
     func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
     /// again: the previous step was Home too and changed little (Pointer.goHome).
     func goHome(again: Bool) async throws
+    /// The Home key alone, never a flick after it.
+    func homeKey() async throws
     func openApp(_ name: String) async throws -> OpenResult
     func goBack() async throws
     func reset() async throws
@@ -26,6 +28,7 @@ extension Pointer: Gestures {}
 extension Gestures {
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
     func pointerSeen(near p: CGPoint) async -> Bool? { nil }
+    func homeKey() async throws { try await goHome(again: false) }  // fakes
 }
 
 /// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own
@@ -85,6 +88,10 @@ extension Gestures {
     enum Doing { case looking, waiting, planning, thinking, retrying, acting(JObject) }
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
+    var inventory = Inventory()  // a task over many items: list, confirm, then act (AgentLoop+Inventory)
+    var cache = ActionCache()  // taps that follow the same tap each time, done by code (ActionCache)
+    var cachedSteps = 0
+    var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
     /// What this run collected (read / note / progress), shown to the actor every step (AgentLoop+Memory).
@@ -94,6 +101,8 @@ extension Gestures {
     private(set) var recalled: [MemoryEntry] = []
     /// Earlier turns of the chat this run belongs to (ChatContext), for planner and actor.
     var chatContext = ""
+    /// The Dynamic Island's touch area in 0-1000 units (IslandGuard.zone), nil = none on this iPhone.
+    var island: () -> CGRect? = { nil }
     /// The run starts on the Home Screen (RunSession left for it): `open` the app a task names, hold Home swipes.
     var startsOnHome = false
     /// A script's part is running (ScriptRunner.subGoal): its done needs no planner check, the script goes on.
@@ -153,6 +162,9 @@ extension Gestures {
         DebugLog.write("tools: " + (tools.isEmpty ? "none" : tools.map(\.id).joined(separator: ", ")))  // the system prompt is not in the trace
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
+        steering = []
+        if !resume { (cache, cachedSteps) = (ActionCache(), 0) }
+        inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
         helpAsked = 0
         droppingChosenGesture = false
@@ -174,12 +186,12 @@ extension Gestures {
     }
 
     /// A run from Runs put back in memory so it can go on, also after a relaunch: its task, steps and last plan.
-    /// The notebook and screenshots are not in the trace's steps, so they start empty.
+    /// The screenshots are not in the trace's steps; the notebook comes back from its last checkpoint row.
     func restore(task: String, steps: [JObject]) {
         guard !running else { return }
         self.task = task; self.steps = steps; shots = [:]
         plan = steps.last { $0["action"]?.str == "plan" }?["plan"]?.str ?? ""
-        notebook = Notebook(); learned = []
+        notebook = Self.savedNotebook(steps); learned = []
     }
 
     func stop() {
@@ -378,7 +390,7 @@ extension Gestures {
             }
             while true {
                 rounds += 1
-                if rounds > maxSteps || stalls >= maxStalls {
+                if rounds > stepLimit || stalls >= maxStalls {
                     let reason = stalls >= maxStalls ? "\(Self.stallReason) in \(stalls) steps" : Self.stepLimitReason
                     record(nil, ["action": .str("fail"), "reason": .str(reason)])
                     guard try await askForHelp() else { return finish() }
@@ -458,11 +470,13 @@ extension Gestures {
 
     /// The actor asked before a risky step. True = the run is over (stopped).
     private func confirm(_ reason: String) async throws -> Bool {
-        guard let onConfirm, (askMode ?? .current).asks(reason) else {
+        let mode = askMode ?? .current
+        guard let onConfirm, mode.asks(reason) || (inventory.needed && mode != .never) else {
             record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (no need to ask for this): \(reason)")])
             return false
         }
-        let choice = await onConfirm(reason)
+        if inventory.needed { Analytics.capture("confirm_shown", ["kind": "inventory", "items": notebook.items.count]) }
+        let choice = await onConfirm(inventoryReason(reason))
         try Task.checkCancellation()
         switch choice {
         case .stop:
@@ -565,6 +579,17 @@ extension Gestures {
                     record(planned.shot, act)
                     return false
                 }
+                if name == "tap", let held = await inventoryHold(act, on: planned.shot ?? seen) {
+                    act["result"] = .str(held)
+                    record(planned.shot, act)
+                    return false
+                }
+                if name == "tap", let off = IslandGuard.apply(&act, zone: island()) {
+                    act["result"] = .str(off)
+                    DebugLog.write("step: tap not sent, \(off)")
+                    record(planned.shot, act)
+                    return false
+                }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
@@ -593,6 +618,8 @@ extension Gestures {
         if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed) }
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
         verdict(changed)
+        try await followCache(seen: seen)
+        saveCheckpoint()
         return false
     }
 
@@ -600,14 +627,17 @@ extension Gestures {
         guard let actor else { throw LLMError(message: "no actor model") }
         // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure"]
-        let history = steps.suffix(8).filter { $0["plan"] == nil }.map { s -> String in
+                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached"]
+        takeSteering()
+        let history = steps.suffix(8).filter {
+            $0["plan"] == nil && $0["action"]?.str != Self.steerAction && $0["action"]?.str != Self.checkpointAction
+        }.map { s -> String in
             String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
         }.joined(separator: "\n")
         let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
             + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
         let sound = heard?() ?? ""
-        let prompt = "Goal: \(task)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
+        let prompt = "Goal: \(task)\(steeredSection)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
             + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
         var reply = ""
         let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)

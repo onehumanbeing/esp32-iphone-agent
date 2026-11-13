@@ -4,6 +4,38 @@ import WidgetKit
 
 /// Siri, Shortcuts, widgets and controls → the app; and the app's state → the widgets (App Group snapshot).
 extension AppModel {
+    /// The waiting island's intents (the most run, filled in, at most 3); nil while standby is off or something runs.
+    var standbyPicks: [StandbyPick]? {
+        guard settings.standbyIsland, !agent.running, !startingAgent, !recorder.busy else { return nil }
+        return intents.items.filter { !$0.unfilled && $0.builtin == nil }.sorted { $0.runs.count > $1.runs.count }
+            .prefix(3).map { StandbyPick(id: $0.id, name: $0.name, symbol: $0.symbol) }
+    }
+
+    /// Standby on and nothing running: the island waits (started from the foreground, kept up to date after).
+    func refreshStandby() {
+        if let picks = standbyPicks { live.standby(picks) }
+        else if !settings.standbyIsland { live.endStandby() }
+    }
+
+    /// A task from the quick sheet (the island's New Task): it runs on the screen the user came from.
+    func runHere(_ task: String, intent: SavedTask?) async {
+        if !appIsBackgrounded, board.connected, pointer.calibrated, await backToPrevious() {
+            DebugLog.write("quick task: runs on the app the user came from")
+        }
+        await run(task, intent: intent)
+    }
+
+    /// The first hint of a run started while another app was in front.
+    nonisolated static let hereHint = "The run starts on the screen the user had open when they asked; the task is " +
+        "about it. Work from this screen; do not go to the Home Screen first."
+
+    /// Words added to the running task (AgentLoop.steer). `from`: home, quick, siri (usage stats get only that).
+    @discardableResult func steer(_ text: String, from: String) -> Bool {
+        guard agent.steer(text) else { return false }
+        Analytics.capture("steer_added", ["source": from, "queued": agent.steering.count])
+        return true
+    }
+
     func handle(_ request: AgentRequest) async -> String {
         DebugLog.write("intent: \(request)")
         switch request {
@@ -25,6 +57,9 @@ extension AppModel {
             guard let run = runs.run(id) else { return String(localized: "That run isn't on this iPhone any more.") }
             openReview(run: run.id)
             return String(localized: "Showing the run: \(run.task)")
+        case .quickAsk:
+            quickAsk = true
+            return ""
         }
     }
 
@@ -32,7 +67,10 @@ extension AppModel {
     private func runFromIntent(_ task: String, intent: SavedTask?) async -> String {
         let task = task.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !task.isEmpty else { return String(localized: "The task is empty.") }
-        if agent.running { return String(localized: "Already running: \(agent.task)") }
+        if agent.running {  // Henry 2026-11-13: words said while a run goes join it
+            return steer(task, from: "siri") ? String(localized: "Added to the running task: \(task)")
+                : String(localized: "Already running: \(agent.task)")
+        }
         if !MockMode.on {
             guard settings.isConfigured else { return String(localized: "Set up the model in Settings first.") }
             guard pointer.calibrated else { return String(localized: "Calibrate the pointer in \(AppName.current) first.") }

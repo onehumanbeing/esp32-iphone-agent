@@ -13,8 +13,10 @@ enum DemoAnalysis {
     consecutive screens, name the one action that caused it. Coordinates are 0-1000 of the screen width and height.
     Reply with one line per change, in this format only:
     STEP <change number>: <command> | sure or unsure
-    Commands: tap X Y "what was tapped", swipe X1 Y1 X2 Y2, type "text", home, back, ai "what to achieve", \
-    read "what", none.
+    Commands: open "App name", tap X Y "what was tapped", swipe X1 Y1 X2 Y2, type "text", home, back, \
+    ai "what to achieve", read "what", none.
+    When the person opened an app (its icon on the Home Screen, in a folder or from Search), write open "App name" \
+    with the name under its icon, instead of the taps that got there.
     After tap, name what was tapped as it reads on the screen (an app's name, a button, a row's title). Write \
     none when the person did nothing: an app still opening, an animation or a page still loading.
     Each change comes with what the phone measured (where the screen changed, or that the content scrolled) and \

@@ -4,6 +4,7 @@
 //
 // HID commands (unchanged from the old TCP protocol, the board answers "ok" or "err <why>"):
 //   ping | pace | home | move <dx> <dy> [speed] | press | release | click
+//   abs <x> <y> [step] (flash.sh --abs builds: 0-32767 across the screen; `home` and `move` still work)
 //   scroll <v> <h> | type <ascii text> | key <combo, e.g. cmd+h, enter>
 //   homescreen (the consumer-control Home key, "AC Home": iOS goes to the Home Screen, like a keyboard's home key)
 
@@ -14,6 +15,7 @@
 #include <esp_app_desc.h>
 #include "USB.h"
 #include "USBHIDMouse.h"
+#include "abs_mouse.h"
 #include "USBHIDKeyboard.h"
 #include "USBHIDConsumerControl.h"
 #include "tusb.h"
@@ -33,6 +35,8 @@
 #include "logbuf.h"
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
+const int ABS_STEP = 245;      // of 32767, per STEP_MS while dragging with `abs`: the relative mouse's speed
+const int ABS_SETTLE_MS = 60;  // between an `abs` move and the press after it: iOS ignores X/Y in a button report
 const int STEP_MS = 8;    // report interval; constant pace keeps iOS acceleration predictable
 const int HOME_REPORTS = 25;  // per axis
 #ifndef DEBUG_SERIAL
@@ -41,7 +45,11 @@ const int HOME_REPORTS = 25;  // per axis
 
 const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the board instead of staying offline
 
+#if ABS_POINTER
+AbsMouse mouse;  // flash.sh --abs: same calls as USBHIDMouse, plus `abs`
+#else
 USBHIDMouse mouse;
+#endif
 USBHIDKeyboard keyboard;
 USBHIDConsumerControl consumer;
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
@@ -116,6 +124,12 @@ String run(const String &line) {
   sscanf(arg.c_str(), "%ld %ld %ld", &a, &b, &c);
 
   if (cmd == "ping") return "ok";
+#if ABS_POINTER
+  if (cmd == "move" || cmd == "flick") {  // emulated on the absolute mouse; never further than across the screen
+    a = constrain(a, -AbsMouse::MAX_MOVE, AbsMouse::MAX_MOVE);
+    b = constrain(b, -AbsMouse::MAX_MOVE, AbsMouse::MAX_MOVE);
+  }
+#endif
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
   if (!usbReady()) return "err phone usb asleep (unlock the phone)";
   if (cmd == "reset") {
@@ -134,6 +148,20 @@ String run(const String &line) {
     return "ok";
   }
   if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
+#if ABS_POINTER
+  if (cmd == "abs") {  // absolute position, 0-32767 across the screen; [step]: per report while dragging
+    if (mouse.held()) {
+      // Lists need the glide (a jump is a flick, and they fly); system gestures need a flick: a glided home swipe
+      // took ~1 s and opened the app switcher instead (2026-11-07). The app sends a big step for those.
+      long step = sscanf(arg.c_str(), "%*ld %*ld %ld", &c) == 1 ? constrain(c, AbsMouse::MIN_STEP, AbsMouse::FULL) : ABS_STEP;
+      mouse.glideTo(a, b, step, STEP_MS);
+    } else {
+      mouse.moveTo(a, b);
+      delay(ABS_SETTLE_MS);
+    }
+    return "ok";
+  }
+#endif
   if (cmd == "press") { mouse.press(MOUSE_LEFT); holdUntil = 0; return "ok"; }
   if (cmd == "press_for") {  // cy41 #103: a held long press (a 30 s hold used to come up after 5 s)
     if (a < 1 || a > HOLD_MAX_MS) return "err usage: press_for MS (1-60000)";
@@ -335,12 +363,18 @@ String board(const String &line, const String &id, char who) {
   return drive(line, who);
 }
 
+#if ABS_POINTER
+#define ABS_FIELD "\"abs\":1,"  // in the full and the short status: the app sends `abs` and skips calibration
+#else
+#define ABS_FIELD ""
+#endif
+
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
   char s[768];
   snprintf(s, sizeof s,
-           "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
+           "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
            "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d},"
            "\"udp\":{\"n\":%d,\"kbps\":%lu,\"nack\":%lu,\"drop\":%lu}}",
@@ -374,7 +408,7 @@ String statusJson(bool full, char who) {
   snprintf(s + len - 1, sizeof s - len + 1, ",\"lost\":%lu}", (unsigned long)v.lost);
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
+  snprintf(s, sizeof s, "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\",\"lost\":%lu", owner, (unsigned long)v.lost);
   if (who == FROM_CLI)

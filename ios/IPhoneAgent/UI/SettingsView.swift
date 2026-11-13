@@ -8,6 +8,7 @@ struct SettingsView: View {
     @ObservedObject var board: BoardLink
     @AppStorage(AskMode.key) private var askMode = AskMode.current
     @AppStorage(Pointer.gentleHomeKey) private var gentleHome = true
+    @AppStorage("blurScreens") private var blurScreens = true
 
     var body: some View {
         NavigationStack {
@@ -73,8 +74,16 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.learnFromRuns) {
                         SettingsLabel(title: "Intents learn from runs", symbol: "wand.and.stars", color: .indigo)
                     }
+                    Toggle(isOn: $settings.standbyIsland) {
+                        SettingsLabel(title: "Standby in Dynamic Island", symbol: "capsule", color: .blue)
+                    }
+                    .onChange(of: settings.standbyIsland) { app.refreshStandby() }
+                    Toggle(isOn: $blurScreens) {
+                        SettingsLabel(title: "Blur screens in reviews", symbol: "eye.slash", color: .gray)
+                    }
                 } footer: {
-                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it.")
+                    Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it. Blur screens in reviews: a review's screenshots stay blurred until you tap one, so chats and messages do not show in a screen recording.")
+                    + Text(verbatim: " ") + Text("Standby in Dynamic Island: between runs the island shows your three most used intents and New Task; an intent tapped there runs on the app you are in.")
                 }
                 ListenSection(app: app, audio: app.audio)
                 Section {
@@ -296,7 +305,10 @@ struct CalibrationRow: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Calibration")
-                        if let span = pointer.span {
+                        if pointer.absolute {
+                            Text("Absolute mouse: no calibration needed")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else if let span = pointer.span {
                             Text(verbatim: "\(pointer.quality.map(CalibrationText.percent) ?? "–") · \(span.w) × \(span.h)")
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         }

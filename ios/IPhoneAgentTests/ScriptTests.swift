@@ -53,16 +53,62 @@ import XCTest
         }
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
         let reference = ReplayTests.screen(CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.2))
-        agent.replay = Replay(steps: [step(["action": .str("tap"), "x": .int(300), "y": .int(300)], frame: reference),
+        agent.replay = Replay(steps: [step(["action": .str("tap"), "x": .int(613), "y": .int(702), "label": .str("Send")], frame: reference),
                                       step(["action": .str("read"), "what": .str("the title")])])
         await agent.run()
         XCTAssertEqual(phone.taps, 2)  // the model's tap changed nothing on the still fake screen: pressed once more
-        XCTAssertTrue(model.prompts[0].contains("Do the equivalent of recorded step 1 on this screen"))
+        // 2026-11-13: in words, never its spot; it may skip the step
+        XCTAssertTrue(model.prompts[0].contains("Recorded step 1 was: Tap \"Send\""), model.prompts[0])
+        XCTAssertTrue(model.prompts[0].contains("say done to skip it"))
+        XCTAssertFalse(model.prompts[0].contains("613"))
+        XCTAssertFalse(agent.steps.contains { $0["action"]?.str == "plan" && ($0["plan"]?.str ?? "").contains("{") })
+        XCTAssertEqual(agent.replay.missed, [0])
         XCTAssertEqual(agent.notebook.items, ["X"])
         XCTAssertEqual(agent.steps.last?["answer"], .str("finished"))
     }
 
     /// A manual step waits for the user; after they hand back, the script goes on.
+    /// 2026-11-13: an unlabelled tap on a screen that differs, with no text near its spot on its own screen, is
+    /// skipped in a script: its spot would hit something else (the U key, a group chat).
+    func testAMissedTapNothingNamesIsSkippedInAScript() async {
+        let screen = FakeScreen(); screen.frame = ReplayTests.screen(CGRect(x: 0.3, y: 0.3, width: 0.5, height: 0.5))
+        let phone = ScriptedPhone { _ in }
+        let model = FakeModel { n in
+            switch n {
+            case 1: return "X"
+            case 2: return "1. Check"
+            default: return "THINK: all good\nDO: done finished"
+            }
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
+        let reference = ReplayTests.screen(CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.2))
+        agent.replay = Replay(steps: [step(["action": .str("tap"), "x": .int(613), "y": .int(702)], frame: reference),
+                                      step(["action": .str("read"), "what": .str("the title")])])
+        await agent.run()
+        XCTAssertEqual(phone.taps, 0)
+        XCTAssertEqual(agent.steps.first { $0["action"] == .str("skipped") }?["reason"],
+                       .str("skipped recorded tap: screen differs, nothing names it"))
+        XCTAssertEqual(agent.notebook.items, ["X"], "the script went on")
+        XCTAssertFalse(model.prompts.contains { $0.contains("613") })
+        XCTAssertEqual(agent.replay.missed, [0])
+    }
+
+    /// The model is told what a recorded step did, never where (2026-11-13).
+    func testRecordedStepsAreWordsWithoutSpots() {
+        let named: JObject = ["action": .str("tap"), "x": .int(613), "y": .int(702), "label": .str("文件传输助手")]
+        let unnamed: JObject = ["action": .str("tap"), "x": .int(613), "y": .int(702)]
+        XCTAssertEqual(Replay.words(named), "Tap \"文件传输助手\"")
+        XCTAssertEqual(Replay.words(unnamed, seen: "Photo & Video"), "Tap \"Photo & Video\"")
+        XCTAssertFalse(Replay.words(unnamed).contains { $0.isNumber })
+        XCTAssertEqual(Replay.words(["action": .str("swipe"), "x1": .int(500), "y1": .int(800), "x2": .int(500), "y2": .int(200)]), "Swipe up")
+        let goal = AgentLoop.repairGoal(unnamed, 4, seen: "Photo & Video")
+        XCTAssertTrue(goal.hasPrefix("Recorded step 4 was: Tap \"Photo & Video\"."))
+        XCTAssertFalse(goal.contains("613") || goal.contains("{"))
+        let hints = Replay(steps: [step(named), step(unnamed), step(["action": .str("type"), "text": .str("ok")])]).hints
+        XCTAssertEqual(hints, ["Recorded step 1: Tap \"文件传输助手\"", "Recorded step 2: Tap an icon or picture (no text names it)",
+                               "Recorded step 3: Type \"ok\""])
+    }
+
     func testManualStepWaitsForTheUser() async {
         let model = FakeModel { n in n == 1 ? "1. Check" : "THINK: ok\nDO: done ok" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)

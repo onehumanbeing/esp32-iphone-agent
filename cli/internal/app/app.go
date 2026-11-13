@@ -53,6 +53,11 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   intent delete NAME
   intent export NAME... [--screenshots] [--output FILE]   .esp32intent file for the iOS app
   intent import FILE
+  memory list | search TEXT        what the agent remembers (the app's MEMORY.md, same format)
+  memory add TEXT [--kind preference|fact|app] [--topic APP]
+  memory rm ID
+  memory export [--output FILE]    MEMORY.md for the app (Settings › Memory › Import)
+  memory import FILE               fold in the app's export: same id or words keep the newer
   report --intent NAME [--screenshots]   prepare a mail to the developer with one intent; you send it
   upgrade [--check] [--force]      install the latest release
   mcp                              MCP server on stdio
@@ -144,6 +149,8 @@ func (a *App) Run(args []string) int {
 		return a.history(rest)
 	case "intent", "intents":
 		return a.intent(rest)
+	case "memory":
+		return a.memory(rest)
 	case "report":
 		return a.report(rest)
 	case "logs":

@@ -51,6 +51,10 @@ npm：`npm install -g esp32agent`。安装脚本读取 `https://handsy.tech/cli/
 | `intent delete NAME\|ID` | |
 | `intent export NAME\|ID... [--screenshots] [--output FILE]` | 导出 iOS App 能导入的 `.esp32intent` 文件；加 `--screenshots` 才带参考截图 |
 | `intent import FILE` | 导入 `.esp32intent` 文件（来自 App 或 `export`）；名称和提示词都相同的已有意图会跳过 |
+| `memory list`、`memory search TEXT [--limit N]` | Agent 记住的内容，最相关的在前 |
+| `memory add TEXT [--kind preference\|fact\|app] [--topic APP]` | 记住一行；密码、验证码、银行卡号和证件号会被拒绝 |
+| `memory rm ID` | |
+| `memory export [--output FILE]`、`memory import FILE` | App 的 `MEMORY.md`；导入时 id 或文字相同的条目保留较新的一份 |
 | `report --intent NAME [--screenshots]` | 准备一封邮件，把一个意图发给开发者（见下文）；需要交互 |
 | `upgrade [--check] [--force]` | 安装最新版本（`--check`：`current`、`latest`、`update_available`） |
 | `mcp` | stdio 上的 MCP 服务器 |
@@ -69,13 +73,17 @@ codex mcp add esp32agent -- esp32agent mcp       # Codex
 esp32agent skill install                         # Claude Code 技能（操作循环、输入规则）
 ```
 
-MCP 工具：`screenshot`（返回图片）、`tap`、`longpress`、`swipe`、`type_text`、`press_key`、`press_button`、`device_info`，以及 `history`、`intent_list`、`intent_show`、`intent_save`。操作循环是：截图、判断、做一步、再截图，见 [SKILL.md](SKILL.md)。
+MCP 工具：`screenshot`（返回图片）、`tap`、`longpress`、`swipe`、`type_text`、`press_key`、`press_button`、`device_info`，以及 `history`、`intent_list`、`intent_show`、`intent_save`、`memory_recall`、`memory_add`。操作循环是：截图、判断、做一步、再截图，见 [SKILL.md](SKILL.md)。
 
 ## 历史记录和意图
 
 daemon 会像 iOS App 记录运行一样，记下每个操作和截图：配置目录里的 `runs/<yyyyMMdd-HHmmss>/steps.jsonl`（操作用 0–1000 的屏幕单位，画面存成 480 像素宽的 JPEG）。空闲 10 分钟后或运行 `history new` 时开始新的一次运行；保留最新的 100 次。所有内容都不会离开这台电脑。
 
 意图是保存下来的任务：名称、提示词、最多 6 条提示，以及录下的步骤和对应画面（配置目录里的 `intents.json` 和 `intent-frames/<id>/`，字段和 App 一致）。`intent save --from-run RUN` 会取这次运行中可以重放的操作（点按、滑动、输入、按键、回主屏幕）。`intent export` 和 `intent import` 使用 App 的 `.esp32intent` 格式，所以意图可以在 CLI 和 iPhone App 之间互传（隔空投送或「文件」App）。
+
+## 记忆
+
+iOS App 把用户告诉它的内容（偏好、事实、某个 App 怎么用）存在 `MEMORY.md` 里，每条一行，上面带日期。CLI 在配置目录的 `memory/MEMORY.md` 里存同一种文件。互传方法：在 App 里点「设置 › 记忆 › ⋯ › 导出 MEMORY.md」（隔空投送或「文件」App），再运行 `esp32agent memory import FILE`；反过来用 `esp32agent memory export`，再在 App 里点「设置 › 记忆 › ⋯ › 导入」。不经过任何服务器。
 
 ## 把意图分享给开发者（可选）
 

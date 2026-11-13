@@ -31,6 +31,11 @@ keep going.
 A goal that asks for facts (an address and a rating): once you have looked for one where it should be (scrolled
 the page, opened its tab) and it is not shown, do not wander off to other screens for it: done with what you
 found, and say what the screen did not show.
+A goal to look at, find, browse or compare something (a dish, a product, a shop, a video): once this screen shows
+what it asks for (a matching item, menu or list), give done with a short answer naming what is shown; do not keep
+browsing for a better match or back out of a screen that fits.
+Never tap the Dynamic Island (the top center of the screen, where this agent's status shows): a tap there leaves
+the app. For a field right under it, tap the field's free left part.
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
 Type Chinese as the characters themselves (type 你好, not ni hao), never as pinyin letters: the app switches to the

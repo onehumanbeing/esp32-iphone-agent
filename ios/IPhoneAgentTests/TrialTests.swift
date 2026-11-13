@@ -93,6 +93,38 @@ import XCTest
         let text = String(data: try JSONSerialization.data(withJSONObject: body), encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("secret"))  // the model's reason text never leaves the phone
         XCTAssertNil(RunEnd(reason: .startFailed, stage: .startup).json["fw"])
+        // the gateway reads "0.2.5"; the app shows v0.2.5 (2026-11-13)
+        let board = try XCTUnwrap(FirmwareVersion("v0.2.5"))
+        XCTAssertEqual(RunEnd(reason: .userStop, stage: .running, firmware: board.plain).json["fw"] as? String, "0.2.5")
+        XCTAssertEqual(board.description, "v0.2.5")
+        var start = RunEnd(reason: .startFailed, stage: .startup)
+        start.step = StartupFailure.Step.firstFrame.rawValue
+        XCTAssertEqual(start.json["step"] as? String, "first_frame")
+        XCTAssertNil(RunEnd(reason: .done, stage: .running).json["step"])
+    }
+
+    /// 2026-11-13: a failed start says where and why in fixed words, never the error's own text.
+    func testStartupFailureKinds() {
+        func kind(_ error: Error, cancelled: Bool = false, step: StartupFailure.Step = .stream, board: Bool = true,
+                  usb: String? = "on", mirroring: Bool = true, inFront: Bool = false) -> String {
+            StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board, usb: usb,
+                                mirroring: mirroring, inFront: inFront)
+        }
+        let secret = DeviceError(message: "secret task text")
+        XCTAssertEqual(kind(secret, cancelled: true), "cancelled")
+        XCTAssertEqual(kind(CancellationError()), "cancelled")
+        XCTAssertEqual(kind(TrialError.busy, step: .trialClaim), "busy")
+        XCTAssertEqual(kind(TrialError.usedUp, step: .trialClaim), "trial_refused")
+        XCTAssertEqual(kind(secret, board: false), "board_lost")
+        XCTAssertEqual(kind(secret, usb: "off"), "usb_off")
+        XCTAssertEqual(kind(secret, mirroring: false), "mirroring_off")
+        XCTAssertEqual(kind(secret, step: .leaveApp, inFront: true), "on_screen")
+        XCTAssertEqual(kind(DeviceError(message: "timeout")), "timeout")
+        XCTAssertEqual(kind(URLError(.timedOut)), "timeout")
+        XCTAssertEqual(kind(secret, step: .firstFrame), "no_frame")
+        XCTAssertEqual(kind(secret), "other")
+        XCTAssertEqual(StartupFailure.Step.allCases.map(\.rawValue),
+                       ["stream", "home_bar", "leave_app", "first_frame", "trial_claim", "agent_start"])
         XCTAssertEqual(RunEnd(reason: .startFailed, stage: .startup).outcome, "failed")
         XCTAssertEqual(RunEnd(reason: .userStop, stage: .startup).outcome, "stopped")
         XCTAssertEqual(RunEnd(reason: .stall, stage: .running, steps: 99_999).json["steps"] as? Int, 10_000)

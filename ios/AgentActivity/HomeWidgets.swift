@@ -146,6 +146,19 @@ struct RunLastIntentControl: ControlWidget {
     }
 }
 
+/// Control Center (or the Action button): the quick task sheet, to type a task or pick an intent.
+struct QuickTaskControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "QuickTask") {
+            ControlWidgetButton(action: OpenQuickTaskIntent()) {
+                Label("New Task", systemImage: "text.bubble")
+            }
+        }
+        .displayName("New Task")
+        .description("Opens the app ready to type a task or pick an intent.")
+    }
+}
+
 struct StopAgentControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "StopAgent") {

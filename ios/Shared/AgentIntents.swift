@@ -12,6 +12,8 @@ enum AgentRequest {
     case runTask(String), runSaved(UUID?), status, calibrate
     /// Opens a recorded run in the review screen (Siri's "replay" tool).
     case openRun(String)
+    /// Opens the quick task sheet (the Control Center's New Task).
+    case quickAsk
 }
 
 @MainActor enum AgentRequests {
@@ -33,6 +35,12 @@ struct SavedIntentEntity: AppEntity {
         id = item.id
         name = item.name
         symbol = item.symbol
+    }
+
+    init(_ pick: StandbyPick) {
+        id = pick.id
+        name = pick.name
+        symbol = pick.symbol
     }
 
     var displayRepresentation: DisplayRepresentation {
@@ -81,5 +89,17 @@ struct RunLastIntentIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let line = await AgentRequests.handle?(.runSaved(nil)) ?? AgentRequests.unavailable
         return .result(dialog: "\(line)")
+    }
+}
+
+/// Control Center: opens the app on the quick task sheet (a control cannot ask for text itself).
+struct OpenQuickTaskIntent: AppIntent {
+    static let title: LocalizedStringResource = "New Task"
+    static let description = IntentDescription("Opens the app ready to type a task or pick an intent.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        _ = await AgentRequests.handle?(.quickAsk)
+        return .result()
     }
 }
