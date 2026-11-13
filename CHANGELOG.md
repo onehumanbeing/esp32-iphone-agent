@@ -4,6 +4,19 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Record: a demonstration is saved as what was meant. Opening an app from the Home Screen, a folder or Search
+  becomes one `open` step; a tap is named by the text at its spot on the screen; taps on the on-screen keyboard
+  are left out (the type step holds the text) and its return key becomes Return; a detour that ends back on the
+  same screen is marked left out (mark it correct to keep it).
+- Record: text typed from the instruction's words follows the instruction: after the words change, the AI types
+  what the instruction says now.
+- Record: "Working out the steps" shows which part it is on and the time so far. The review opens at step 1, with
+  Next Unsure to jump to the yellow steps. Review screens are blurred until tapped (Settings › Blur screens in
+  reviews).
+- Intents: editing an intent's instruction checks its steps, name and checklist against the new words and proposes
+  the changes; nothing changes until you tap Apply.
+- Intents: a run that fails adds one hint from its notes to the checklist (words only, phone numbers masked);
+  checklist rows can be swiped away.
 - App: a recorded step that misses is described to the AI in words (its label, or the text near the tapped spot on
   the recorded screen), never by its coordinates, and the AI may skip a step the screen or task no longer needs.
   Fixed taps landed on the keyboard, a wrong chat or a photo, and the step's raw JSON showed in the status.

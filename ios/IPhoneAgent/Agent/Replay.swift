@@ -77,8 +77,17 @@ struct Replay {
 
     init(intent: SavedTask) {
         self.init(steps: (intent.steps ?? []).compactMap { s in
-            s.object.map { Step(action: $0, sure: s.sure, frame: IntentFrames.data(intent.id, s.frame)) }
+            s.object.map { Step(action: Self.retyped($0, prompt: intent.prompt), sure: s.sure,
+                                frame: IntentFrames.data(intent.id, s.frame)) }
         }, until: intent.until, maxLoops: intent.maxLoops ?? 5)
+    }
+
+    /// Henry 2026-11-13: text typed from the instruction's words (`slot`, ReviewDraft.recordedSteps) that the
+    /// instruction no longer has ("发给张三" became "发给李四"): the AI types what the instruction says now.
+    static func retyped(_ action: JObject, prompt: String) -> JObject {
+        guard action["action"]?.str == "type", let slot = action["slot"]?.str, !slot.isEmpty, !prompt.contains(slot)
+        else { return action }
+        return ["action": .str("ai"), "goal": .str("Type what the task says now in place of \"\(slot)\"")]
     }
 
     /// Steps the script runs itself besides moves: an AI sub-goal, notebook actions, a step for the user.

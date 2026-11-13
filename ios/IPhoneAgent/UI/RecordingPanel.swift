@@ -29,9 +29,22 @@ struct RecordingPanel: View {
             } else if recorder.stopping {
                 ProgressView("Finishing recording…")
             } else if recorder.inferring {
-                HStack(spacing: Space.m) {
-                    ProgressView()
-                    Text("Working out the steps from \(recorder.keyframes) screens…")
+                if let p = recorder.progress {
+                    ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) {
+                        Text("Working out the steps from \(recorder.keyframes) screens…")
+                    } currentValueLabel: {
+                        HStack(spacing: Space.xs) {
+                            Text("Part \(min(p.done + 1, p.total)) of \(p.total)")
+                            Text(verbatim: "·")
+                            Text(timerInterval: p.since...Date.distantFuture, countsDown: false)
+                        }
+                        .monospacedDigit()
+                    }
+                } else {
+                    HStack(spacing: Space.m) {
+                        ProgressView()
+                        Text("Working out the steps from \(recorder.keyframes) screens…")
+                    }
                 }
             } else if let error = recorder.error {
                 Label { Text(verbatim: error) } icon: { Image(systemName: "exclamationmark.triangle") }

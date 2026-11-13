@@ -49,7 +49,8 @@ struct DraftStep: Identifiable, Equatable {
     /// A demonstration written as a run (DemoRecorder) opens as one: its unsure steps marked.
     convenience init(run: Run, intent: SavedTask? = nil) {
         let steps = run.steps.map {
-            DraftStep(action: $0.action, frame: $0.frame, t: $0.t, uncertain: $0.action["sure"] == .bool(false))
+            DraftStep(action: $0.action, frame: $0.frame, t: $0.t, verdict: $0.action["detour"] == .bool(true) ? false : nil,
+                      uncertain: $0.action["sure"] == .bool(false))
         }
         self.init(source: intent == nil ? (run.isDemo ? .recording : .run) : .intent, folder: run.folder, runID: run.id, outcome: run.outcome,
                   steps: steps, name: intent?.name ?? "", prompt: intent?.prompt ?? run.task,
@@ -154,6 +155,9 @@ struct DraftStep: Identifiable, Equatable {
         let result = try picked.enumerated().map { i, step -> RecordedStep in
             var action = Actions.key(step.action)
             if step.name == "tap", let label = step.action["label"] { action["label"] = label }  // replayed by name
+            if step.name == "type", let text = action["text"]?.str, text.count >= 2, prompt.contains(text) {
+                action["slot"] = .str(text)  // the instruction's words: a new instruction types its own (Replay)
+            }
             var sure = source == .run ? outcome == .done && step.action["changed"] != .bool(false) : !step.uncertain
             if let fix = step.fix, step.name == "tap" {
                 action["x"] = .int(Int(fix.x)); action["y"] = .int(Int(fix.y))

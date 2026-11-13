@@ -11,6 +11,8 @@ import UIKit
     @Published private(set) var stopping = false
     @Published private(set) var keyframes = 0
     @Published private(set) var started = Date()
+    /// While working out the steps: parts named of all, and since when (Henry 2026-11-13: 21 s of a bare spinner).
+    @Published private(set) var progress: (done: Int, total: Int, since: Date)?
     @Published private(set) var countdownEnds: Date?  // leaving the app while the island counts down; nothing is captured yet
     @Published var error: String?
     private unowned let app: AppModel
@@ -314,6 +316,10 @@ import UIKit
             let reply = try await task.value
             try Task.checkCancellation()
             let draft = Self.draft(reply, frames: frames, folder: folder)
+            if !MockMode.on {  // the mock's screens are not real ones
+                draft.steps = await DemoSteps.refine(draft.steps, prompt: draft.prompt,
+                                                     after: frames.last.flatMap { try? Data(contentsOf: $0) })
+            }
             guard !draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, draft.steps.contains(where: { $0.name != "note" }) else {
                 throw DeviceError(message: String(localized: "The model returned no usable steps. Retry with the captured screens."))
             }
@@ -363,12 +369,16 @@ import UIKit
     /// Every change named (the windows started while recording, the rest now), then the task's name and prompt.
     private func analyse(_ frames: [URL]) async throws -> String {
         var steps: [String] = []
-        for start in stride(from: 0, to: frames.count - 1, by: DemoAnalysis.window) {
+        let starts = Array(stride(from: 0, to: frames.count - 1, by: DemoAnalysis.window))
+        progress = (0, starts.count + 1, Date())  // + the summary
+        defer { progress = nil }
+        for (i, start) in starts.enumerated() {
             let end = min(start + DemoAnalysis.window, frames.count - 1)
             let job = windows[start] ?? window(start, Array(frames[start...end]))
             windows[start] = job
             steps += try await job.value.split(separator: "\n").map(String.init)
                 .filter { $0.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("STEP") }
+            progress?.done = i + 1
         }
         let summary = try await DemoAnalysis.summarize(try await app.recordingModel(), steps: steps)
         return summary + "\n" + steps.joined(separator: "\n")
@@ -461,6 +471,10 @@ import UIKit
             }) else { return nil }
         case "type": guard tokens.count > 1 else { return nil }
         case "home", "back", "wait": guard tokens.count == 1 else { return nil }
+        case "open":
+            let app = command.trimmingCharacters(in: .whitespaces).dropFirst(4).trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            return app.isEmpty ? nil : ["action": .str("open"), "app": .str(app)]
         case "ai", "read":  // script steps (ScriptRunner): the rest of the line is the goal / what to read
             let rest = command.trimmingCharacters(in: .whitespaces).drop { !$0.isWhitespace }.trimmingCharacters(in: .whitespaces)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\""))

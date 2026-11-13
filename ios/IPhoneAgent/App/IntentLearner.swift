@@ -25,6 +25,36 @@ enum IntentLearner {
             .filter { !$0.isEmpty }
     }
 
+    /// Henry 2026-11-13: a run that failed teaches too. Its notes in words (never a screen): the task, why it
+    /// failed, the last thoughts and the recorded steps that missed, phone numbers masked. One call gives at most
+    /// one checklist hint, kept as a lesson of that run (removed again when the run is called wrong).
+    static let failurePrompt = """
+    An AI agent operating an iPhone failed a saved task. From its notes, write ONE hint for the task's checklist \
+    that would make the next run succeed: what to do differently, true for this task every time. No names of \
+    people, no message text, no numbers read off the screen. At most 120 characters, in the task's language. \
+    Reply with the hint only, or NONE when the notes do not show what went wrong.
+    """
+
+    static func failureNotes(task: String, steps: [JObject], missed: [String], checklist: [String]) -> String? {
+        guard let fail = steps.last(where: { $0["action"]?.str == "fail" }) ?? steps.last else { return nil }
+        let why = fail["reason"]?.str ?? fail["thought"]?.str ?? ""
+        let thoughts = steps.compactMap { $0["thought"]?.str }.suffix(4).map { "- " + $0.prefix(240) }
+        guard !why.isEmpty || !thoughts.isEmpty else { return nil }
+        var lines = ["Task: \(task)", "Why it stopped: \(why.prefix(300))"]
+        if !thoughts.isEmpty { lines.append("Its last thoughts:\n" + thoughts.joined(separator: "\n")) }
+        if !missed.isEmpty { lines.append("Recorded steps that missed: " + missed.joined(separator: "; ")) }
+        if !checklist.isEmpty { lines.append("The checklist already says:\n" + checklist.map { "- " + $0 }.joined(separator: "\n")) }
+        return IntentStore.maskingNumbers(lines.joined(separator: "\n"))
+    }
+
+    /// The model's reply as a hint: one line, NONE or empty = nil, cut at 160 characters.
+    static func failureLesson(_ reply: String) -> String? {
+        let line = reply.split(separator: "\n").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        let hint = line.trimmingCharacters(in: CharacterSet(charactersIn: "-•\" ")).trimmingCharacters(in: .whitespaces)
+        guard hint.count >= 6, hint.uppercased() != "NONE", !hint.uppercased().hasPrefix("NONE") else { return nil }
+        return String(hint.prefix(160))
+    }
+
     /// True when the run is worth learning from: it ended done and the model, not the replay, did a move.
     static func shouldLearn(_ steps: [JObject], done: Bool) -> Bool {
         done && steps.contains { kept.contains($0["action"]?.str ?? "") && $0["replay"] != .bool(true) }
@@ -196,13 +226,15 @@ extension AppModel {
     /// Henry 2026-11-12: any intent, when Settings › Intents learn from runs is on. An intent typed in (no reference
     /// run yet) gets its first run that worked as its reference run, and its steps.
     /// `missed`: the recorded steps that missed in the run (Replay.missed); a run that did not finish demotes them.
-    func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool, missed: Set<Int> = []) {
+    func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool, failed: Bool = false,
+                     missed: Set<Int> = []) {
         guard settings.learnFromRuns else { return }
         if done, !IntentLearner.rejected.contains(runID) {
             let lessons = IntentLearner.lessons(steps)
             intents.addLessons(intent.id, lessons)
             if !lessons.isEmpty { DebugLog.write("intent \"\(intent.name)\": checklist +\(lessons.count) lesson(s) from run \(runID)") }
         }
+        if failed { learnFromFailure(intent, run: runID, steps: steps, missed: missed) }
         if !done { return demoteMissed(intent, run: runID, missed: missed) }
         guard IntentLearner.shouldLearn(steps, done: done) else { return }
         Task {
@@ -220,6 +252,25 @@ extension AppModel {
                 DebugLog.write("intent \"\(item.name)\": \(learned.count) steps learned from run \(runID) (labels: \(labels.joined(separator: ", ")))")
             } catch {
                 DebugLog.write("intent \"\(item.name)\": learning from \(runID) failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// A run that failed (not one the user stopped): one hint from its notes onto the checklist (IntentLearner.failurePrompt).
+    private func learnFromFailure(_ intent: SavedTask, run runID: String, steps: [JObject], missed: Set<Int>) {
+        let replay = Replay(intent: intent)
+        let words = missed.sorted().compactMap { replay.steps.indices.contains($0) ? Replay.words(replay.steps[$0].action) : nil }
+        guard !MockMode.on, let notes = IntentLearner.failureNotes(task: intent.prompt, steps: steps, missed: words,
+                                                                   checklist: intent.checklist) else { return }
+        Task {
+            do {
+                let reply = try await settings.client("planner").chat(system: IntentLearner.failurePrompt, text: notes, image: nil,
+                                                                      maxTokens: 120, temperature: 0)
+                guard !IntentLearner.rejected.contains(runID), let lesson = IntentLearner.failureLesson(reply.text) else { return }
+                intents.addLessons(intent.id, [lesson])
+                DebugLog.write("intent \"\(intent.name)\": checklist +1 lesson from failed run \(runID)")
+            } catch {
+                DebugLog.write("intent \"\(intent.name)\": no lesson from failed run \(runID): \(error.localizedDescription)")
             }
         }
     }

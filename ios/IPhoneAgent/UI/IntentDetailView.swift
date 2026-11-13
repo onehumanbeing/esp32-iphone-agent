@@ -11,6 +11,8 @@ struct IntentDetailView: View {
     @State private var draft: String?  // the instruction while it is being typed
     @FocusState private var typing: Bool
     @State private var selection: TextSelection?
+    @State private var checking = false  // Replan running after an edit
+    @State private var proposal: Replan.Proposal?
 
     var body: some View {
         if let item = intents.item(id) {
@@ -49,7 +51,9 @@ struct IntentDetailView: View {
                         HStack(spacing: Space.s) { Text("Phone call"); BetaBadge() }
                     }
                 } header: { Text("Instruction") } footer: {
-                    if IntentStore.unfilled(draft ?? item.prompt) {
+                    if checking {
+                        Label("Checking the steps against the new instruction…", systemImage: "sparkles")
+                    } else if IntentStore.unfilled(draft ?? item.prompt) {
                         Text("Tap the instruction and fill in the parts in [brackets], such as who to text or call, before running it.")
                     } else {
                         Text("Phone call: the agent dials, speaks with Live Speech and listens with Live Captions. On when the instruction starts with Call.")
@@ -60,6 +64,11 @@ struct IntentDetailView: View {
                     Section("Checklist") {
                         ForEach(item.checklist, id: \.self) { h in
                             Label { Text(verbatim: h) } icon: { Image(systemName: "checkmark.circle").foregroundStyle(Palette.ok) }
+                        }
+                        .onDelete { rows in  // a lesson a run brought that does not hold
+                            var copy = item
+                            copy.hints = item.checklist.enumerated().filter { !rows.contains($0.offset) }.map(\.element)
+                            intents.upsert(copy)
                         }
                     }
                 }
@@ -107,6 +116,9 @@ struct IntentDetailView: View {
                 }
             }
             .sheet(isPresented: $exporting) { IntentExportSheet(app: app, intents: [item]) }
+            .sheet(isPresented: Binding(get: { proposal != nil }, set: { if !$0 { proposal = nil } })) {
+                if let proposal { ReplanSheet(intents: intents, id: id, proposal: proposal) }
+            }
             .safeAreaInset(edge: .bottom) {
                 BottomBar {
                     Button {
@@ -147,6 +159,21 @@ struct IntentDetailView: View {
         var copy = item
         copy.prompt = text
         intents.upsert(copy)
+        guard !(item.steps ?? []).isEmpty || !item.checklist.isEmpty else { return }  // nothing to check
+        checking = true
+        Task {
+            defer { checking = false }
+            do {
+                let found = try await app.replan(copy, old: item.prompt)
+                // only if nobody edited it meanwhile, and only when something would change
+                guard intents.item(id)?.prompt == text,
+                      found.changes > 0 || (!found.name.isEmpty && found.name != item.name) || found.hints != item.checklist
+                else { return }
+                proposal = found
+            } catch {
+                DebugLog.write("intent \"\(item.name)\": steps not checked after the edit: \(error.localizedDescription)")
+            }
+        }
     }
 
     /// The same editor as a run's review: with its last run's steps if it has one.

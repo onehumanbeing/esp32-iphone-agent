@@ -10952,6 +10952,166 @@
           }
         }
       }
+    },
+    "Detour · left out" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绕路 · 已省略"
+          }
+        }
+      }
+    },
+    "Next Unsure" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一个不确定"
+          }
+        }
+      }
+    },
+    "Part %lld of %lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$lld/%2$lld 段"
+          }
+        }
+      }
+    },
+    "Blur screens in reviews" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回放画面模糊"
+          }
+        }
+      }
+    },
+    "Tap to show the screen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点一下显示画面"
+          }
+        }
+      }
+    },
+    "Checking the steps against the new instruction…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在按新指令检查步骤…"
+          }
+        }
+      }
+    },
+    "The steps still fit the new instruction." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步骤和新指令一致。"
+          }
+        }
+      }
+    },
+    "%lld steps change." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个步骤会改动。"
+          }
+        }
+      }
+    },
+    "Check the Steps" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查步骤"
+          }
+        }
+      }
+    },
+    "Keep As Is" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保持不变"
+          }
+        }
+      }
+    },
+    "Apply" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用"
+          }
+        }
+      }
+    },
+    "Remove: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除：%@"
+          }
+        }
+      }
+    },
+    "Type \"%@\" (was: %@)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入“%1$@”（原为：%2$@）"
+          }
+        }
+      }
+    },
+    "AI: %@ (was: %@)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI：%1$@（原为：%2$@）"
+          }
+        }
+      }
+    },
+    "The model did not check the steps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型没有检查步骤。"
+          }
+        }
+      }
+    },
+    "The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it. Blur screens in reviews: a review's screenshots stay blurred until you tap one, so chats and messages do not show in a screen recording." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行结束时模型会检查一张截图；如果恢复了键盘，会再检查一张。轻柔回到主屏幕：运行开始时上滑回主屏幕的速度为开发板最高速度的一半。Intent 从运行中学习：Intent 保存的步骤没走通、由 AI 完成任务时，用这次运行的步骤替换它们；在结束的运行上点「不对」会撤销。回放画面模糊：回放里的截图默认模糊，点一下才显示，录屏时不会露出聊天和消息。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
