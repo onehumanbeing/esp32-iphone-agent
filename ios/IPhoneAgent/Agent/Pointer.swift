@@ -73,6 +73,10 @@ import UIKit
     var log: (String) -> Void = { print($0) }
     /// This app is in front (it must not be: open checks the app it opened is not this one).
     var ownAppInFront: (() -> Bool)?
+    /// A call run: Live Captions and Live Speech stay on screen in every app, so "the app's words are still there"
+    /// says nothing about Home. goHome then flicks only when the key changed nothing, and once (2026-11-14: the
+    /// extra flicks collapsed the captions panel and opened the App Switcher mid-call).
+    var overlayStays = false
     /// Puts text on the clipboard (ClipboardHop), for app names the board cannot type (AppOpener.paste).
     var clipboard: ((String) async throws -> Bool)?
     /// The device screen's width / height (iPhone or iPad), stored with a calibration.

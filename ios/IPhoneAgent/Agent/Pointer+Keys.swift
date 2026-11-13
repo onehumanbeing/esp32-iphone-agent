@@ -146,12 +146,13 @@ extension Pointer {
         // A small change can be the app moving by itself (an animated sheet) while the key did nothing: the step's
         // verdict, which ignores what moves by itself, then reads "did NOT change" and no flick went out. The same
         // app's words still on screen, and not the Home Screen (its Search pill), say the key missed.
-        let stayed = !again && changed ? await Self.keyMissed(before, after) : false
+        let stayed = !again && changed && !overlayStays ? await Self.keyMissed(before, after) : false
         guard Self.needsFlick(changed: changed, again: again, stayed: stayed) else { return }
         log(again ? "home: the Home key again changed little; flicking up from the home bar"
                   : stayed ? "home: the Home key left the app's words on screen; flicking up from the home bar"
                   : "home: the Home key left the screen unchanged; flicking up from the home bar")
         try await homeSwipe()
+        if overlayStays { return }  // its words never leave: no second flick
         // 2026-11-13: in Messages the flick scrolled the list instead (the press landed on the app, not the home
         // bar). Still the same app's words on screen: once more at full speed, and the outcome goes in the log.
         await screen.settled(quiet: 0.2, least: 0.3, most: 1.0)
