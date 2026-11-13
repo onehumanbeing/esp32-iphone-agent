@@ -4,6 +4,11 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- App: Standby in Dynamic Island (Settings, off by default): between runs the island shows your three most used
+  intents and New Task. An intent tapped there runs on the app you are in; New Task (also a Control Center control)
+  opens a quick sheet to type a task or pick an intent, and the run goes back to the app you came from first. While
+  a run goes, the island's bubble button opens the same sheet to add to the task. A task started while another app
+  is in front works on that screen instead of going to the Home Screen first.
 - Agent: words added while a run goes (the field under the running task on Home, the quick task sheet, or Siri
   and Shortcuts while a run is on) join its next step: the review shows them, every later step sees them, and that
   step goes to the planner so the plan follows.

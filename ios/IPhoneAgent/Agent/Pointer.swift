@@ -550,6 +550,16 @@ import UIKit
         return result
     }
 
+    /// Henry 2026-11-13: back to the app the user left for this one (a task from the quick sheet works there):
+    /// a flick to the right along the home bar, iOS's switch to the previous app. Needs firmware 0.2.5's `flick`.
+    func switchToPreviousApp() async throws {
+        defer { pos = nil }
+        try await point(0.2, 0.995)
+        guard let span else { return }
+        try await device.send("move 0 \(span.h / 10)")
+        try await device.send("flick \(Int(Double(span.w) * 0.6)) 0 \(Self.flickSpeed)")
+    }
+
     /// Park the pointer on the home bar ahead of a departure, so the flick starts the moment it is asked for.
     func aimHomeBar() async throws { try await point(0.5, 0.995) }
 

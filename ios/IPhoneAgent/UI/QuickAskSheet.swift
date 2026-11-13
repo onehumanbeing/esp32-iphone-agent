@@ -89,6 +89,7 @@ struct QuickAskSheet: View {
         if running {
             app.steer(words, from: "quick")
             dismiss()
+            Task { _ = await app.backToPrevious() }  // the run holds while this app is in front
         } else {
             start(words, nil)
         }

@@ -11182,6 +11182,56 @@
           }
         }
       }
+    },
+    "Ready for a task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待命中"
+          }
+        }
+      }
+    },
+    "Tap New Task, or run an intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点「新任务」，或直接运行一个 Intent。"
+          }
+        }
+      }
+    },
+    "Standby in Dynamic Island" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "灵动岛待命"
+          }
+        }
+      }
+    },
+    "Standby in Dynamic Island: between runs the island shows your three most used intents and New Task; an intent tapped there runs on the app you are in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "灵动岛待命：两次运行之间，灵动岛显示你最常用的 3 个 Intent 和「新任务」；在那里点的 Intent 会在你当前所在的 App 里运行。"
+          }
+        }
+      }
+    },
+    "Opens the app ready to type a task or pick an intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 App，直接输入任务或选一个 Intent。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

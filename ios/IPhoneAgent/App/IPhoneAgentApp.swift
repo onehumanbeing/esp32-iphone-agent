@@ -96,7 +96,10 @@ struct RootView: View {
                 if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
             }
         }
-        .onChange(of: scene) { old, new in DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))") }
+        .onChange(of: scene) { old, new in
+            DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
+            if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground
+        }
         .onAppear {
             if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))

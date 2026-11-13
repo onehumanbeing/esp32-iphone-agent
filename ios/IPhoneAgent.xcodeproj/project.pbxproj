@@ -17,6 +17,7 @@
 		0383F2FFA507BF8E153AD349 /* ReplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518388282A27560ED7A447D1 /* ReplayTests.swift */; };
 		3D8479E22B78682BCAAB72E4 /* RecordLearningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98F8DFDCCA2A10E4B2BD8A /* RecordLearningTests.swift */; };
 		FDA8C02E96AA3EF29EF9F49E /* SteerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C9A918C52AF887AC6B4182 /* SteerTests.swift */; };
+		3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935598F169616E6F22321BD4 /* StandbyTests.swift */; };
 		041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406D13832E556B804F6F3887 /* HomeParts.swift */; };
 		05D31A7EE842FF208FC1EDFC /* CrashFrames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B208A7866AE0708D0AB584 /* CrashFrames.swift */; };
 		0638DE7546BE2E3578EAE3D6 /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0884D2AF849046D0FA2E62C1 /* StoreTests.swift */; };
@@ -381,6 +382,7 @@
 		518388282A27560ED7A447D1 /* ReplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayTests.swift; sourceTree = "<group>"; };
 		6F98F8DFDCCA2A10E4B2BD8A /* RecordLearningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordLearningTests.swift; sourceTree = "<group>"; };
 		31C9A918C52AF887AC6B4182 /* SteerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteerTests.swift; sourceTree = "<group>"; };
+		935598F169616E6F22321BD4 /* StandbyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandbyTests.swift; sourceTree = "<group>"; };
 		541D1A2837E5F270700EAF55 /* Redactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redactor.swift; sourceTree = "<group>"; };
 		54211E1AF9F25DF548064BA9 /* RunCardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCardSnapshot.swift; sourceTree = "<group>"; };
 		5538B879586D04FB7F15C7E5 /* IntentBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentBridge.swift; sourceTree = "<group>"; };
@@ -673,6 +675,7 @@
 				518388282A27560ED7A447D1 /* ReplayTests.swift */,
 				6F98F8DFDCCA2A10E4B2BD8A /* RecordLearningTests.swift */,
 				31C9A918C52AF887AC6B4182 /* SteerTests.swift */,
+				935598F169616E6F22321BD4 /* StandbyTests.swift */,
 				794E46A6A28E406A3D606661 /* ReviewTests.swift */,
 				F910448AC4947D37B31C3D01 /* ScriptTests.swift */,
 				AA04712864CA08DA02B08369 /* ShareTests.swift */,
@@ -1168,6 +1171,7 @@
 				0383F2FFA507BF8E153AD349 /* ReplayTests.swift in Sources */,
 				3D8479E22B78682BCAAB72E4 /* RecordLearningTests.swift in Sources */,
 				FDA8C02E96AA3EF29EF9F49E /* SteerTests.swift in Sources */,
+				3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */,
 				90594045D55F83E5EEE53574 /* ReviewTests.swift in Sources */,
 				889884D4290B63E77E5EA4CB /* ScriptTests.swift in Sources */,
 				6CDEB83B98075E73AEA52F13 /* ShareTests.swift in Sources */,

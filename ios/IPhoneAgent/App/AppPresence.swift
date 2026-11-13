@@ -43,6 +43,21 @@ extension AppModel {
         return away
     }
 
+    /// The app the user came from back in front (Pointer.switchToPreviousApp), checked: this app in the background.
+    func backToPrevious() async -> Bool {
+        if appIsBackgrounded { return true }
+        do {
+            try await pointer.switchToPreviousApp()
+            let away = try await waitForBackground(2, stopOnBoardLoss: true)
+            DebugLog.write("back to the previous app: \(away ? "done" : "this app is still in front")")
+            Analytics.capture("app_switched_back", ["away": away])
+            return away
+        } catch {
+            DebugLog.write("back to the previous app failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Leave for a run. If the board took every gesture and this iPhone still shows the app, the board's USB goes
     /// to another device (a Mac, say): stop before the agent sends it anything more. Asking the user to swipe up
     /// is only for a board that isn't answering.

@@ -1076,6 +1076,46 @@
           }
         }
       }
+    },
+    "Ready for a task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待命中"
+          }
+        }
+      }
+    },
+    "New Task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新任务"
+          }
+        }
+      }
+    },
+    "Add to the task" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "补充到任务"
+          }
+        }
+      }
+    },
+    "Opens the app ready to type a task or pick an intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 App，直接输入任务或选一个 Intent。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -8,6 +8,7 @@ struct AgentActivityAttributes: ActivityAttributes {
     enum Phase: String, Codable, Hashable {
         case running, help, countdown, recording, paused
         case resuming  // a stopped run goes on: the user switches back to its app before `since`
+        case standby  // between runs (Settings › Standby in Dynamic Island): intents to run and New Task
 
         /// A timer counting down to `since`.
         var countsDown: Bool { self == .countdown || self == .resuming }
@@ -28,6 +29,7 @@ struct AgentActivityAttributes: ActivityAttributes {
         var waitingSince: Date?  // system-rendered elapsed timer, even between app updates
         var lookX = 0.0     // where the eyes look, -1...1 (darting while it waits, toward the pointer's target)
         var lookY = 0.0
+        var picks: [StandbyPick]?  // standby: the intents on the island, at most 3
 
         var look: CGPoint { CGPoint(x: lookX, y: lookY) }
 
@@ -66,6 +68,16 @@ struct AgentActivityAttributes: ActivityAttributes {
     var name: String?  // the agent's name, as the user calls it
 
     static func url(run: String) -> URL { URL(string: "iphoneagent://run/\(run)")! }
+    /// The quick task sheet (QuickAskSheet): New Task on the waiting island, Add while a run goes.
+    static let quickURL = URL(string: "iphoneagent://quick")!
+    static let standbyID = "standby"
+}
+
+/// A saved intent on the waiting island: tapped, it runs in the background (RunSavedIntentIntent).
+struct StandbyPick: Codable, Hashable {
+    var id: UUID
+    var name: String
+    var symbol: String
 }
 
 /// What the Live Activity says once iOS has suspended the app mid-run: its updates stopped, the stale date

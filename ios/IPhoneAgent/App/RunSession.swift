@@ -149,6 +149,10 @@ extension AppModel {
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
+        // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
+        // works on that screen, and with no decoded stream in hand it snaps (the decoder can't start in the background).
+        let startedAway = appIsBackgrounded && !resume
+        if startedAway && !(feed.live && !feed.broken) { FrameMode.fallback = .snap }
         let snapMode = FrameMode.current == .snap
         live.start(task: task, runID: runID, limit: agent.maxSteps)
         mark("Live Activity requested")
@@ -211,7 +215,8 @@ extension AppModel {
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
-            agent.startsOnHome = !resume  // leaveForRun went to the Home Screen
+            agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen
+            if startedAway { agent.hints.insert(Self.hereHint, at: 0) }
             step = .agentStart
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
