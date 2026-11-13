@@ -5,12 +5,12 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>ESP32 Agent</string>
+	<string>$(IA_APP_NAME)</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>ESP32 Agent runs</string>
+			<string>$(IA_APP_NAME) runs</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
@@ -20,7 +20,7 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>ESP32 Agent intent</string>
+			<string>$(IA_APP_NAME) intent</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
@@ -85,16 +85,16 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.</string>
+	<string>The app talks to its USB board over Bluetooth to see the screen and move the pointer.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_esp32agent._tcp</string>
 		<string>_handsy-harness._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.</string>
+	<string>The app receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.</string>
+	<string>With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -125,7 +125,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>ESP32 Agent intent</string>
+			<string>$(IA_APP_NAME) intent</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.onehumanbeing.esp32agent.intent</string>
 			<key>UTTypeTagSpecification</key>

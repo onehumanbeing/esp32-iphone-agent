@@ -4,9 +4,144 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+## App 1.0.6 (build 17, TestFlight)
+
+- App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,
+  says to plug the board straight into this iPhone and tap Allow for the accessory, and goes on by itself once
+  the mouse shows up (30 s); a board whose USB is asleep asks to unlock the iPhone. It used to say "plug it into
+  USB-C" to users whose board was plugged in.
+- App: when no fresh screen image arrives at startup, the app reopens the board's stream once before asking to
+  restart Screen Mirroring.
+- App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
+  starts ran hundreds of cancelled checks a second on the main thread.
+- App: with usage stats on, the app no longer crashes after the board restarts (after a firmware update, or
+  when the app opens within 30 s of the board starting). The reboot event carried a value the stats sender could
+  not encode; such events are now dropped instead.
+
+## App 1.0.6 (TestFlight)
+
+- Calls: Control Center is closed with the Home key alone, and Home flicks up at most once, only when the key did
+  nothing: the extra flicks folded the Live Captions panel away mid-call. To hang up, the agent closes Live Speech
+  first (its keyboard covers the End button) and checks that the call screen says the call ended.
+- Dynamic Island: the step counter stays on one line, a waiting timer replaces the progress bar and the buttons are
+  small, so nothing is cut off.
+- App · CLI: one memory on the phone and the computer. Settings › Memory › ⋯ exports `MEMORY.md` and imports another
+  copy (an entry with the same id or words keeps the newer one; passwords, codes and long numbers never come in).
+  The CLI keeps the same file: `esp32agent memory list | add | rm | search | export | import`, and the MCP tools
+  `memory_recall` and `memory_add`.
+- Firmware (optional build) · App: an absolute mouse, `hardware/flash.sh --abs` (#99, by @chenshaorong0118). With
+  AssistiveTouch on, a tap lands at its screen fraction (`abs X Y`): no homing, calibration or aiming. The status
+  says `abs: 1` and the app sends coordinates; a board flashed back answers `err unknown` and the app goes back to
+  the relative mouse. Home, back and the switch to the previous app are fast strokes; drags glide at the relative
+  mouse's speed. The default firmware is unchanged.
+- Agent: a task over many items may run up to 1000 steps (others stay at 300); Home shows the step and how many
+  items are listed instead of "up to 300". Every 10 steps the run saves its listed items, so Continue picks them up.
+- Agent: in a task over many items, taps that followed the same tap the same way twice (say "…", then Delete,
+  then OK) are done by the app from the third time on, each found by its words on the screen and checked to change
+  it; anything missing, or prices and paying on the screen, hands back to the AI. Fewer model calls per item.
+- Agent: a task over many items or that deletes (delete, clear, unfollow, all, every, or a repeat-until intent)
+  lists the matching items first and asks once with how many and which, even when Ask first is Payments only; the
+  first delete-like tap before that is held once and the AI is told to list first. The question shows up to five
+  of the items collected.
+- App: Standby in Dynamic Island (Settings, off by default): between runs the island shows your three most used
+  intents and New Task. An intent tapped there runs on the app you are in; New Task (also a Control Center control)
+  opens a quick sheet to type a task or pick an intent, and the run goes back to the app you came from first. While
+  a run goes, the island's bubble button opens the same sheet to add to the task. A task started while another app
+  is in front works on that screen instead of going to the Home Screen first.
+- Agent: words added while a run goes (the field under the running task on Home, the quick task sheet, or Siri
+  and Shortcuts while a run is on) join its next step: the review shows them, every later step sees them, and that
+  step goes to the planner so the plan follows.
+- Record: a demonstration is saved as what was meant. Opening an app from the Home Screen, a folder or Search
+  becomes one `open` step; a tap is named by the text at its spot on the screen; taps on the on-screen keyboard
+  are left out (the type step holds the text) and its return key becomes Return; a detour that ends back on the
+  same screen is marked left out (mark it correct to keep it).
+- Record: text typed from the instruction's words follows the instruction: after the words change, the AI types
+  what the instruction says now.
+- Record: "Working out the steps" shows which part it is on and the time so far. The review opens at step 1, with
+  Next Unsure to jump to the yellow steps. Review screens are blurred until tapped (Settings › Blur screens in
+  reviews).
+- Intents: editing an intent's instruction checks its steps, name and checklist against the new words and proposes
+  the changes; nothing changes until you tap Apply.
+- Intents: a run that fails adds one hint from its notes to the checklist (words only, phone numbers masked);
+  checklist rows can be swiped away.
+- App: a recorded step that misses is described to the AI in words (its label, or the text near the tapped spot on
+  the recorded screen), never by its coordinates, and the AI may skip a step the screen or task no longer needs.
+  Fixed taps landed on the keyboard, a wrong chat or a photo, and the step's raw JSON showed in the status.
+- App: in an intent with AI steps, a recorded tap that nothing names is skipped when the screen differs, instead of
+  being tapped at its old spot.
+- App: a run of an intent that fails or is stopped demotes the recorded steps that missed: a tap nothing names is
+  removed, other steps become AI steps. Undo on the intent page puts the old steps back.
+- App: opening a run's review while it is already showing keeps it open instead of closing and presenting it again
+  (one possible cause of the review closing by itself right after a stopped run).
+- App: Home's intent list masks phone numbers in the instruction preview.
+- App: the free-line run end sends the board firmware as `0.2.5`, not `v0.2.5`.
+- App: usage stats for a run that could not start say at which startup step it stopped and a fixed error kind
+  (never the error text or the task); the free-line run end sends the same step.
+- Agent: a tap on the Dynamic Island (where the run's Live Activity shows) is never sent: one just above a field
+  under the island moves a few units down into the field, one higher up goes back to the AI with where to tap
+  instead. Fixed a search field right under the island opening the agent app and leaving the task's app.
+- Agent: a tap on the Home Screen's Search pill that reads as no change is not pressed again by itself: Spotlight
+  over a plain wallpaper can look unchanged, and the second press landed on Spotlight's suggestions and opened
+  another app. Each tap logs where the pointer went from and to.
+- Agent: `home` flicks up from the home bar when the Home key left the same app on screen and only something that
+  moves by itself changed (an animated sheet), not only when nothing changed. An `open` whose Return did nothing
+  tells the AI to tap the app in Spotlight's results.
+- Prompt: a goal to look at, find or browse something ends with done once the screen shows a match, with a short
+  answer, instead of browsing on; never tap the Dynamic Island.
+
+## App 1.0.5 · firmware v0.2.5 (TestFlight)
+
+- App: **Tools (Beta)**: the agent can look things up on the web when a task needs it (search tool use), with
+  tools exported and imported as JSON.
+- App: **Phone calls and text messages (Beta, experimental)**: Call and Text templates. A call dials, speaks through
+  iOS Live Speech and hears the other side through Live Captions, as a script: code opens Phone and the Control
+  Center buttons, the model dials, talks and hangs up. A setup guide (with a clip) shows before each call until
+  Don't Show Again; it needs Live Captions › Keep Call Captions › 1 Hour, or iOS keeps call captions out of Screen
+  Mirroring. An intent has a Phone call switch that follows its words ("Call …") until set by hand. Calls are not
+  stable yet: see #150.
+- App: **intents improve themselves**: when an intent's saved steps miss and the AI finishes the task, that run's
+  steps replace them; a typed-in intent's first run that works becomes its reference; lessons from done runs go on
+  its checklist (up to 8). Wrong in the Dynamic Island (90 s) or Undo on the intent takes it back; Settings › Intents
+  learn from runs turns it off.
+- App: a recording is a run: every change is named and kept as a trace, reviewed, continued and saved as an intent.
+- App: open APP is done by code and read back: Spotlight (or the Home Screen's Search button when cmd+space does
+  nothing), only the name asked for; the model picks another name in the iPhone's language.
+- App: Chinese, accented and other scripts typed or pasted reliably; a full-width "？" read by OCR is not a wrong symbol.
+- App: taps outside the screen are not sent; a confirmed or self-moving target is never pressed twice; Home flick
+  in one board command; Pause drops a gesture already chosen.
+- App: Handsy key: runs on a plan's key instead of the free runs.
+- App: the name is a build setting (`IA_APP_NAME`, shown on the Home Screen and in texts about the app). TestFlight
+  and source builds stay ESP32 Agent. The board keeps its names in Screen Mirroring and Bluetooth (ESP32 Agent),
+  so setup texts that point at them are unchanged. Permission prompts and Shortcuts descriptions no longer carry
+  the app's name.
+- App: Settings › Privacy shows the installation ID Handsy Free keeps records under, with a mail link that asks
+  to delete them (the privacy policy pointed at an ID the app did not show).
+- Firmware: the board's name in Screen Mirroring and Bluetooth is a build option (`flash.sh --name NAME`, default
+  ESP32 Agent); the hotspot name is unchanged. The app's setup texts name the board it last saw.
+- App: what is sent and to whom reads the same everywhere. The send sheet names who runs Handsy Free (Holomix, Inc.)
+  next to its address and says that simple steps may go to its provider TypeSafe; Your Data no longer says run data
+  is never uploaded without saying what a run sends. Demo data asks for the same consent before its first run when
+  a model is set up, and the first setup page offers the demo to try the app without a board (No board yet? Try the
+  demo). The privacy manifest lists the installation ID and run content of Handsy Free.
+- App: one agreement at first launch. Your Data now also states the risks, and Agree and Continue accepts them and
+  allows sending to Handsy Free when nothing else is set up yet, so the model page does not ask again. The welcome
+  page has no switch: Get Started, or Accept and Get Started after Not Now. Another service or Jev still asks.
+- App: Pause finishes the gesture already in flight, then does not send one the model had chosen. The next
+  look decides from the screen in front. Frames from while the run is paused are left out of its video.
 - Siri AI developer preview (off by default, see `docs/siri-ai-app-intents.md`): tool intents to run a
   task, stop the run, check the run and replay a recorded run; an app skill for multi-step guidance in
   `Skills.skillsbundle`; and view annotations that tell Siri which run is on screen.
+
+## Firmware v0.2.5 (TestFlight)
+
+- Board: a mirrored video packet it has to drop for good is logged (header and first bytes) and counted as
+  `lost` in the status, so the app can tell a broken picture from a still screen and ask for mirroring to
+  restart at once.
+- Board: `press_for MS`, a held press that comes up by itself (long press, or a press then moves to drag).
+- Board: `flick DX DY SPEED`, press, move and release in one command, so the Home Screen flick never lingers into the app switcher.
+- Board: `result ID` answers the last 8 replies again, for a reply that never arrived.
+- Board: the CLI's `net` goes through while the app drives the board, so the board can always be put back on a
+  network.
 
 ## App 1.0.4 (TestFlight)
 

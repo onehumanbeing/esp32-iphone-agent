@@ -53,6 +53,8 @@ struct DiagnosticsView: View {
             SwiftUI.Section("Background") {
                 row("Alive in background", String(format: "%.0f s", metrics.backgroundAlive))
                 row("Suspensions", "\(metrics.suspensions)")
+                if let line = metrics.backgroundSummary { Text(verbatim: line).font(.caption) }
+                if let line = CrashReports.last { Text(verbatim: "iOS: " + line).font(.caption) }
             }
             SwiftUI.Section("Board") {
                 row("Uptime", board.status?.up.map { "\($0 / 1000) s" } ?? "–")

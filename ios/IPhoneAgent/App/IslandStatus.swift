@@ -106,12 +106,13 @@ struct IslandStatus: Equatable {
         let minimal: String
         switch act["action"]?.str {
         case "tap": minimal = String(localized: "Tap")
-        case "type": minimal = String(localized: "Type")
+        case "type", "clear": minimal = String(localized: "Type")
         case "key": minimal = String(localized: "Key")
         case "swipe": minimal = String(localized: "Swipe")
         case "path", "circle": minimal = String(localized: "Draw")
         case "home": minimal = String(localized: "Home")
         case "back": minimal = String(localized: "Back")
+        case "tool": minimal = String(localized: "Search")
         default: minimal = String(localized: "Wait")
         }
         func say(_ verb: (String) -> String, _ bare: String, _ what: String?) -> Self {
@@ -140,6 +141,11 @@ struct IslandStatus: Equatable {
             return Self(short: String(localized: "Going home"), full: String(localized: "Going to the Home Screen"), look: look, minimal: minimal)
         case "back":
             return Self(short: String(localized: "Going back"), full: String(localized: "Going back"), look: look, minimal: minimal)
+        case "tool":  // `search "清闲智能椅"`: the query, without the tool's name
+            let line = act["text"]?.str ?? ""
+            let query = line.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init)?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+            return say({ String(localized: "Searching \($0)") }, String(localized: "Searching…"), query)
         default:
             return Self(short: String(localized: "Waiting…"), full: String(localized: "Waiting for the screen…"), look: nil, minimal: minimal)
         }
@@ -147,7 +153,7 @@ struct IslandStatus: Equatable {
 
     /// Where the pointer is going, relative to the screen center; typing looks down at the keyboard.
     static func gaze(_ act: JObject) -> CGPoint {
-        if ["type", "key"].contains(act["action"]?.str ?? "") { return CGPoint(x: 0, y: 0.7) }
+        if ["type", "clear", "key"].contains(act["action"]?.str ?? "") { return CGPoint(x: 0, y: 0.7) }
         if act["action"]?.str == "swipe" {
             let dx = (act["x2"]?.double ?? 0) - (act["x1"]?.double ?? 0)
             let dy = (act["y2"]?.double ?? 0) - (act["y1"]?.double ?? 0)

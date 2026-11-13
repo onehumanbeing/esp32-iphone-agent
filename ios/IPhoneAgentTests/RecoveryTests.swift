@@ -132,7 +132,8 @@ import XCTest
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
         agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now()) }
         await agent.run()
-        XCTAssertEqual(phone.aims, [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+        XCTAssertEqual(Array(phone.aims.prefix(3)), [false, true, true])  // the Duolingo round of 2026-11-06 drifted 13% unseen
+        XCTAssertEqual(phone.aims.count, 4)  // the last tap changed nothing (a still fake screen): pressed once more
     }
 
     func testARoundOfSeveralTapsLeavesTheNextStepToTheModel() async {
@@ -194,6 +195,84 @@ import XCTest
         XCTAssertFalse(agent.steps.contains { $0["action"] == .str("resumed") })
     }
 
+    func testStoppedRunKeepsItsPlanStepsAndNotebookThroughCleanupAndContinue() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let trace = TraceStore(root: root), screen = FakeScreen()
+        screen.frame = AgentTests.jpeg()
+        let model = FakeModel { call in
+            switch call {
+            case 1: return "PLAN: 1. Collect titles\nDO: read titles\nDO: note checked first page\nDO: progress page 1 of 2"
+            case 2: return "Alpha\nBeta"
+            default: return "DO: done collected titles"
+            }
+        }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: nil, trace: trace)
+        agent.onStep = { [weak agent] in
+            if agent?.steps.last?["action"] == .str("progress") { agent?.stop() }
+        }
+        let entered = expectation(description: "已停止操作，正在收尾")
+        var unblock: CheckedContinuation<Void, Never>?
+        var cleanups = 0
+        agent.beforeFinish = {
+            cleanups += 1
+            XCTAssertFalse(Task.isCancelled)
+            if cleanups == 1 {
+                await withCheckedContinuation { unblock = $0; entered.fulfill() }
+                XCTAssertFalse(Task.isCancelled, "重复停止不能取消正在执行的收尾")
+            }
+        }
+
+        try agent.start("Collect titles")
+        await fulfillment(of: [entered], timeout: 5)
+        guard let unblock else { agent.stop(); return }
+        XCTAssertTrue(agent.running)
+        XCTAssertThrowsError(try agent.start("Another task"))
+        agent.stop()
+        unblock.resume()
+        await agent.waitUntilStopped()
+
+        XCTAssertEqual(cleanups, 1)
+        let stopped = agent.steps
+        XCTAssertEqual(stopped.compactMap { $0["action"]?.str }, ["plan", "read", "note", "progress", "stopped"])
+        let stored = try XCTUnwrap(RunStore.load(try XCTUnwrap(trace.dir)))
+        XCTAssertEqual(stored.outcome, .stopped)
+        XCTAssertEqual(stored.steps.map(\.name), stopped.compactMap { $0["action"]?.str })
+        XCTAssertEqual(agent.task, "Collect titles")
+        XCTAssertEqual(agent.plan, "1. Collect titles")
+        XCTAssertEqual(agent.notebook.items, ["Alpha", "Beta"])
+        XCTAssertEqual(agent.notebook.notes, ["checked first page"])
+        XCTAssertEqual(agent.notebook.progress, "page 1 of 2")
+
+        try agent.start("Collect titles", resume: true)
+        await agent.waitUntilStopped()
+        XCTAssertEqual(cleanups, 2)
+        XCTAssertEqual(Array(agent.steps.prefix(stopped.count)), stopped)
+        XCTAssertEqual(agent.steps.suffix(2).compactMap { $0["action"]?.str }, ["resumed", "done"])
+        XCTAssertEqual(agent.steps.last?["notebook"], .arr([.str("Alpha"), .str("Beta")]))
+        let prompt = try XCTUnwrap(model.prompts.last)
+        for text in ["1. Collect titles", "Alpha", "Beta", "checked first page", "page 1 of 2"] {
+            XCTAssertTrue(prompt.contains(text), "恢复时模型应取得保存的进度：\(text)")
+        }
+    }
+
+    func testFailedRunInvokesCleanupAndKeepsItsRecordedReason() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let trace = TraceStore(root: root)
+        let model = FakeModel { _ in "DO: fail button is missing" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: trace)
+        var cleanups = 0
+        agent.beforeFinish = { cleanups += 1 }
+        try agent.start("Find button")
+        await agent.waitUntilStopped()
+        XCTAssertEqual(cleanups, 1)
+        let run = try XCTUnwrap(RunStore.load(try XCTUnwrap(trace.dir)))
+        XCTAssertEqual(run.outcome, .failed)
+        XCTAssertEqual(run.steps.last?.action["reason"], .str("button is missing"))
+        XCTAssertEqual(agent.steps.last?["action"], .str("fail"))
+    }
+
     func testRunEndsWithAClearReasonWhenTheScreenNeverComesBack() async {
         let screen = FakeScreen()
         screen.live = false
@@ -218,5 +297,20 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["action"], .str("fail"))
         XCTAssertEqual(agent.steps.last?["reason"], .str(Recovery.reason(.frames)))
         XCTAssertTrue(model.prompts.isEmpty)
+    }
+
+    /// Texts that point at the board in Screen Mirroring or Bluetooth use its own name, without the suffix.
+    func testBoardFamilyName() {
+        XCTAssertEqual(BoardName.family("ESP32 Agent 7C3E"), "ESP32 Agent")
+        XCTAssertEqual(BoardName.family("Pocket 0a1F"), "Pocket")
+        XCTAssertEqual(BoardName.family("ESP32 Agent"), "ESP32 Agent", "no suffix: kept whole")
+        XCTAssertEqual(BoardName.family("Board Name"), "Board Name", "Name is not four hex digits")
+        XCTAssertNil(BoardName.family(""))
+    }
+
+    func testDeletionMailCarriesTheInstallationID() {
+        let url = TrialRecordsSection.mail("0a1b2c3d-0000-4000-8000-000000000001")
+        XCTAssertEqual(url?.scheme, "mailto")
+        XCTAssertTrue(url?.absoluteString.contains("0a1b2c3d-0000-4000-8000-000000000001") == true)
     }
 }

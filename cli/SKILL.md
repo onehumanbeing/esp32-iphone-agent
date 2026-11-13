@@ -9,7 +9,7 @@ description: See and drive a real iPhone through an ESP32 Agent board (USB mouse
 keyboard and receives its AirPlay screen mirroring; this computer reaches it over Bluetooth. Every command prints
 JSON: `{"status":"ok","data":...}` or `{"status":"error","error":"..."}`. The MCP server (`esp32agent mcp`)
 offers the same as tools: screenshot, tap, longpress, swipe, type_text, press_key, press_button, device_info,
-plus history, intent_list, intent_show and intent_save.
+plus history, intent_list, intent_show, intent_save, memory_recall and memory_add.
 
 ## Setup (once)
 - `esp32agent pair` within 3 minutes of plugging the board into the iPhone.
@@ -60,6 +60,12 @@ After a task succeeded, save it so the next run is faster:
 3. Take a screenshot after each step and check it looks like the next step's reference screen.
 4. On a mismatch (another screen, a popup, a changed layout) drop the recorded steps and go on with the normal loop,
    using the prompt and hints.
+
+## Memory
+- Before a task, `esp32agent memory search 'TASK'` (MCP: `memory_recall`): the user's preferences and how their apps
+  work, the same entries the iOS app uses.
+- When the user says to remember something, `esp32agent memory add 'TEXT' --kind preference` (MCP: `memory_add`).
+  Only the user's own words; never passwords, codes or numbers off the screen.
 
 ## Errors to act on
 - `busy: the app is using the phone`: the iOS app is driving right now. Wait and retry later; don't fight it.

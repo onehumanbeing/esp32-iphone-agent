@@ -58,6 +58,10 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `intent delete NAME\|ID` | |
 | `intent export NAME\|ID... [--screenshots] [--output FILE]` | `.esp32intent` file the iOS app imports; reference screens only with `--screenshots` |
 | `intent import FILE` | an `.esp32intent` file (from the app or `export`); ones already saved under the same name and prompt are skipped |
+| `memory list`, `memory search TEXT [--limit N]` | what the agent remembers, the most related first |
+| `memory add TEXT [--kind preference\|fact\|app] [--topic APP]` | remember one line; passwords, codes and card or ID numbers are refused |
+| `memory rm ID` | |
+| `memory export [--output FILE]`, `memory import FILE` | the app's `MEMORY.md`; on import an entry with the same id or words keeps the newer one |
 | `report --intent NAME [--screenshots]` | prepare a mail with one intent for the developer (see below); interactive |
 | `upgrade [--check] [--force]` | install the latest release (`--check`: `current`, `latest`, `update_available`) |
 | `mcp` | MCP server on stdio |
@@ -81,7 +85,7 @@ esp32agent skill install                         # Claude Code skill (the loop, 
 ```
 
 MCP tools: `screenshot` (returns the image), `tap`, `longpress`, `swipe`, `type_text`, `press_key`, `press_button`,
-`device_info`, and `history`, `intent_list`, `intent_show`, `intent_save`. The loop is screenshot, decide, one action,
+`device_info`, and `history`, `intent_list`, `intent_show`, `intent_save`, `memory_recall`, `memory_add`. The loop is screenshot, decide, one action,
 screenshot: see [SKILL.md](SKILL.md).
 
 ## History and intents
@@ -94,6 +98,13 @@ An intent is a saved task: name, prompt, up to 6 hints and recorded steps with t
 `intent-frames/<id>/` in the config dir, the app's fields). `intent save --from-run RUN` takes the run's replayable
 moves (tap, swipe, type, key, home). `intent export` and `intent import` use the app's `.esp32intent` format, so
 intents move between the CLI and the iPhone app (AirDrop or Files).
+
+## Memory
+
+The iOS app keeps what the user told it (preferences, facts, how an app works) in `MEMORY.md`, one entry per
+line under a dated header. The CLI keeps the same file in `memory/MEMORY.md` in the config dir. To move it: in the
+app, Settings › Memory › ⋯ › Export MEMORY.md (AirDrop or Files), then `esp32agent memory import FILE`; the other
+way, `esp32agent memory export` and Settings › Memory › ⋯ › Import. Nothing is synced through a server.
 
 ## Share an intent with the developer (optional)
 

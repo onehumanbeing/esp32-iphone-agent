@@ -38,6 +38,7 @@ struct FirmwareReminder {
     private unowned let app: AppModel
     private var background: UIBackgroundTaskIdentifier = .invalid
     private var address: (String, String)?  // the board's ip and token for this update
+    private var connectCheckAt = -Double.infinity, connectChecksSkipped = 0, skippedLoggedAt = 0.0
     static let attempts = 3
 
     init(app: AppModel) {
@@ -86,17 +87,31 @@ struct FirmwareReminder {
     }
 
     /// The board (re)connected: look for a release, and ask for the update if the board needs it.
+    /// Home's task can restart hundreds of times a second (seen in debug logs), each cancelling the request at once
+    /// ("cancelled") and starting the next, on the main thread through startup. So at most one
+    /// check a minute from here, in a task of its own that a restarted view doesn't cancel; the skips are counted.
     func boardConnected() async {
-        await check()
+        if now() - connectCheckAt >= 60 {
+            connectCheckAt = now()
+            await Task { await check() }.value
+        } else {
+            connectChecksSkipped += 1
+            if now() - skippedLoggedAt >= 60 {
+                skippedLoggedAt = now()
+                DebugLog.write("firmware: \(connectChecksSkipped) connect checks skipped (one a minute)")
+            }
+        }
         ask()
     }
 
     /// Opens the sheet when the board needs an update, unless it was skipped for this connection. A running task or
     /// recording isn't interrupted: Home shows the warning and the gate asks again when it ends.
+    /// Demo data does not ask: that board is not flashed. `-mockFirmware 0.2.0` still does (the opt-in).
     func ask() {
         guard required, phase == .idle, !presented, !reminder.skipped else { return }
         // A background relaunch (Bluetooth restores the board link) can't show a sheet: ask when the app comes up.
         guard UIApplication.shared.applicationState == .active else { return }
+        if MockMode.on, !ProcessInfo.processInfo.arguments.contains("-mockFirmware") { return }
         let versions = "board \(current), latest \(release?.version ?? "none"), minimum \(Firmware.required)"
         DebugLog.write("firmware: update required (\(versions))\(taskRunning ? "; asking after the task" : "")")
         if !taskRunning { presented = true }

@@ -31,7 +31,7 @@ struct AboutView: View {
         **Steps**
         1.
 
-        ESP32 Agent \(version) · board \(firmware ?? "not connected") · \(device.systemName) \(device.systemVersion) · \(DeviceInfo.model)
+        \(AppName.current) \(version) · board \(firmware ?? "not connected") · \(device.systemName) \(device.systemVersion) · \(DeviceInfo.model)
         (Attach the zip from Settings › About › Logs › Export all logs.)
         """
         var c = URLComponents(url: Self.repo.appendingPathComponent("issues/new"), resolvingAgainstBaseURL: false)!
@@ -45,7 +45,7 @@ struct AboutView: View {
                 VStack(spacing: Space.m) {
                     Image("Logo").resizable().scaledToFit().frame(width: 96, height: 96)
                         .accessibilityHidden(true)
-                    Text(verbatim: "ESP32 Agent").font(.title2.bold())
+                    Text(verbatim: AppName.current).font(.title2.bold())
                     Text("Version \(version)").font(.subheadline).foregroundStyle(.secondary)
                     if let firmware {
                         Text("Board firmware \(firmware)").font(.subheadline).foregroundStyle(.secondary)

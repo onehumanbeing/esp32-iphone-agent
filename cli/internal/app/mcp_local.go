@@ -5,6 +5,7 @@ import (
 
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/history"
 	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/intent"
+	"github.com/onehumanbeing/esp32-iphone-agent/cli/internal/memory"
 )
 
 // Tools answered here, from the files in the config dir, without the daemon or a board.
@@ -30,6 +31,12 @@ var (
 				"hints":    map[string]any{"type": "array", "items": strProp, "maxItems": intent.MaxHints},
 				"from_run": map[string]any{"type": "string", "description": "run id; its replayable steps become the intent's"},
 				"steps":    map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "step numbers of that run (default: every replayable one)"}})},
+		{"memory_recall", "What the user told the agent before (preferences, facts, how an app works), most related to the query first. The same MEMORY.md as the iOS app.",
+			local([]string{"query"}, map[string]any{"query": strProp, "limit": map[string]any{"type": "integer", "description": "default 5"}})},
+		{"memory_add", "Remember one line the user said (a preference, a fact, or how an app works). Passwords, codes and card or ID numbers are refused.",
+			local([]string{"text"}, map[string]any{"text": strProp,
+				"kind":  map[string]any{"type": "string", "enum": memory.Kinds},
+				"topic": map[string]any{"type": "string", "description": "app or subject, e.g. wechat"}})},
 	}
 )
 
@@ -50,6 +57,16 @@ func (a *App) callLocal(name string, args map[string]any) (map[string]any, bool)
 			return jsonResult(history.Load(a.runs(), s("run"))), true
 		}
 		return jsonResult(history.List(a.runs(), 30)), true
+	case "memory_recall":
+		es, err := a.memories().Load()
+		limit := 5
+		if f, ok := args["limit"].(float64); ok && f > 0 {
+			limit = int(f)
+		}
+		return jsonResult(memory.Recall(es, s("query"), limit), err), true
+	case "memory_add":
+		e, err := a.memories().Add(s("text"), s("kind"), s("topic"))
+		return jsonResult(e, err), true
 	case "intent_list":
 		items, err := a.intents().Load()
 		list := []map[string]any{}

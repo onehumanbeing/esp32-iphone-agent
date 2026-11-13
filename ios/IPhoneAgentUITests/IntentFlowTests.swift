@@ -58,6 +58,8 @@ final class IntentFlowTests: XCTestCase {
         attachment.name = "Recording draft"
         attachment.lifetime = .keepAlways
         add(attachment)
+        // a recording is a run: its review can go on from where the person stopped
+        XCTAssertTrue(app.buttons["Continue from Here"].exists, app.debugDescription)
         app.buttons["Save as Intent"].tap()
         XCTAssertTrue(app.navigationBars["Save as Intent"].waitForExistence(timeout: 15))
         app.navigationBars.buttons["Save"].tap()
@@ -72,9 +74,12 @@ final class IntentFlowTests: XCTestCase {
         for _ in 0..<6 where !review.isHittable || review.frame.maxY > run.frame.minY { app.swipeUp(velocity: .slow) }
         review.tap()
         let unsure = app.staticTexts["Unsure"].firstMatch
-        // a tap while the last swipe is still settling can miss (CI, 2026-11-05): tap again once if still there
-        if !unsure.waitForExistence(timeout: 15), review.exists, review.isHittable { review.tap() }
-        XCTAssertTrue(unsure.waitForExistence(timeout: 30))
+        let next = app.buttons["Next Unsure"]
+        // a tap while the last swipe is still settling can miss (CI, 2026-11-05): tap again once if the review didn't open
+        if !next.waitForExistence(timeout: 15), !unsure.exists, review.exists, review.isHittable { review.tap() }
+        // the review opens on step 1, which this recording marks sure; Next Unsure jumps to a yellow step (1.0.6)
+        if !unsure.exists, next.waitForExistence(timeout: 10) { next.tap() }
+        XCTAssertTrue(unsure.waitForExistence(timeout: 15))
         app.buttons["Wrong"].tap()
         let note = app.descendants(matching: .any)["intent.step.note"].firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 15))

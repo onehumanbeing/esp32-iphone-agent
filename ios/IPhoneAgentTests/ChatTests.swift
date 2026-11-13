@@ -48,6 +48,6 @@ import XCTest
         let model = FakeModel { n in n == 1 ? "1. go" : "THINK: ok\nDO: done ok" }
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
         agent.chatContext = "User: earlier\nResult (done): fine"
-        XCTAssertTrue(agent.actorPrompt.hasSuffix("Earlier in this chat:\nUser: earlier\nResult (done): fine"))
+        XCTAssertTrue(agent.actorPrompt.hasSuffix("progress of this run):\nUser: earlier\nResult (done): fine"))
     }
 }

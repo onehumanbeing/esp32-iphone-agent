@@ -81,8 +81,8 @@ extension AutoCalibrator {
         func lines() -> (ProbeFit.Line, ProbeFit.Line)? {
             let xs = samples.filter { ProbeFit.usable($0.fx) }.map { ($0.ux, $0.fx) }
             let ys = samples.filter { ProbeFit.usable($0.fy) }.map { ($0.uy, $0.fy) }
-            guard let x = ProbeFit.line(xs) ?? xs.first.flatMap(ProbeFit.throughHome),
-                  let y = ProbeFit.line(ys) ?? ys.first.flatMap(ProbeFit.throughHome) else { return nil }
+            guard let x = ProbeFit.robustLine(xs) ?? xs.first.flatMap(ProbeFit.throughHome),
+                  let y = ProbeFit.robustLine(ys) ?? ys.first.flatMap(ProbeFit.throughHome) else { return nil }
             return (x, y)
         }
 

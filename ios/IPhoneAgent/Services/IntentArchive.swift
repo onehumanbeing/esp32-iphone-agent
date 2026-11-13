@@ -26,6 +26,7 @@ enum IntentArchive {
         var steps: [Step]?
         var until: String?  // a script's "repeat until" condition (ScriptRunner)
         var maxLoops: Int?
+        var color: String?  // IntentTint name (2026-11-12); older files have none
     }
 
     struct Step: Codable, Equatable {
@@ -44,7 +45,7 @@ enum IntentArchive {
              steps: intent.steps.map { steps in steps.map {
                  Step(action: $0.action, sure: $0.sure,
                       frame: screenshots ? frame(intent.id, $0.frame)?.base64EncodedString() : nil)
-             } }, until: intent.until, maxLoops: intent.maxLoops)
+             } }, until: intent.until, maxLoops: intent.maxLoops, color: intent.color)
     }
 
     static func encode(_ items: [Item], note: String? = nil) throws -> Data {
@@ -57,7 +58,7 @@ enum IntentArchive {
     static func decode(_ data: Data) throws -> [Item] {
         guard data.count <= maxBytes else { throw Failure(String(localized: "This file is too large.")) }
         guard let file = try? JSONDecoder().decode(File.self, from: data) else {
-            throw Failure(String(localized: "This isn't an ESP32 Agent intent file."))
+            throw Failure(String(localized: "This isn't an \(AppName.current) intent file."))
         }
         guard file.format == format else { throw Failure(String(localized: "This intent file needs a newer version of the app.")) }
         return file.intents.compactMap { item in
@@ -96,6 +97,7 @@ enum IntentArchive {
             guard seen.insert(key(name, item.prompt)).inserted else { continue }
             var intent = SavedTask(name: name, prompt: item.prompt, icon: item.icon, hints: item.hints)
             intent.until = item.until
+            intent.color = item.color
             intent.maxLoops = item.maxLoops
             intent.steps = try item.steps.map { try save($0, for: intent.id) }
             added.append(intent)

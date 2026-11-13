@@ -14,7 +14,7 @@ with tempfile.TemporaryDirectory() as directory:
     cli = Path(directory) / "arduino-cli"
     cli.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
     cli.chmod(0o755)
-    for options in ([], ["--ble-hid"], ["--note4"], ["--debug", "--note4"],
+    for options in ([], ["--abs"], ["--ble-hid"], ["--note4"], ["--debug", "--note4"], ["--name", "Lab1", "--ble-hid"],
                     ["--ble-hid", "--note4"], ["--note4", "--ble-hid"]):
         note4 = "--note4" in options
         ble = note4 or "--ble-hid" in options
@@ -32,8 +32,15 @@ with tempfile.TemporaryDirectory() as directory:
         assert "-include " in result.stdout and "nimble_cfg.h" in result.stdout
         assert ("-DZECTRIX_NOTE4=1" in result.stdout) == ("--note4" in options)
         assert ("-DHID_TRANSPORT_BLE=1" in result.stdout) == ble
+        assert ("-DBOARD_NAME=Lab1" in result.stdout) == ("--name" in options)
+        assert ("-DABS_POINTER=1" in result.stdout) == ("--abs" in options)
         assert ("-DDEBUG_SERIAL=1" in result.stdout) == ("--debug" in options)
         assert arguments[arguments.index("--output-dir") + 1] == ("build/note4" if note4 else "build/ble-hid" if ble else "build")
+    for target in ("--ble-hid", "--note4"):
+        for flags in (["--abs", target], [target, "--abs"]):
+            refused = subprocess.run([str(flash), *flags, "--build-only"], capture_output=True,
+                                     env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})
+            assert refused.returncode != 0 and b"--abs requires USB HID" in refused.stderr and not refused.stdout
     for args in [["--note4"], ["--ble-hid"], ["--note-4", "--build-only"]]:
         refused = subprocess.run(["bash", str(flash), *args], capture_output=True,
                                  env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})

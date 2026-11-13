@@ -30,10 +30,20 @@ void ap_audio_decrypt(const uint8_t key[16], const uint8_t iv[16], const uint8_t
   memcpy(v, iv, 16);  // the IV restarts with every packet
   if (out != in) memcpy(out + whole, in + whole, n - whole);
   if (!whole) return;
+  // CBC by hand, one block at a time through stack buffers: a whole-packet mbedtls_aes_crypt_cbc() runs the AES
+  // DMA on the PSRAM packet, and video packets decrypted in the same task came out damaged while audio played
+  // (2026-11-13: "clean key 1", then "not a frame" and no decodable picture until the next keyframe).
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
   mbedtls_aes_setkey_dec(&aes, key, 128);
-  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, whole, v, in, out);
+  uint8_t c[16], p[16];
+  for (size_t i = 0; i < whole; i += 16) {
+    memcpy(c, in + i, 16);
+    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, c, p);
+    for (int j = 0; j < 16; j++) p[j] ^= v[j];
+    memcpy(v, c, 16);
+    memcpy(out + i, p, 16);
+  }
   mbedtls_aes_free(&aes);
 }
 

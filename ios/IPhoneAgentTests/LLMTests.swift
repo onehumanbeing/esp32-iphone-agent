@@ -1,12 +1,14 @@
 import XCTest
 @testable import IPhoneAgent
 
-/// API keys live in the Keychain, which an unsigned simulator build (CI: CODE_SIGNING_ALLOWED=NO) can't use.
-let keychainWorks: Bool = {
-    Keychain.set("probe", for: "keychain-probe")
-    defer { Keychain.set("", for: "keychain-probe") }
-    return Keychain.get("keychain-probe") == "probe"
-}()
+/// The Keychain a test uses: in memory, so key handling is exercised on CI too. An unsigned
+/// simulator build (CI runs with CODE_SIGNING_ALLOWED=NO) has no Keychain to write to.
+final class InMemoryKeychain: KeychainStoring {
+    private var entries: [String: String] = [:]
+    func get(_ account: String) -> String? { entries[account] }
+    /// An empty value removes the entry, as the real Keychain does.
+    func set(_ value: String, for account: String) { entries[account] = value.isEmpty ? nil : value }
+}
 
 /// An in-memory endpoint: records request bodies and answers with `respond`.
 final class StubProtocol: URLProtocol {
@@ -68,7 +70,7 @@ final class StubProtocol: URLProtocol {
         let name = "tested-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         settings.selectProvider(.qwen)
         XCTAssertEqual(settings.model, "qwen3.8-flash")
         XCTAssertEqual(settings.extra["enable_thinking"] as? Bool, false)
@@ -143,7 +145,7 @@ final class StubProtocol: URLProtocol {
         let name = "provider-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         settings.selectProvider(.openRouter)
         XCTAssertEqual(settings.model, "openrouter/free")  // the default, no pick needed
         XCTAssertEqual(settings.baseURL, "https://openrouter.ai/api/v1")
@@ -167,17 +169,13 @@ final class StubProtocol: URLProtocol {
         XCTAssertFalse(settings.isConfigured)
     }
 
-    func testEachProviderKeepsItsConfigurationAndKey() throws {
-        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
+    func testEachProviderKeepsItsConfigurationAndKey() {
         let name = "profile-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         let custom = "http://10.0.0.\(Int.random(in: 2...250)):8080/v1"
-        defer {
-            defaults.removePersistentDomain(forName: name)
-            Keychain.set("", for: "llm-endpoint-" + ModelProvider.gemini.baseURL)
-            Keychain.set("", for: "llm-endpoint-" + custom)
-        }
-        let settings = Settings(defaults: defaults, info: [:])
+        let mem = InMemoryKeychain()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:], keychain: mem)
         settings.selectProvider(.gemini)
         settings.apiKey = "gemini-key"
         settings.chooseModel("my-gemini")
@@ -198,22 +196,18 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(settings.model, "local-model")
         XCTAssertEqual(settings.extra["local"] as? Bool, true)
         // Persisted: a fresh Settings (next launch) restores the same way.
-        let reopened = Settings(defaults: defaults, info: [:])
+        let reopened = Settings(defaults: defaults, info: [:], keychain: mem)
         reopened.selectProvider(.gemini)
         XCTAssertEqual(reopened.model, "my-gemini")
         XCTAssertEqual(reopened.apiKey, "gemini-key")
     }
 
-    func testClearingKeyDoesNotResurrectIt() throws {
-        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
+    func testClearingKeyDoesNotResurrectIt() {
         let name = "clear-key-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
-        let gemini = ModelProvider.gemini.baseURL
-        defer {
-            defaults.removePersistentDomain(forName: name)
-            Keychain.set("", for: "llm-endpoint-" + gemini)
-        }
-        let settings = Settings(defaults: defaults, info: [:])
+        let mem = InMemoryKeychain()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = Settings(defaults: defaults, info: [:], keychain: mem)
         settings.selectProvider(.gemini)
         settings.apiKey = "gemini-key"
         settings.selectProvider(.others)   // saveCurrent() stores the key under the gemini endpoint
@@ -231,7 +225,7 @@ final class StubProtocol: URLProtocol {
         let name = "custom-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         settings.selectCustom(nil)
         settings.baseURL = "http://10.0.0.5:8080/v1"
         settings.model = "first"
@@ -248,7 +242,7 @@ final class StubProtocol: URLProtocol {
         settings.deleteCustom(settings.customEndpoints[0].id)  // in use: kept
         XCTAssertEqual(settings.customEndpoints.count, 2)
         settings.deleteCustom(settings.customEndpoints[1].id)
-        XCTAssertEqual(Settings(defaults: defaults, info: [:]).customEndpoints.map(\.model), ["first"])
+        XCTAssertEqual(Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain()).customEndpoints.map(\.model), ["first"])
     }
 
     func testLegacySingleCustomProfileMigrates() {
@@ -256,7 +250,7 @@ final class StubProtocol: URLProtocol {
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set(["baseURL": "http://10.0.0.9/v1", "model": "m"], forKey: "modelProfile.others")
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         XCTAssertEqual(settings.customEndpoints.map(\.baseURL), ["http://10.0.0.9/v1"])
         XCTAssertTrue(settings.isConfigured(.others))
     }
@@ -326,8 +320,9 @@ final class StubProtocol: URLProtocol {
         defaults.set("others", forKey: "modelProvider")
         defaults.set("http://model-server.local:8000/v1", forKey: "baseURL")
         defaults.set("stale-auto", forKey: "autoModel")
-        Keychain.set("old-cloud-api-key", for: "llm-api-key")
-        let settings = Settings(defaults: defaults, info: [:])
+        let mem = InMemoryKeychain()
+        mem.set("old-cloud-api-key", for: "llm-api-key")
+        let settings = Settings(defaults: defaults, info: [:], keychain: mem)
         defer { settings.apiKey = "" }
         XCTAssertEqual(settings.autoModel, "stale-auto")
         settings.model = "vision"
@@ -347,7 +342,7 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(settings.autoModel, "")
         XCTAssertTrue(settings.models.isEmpty)
         XCTAssertGreaterThan(settings.configurationRevision, revision)
-        let reloaded = Settings(defaults: defaults, info: [:])
+        let reloaded = Settings(defaults: defaults, info: [:], keychain: mem)
         XCTAssertEqual(reloaded.provider, .others)
         XCTAssertEqual(reloaded.baseURL, "http://model-server.local:8000/v1")
         XCTAssertEqual(reloaded.currentModel, "vision")
@@ -360,11 +355,11 @@ final class StubProtocol: URLProtocol {
     }
 
     func testLaunchModelImportUsesOnlyExplicitEnvironmentCredential() throws {
-        try XCTSkipUnless(keychainWorks, "no Keychain in an unsigned simulator build (CI)")
         let name = "launch-model-key-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
+        let mem = InMemoryKeychain()
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: mem)
         defer { settings.apiKey = "" }
         settings.selectProvider(.openRouter)
         settings.apiKey = "old-cloud-api-key"
@@ -373,14 +368,14 @@ final class StubProtocol: URLProtocol {
             environment: ["IA_LLM_API_KEY": "new-local-server-key"]))
         XCTAssertEqual(settings.provider, .others)
         XCTAssertEqual(settings.apiKey, "new-local-server-key")
-        XCTAssertEqual(Settings(defaults: defaults, info: [:]).apiKey, "new-local-server-key")
+        XCTAssertEqual(Settings(defaults: defaults, info: [:], keychain: mem).apiKey, "new-local-server-key")
     }
 
     func testLaunchModelImportAppliesAndPersistsExplicitProviderOptions() throws {
         let name = "launch-model-options-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         defer { settings.apiKey = "" }
         settings.extraBody = "{\"old_provider_option\":true}"
         XCTAssertTrue(try settings.importLaunchConfiguration(arguments: [
@@ -390,7 +385,7 @@ final class StubProtocol: URLProtocol {
         let options = try XCTUnwrap(settings.extra["chat_template_kwargs"] as? [String: Any])
         XCTAssertEqual(options["enable_thinking"] as? Bool, false)
         XCTAssertNil(settings.extra["old_provider_option"])
-        let reloaded = Settings(defaults: defaults, info: [:])
+        let reloaded = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         XCTAssertEqual(reloaded.extraBody, settings.extraBody)
         XCTAssertEqual((reloaded.extra["chat_template_kwargs"] as? [String: Any])?["enable_thinking"] as? Bool, false)
     }
@@ -399,7 +394,7 @@ final class StubProtocol: URLProtocol {
         let name = "launch-model-invalid-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         defer { settings.apiKey = "" }
         settings.selectProvider(.openRouter)
         settings.apiKey = "existing-test-key"
@@ -447,7 +442,7 @@ final class StubProtocol: URLProtocol {
         defaults.set("openRouterFree", forKey: "modelProvider")
         defaults.set(ModelProvider.openRouter.baseURL, forKey: "baseURL")
         defaults.set("openrouter/free", forKey: "model")
-        let settings = Settings(defaults: defaults, info: [:])
+        let settings = Settings(defaults: defaults, info: [:], keychain: InMemoryKeychain())
         XCTAssertEqual(settings.provider, .openRouter)
         XCTAssertEqual(settings.currentModel, "openrouter/free")
     }

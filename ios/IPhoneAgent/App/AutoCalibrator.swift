@@ -72,7 +72,8 @@ import UIKit
 
     /// Before a run: calibrate if needed and wait for it. True when the pointer is calibrated.
     func ensureCalibrated() async -> Bool {
-        while busy { try? await Task.sleep(nanoseconds: 200_000_000) }
+        while busy && !Task.isCancelled { try? await Task.sleep(nanoseconds: 200_000_000) }
+        guard !Task.isCancelled else { return false }
         if !app.pointer.calibrated && boardReady { await run(why: String(localized: "before a run")) }
         return app.pointer.calibrated
     }
@@ -89,7 +90,8 @@ import UIKit
         previous = app.pointer.snapshot()
         let job = Task { await runOnce() }
         current = job
-        await job.value
+        await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
+        if Task.isCancelled { cancel(releasePointer: false) }
         current = nil
         previous = nil
     }
@@ -105,14 +107,14 @@ import UIKit
     }
 
     /// The board's Back button: stop whatever runs and close the board.
-    func cancel() {
+    func cancel(releasePointer: Bool = true) {
         current?.cancel()
         if busy || phase == .needsTap { app.say("calibration: cancelled") }
         putBack()
         progress = nil
         phase = app.pointer.calibrated ? .done : .idle
         closeBoard()
-        Task { _ = try? await app.pointer.reset() }
+        if releasePointer { Task { _ = try? await app.pointer.reset() } }
     }
 
     private func runOnce() async {
@@ -121,7 +123,9 @@ import UIKit
         var noTaps = false
         if boardOpen {
             do {
-                switch try await touchCalibrate(full: true) {
+                var result = try await touchCalibrate(full: true)
+                if shaky(result), await waitForYoungBoard() { result = try await touchCalibrate(full: true) }
+                switch result {
                 case .done(let error): return finished(error)
                 case .noTaps: noTaps = true
                 case .failed(let why): app.say("calibration: touch probe failed: \(why)")
@@ -134,6 +138,32 @@ import UIKit
         if Task.isCancelled { return }
         progress = nil
         await videoCalibrate(noTaps: noTaps)
+    }
+
+    /// Right after it powers up, the board's USB drops reports for up to a minute: moves land short and clicks
+    /// go missing (2026-11-11, users' diagnostics: probe clicks 3 of 10 arrived, 15-60 s after power-up; check
+    /// taps rejected far off). A calibration that went wrong then is tried once more after the board settled.
+    static func usbStartupRetry(_ status: BoardStatus?) -> (uptime: Double, delay: Double)? {
+        guard let status, !status.isWirelessHID, status.inputState != nil, let ms = status.up else { return nil }
+        let uptime = Double(ms) / 1000
+        guard uptime < 90 else { return nil }
+        return (uptime, max(60 - uptime, 10))
+    }
+
+    private func shaky(_ r: TouchResult) -> Bool {
+        if case .done(let error) = r { return error > Self.rejectAbove }
+        return true
+    }
+
+    /// Waits for a board that powered up moments ago; false (at once) for one that has been up a while.
+    private func waitForYoungBoard() async -> Bool {
+        try? await app.board.refreshStatus()
+        guard let retry = Self.usbStartupRetry(app.board.status) else { return false }
+        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
+        reason = String(localized: "the board just started; trying again")
+        progress = nil
+        try? await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
+        return !Task.isCancelled
     }
 
     /// The fallback: find the pointer in the mirrored video.

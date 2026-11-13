@@ -21,7 +21,7 @@ struct SendIntentView: View {
                 Text("Screenshots are your choice and off by default. If you include them, text on them is pixelated and the status bar is blacked out on your iPhone, and the mail asks our model to blur anything left, like faces and photos, before anyone looks. Typed text, your model key and network names are removed. You see the mail before it is sent.")
             }
             Section {
-                Label("We use what you send only to improve intents in ESP32 Agent, and never for anything else.",
+                Label("We use what you send only to improve intents in \(AppName.current), and never for anything else.",
                       systemImage: "hand.raised")
                     .font(.subheadline)
             }

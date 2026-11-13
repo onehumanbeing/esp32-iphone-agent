@@ -27,6 +27,7 @@ struct BoardStatus: Codable, Equatable {
     var rst: String?
     var heap: Int?
     var psram: Int?
+    var abs: Int?      // 1: an absolute mouse (flash.sh --abs); in every status, so missing means a relative one
     var usb: String?   // ok | asleep | off
     var board: String? // Board model; absent on stock USB firmware.
     var hid: String?   // BLE HID on this connection: ok once paired and subscribed.
@@ -47,6 +48,7 @@ struct BoardStatus: Codable, Equatable {
     var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }
     var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
+    var needsUSBHost: Bool { !isWirelessHID && inputState == "off" }
     // The signed feed ships only standard USB images; wait for positive identification.
     var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
 
@@ -59,6 +61,7 @@ struct BoardStatus: Codable, Equatable {
         m.board = n.board ?? board; m.hid = n.hid ?? hid
         m.fw = n.fw ?? fw
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
+        // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
         m.gop = n.gop ?? gop; m.vage = n.vage ?? vage; m.ovf = n.ovf ?? ovf; m.fz = n.fz ?? fz

@@ -32,7 +32,7 @@ targets:
     info:
       path: IPhoneAgent/Info.plist
       properties:
-        CFBundleDisplayName: ESP32 Agent
+        CFBundleDisplayName: $(IA_APP_NAME)
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, zh-Hans]
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -47,9 +47,9 @@ targets:
             CFBundleURLSchemes: [iphoneagent]
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSBluetoothAlwaysUsageDescription: ESP32 Agent talks to its USB board over Bluetooth to see the screen and move the pointer.
-        NSLocalNetworkUsageDescription: ESP32 Agent receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
-        NSSpeechRecognitionUsageDescription: With Listen to phone audio on, ESP32 Agent turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
+        NSBluetoothAlwaysUsageDescription: The app talks to its USB board over Bluetooth to see the screen and move the pointer.
+        NSLocalNetworkUsageDescription: The app receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
+        NSSpeechRecognitionUsageDescription: With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
         NSBonjourServices: [_esp32agent._tcp, _handsy-harness._tcp]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
@@ -57,15 +57,15 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:  # shared run archives (Settings › Privacy › Export) open as imported runs
-          - CFBundleTypeName: ESP32 Agent runs
+          - CFBundleTypeName: $(IA_APP_NAME) runs
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.zip-archive]
-          - CFBundleTypeName: ESP32 Agent intent
+          - CFBundleTypeName: $(IA_APP_NAME) intent
             LSHandlerRank: Owner
             LSItemContentTypes: [com.onehumanbeing.esp32agent.intent]
         UTExportedTypeDeclarations:  # saved intents shared as .esp32intent (JSON)
           - UTTypeIdentifier: com.onehumanbeing.esp32agent.intent
-            UTTypeDescription: ESP32 Agent intent
+            UTTypeDescription: $(IA_APP_NAME) intent
             UTTypeConformsTo: [public.json, public.data]
             UTTypeTagSpecification:
               public.filename-extension: [esp32intent]
@@ -99,7 +99,7 @@ targets:
     info:
       path: AgentActivity/Info.plist
       properties:
-        CFBundleDisplayName: ESP32 Agent
+        CFBundleDisplayName: $(IA_APP_NAME)
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, zh-Hans]
         CFBundleShortVersionString: $(MARKETING_VERSION)

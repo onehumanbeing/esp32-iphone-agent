@@ -3,7 +3,8 @@ import UIKit
 
 /// Anonymous usage stats, sent only after the user turns them on (first-launch sheet or Settings › Privacy;
 /// off by default). A fixed list of events goes to PostHog: setup steps, board, mirroring and calibration,
-/// run start and end with step count and duration, the model provider, and per model request its timing,
+/// run start and end with step count and duration (a start that failed: the startup step and a fixed error kind,
+/// StartupFailure), the model provider, and per model request its timing,
 /// token counts and error kind. Never the task, screenshots,
 /// model replies, keys or addresses; no location, no person profiles. No SDK: events are batched and
 /// POSTed to PostHog's capture API. Builds without IA_POSTHOG_KEY (e.g. built from source) send nothing.
@@ -71,6 +72,15 @@ enum Analytics {
     static func flush() {
         guard enabled, !queue.isEmpty, let host else { return }
         guard !sending else { flushRequested = true; return }
+        // JSONSerialization raises an ObjC exception (not a Swift error) on a non-JSON value, which `try?` does not
+        // catch: a struct in board_reboot's "fw" aborted 1.0.5 on every board reboot (2026-11-15). Drop such events.
+        let bad = queue.filter { !JSONSerialization.isValidJSONObject($0) }
+        if !bad.isEmpty {
+            DebugLog.write("analytics: dropped \(bad.count) events with non-JSON props: "
+                           + bad.compactMap { $0["event"] as? String }.joined(separator: ","))
+            queue.removeAll { !JSONSerialization.isValidJSONObject($0) }
+            guard !queue.isEmpty else { return }
+        }
         let batch = queue
         queue = []
         sending = true

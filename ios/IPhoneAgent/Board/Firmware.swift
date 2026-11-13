@@ -26,11 +26,13 @@ struct FirmwareVersion: Codable, Comparable, CustomStringConvertible, Hashable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()
-        try c.encode(parts.map(String.init).joined(separator: "."))
+        try c.encode(plain)
     }
 
     static func < (a: Self, b: Self) -> Bool { a.parts.lexicographicallyPrecedes(b.parts) }
-    var description: String { "v" + parts.map(String.init).joined(separator: ".") }
+    var description: String { "v" + plain }
+    /// "0.2.5", without the v: what the gateway reads in a free-line run end (`fw`, RunEnd).
+    var plain: String { parts.map(String.init).joined(separator: ".") }
 }
 
 struct FirmwareRelease: Codable, Equatable {
@@ -107,7 +109,7 @@ enum Firmware {
                 let (data, response) = try await session.data(for: request)
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw Failure("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)") }
                 let r = try JSONDecoder().decode(FirmwareRelease.self, from: data)
-                guard verify(r) else { throw Failure(String(localized: "The firmware release isn't signed by ESP32 Agent.")) }
+                guard verify(r) else { throw Failure(String(localized: "The firmware release isn't signed by \(AppName.current).")) }
                 found.append((r, response.url ?? url))
                 break  // the first source that answers is enough
             } catch {

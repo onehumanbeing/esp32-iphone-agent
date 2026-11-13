@@ -13,14 +13,27 @@ import Foundation
     }
 
     func start(task: String) {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd-HHmmss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        let d = root.appendingPathComponent(f.string(from: Date()))
+        let d = root.appendingPathComponent(Self.folderName())
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         dir = d
         n = 0
         write(kind: "task", ["task": .str(task)])
+    }
+
+    /// Go on writing an existing run folder (a run resumed from disk, a demonstration written as a run).
+    func open(_ folder: URL) {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        dir = folder
+        n = (try? String(contentsOf: folder.appendingPathComponent("steps.jsonl"), encoding: .utf8))?
+            .split(separator: "\n").count ?? 0
+    }
+
+    /// A new run folder's name: its start time, yyyyMMdd-HHmmss (also the run's id and its date).
+    static func folderName(_ date: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: date)
     }
 
     func write(_ frame: Data? = nil, kind: String, _ record: JObject) {

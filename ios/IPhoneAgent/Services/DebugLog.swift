@@ -39,6 +39,11 @@ enum DebugLog {
         }
     }
 
+    /// debug.1.log then debug.log (after pending writes), for the remote debug log (RemoteLog.swift).
+    static func allText() -> String {
+        queue.sync { [old, url].compactMap { try? String(contentsOf: $0, encoding: .utf8) }.joined() }
+    }
+
     private static func append(_ data: Data, to file: URL) {
         if let h = try? FileHandle(forWritingTo: file) {
             // The throwing calls: the old seekToEndOfFile()/write(_:) raise an ObjC exception on an I/O

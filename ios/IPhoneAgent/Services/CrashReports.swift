@@ -29,11 +29,46 @@ final class CrashReports: NSObject, MXMetricManagerSubscriber {
             let name = "\(Int(p.timeStampEnd.timeIntervalSince1970))-\(UUID().uuidString.prefix(6)).json"
             try? p.jsonRepresentation().write(to: Self.dir.appendingPathComponent(name))
             DebugLog.write("diagnostics: \(kinds.isEmpty ? "report" : kinds.joined(separator: ", ")) from iOS, saved \(name)")
+            let lines = Self.summaries(p)
+            lines.forEach { DebugLog.write("diagnostics: " + $0) }
+            if let last = lines.last { UserDefaults.standard.set(last, forKey: Self.lastKey) }
             report(p)
         }
     }
 
     /// One "crash_report" / "hang_report" event per diagnostic; the stack is capped at 64 KB.
+    static let lastKey = "lastSystemDiagnostic"
+    /// The newest one-line summary, for Diagnostics.
+    static var last: String? { UserDefaults.standard.string(forKey: lastKey) }
+
+    /// One line per CPU exception, crash and hang: type, duration and the top frame only.
+    static func summaries(_ p: MXDiagnosticPayload) -> [String] {
+        var lines: [String] = []
+        for d in p.cpuExceptionDiagnostics ?? [] {
+            lines.append(summary("cpu exception", detail: String(format: "%.0f s CPU in %.0f s",
+                                                                  d.totalCPUTime.converted(to: .seconds).value,
+                                                                  d.totalSampledTime.converted(to: .seconds).value),
+                                 build: d.metaData.applicationBuildVersion, tree: d.callStackTree.jsonRepresentation()))
+        }
+        for d in p.crashDiagnostics ?? [] {
+            lines.append(summary("crash", detail: "exception \(d.exceptionType?.intValue ?? -1), signal \(d.signal?.intValue ?? -1)",
+                                 build: d.metaData.applicationBuildVersion, tree: d.callStackTree.jsonRepresentation()))
+        }
+        for d in p.hangDiagnostics ?? [] {
+            lines.append(summary("hang", detail: String(format: "%.1f s", d.hangDuration.converted(to: .seconds).value),
+                                 build: d.metaData.applicationBuildVersion, tree: d.callStackTree.jsonRepresentation()))
+        }
+        return lines
+    }
+
+    /// `kind, detail, build N, top <binary>+0x<offset>[, app <offset>]` (MetricKit stacks carry no symbols).
+    static func summary(_ kind: String, detail: String, build: String, tree: Data) -> String {
+        let frames = CrashFrames.crashed(tree)
+        let top = frames.first.map { "\($0.binary)+0x\(String($0.offset, radix: 16))" } ?? "?"
+        let app = frames.first { $0.binary == "IPhoneAgent" }.map { "IPhoneAgent+0x\(String($0.offset, radix: 16))" }
+        return "\(kind), \(detail), build \(build), top \(top)" + (app.map { $0 == top ? "" : ", app \($0)" } ?? "")
+    }
+
     private func report(_ p: MXDiagnosticPayload) {
         var events: [(String, [String: Any])] = []
         for d in p.crashDiagnostics ?? [] {

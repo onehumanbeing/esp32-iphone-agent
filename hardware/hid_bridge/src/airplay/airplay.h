@@ -38,6 +38,9 @@ typedef struct {
   // timestamp. Called from the mirror task: copy the data, don't block. Optional.
   void (*on_audio)(int event, const uint8_t *frame, size_t len, uint32_t ts);
   void (*log)(const char *msg);  // optional handshake trace
+  // A video packet was dropped for good (decrypted in step but not a frame): what follows may not decode until
+  // the next IDR. Called from the mirror task. Optional.
+  void (*on_lost)(void);
 } airplay_cfg;
 
 // Advertises over mDNS and starts the RTSP server task. Call once Wi-Fi is up (any mode).

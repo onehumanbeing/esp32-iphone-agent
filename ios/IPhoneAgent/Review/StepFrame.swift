@@ -5,6 +5,7 @@ import SwiftUI
 struct StepFrame: View {
     let step: DraftStep
     var active = true
+    var hidden = false  // blurred until tapped (Settings › Blur screens in reviews)
     private var moves: Bool { step.isMove || step.name == "note" }
 
     var body: some View {
@@ -13,6 +14,13 @@ struct StepFrame: View {
                 Image(uiImage: img)
                     .resizable()
                     .aspectRatio(img.size, contentMode: .fit)
+                    .blur(radius: hidden ? 24 : 0, opaque: true)
+                    .overlay {
+                        if hidden {
+                            Label("Tap to show the screen", systemImage: "eye").font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(.thinMaterial, in: Capsule())
+                        }
+                    }
                     .overlay { if moves { ActionOverlay(action: step.action, active: active) } }
                     .overlay { if let fix = step.fix { FixMarker(point: fix) } }
                     .overlay {

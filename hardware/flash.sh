@@ -4,6 +4,8 @@
 #   --debug       log commands and the AirPlay handshake on USB serial
 #   --sta         test build: join the Wi-Fi in hid_bridge/secrets.h instead of opening a hotspot
 #   --build-only  compile only (prints flash/RAM usage)
+#   --name NAME   the board's name in Screen Mirroring and Bluetooth (one word; default ESP32 Agent)
+#   --abs         USB absolute mouse instead of the relative one (needs AssistiveTouch; the app skips calibration)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
 #   --note4       build BLE HID for the Note 4 (build only)
 #   --ble-hid     build BLE HID for the standard 8 MB board (build only)
@@ -15,22 +17,35 @@ set -euo pipefail
 cd "$(dirname "$0")"
 FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB"
 ports() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && echo "$p"; done; return 0; }
-PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build NOTE4=0 BLE_HID=0
+PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build NOTE4=0 BLE_HID=0 ABS=0 NAME_NEXT=0
 for a in "$@"; do
+  if (( NAME_NEXT )); then
+    [[ $a =~ ^[A-Za-z0-9]+$ ]] || { echo "--name takes one word of letters and digits"; exit 1; }
+    DEFS+=" -DBOARD_NAME=$a"; NAME_NEXT=0; continue
+  fi
   case $a in
     --note4) NOTE4=1; BLE_HID=1 ;;
     --ble-hid) BLE_HID=1 ;;
+    --name) NAME_NEXT=1 ;;
     --debug) DEFS+=" -DDEBUG_SERIAL=1" ;;
     --sta) [[ -f hid_bridge/secrets.h ]] || { echo "--sta needs hid_bridge/secrets.h (see secrets.example.h)"; exit 1; }
            DEFS+=" -DSTA_FROM_SECRETS=1" ;;
     --build-only) BUILD_ONLY=1 ;;
     --ap-tune) DEFS+=" -DAP_TUNE=1" ;;
+    --abs) ABS=1 ;;
     --crash-test) DEFS+=" -DOTA_CRASH_TEST=1" ;;  # build only, then push it with ota_push.py
     --small-gop) DEFS+=" -DGOP_CAP_KB=256" ;;  # test build: the GOP fills (freezes) within minutes
     --*) echo "Unknown build option: $a" >&2; exit 1 ;;
     *) PORT=$a ;;
   esac
 done
+if (( ABS )); then
+  if (( BLE_HID )); then
+    echo "--abs requires USB HID and cannot be combined with --ble-hid or --note4." >&2
+    exit 1
+  fi
+  DEFS+=" -DABS_POINTER=1"
+fi
 if (( NOTE4 )); then
   FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
   DEFS+=" -DZECTRIX_NOTE4=1"; OUTPUT=build/note4

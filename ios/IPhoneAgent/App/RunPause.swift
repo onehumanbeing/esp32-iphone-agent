@@ -1,7 +1,8 @@
 import Foundation
 
 /// Pause / Continue from the Dynamic Island. The run finishes the gesture in flight, then holds at the next gate
-/// (before its next look) until Continue; Stop still works. Nothing it collected is lost.
+/// until Continue. A gesture already chosen is not sent after that; the next look decides. Stop still works.
+/// Nothing it collected is lost.
 extension AppModel {
     func pause() {
         guard agent.running, help == nil, !paused else { return }
@@ -28,6 +29,7 @@ extension AppModel {
             try Task.checkCancellation()
             try await Task.sleep(nanoseconds: 300_000_000)
         }
+        agent.notePauseInterrupted()  // only a chosen gesture is dropped; a look after Continue still acts
         _ = await feed.fresh(since: since, timeout: 3)
         await feed.settled()
     }

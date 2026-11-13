@@ -56,3 +56,87 @@ final class ShareTests: XCTestCase {
         try? fm.removeItem(at: root)
     }
 }
+
+/// The first-launch sheet: Agree records the per-run yes (so the first run doesn't ask again), Not Now records
+/// none, and another host or Jev target later is asked again. Runs as a store build, where the gate is on.
+@MainActor final class FirstConsentTests: XCTestCase {
+    private let host = "http://127.0.0.1:9/v1"  // refused at once if the model list is fetched
+
+    private func fresh() -> Settings {
+        let standard = UserDefaults.standard
+        let keys = [AIConsent.key, JevConsent.key, RunShare.askedKey, JevConfig.ownKey]
+        let saved = keys.map { standard.object(forKey: $0) }
+        let store = AIConsent.store
+        let suite = UUID().uuidString
+        addTeardownBlock { @MainActor in
+            for (key, value) in zip(keys, saved) { standard.set(value, forKey: key) }
+            AIConsent.store = store
+            UserDefaults().removePersistentDomain(forName: suite)
+        }
+        keys.forEach(standard.removeObject(forKey:))
+        AIConsent.store = true
+        let settings = Settings(defaults: UserDefaults(suiteName: suite)!, info: [:])
+        settings.selectProvider(.others)
+        settings.baseURL = host
+        return settings
+    }
+
+    func testAgreeGrantsBothAndMarksAsked() {
+        let settings = fresh()
+        XCTAssertTrue(settings.pendingConsent.model)
+        FirstConsent.agree(settings)
+        XCTAssertEqual(AIConsent.grantedHost, "127.0.0.1")
+        XCTAssertEqual(JevConsent.granted, settings.jevOn, "Jev is agreed to when the sheet shows it")
+        XCTAssertTrue(FirstConsent.asked)
+        settings.grantConsent(model: true, jev: true)  // what Agree records when the sheet shows both
+        XCTAssertTrue(AIConsent.granted(host))
+        XCTAssertTrue(JevConsent.granted)
+    }
+
+    /// Agree covers Handsy Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
+    func testFreeLineDefaultOnlyWithNothingSetUp() throws {
+        let settings = fresh()
+        XCTAssertFalse(FirstConsent.freeLineDefault(settings), "an endpoint is set up: the sheet shows that one")
+        try XCTSkipUnless(Trial.available, "needs a build with the free line")
+        settings.baseURL = ""
+        XCTAssertTrue(FirstConsent.freeLineDefault(settings))
+        XCTAssertTrue(FirstConsent.parts(settings).model)
+        FirstConsent.agree(settings)
+        XCTAssertTrue(AIConsent.granted(Trial.baseURL), "the model page does not ask again")
+    }
+
+    func testNotNowGrantsNothing() {
+        let settings = fresh()
+        FirstConsent.notNow()
+        XCTAssertTrue(FirstConsent.asked)
+        XCTAssertNil(AIConsent.grantedHost)
+        XCTAssertFalse(JevConsent.granted)
+        XCTAssertTrue(settings.pendingConsent.model, "the first run still asks")
+    }
+
+    func testFirstRunAfterAgreeNeedsNoConsent() {
+        let settings = fresh()
+        FirstConsent.agree(settings)
+        XCTAssertFalse(settings.pendingConsent.model)
+        XCTAssertFalse(settings.pendingConsent.jev)
+    }
+
+    func testAnotherHostOrJevTargetLaterAsksAgain() {
+        let settings = fresh()
+        FirstConsent.agree(settings)
+        settings.baseURL = "http://127.0.0.2:9/v1"  // e.g. one's own key on another service
+        XCTAssertTrue(settings.pendingConsent.model)
+        settings.grantConsent(model: false, jev: true)
+        XCTAssertTrue(JevConsent.granted)
+        UserDefaults.standard.set(true, forKey: JevConfig.ownKey)  // Jev on one's own TypeSafe key
+        XCTAssertFalse(JevConsent.granted)
+    }
+
+    func testNothingSetUpYetDisclosesAndGrantsNoModel() {
+        let settings = fresh()
+        settings.baseURL = ""
+        XCTAssertFalse(FirstConsent.parts(settings).model)
+        FirstConsent.agree(settings)
+        XCTAssertNil(AIConsent.grantedHost)
+    }
+}

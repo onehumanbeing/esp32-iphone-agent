@@ -12,6 +12,8 @@ enum StepText {
         case "path": return String(localized: "Draw a path")
         case "circle": return String(localized: "Draw a circle")
         case "type": return String(localized: "Type “\(s["text"]?.str ?? "")”")
+        case "say": return String(localized: "Say “\(s["text"]?.str ?? "")”")
+        case "clear": return String(localized: "Clear the field")
         case "open": return String(localized: "Open \(s["app"]?.str ?? "")")
         case "key": return String(localized: "Press \(s["combo"]?.str ?? "")")
         case "home": return String(localized: "Go to the Home Screen")
@@ -27,8 +29,11 @@ enum StepText {
         case "help": return String(localized: "Asked for your help")
         case "takeover": return String(localized: "You took over")
         case "skipped": return String(localized: "Skipped")
+        case RepeatGuard.action: return String(localized: "Not repeated")
         case "confirm": return String(localized: "Asked you first")
         case "confirmed": return String(localized: "You said yes")
+        case "steer": return String(localized: "You added: \(s["text"]?.str ?? "")")
+        case "checkpoint": return String(localized: "Saved progress")
         case "note": return String(localized: "Note")
         case "read": return String(localized: "Read “\(s["what"]?.str ?? "")”")
         case "progress": return String(localized: "Progress")
@@ -55,7 +60,8 @@ enum StepText {
         case "plan", "replan (stuck)": return "list.bullet.clipboard"
         case "tap": return "hand.tap"
         case "swipe", "path", "circle": return "hand.draw"
-        case "type": return "keyboard"
+        case "type", "clear": return "keyboard"
+        case "say": return "waveform"
         case "open": return "magnifyingglass"
         case "key": return "command"
         case "home": return "house"
@@ -66,7 +72,9 @@ enum StepText {
         case "stopped": return "stop.circle"
         case "help", "takeover", "confirm": return "hand.raised"
         case "confirmed": return "checkmark.shield"
+        case "steer": return "text.bubble"
         case "skipped": return "forward"
+        case RepeatGuard.action: return "arrow.uturn.backward"
         case "note", "progress": return "text.bubble"
         case "read": return "doc.text.viewfinder"
         case "write": return "doc.on.clipboard"
@@ -79,7 +87,7 @@ enum StepText {
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
                                         "takeover", "skipped", "note", "reconnected", "resumed", "confirm", "confirmed",
-                                        "read", "progress", "remember", "learn", "ai done", "check"]
+                                        "read", "progress", "remember", "learn", "ai done", "check", RepeatGuard.action, "steer", "checkpoint"]
 }
 
 /// How a run ended.
