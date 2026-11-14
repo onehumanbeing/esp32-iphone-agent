@@ -128,6 +128,13 @@ import UIKit
                     Task { await self.stop() }
                     return
                 }
+                if MockMode.on {
+                    // One JPEG stands in for the screen. Save it every pass so the counter climbs
+                    // (the UI tests wait for "6 screens"). A real board still uses Vision.changed below.
+                    if let frame = AppModel.mockFrame { try save(frame) }
+                    try await Task.sleep(nanoseconds: 1_500_000_000)
+                    continue
+                }
                 let stamp = MockMode.on ? now() : (app.feed.capturedAt > 0 ? app.feed.capturedAt : app.feed.updated)
                 let frame = MockMode.on ? AppModel.mockFrame : freshFrame()
                 if frame == nil, !MockMode.on, now() - staleSince > 2 {

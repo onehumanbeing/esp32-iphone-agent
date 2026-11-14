@@ -104,10 +104,12 @@ struct FirmwareReminder {
 
     /// Opens the sheet when the board needs an update, unless it was skipped for this connection. A running task or
     /// recording isn't interrupted: Home shows the warning and the gate asks again when it ends.
+    /// Demo data does not ask: that board is not flashed. `-mockFirmware 0.2.0` still does (the opt-in).
     func ask() {
         guard required, phase == .idle, !presented, !reminder.skipped else { return }
         // A background relaunch (Bluetooth restores the board link) can't show a sheet: ask when the app comes up.
         guard UIApplication.shared.applicationState == .active else { return }
+        if MockMode.on, !ProcessInfo.processInfo.arguments.contains("-mockFirmware") { return }
         let versions = "board \(current), latest \(release?.version ?? "none"), minimum \(Firmware.required)"
         DebugLog.write("firmware: update required (\(versions))\(taskRunning ? "; asking after the task" : "")")
         if !taskRunning { presented = true }
