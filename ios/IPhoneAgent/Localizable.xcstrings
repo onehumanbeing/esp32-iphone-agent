@@ -11322,6 +11322,36 @@
           }
         }
       }
+    },
+    "The board's USB is asleep. Unlock this iPhone, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子的 USB 处于休眠。请先解锁这台 iPhone，再试一次。"
+          }
+        }
+      }
+    },
+    "The board is plugged in by USB, but this iPhone isn't getting its input. Plug it straight into this iPhone (not a computer, hub or charger), tap Allow if iPhone asks about the accessory, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子已经插上 USB，但这台 iPhone 没有收到它的操作。请把它直接插到这台 iPhone 上（不要插电脑、扩展坞或充电器）；如果 iPhone 询问是否允许配件连接，点「允许」，然后再试一次。"
+          }
+        }
+      }
+    },
+    "This iPhone isn't getting the board's input. Plug the board straight into this iPhone's USB-C port and tap Allow if iPhone asks about the accessory. I'll go on when it works." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 没有收到板子的操作。请把板子直接插到这台 iPhone 的 USB-C 口；如果 iPhone 询问是否允许配件连接，点「允许」。连上后我会自动继续。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

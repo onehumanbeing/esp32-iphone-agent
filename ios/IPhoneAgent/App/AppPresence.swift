@@ -83,7 +83,34 @@ extension AppModel {
             if try await leaveApp() { return true }
         }
         if mouse || PhoneMouse.connected { return try await askUserToLeave() }  // the board drives this iPhone: the user swipes up once
-        throw DeviceError(message: String(localized: "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."))
+        // USB up but no mouse on this iPhone: "plug it into USB-C" is wrong for a board that is plugged in. Its
+        // USB host is another device, or this iPhone has not let the accessory in yet: say which, wait for the user
+        // to fix it here, then go on.
+        if usb == "asleep" {
+            throw DeviceError(message: String(localized: "The board's USB is asleep. Unlock this iPhone, then try again."))
+        }
+        if try await waitForPhoneMouse() {
+            if try await leaveApp() { return true }
+            return try await askUserToLeave()
+        }
+        throw DeviceError(message: String(localized: "The board is plugged in by USB, but this iPhone isn't getting its input. Plug it straight into this iPhone (not a computer, hub or charger), tap Allow if iPhone asks about the accessory, then try again."))
+    }
+
+    /// Show what to check and wait up to `seconds` for this iPhone to list the board's mouse.
+    func waitForPhoneMouse(_ seconds: Double = 30) async throws -> Bool {
+        defer { homeHint = nil }
+        homeHint = String(localized: "This iPhone isn't getting the board's input. Plug the board straight into this iPhone's USB-C port and tap Allow if iPhone asks about the accessory. I'll go on when it works.")
+        let until = now() + seconds
+        while now() < until {
+            try Task.checkCancellation()
+            if PhoneMouse.connected {
+                DebugLog.write("leave app: the board's mouse is on this iPhone now; trying again")
+                Analytics.capture("app_left_mouse_came", [:])
+                return true
+            }
+            try await Task.sleep(nanoseconds: 500_000_000)
+        }
+        return false
     }
 
     /// Keep the manual instruction visible; a normal disconnect pauses this wait and retries departure.
@@ -182,6 +209,7 @@ extension AppModel {
         var receivedSnapshot = false
         var motionAt = 0.0
         var stallLogged = false
+        var streamRestarted = false
         var source = "live"
         // The board got no frame from AirPlay since before the cursor moved: the sender stalled while its
         // session stays up (heartbeats), and only restarting Screen Mirroring helps; ask for it now, not in 20 s.
@@ -219,6 +247,24 @@ extension AppModel {
                 }
             }
             let stalled = airplayStalled() || feed.undecodable
+            // Once per start, before asking the user to restart Screen Mirroring: reopen the board's stream,
+            // which resends from its last keyframe; often enough without the user.
+            if stalled && !streamRestarted && !snapMode && board.connected {
+                streamRestarted = true
+                DebugLog.write("startup: no fresh frame; reopening the stream once before asking")
+                Analytics.capture("startup_stream_restarted", ["undecodable": feed.undecodable])
+                do {
+                    try await feed.stream(false)
+                    try await feed.stream(true)
+                } catch {
+                    try Task.checkCancellation()
+                    DebugLog.write("startup: reopening the stream failed: " + error.localizedDescription)
+                }
+                requestedMotion = false
+                motionAt = 0
+                streamDeadline = now() + 3
+                continue
+            }
             if stalled && !stallLogged {
                 stallLogged = true
                 DebugLog.write(feed.undecodable ? "startup: frames arrive but none decodes (a lost packet; no keyframe yet); Screen Mirroring has to restart"
