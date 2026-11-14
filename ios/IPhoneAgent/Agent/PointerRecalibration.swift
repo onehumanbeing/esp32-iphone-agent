@@ -25,11 +25,13 @@ struct Recalibration {
     private(set) var last: Int?  // `taps` at the last recalibration
     private(set) var rehomed = false  // the last landing was far but confirmed: re-homed instead
     private var farSide: (right: Bool, below: Bool)?  // which way the last far landing was off its target
+    private(set) var early = false  // the last recalibration came before `every` taps: the next one waits for them
 
     /// The pointer was found at `found` for a move to `target` (screen fractions) on a screen of `pixels`. A miss
     /// within `every` taps of the last recalibration is left to the usual correction, unless it is the second far
     /// one in a row off the same way: then the scale is wrong (the tracking speed changed since the calibration),
-    /// every tap until the 15th would miss alike, and `retryAfter` taps are enough.
+    /// every tap until the 15th would miss alike, and `retryAfter` taps are enough. Once: if that one did not help
+    /// (a screen where the pointer can't be read well), the next waits the full `every` taps again.
     /// Returns true when the caller should re-home the pointer instead (a first confirmed far landing).
     @discardableResult
     mutating func measured(_ target: CGPoint, _ found: CGPoint, pixels: CGSize, confirmed: Bool = false) -> Bool {
@@ -38,12 +40,15 @@ struct Recalibration {
         let side = (right: found.x > target.x, below: found.y > target.y)
         let sameWay = farSide.map { $0 == side } ?? false
         farSide = side
-        guard last.map({ taps - $0 >= (sameWay ? Self.retryAfter : Self.every) }) ?? true else { return false }
+        let soon = sameWay && !early
+        guard last.map({ taps - $0 >= (soon ? Self.retryAfter : Self.every) }) ?? true else { return false }
+        let isEarly = last.map { taps - $0 < Self.every } ?? false
         if confirmed && !rehomed {
             rehomed = true
             return true
         }
         pending = true
+        early = isEarly
         return false
     }
 
