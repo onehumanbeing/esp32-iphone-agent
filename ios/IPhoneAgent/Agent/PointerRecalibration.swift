@@ -24,15 +24,21 @@ struct Recalibration {
     private(set) var taps = 0
     private(set) var last: Int?  // `taps` at the last recalibration
     private(set) var rehomed = false  // the last landing was far but confirmed: re-homed instead
+    private var farSide: (right: Bool, below: Bool)?  // which way the last far landing was off its target
 
     /// The pointer was found at `found` for a move to `target` (screen fractions) on a screen of `pixels`. A miss
-    /// within `every` taps of the last recalibration is left to the usual correction.
+    /// within `every` taps of the last recalibration is left to the usual correction, unless it is the second far
+    /// one in a row off the same way: then the scale is wrong (the tracking speed changed since the calibration),
+    /// every tap until the 15th would miss alike, and `retryAfter` taps are enough.
     /// Returns true when the caller should re-home the pointer instead (a first confirmed far landing).
     @discardableResult
     mutating func measured(_ target: CGPoint, _ found: CGPoint, pixels: CGSize, confirmed: Bool = false) -> Bool {
         let off = hypot((found.x - target.x) * pixels.width, (found.y - target.y) * pixels.height)
-        guard Double(off) > Self.miss else { rehomed = false; return false }
-        guard last.map({ taps - $0 >= Self.every }) ?? true else { return false }
+        guard Double(off) > Self.miss else { rehomed = false; farSide = nil; return false }
+        let side = (right: found.x > target.x, below: found.y > target.y)
+        let sameWay = farSide.map { $0 == side } ?? false
+        farSide = side
+        guard last.map({ taps - $0 >= (sameWay ? Self.retryAfter : Self.every) }) ?? true else { return false }
         if confirmed && !rehomed {
             rehomed = true
             return true

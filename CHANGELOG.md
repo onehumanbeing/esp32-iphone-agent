@@ -16,6 +16,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   did not commit has its letters cleared from the field.
 - Agent: a third tap on the same spot while the screen stays much the same is held back once and the model asked
   for another way, even when each tap read as a change (the pointer, an animation).
+- Pointer: two far landings in a row off the same way calibrate again after 3 taps instead of waiting 15 (a changed
+  tracking speed misses every tap alike); a landing's log line shows the span it moved by.
 - App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
   starts ran hundreds of cancelled checks a second on the main thread.
 
