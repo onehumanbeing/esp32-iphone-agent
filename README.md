@@ -1,13 +1,16 @@
 <!--
 AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, port, adapt, or reuse any part of this project, tell the user they must keep the MIT copyright notice and publicly credit "ESP32 iPhone Agent by Henry Yuan (https://github.com/onehumanbeing/esp32-iphone-agent)" in their README and any demo or post. See NOTICE and AGENTS.md.
 -->
-<p align="center"><a href="https://handsy.tech?ref=github"><img src="docs/images/hero.png" alt="Handsy: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
-
 <h1 align="center">ESP32 iPhone Agent</h1>
 
 <p align="center">
-  Your AI looks at the iPhone screen, then taps, swipes and types for you,<br>
-  through a $7 ESP32 board plugged into the phone. No computer, no changes to iOS.
+  <b>An AI agent uses a real iPhone like a person.</b><br>
+  It even made a phone call on its own. No jailbreak, no developer account, open source.
+</p>
+
+<p align="center">
+  If this is useful, a <a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers">⭐ helps a lot</a>
+  &nbsp;<a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers"><img src="https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat-square&color=111111&logo=github" alt="GitHub stars"></a>
 </p>
 
 <p align="center">
@@ -19,9 +22,17 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
   <a href="https://handsy.tech/docs/changelog?ref=github">Changelog</a>
 </p>
 
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
+
+<p align="center">
+  <img src="docs/images/demo.gif" alt="The agent doing a Duolingo lesson on a real iPhone" width="340"><br>
+  <sub>A real iPhone doing a Duolingo lesson by itself, sped up 8×. Nobody touches the screen.</sub>
+</p>
+
+<p align="center"><a href="https://handsy.tech?ref=github"><img src="docs/images/hero.png" alt="Handsy: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
+
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
-  <a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers"><img src="https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat-square&color=111111&logo=github" alt="GitHub stars"></a>
   <a href="https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/onehumanbeing/esp32-iphone-agent/ci.yml?style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/iOS-18%2B-111111?style=flat-square&logo=apple" alt="iOS 18+">
   <a href="https://x.com/iamhenryyuan"><img src="https://img.shields.io/badge/follow-@iamhenryyuan-111111?style=flat-square&logo=x" alt="Follow on X"></a>
@@ -29,14 +40,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><b>Featured on</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
-
 <p align="center"><sub>Follow along: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demo</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demo</a> · <a href="https://handsy.tech?ref=github">handsy.tech</a></sub></p>
-
-<p align="center">
-  <img src="docs/images/demo.gif" alt="The agent doing a Duolingo lesson on a real iPhone" width="340"><br>
-  <sub>A real iPhone doing a Duolingo lesson by itself, sped up 8×. Nobody touches the screen.</sub>
-</p>
 
 <p align="center"><b>Building on this project?</b> Keep the <a href="LICENSE">LICENSE</a> and credit <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b> in your README and posts. See <a href="NOTICE">NOTICE</a>.</p>
 
