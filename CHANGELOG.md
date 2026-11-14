@@ -10,6 +10,12 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   USB-C" to users whose board was plugged in.
 - App: when no fresh screen image arrives at startup, the app reopens the board's stream once before asking to
   restart Screen Mirroring.
+- Agent: `open` with a Chinese app name types its pinyin letters on the English keyboard first (Spotlight finds
+  apps by pinyin), and the name itself through the pinyin keyboard only when the letters list nothing. Typing
+  Chinese, a word that is not the first candidate goes in by halves instead of by its number key, and a word that
+  did not commit has its letters cleared from the field.
+- Agent: a third tap on the same spot while the screen stays much the same is held back once and the model asked
+  for another way, even when each tap read as a change (the pointer, an animation).
 - App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
   starts ran hundreds of cancelled checks a second on the main thread.
 

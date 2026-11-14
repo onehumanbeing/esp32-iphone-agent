@@ -35,17 +35,38 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
     }
 
-    func testChineseNameIsTypedAsIsTheTyperCommitsIt() async throws {
+    /// A Chinese name goes in as its pinyin letters first: no input method.
+    func testChineseNameIsTypedAsPinyinLettersFirst() async throws {
         var sent: [String] = []
-        let result = try await opener([home, spotlight, app], lines: ["时钟", "时钟"]) { sent.append($0) }.open("时钟")
+        let result = try await opener([home, spotlight, app], lines: ["shizhong", "时钟"], homeLines: []) { sent.append($0) }.open("时钟")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type 时钟", "key enter"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type shizhong", "key enter"])
+    }
+
+    /// The letters list nothing: the name itself, through the pinyin keyboard, after Home.
+    func testChineseNameItselfWhenThePinyinListsNothing() async throws {
+        var sent: [String] = [], typed = ""
+        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
+                               type: { typed = $0; sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : typed == "时钟" ? ["时钟", "时钟"] : [typed] },
+                               same: { $0 == $1 }, pause: { _ in }, language: "zh")
+        let result = try await opener.open("时钟")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type shizhong", "type 时钟"])
+    }
+
+    func testOnlyAChineseNameGetsItsLettersFirst() {
+        XCTAssertEqual(AppOpener.queries("微信", pasting: false), ["weixin", "微信"])
+        XCTAssertEqual(AppOpener.queries("WeChat", pasting: false), ["WeChat"])
+        XCTAssertEqual(AppOpener.queries("微信", pasting: true), ["微信"])
     }
 
     /// A name Spotlight does not list goes back to the model; code never types other names (2026-11-13).
     func testANameSpotlightDoesNotKnowGoesBackToTheModel() async throws {
         var sent: [String] = [], typed = ""
-        var queue = [home, spotlight, spotlight, spotlight]  // 闹钟: two more looks, still not listed
+        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, spotlight, spotlight]  // 闹钟, letters then itself: never listed
         let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
@@ -53,7 +74,7 @@ import XCTest
                                same: { $0 == $1 }, pause: { _ in }, language: "zh")
         let result = try await opener.open("闹钟")
         XCTAssertEqual(result, .notFound)
-        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟"])
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type naozhong", "type 闹钟"], "the same name, never another")
         XCTAssertFalse(sent.contains("key enter"))
     }
 

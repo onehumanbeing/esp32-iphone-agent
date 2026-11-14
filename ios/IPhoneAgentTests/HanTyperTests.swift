@@ -98,13 +98,15 @@ import XCTest
         XCTAssertEqual(ime.composing, "")
     }
 
-    func testTheRightCandidateIsPickedByItsNumber() async throws {
+    /// A word that is not the first candidate goes in by halves, not by its number (a number key can go into the
+    /// pinyin and leave the letters in the field).
+    func testAWordNotFirstGoesInByHalvesNotByANumber() async throws {
         let ime = FakeIME(knowing: "今天")
         ime.decoys["jintian"] = ["金天"]
         let note = try await ime.typer().type("今天")
         XCTAssertNil(note)
         XCTAssertEqual(ime.field, "今天")
-        XCTAssertTrue(ime.sent.contains("type 2"), "\(ime.sent)")
+        XCTAssertFalse(ime.sent.contains("type 2"), "\(ime.sent)")
     }
 
     func testAWordMissingFromTheCandidatesGoesInCharacterByCharacter() async throws {
@@ -159,14 +161,17 @@ import XCTest
         XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 2, "to English for apple, back to pinyin for 好")
     }
 
-    func testACommitThatDoesNotLandIsReported() async throws {
-        let ime = FakeIME(knowing: "今天")
-        ime.decoys["jintian"] = ["金天"]
+    /// The number key went into the pinyin instead of picking: reported, and the letters and the number cleared.
+    func testACommitThatDoesNotLandIsReportedAndCleared() async throws {
+        let ime = FakeIME(knowing: "北")
+        ime.only["bei"] = ["被", "北"]
         let typer = ime.typer()
-        let broken = HanTyper(send: { s in if s == "2" { ime.sent.append("type 2") } else { ime.send(s) } },  // no digit selection
+        let broken = HanTyper(send: { s in if s == "2" { ime.sent.append("type 2"); ime.composing.append("2") } else { ime.send(s) } },
                               key: typer.key, toggle: typer.toggle, look: typer.look)
-        let note = try await broken.type("今天")
-        XCTAssertTrue(note?.contains("\"今天\" did not show up") == true, note ?? "nil")
+        let note = try await broken.type("北")
+        XCTAssertTrue(note?.contains("\"北\" did not show up") == true, note ?? "nil")
+        XCTAssertEqual(ime.composing, "", "nothing left in the field")
+        XCTAssertEqual(ime.field, "")
     }
 
     func testWithoutAScreenEachWordIsCommittedBlind() async throws {
