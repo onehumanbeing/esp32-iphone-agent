@@ -327,7 +327,10 @@ import UIKit
         // A big miss: the tracked position drifted (relative moves between taps: a +256 x move went 75% of the
         // way, 2026-11-06), so the next gesture starts from the corner again.
         if max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss { pos = nil }
-        log(String(format: "landing (%.3f, %.3f): pointer at (%.3f, %.3f)", x, y, found.x, found.y))
+        // with the span it moved by: an offset in proportion to the target is a scale (tracking speed), a constant one
+        // a lost position
+        log(String(format: "landing (%.3f, %.3f): pointer at (%.3f, %.3f), span %d x %d", x, y, found.x, found.y,
+                   span?.w ?? 0, span?.h ?? 0))
         return found
     }
 

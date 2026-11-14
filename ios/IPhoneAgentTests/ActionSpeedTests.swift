@@ -115,6 +115,27 @@ import XCTest
         XCTAssertTrue(single.pending)
     }
 
+    /// Far the same way twice soon after a calibration: calibrate again after a few taps, not 15.
+    func testFarTheSameWayTwiceCalibratesSoonAfterTheLast() {
+        let pixels = CGSize(width: 1000, height: 2000), target = CGPoint(x: 0.2, y: 0.2)
+        var r = Recalibration()
+        r.measured(target, CGPoint(x: 0.2, y: 0.3), pixels: pixels)
+        XCTAssertTrue(r.tap())  // calibrated at tap 1
+        for _ in 0..<Recalibration.retryAfter { _ = r.tap() }
+        r.measured(target, CGPoint(x: 0.5, y: 0.6), pixels: pixels)
+        XCTAssertFalse(r.pending, "one far landing soon after: not yet")
+        r.measured(target, CGPoint(x: 0.45, y: 0.55), pixels: pixels)
+        XCTAssertTrue(r.pending, "the same way again: calibrate")
+
+        var other = Recalibration()
+        other.measured(target, CGPoint(x: 0.2, y: 0.3), pixels: pixels)
+        _ = other.tap()
+        for _ in 0..<Recalibration.retryAfter { _ = other.tap() }
+        other.measured(target, CGPoint(x: 0.5, y: 0.6), pixels: pixels)
+        other.measured(target, CGPoint(x: 0.05, y: 0.02), pixels: pixels)
+        XCTAssertFalse(other.pending, "off the other way: a stray reading, wait as before")
+    }
+
     /// The far reading is confirmed from the same wiggle's move back (one wiggle, not two); the next tap starts from
     /// the corner instead of a recalibration. A screen still for a while is not watched another 0.3 s first.
     func testAFarLandingIsConfirmedByTheMoveBackAndReHomes() async throws {

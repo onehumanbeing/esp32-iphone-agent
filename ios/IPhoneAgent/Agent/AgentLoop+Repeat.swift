@@ -34,6 +34,21 @@ enum RepeatGuard {
 /// would do it again: iddzz 2026-11-12, the add-to-cart button sat where the options sheet's button was, every tap
 /// "changed the screen", and four chairs went into the cart. Such a tap is not sent at once: the model is told why
 /// and asked once more (the planner answers); its second answer stands.
+/// A third tap on the same spot while the screen stays much the same, even when each one read as "changed": the
+/// pointer, an animation or the Live Activity count as change, so the guard above lets such a repeat through. The rounds before must each have been that one tap with no big change
+/// (NoProgress); a tap that moves the screen a lot each time (Next, Continue) is never held.
+enum ThirdTapGuard {
+    static func repeated(_ acts: [JObject], progress: NoProgress) -> JObject? {
+        guard let first = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              first["action"]?.str == "tap", progress.repeats >= 1, !progress.moved, progress.last.count == 1,
+              NoProgress.same([first], progress.last) else { return nil }
+        return first
+    }
+
+    static let reason = "Not done: the same tap a third time, and the screen has stayed much the same. The target is "
+        + "likely not what you think; choose another element, scroll, go back, or ask for help."
+}
+
 enum CommitGuard {
     static let near = 40.0  // the 0–1000 grid: the same button
 
@@ -166,6 +181,9 @@ extension AgentLoop {
             let name = held["action"]?.str ?? ""
             DebugLog.write("repeat guard: the same \(name) again right after it changed nothing; asking once more")
             reason = RepeatGuard.reason(name)
+        } else if ThirdTapGuard.repeated(acts.map(\.act), progress: progress) != nil {
+            DebugLog.write("third tap guard: the same tap a third time on a much unchanged screen; asking once more")
+            reason = ThirdTapGuard.reason
         } else if CommitGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("commit guard: a tap on the confirmed step's spot again; asking once more")
             reason = CommitGuard.reason

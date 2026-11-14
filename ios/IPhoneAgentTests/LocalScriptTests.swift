@@ -74,7 +74,8 @@ import XCTest
         _ = try await opener(language: "ja", paste: true, lines: { [$0, $0] }) { ja.append($0) }.open("時計")
         _ = try await opener(language: "zh", paste: true, lines: { [$0, $0] }) { zh.append($0) }.open("时钟")
         XCTAssertEqual(ja.first, "paste 時計")
-        XCTAssertEqual(zh.filter { $0.hasPrefix("type") || $0.hasPrefix("paste") }, ["type 时钟"], "the pinyin keyboard")
+        XCTAssertFalse(zh.contains { $0.hasPrefix("paste") }, "never the clipboard on a Chinese iPhone")
+        XCTAssertEqual(zh.first { $0.hasPrefix("type") }, "type shizhong", "its letters first, then the pinyin keyboard")
     }
 
     func testTypeWithJapaneseTextGoesOnTheClipboard() async throws {
