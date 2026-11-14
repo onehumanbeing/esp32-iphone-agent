@@ -38,6 +38,7 @@ struct FirmwareReminder {
     private unowned let app: AppModel
     private var background: UIBackgroundTaskIdentifier = .invalid
     private var address: (String, String)?  // the board's ip and token for this update
+    private var connectCheckAt = -Double.infinity, connectChecksSkipped = 0, skippedLoggedAt = 0.0
     static let attempts = 3
 
     init(app: AppModel) {
@@ -84,8 +85,20 @@ struct FirmwareReminder {
     }
 
     /// The board (re)connected: look for a release, and ask for the update if the board needs it.
+    /// Home's task can restart hundreds of times a second (seen in debug logs), each cancelling the request at once
+    /// ("cancelled") and starting the next, on the main thread through startup. So at most one
+    /// check a minute from here, in a task of its own that a restarted view doesn't cancel; the skips are counted.
     func boardConnected() async {
-        await check()
+        if now() - connectCheckAt >= 60 {
+            connectCheckAt = now()
+            await Task { await check() }.value
+        } else {
+            connectChecksSkipped += 1
+            if now() - skippedLoggedAt >= 60 {
+                skippedLoggedAt = now()
+                DebugLog.write("firmware: \(connectChecksSkipped) connect checks skipped (one a minute)")
+            }
+        }
         ask()
     }
 

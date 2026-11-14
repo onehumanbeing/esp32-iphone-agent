@@ -45,6 +45,17 @@ import XCTest
     }
 
     /// One wait-loop iteration per 100 ms with an unchanged stage (as while mirroring is off): no notices.
+    /// Plugged in but not this iPhone's input (2026-11-14): the start waits with what to check, then gives up.
+    func testWaitingForThePhoneMouseShowsWhatToCheckAndClearsIt() async throws {
+        try XCTSkipIf(PhoneMouse.connected, "the simulator lists no mouse")
+        let task = Task { try await app.waitForPhoneMouse(1) }
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertTrue(app.homeHint?.contains("USB-C") == true)
+        let came = try await task.value
+        XCTAssertFalse(came)
+        XCTAssertNil(app.homeHint)
+    }
+
     func testRepeatedUnchangedWaitStageSendsNoNotices() {
         let stage = Recovery.Stage(part: .mirroring, ask: false)
         app.recover(stage)

@@ -2,6 +2,17 @@
 
 Full changelog with board firmware and every channel: [handsy.tech/docs/changelog](https://handsy.tech/docs/changelog).
 
+## Unreleased (main)
+
+- App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,
+  says to plug the board straight into this iPhone and tap Allow for the accessory, and goes on by itself once
+  the mouse shows up (30 s); a board whose USB is asleep asks to unlock the iPhone. It used to say "plug it into
+  USB-C" to users whose board was plugged in.
+- App: when no fresh screen image arrives at startup, the app reopens the board's stream once before asking to
+  restart Screen Mirroring.
+- App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
+  starts ran hundreds of cancelled checks a second on the main thread.
+
 ## App 1.0.6 (TestFlight)
 
 - Calls: Control Center is closed with the Home key alone, and Home flicks up at most once, only when the key did
