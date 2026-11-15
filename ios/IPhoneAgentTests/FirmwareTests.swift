@@ -204,4 +204,11 @@ final class CrashFramesTests: XCTestCase {
         XCTAssertEqual(list?.first?["type"] as? String, "EXC 6 / signal 5")
         XCTAssertTrue(CrashFrames.crashed(Data("{}".utf8)).isEmpty)
     }
+
+    /// board_reboot sent the FirmwareVersion struct as "fw": JSONSerialization raised and 1.0.5 aborted (2026-11-15).
+    func testFirmwareVersionGoesToStatsAsText() {
+        XCTAssertFalse(JSONSerialization.isValidJSONObject(["fw": FirmwareVersion([0, 2, 5])]), "the struct is not JSON")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(["fw": FirmwareVersion([0, 2, 5]).plain]))
+        XCTAssertEqual(FirmwareVersion([0, 2, 5]).plain, "0.2.5")
+    }
 }

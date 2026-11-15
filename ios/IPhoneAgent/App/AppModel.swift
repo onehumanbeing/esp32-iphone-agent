@@ -428,7 +428,7 @@ import UIKit
             guard let self else { return }
             let crash = await BoardLogDump.crash(self.board.commands)
             DebugLog.write("board: crash record: \(crash ?? "-")")
-            Analytics.capture("board_reboot", ["reset": s.rst ?? "?", "fw": Firmware.version(of: s), "up_s": up / 1000,
+            Analytics.capture("board_reboot", ["reset": s.rst ?? "?", "fw": Firmware.version(of: s).plain, "up_s": up / 1000,
                                                "heap_kb": (s.heap ?? 0) / 1024, "dump": crash ?? ""])
         }
     }
