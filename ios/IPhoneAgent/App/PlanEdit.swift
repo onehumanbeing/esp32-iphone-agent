@@ -13,12 +13,18 @@ struct PlanTurn: Identifiable, Equatable {
     var text: String
 }
 
-struct PlanProposal: Equatable {
+struct PlanNote: Identifiable, Equatable {
+    var id: Int
+    var text: String
+}
+
+struct PlanProposal: Identifiable, Equatable {
+    var id = UUID()
     var before: String
     var after: String
     var verdictOK: Bool
     var blocking: Bool
-    var notes: [String]
+    var notes: [PlanNote]
     var diff: [TextDiff.Row]
 }
 
@@ -35,6 +41,8 @@ final class PlanEditSession: ObservableObject {
     @Published private(set) var proposal: PlanProposal?
     @Published private(set) var busy = false
     @Published var error: String?
+    /// Bumped when `plan.txt` is written outside a chat turn, so the screen reads it again.
+    @Published private(set) var diskTick = 0
 
     init(sandbox: FileSandbox, editor: @escaping Ask, reviewer: @escaping Ask) {
         self.sandbox = sandbox
@@ -42,7 +50,12 @@ final class PlanEditSession: ObservableObject {
         self.reviewer = reviewer
     }
 
-    var planText: String { sandbox.textFile("plan.txt") ?? "" }
+    var planText: String {
+        _ = diskTick
+        return sandbox.textFile("plan.txt") ?? ""
+    }
+
+    func reloadPlan() { diskTick += 1 }
     var hasPlan: Bool { PlanText.parse(planText) != nil }
 
     func send(_ user: String) async {
@@ -102,8 +115,9 @@ final class PlanEditSession: ObservableObject {
             notes.append(String(localized: "The review pass did not answer. The check above is from the plan file."))
         }
         let verdictOK = !local.blocking && modelOK != false
+        let shown = notes.enumerated().map { PlanNote(id: $0.offset, text: $0.element) }
         return PlanProposal(before: before, after: after, verdictOK: verdictOK, blocking: local.blocking,
-                            notes: notes, diff: TextDiff.lines(before, after))
+                            notes: shown, diff: TextDiff.lines(before, after))
     }
 
     private func transcript() -> String {

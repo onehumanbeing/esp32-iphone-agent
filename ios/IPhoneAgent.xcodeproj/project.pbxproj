@@ -266,6 +266,21 @@
 		A11E0F11E000000000000008 /* LocalFilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000007 /* LocalFilesView.swift */; };
 		A11E0F11E00000000000000A /* PlanEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000009 /* PlanEditView.swift */; };
 		A11E0F11E00000000000000C /* PlanEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E00000000000000B /* PlanEditTests.swift */; };
+		B22E0F11E000000000000001 /* FilesLocationFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000001 /* FilesLocationFooter.swift */; };
+		B22E0F11E000000000000002 /* AgentFileEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000002 /* AgentFileEntry.swift */; };
+		B22E0F11E000000000000003 /* AgentFileLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000003 /* AgentFileLabel.swift */; };
+		B22E0F11E000000000000004 /* AgentFileRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000004 /* AgentFileRow.swift */; };
+		B22E0F11E000000000000005 /* TextFileEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000005 /* TextFileEditor.swift */; };
+		B22E0F11E000000000000006 /* ImageFilePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000006 /* ImageFilePage.swift */; };
+		B22E0F11E000000000000007 /* PlanEditChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000007 /* PlanEditChat.swift */; };
+		B22E0F11E000000000000008 /* PlanEditIntro.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000008 /* PlanEditIntro.swift */; };
+		B22E0F11E000000000000009 /* PlanLoopSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E000000000000009 /* PlanLoopSuggestions.swift */; };
+		B22E0F11E00000000000000A /* PlanChatTurnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000A /* PlanChatTurnView.swift */; };
+		B22E0F11E00000000000000B /* PlanEditComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000B /* PlanEditComposer.swift */; };
+		B22E0F11E00000000000000C /* PlanReviewStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000C /* PlanReviewStatus.swift */; };
+		B22E0F11E00000000000000D /* PlanDiffSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000D /* PlanDiffSheet.swift */; };
+		B22E0F11E00000000000000E /* PlanDiffFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000E /* PlanDiffFooter.swift */; };
+		B22E0F11E00000000000000F /* PlanDiffLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11E0F11E00000000000000F /* PlanDiffLine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -569,6 +584,21 @@
 		A11E0F11E000000000000007 /* LocalFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesView.swift; sourceTree = "<group>"; };
 		A11E0F11E000000000000009 /* PlanEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditView.swift; sourceTree = "<group>"; };
 		A11E0F11E00000000000000B /* PlanEditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditTests.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000001 /* FilesLocationFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesLocationFooter.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000002 /* AgentFileEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFileEntry.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000003 /* AgentFileLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFileLabel.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000004 /* AgentFileRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFileRow.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000005 /* TextFileEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFileEditor.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000006 /* ImageFilePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFilePage.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000007 /* PlanEditChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditChat.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000008 /* PlanEditIntro.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditIntro.swift; sourceTree = "<group>"; };
+		B11E0F11E000000000000009 /* PlanLoopSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLoopSuggestions.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000A /* PlanChatTurnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanChatTurnView.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000B /* PlanEditComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditComposer.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000C /* PlanReviewStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanReviewStatus.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000D /* PlanDiffSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDiffSheet.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000E /* PlanDiffFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDiffFooter.swift; sourceTree = "<group>"; };
+		B11E0F11E00000000000000F /* PlanDiffLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDiffLine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -771,6 +801,21 @@
 				961DDD85021E59AD3DDF4F82 /* ListenSection.swift */,
 				FAE9690A776BF887AFFFAE39 /* MemoryView.swift */,
 				A11E0F11E000000000000007 /* LocalFilesView.swift */,
+				B11E0F11E000000000000001 /* FilesLocationFooter.swift */,
+				B11E0F11E000000000000002 /* AgentFileEntry.swift */,
+				B11E0F11E000000000000003 /* AgentFileLabel.swift */,
+				B11E0F11E000000000000004 /* AgentFileRow.swift */,
+				B11E0F11E000000000000005 /* TextFileEditor.swift */,
+				B11E0F11E000000000000006 /* ImageFilePage.swift */,
+				B11E0F11E000000000000007 /* PlanEditChat.swift */,
+				B11E0F11E000000000000008 /* PlanEditIntro.swift */,
+				B11E0F11E000000000000009 /* PlanLoopSuggestions.swift */,
+				B11E0F11E00000000000000A /* PlanChatTurnView.swift */,
+				B11E0F11E00000000000000B /* PlanEditComposer.swift */,
+				B11E0F11E00000000000000C /* PlanReviewStatus.swift */,
+				B11E0F11E00000000000000D /* PlanDiffSheet.swift */,
+				B11E0F11E00000000000000E /* PlanDiffFooter.swift */,
+				B11E0F11E00000000000000F /* PlanDiffLine.swift */,
 				A11E0F11E000000000000009 /* PlanEditView.swift */,
 				24E3598C8B1D1025A419CE5D /* ModelPicker.swift */,
 				C2BE9FDCCB259EC7A7E259E4 /* ModelSelectionView.swift */,
@@ -1337,6 +1382,21 @@
 				A11E0F11E000000000000004 /* PlanText.swift in Sources */,
 				A11E0F11E000000000000006 /* PlanEdit.swift in Sources */,
 				A11E0F11E000000000000008 /* LocalFilesView.swift in Sources */,
+				B22E0F11E000000000000001 /* FilesLocationFooter.swift in Sources */,
+				B22E0F11E000000000000002 /* AgentFileEntry.swift in Sources */,
+				B22E0F11E000000000000003 /* AgentFileLabel.swift in Sources */,
+				B22E0F11E000000000000004 /* AgentFileRow.swift in Sources */,
+				B22E0F11E000000000000005 /* TextFileEditor.swift in Sources */,
+				B22E0F11E000000000000006 /* ImageFilePage.swift in Sources */,
+				B22E0F11E000000000000007 /* PlanEditChat.swift in Sources */,
+				B22E0F11E000000000000008 /* PlanEditIntro.swift in Sources */,
+				B22E0F11E000000000000009 /* PlanLoopSuggestions.swift in Sources */,
+				B22E0F11E00000000000000A /* PlanChatTurnView.swift in Sources */,
+				B22E0F11E00000000000000B /* PlanEditComposer.swift in Sources */,
+				B22E0F11E00000000000000C /* PlanReviewStatus.swift in Sources */,
+				B22E0F11E00000000000000D /* PlanDiffSheet.swift in Sources */,
+				B22E0F11E00000000000000E /* PlanDiffFooter.swift in Sources */,
+				B22E0F11E00000000000000F /* PlanDiffLine.swift in Sources */,
 				A11E0F11E00000000000000A /* PlanEditView.swift in Sources */,
 				7B684FAA8B218BB9798F9EC3 /* Metrics.swift in Sources */,
 				B356EECAFE045249704E63FD /* MockMode.swift in Sources */,

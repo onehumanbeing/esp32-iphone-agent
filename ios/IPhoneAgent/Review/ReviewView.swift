@@ -383,7 +383,7 @@ struct ReviewView: View {
                     if retrying { ProgressView("Reconnecting…") }
                 }
                 if draft.isDemo, draft.folder != nil {
-                    Button { editingPlan = true } label: { Label("Edit plan", systemImage: "text.bubble") }
+                    Button("Edit plan", systemImage: "text.bubble", action: editPlan)
                         .buttonStyle(BigButton.tinted)
                 }
                 HStack(spacing: Space.m) {
@@ -401,6 +401,8 @@ struct ReviewView: View {
     private var resumable: Bool { !draft.readOnly && currentRun.map(app.canResume) == true }
     private var currentRun: Run? { draft.runID.flatMap { runs.run($0) } }
     private var retryable: Bool { draft.runID != nil && (outcome == .failed || outcome == .stopped) }
+
+    private func editPlan() { editingPlan = true }
 
     private func retryRun() {
         guard !retrying, !app.startingAgent, !app.agent.running, !app.recorder.busy,
