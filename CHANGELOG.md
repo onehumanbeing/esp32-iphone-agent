@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+## App 1.0.6 (build 17, TestFlight)
+
 - App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,
   says to plug the board straight into this iPhone and tap Allow for the accessory, and goes on by itself once
   the mouse shows up (30 s); a board whose USB is asleep asks to unlock the iPhone. It used to say "plug it into
