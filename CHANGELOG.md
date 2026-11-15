@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+## App 1.0.6 (build 17, TestFlight)
+
 - App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,
   says to plug the board straight into this iPhone and tap Allow for the accessory, and goes on by itself once
   the mouse shows up (30 s); a board whose USB is asleep asks to unlock the iPhone. It used to say "plug it into
@@ -12,6 +14,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   restart Screen Mirroring.
 - App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
   starts ran hundreds of cancelled checks a second on the main thread.
+- App: with usage stats on, the app no longer crashes after the board restarts (after a firmware update, or
+  when the app opens within 30 s of the board starting). The reboot event carried a value the stats sender could
+  not encode; such events are now dropped instead.
 
 ## App 1.0.6 (TestFlight)
 
