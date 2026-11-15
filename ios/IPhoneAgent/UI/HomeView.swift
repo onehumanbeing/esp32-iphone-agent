@@ -91,11 +91,15 @@ struct HomeView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { recordSheet = true } label: {
-                        Image(systemName: recorder.recording ? "record.circle.fill" : "record.circle")
-                            .foregroundStyle(recorder.recording ? Color.red : Color.primary)
-                            .symbolEffect(.pulse, options: .repeating, isActive: recorder.recording)
+                        // The circle alone was not read as "record" (Henry, 2026-11-15): a caption under it says so.
+                        VStack(spacing: 1) {
+                            Image(systemName: recorder.recording ? "record.circle.fill" : "record.circle")
+                                .symbolEffect(.pulse, options: .repeating, isActive: recorder.recording)
+                            Text(recorder.recording ? "Recording" : "Record").font(.caption2.weight(.medium))
+                        }
+                        .foregroundStyle(recorder.recording ? Color.red : Color.primary)
                     }
-                    .accessibilityLabel(Text("New intent"))
+                    .accessibilityHint(Text("New intent"))
                     .disabled(recorder.busy)
                 }
             }

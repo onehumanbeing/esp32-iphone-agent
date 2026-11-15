@@ -5183,6 +5183,16 @@
         }
       }
     },
+    "Record" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制"
+          }
+        }
+      }
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
