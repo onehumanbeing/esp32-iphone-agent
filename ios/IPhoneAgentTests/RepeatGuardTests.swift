@@ -194,6 +194,11 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNil(AppNames.only(in: "Turn on dark mode on my iPhone"), "iPhone is not Phone")
         XCTAssertNil(AppNames.only(in: "把淘宝的链接发到微信"), "two apps")
         XCTAssertNil(AppNames.only(in: "设置一个明天早上的提醒"), "loose words only")
+        XCTAssertNil(AppNames.only(in: "Check SkyTrip for my next departure. Set an alarm in Clock 30 minutes before"),
+                     "the app the table knows is a later step's")
+        XCTAssertNil(AppNames.only(in: "先在美团看下订单，然后在微信告诉妈妈"), "two apps")
+        XCTAssertNil(AppNames.only(in: "查一下 Uber 的行程，然后打开时钟设个闹钟"), "Clock comes after then")
+        XCTAssertEqual(AppNames.only(in: "In Clock, add an alarm for 7:00"), "Clock")
     }
 
     /// A third same tap with the screen much the same each time is held, even when each read as changed; a tap that
