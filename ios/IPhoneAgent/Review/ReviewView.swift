@@ -35,6 +35,7 @@ struct ReviewView: View {
     @State private var insertText = ""
     @State private var saving = false
     @State private var optimizing = false
+    @State private var editingPlan = false
     @State private var shareURL: URL?
     @State private var retrying = false
     @State private var retryError: String?
@@ -132,6 +133,11 @@ struct ReviewView: View {
         .sheet(item: $fixing) { s in FixSheet(draft: draft, step: s) }
         .sheet(isPresented: $saving) { SaveIntentSheet(draft: draft, intents: app.intents) { app.recorder.markSaved(draft); dismiss() } }
         .sheet(isPresented: $optimizing) { OptimizeSheet(draft: draft, app: app) }
+        .sheet(isPresented: $editingPlan) {
+            if let folder = draft.folder {
+                NavigationStack { PlanEditView(app: app, folder: folder, draft: draft) }
+            }
+        }
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
         .alert("Insert a step", isPresented: $inserting) {
             TextField("e.g. Tap Save at the top right", text: $insertText)
@@ -376,6 +382,10 @@ struct ReviewView: View {
                         .disabled(retrying || app.startingAgent || app.agent.running || app.recorder.busy)
                     if retrying { ProgressView("Reconnecting…") }
                 }
+                if draft.isDemo, draft.folder != nil {
+                    Button("Edit plan", systemImage: "text.bubble", action: editPlan)
+                        .buttonStyle(BigButton.tinted)
+                }
                 HStack(spacing: Space.m) {
                     Button { optimizing = true } label: { Label("Optimize with AI", systemImage: "sparkles") }
                     Button { saving = true } label: {
@@ -391,6 +401,8 @@ struct ReviewView: View {
     private var resumable: Bool { !draft.readOnly && currentRun.map(app.canResume) == true }
     private var currentRun: Run? { draft.runID.flatMap { runs.run($0) } }
     private var retryable: Bool { draft.runID != nil && (outcome == .failed || outcome == .stopped) }
+
+    private func editPlan() { editingPlan = true }
 
     private func retryRun() {
         guard !retrying, !app.startingAgent, !app.agent.running, !app.recorder.busy,
