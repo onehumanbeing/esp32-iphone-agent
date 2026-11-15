@@ -106,9 +106,22 @@ enum AppNames {
     static let loose: Set<String> = ["Phone", "Photo", "Note", "Texts", "Browser", "Email", "Timer", "Alarm", "Reminder",
                                      "设置", "设定", "提醒", "录音", "拍照", "日程", "待办", "浏览器", "邮箱", "笔记"]
 
+    /// Where the task's first step ends: an app named after this may be a later step's ("Check SkyTrip for my
+    /// flight. Set an alarm in Clock"), where the table knows only Clock.
+    static let stepEnds = [".", "。", "!", "！", "?", "？", ";", "；", ",", "，", "\n", " then ", " and ", "然后", "之后", "接着", "再"]
+
     /// The one app the task names, as the task writes it, so a run can open it before the first look rather
-    /// than page the Home Screen for it. nil when it names none, or more than one app.
+    /// than page the Home Screen for it. nil when it names none, more than one app, or names it only after
+    /// the first step (the task may start in an app the table does not know).
     static func only(in task: String) -> String? {
+        let firstStep = stepEnds.reduce(task) { head, end in
+            head.range(of: end, options: .caseInsensitive).map { String(head[..<$0.lowerBound]) } ?? head
+        }
+        guard let name = named(in: task), named(in: firstStep) == name else { return nil }
+        return name
+    }
+
+    private static func named(in task: String) -> String? {
         var found: [(row: Int, name: String)] = []
         for (i, row) in table.enumerated() {
             let hit = row.first { name in
