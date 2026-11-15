@@ -134,6 +134,8 @@ extension Gestures {
     var serverTree = false
     /// The free line with Tree source › On-device (Debug): the phone's tree in Spark's compact listing and numbering.
     var compactTree = false
+    /// The last tree sent and its frame, for ScreenDiff; `screenDiff` is what changed from the tree before it.
+    var lastTreeTexts: [String]?, lastTreeFrame: Data?, screenDiff: String?
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     private(set) var lastServed: String?
 
@@ -307,7 +309,12 @@ extension Gestures {
                     ?? (serverTree ? "server" : "none")
             }
             // the same place and format as Spark's: appended to the user text, after the prompt
-            let text = prompt + (tree.map { compactTree ? $0.compactListing : $0.listing } ?? "")
+            if let tree, sent != lastTreeFrame {  // a retry or a second ask on the same frame keeps the line
+                let texts = ScreenDiff.texts(tree)
+                screenDiff = lastTreeTexts.flatMap { ScreenDiff.line(from: $0, to: texts) }
+                (lastTreeTexts, lastTreeFrame) = (texts, sent)
+            }
+            let text = prompt + (tree == nil ? "" : screenDiff ?? "") + (tree.map { compactTree ? $0.compactListing : $0.listing } ?? "")
             onDoing?(retryTimeout ? .waiting : .retrying)
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in

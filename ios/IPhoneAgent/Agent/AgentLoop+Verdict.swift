@@ -86,3 +86,44 @@ extension AgentLoop {
         return p
     }
 }
+
+
+/// A number that changed on a screen that otherwise stayed put, for the actor: "11 items" -> "12 items" after a tap
+/// on +. The coarse `changed` verdict cannot tell such a step from one that did nothing, so the model taps + again.
+/// Read from the OCR lines of the trees the actor was sent (no extra model call). Only numbers: OCR misreads words
+/// from frame to frame ("Eventbrite" / "Eventorite"), which would read as changes.
+enum ScreenDiff {
+    static let maxChanges = 3  // more than this on either side: a new screen, not a small change
+    static let minShared = 3  // fewer lines in common: not the same screen
+    static let statusBar = 0.06  // the top of the frame: clock, signal, battery
+
+    static func texts(_ tree: UITree) -> [String] {
+        tree.lines.compactMap { line in
+            guard line.box.count == 4, Double(line.box[1] + line.box[3]) / 2 > statusBar * Double(tree.h) else { return nil }
+            let t = String(line.text.trimmingCharacters(in: .whitespaces).prefix(40))
+            return t.isEmpty ? nil : t
+        }
+    }
+
+    /// The words of a line without its digits, case or punctuation: "11 items" and "12 Items" share it.
+    static func words(_ s: String) -> String { String(s.lowercased().filter { $0.isLetter }) }
+    static func digits(_ s: String) -> String { String(s.filter { ("0"..."9").contains($0) }) }
+
+    /// The line appended to the actor's text, or nil when no number changed on the same screen.
+    static func line(from old: [String], to new: [String]) -> String? {
+        var gone = old, added: [String] = []
+        for t in new {
+            if let i = gone.firstIndex(of: t) { gone.remove(at: i) } else { added.append(t) }
+        }
+        guard gone.count <= maxChanges, added.count <= maxChanges, new.count - added.count >= minShared else { return nil }
+        var pairs: [String] = []
+        for a in added where !digits(a).isEmpty {
+            guard let i = gone.firstIndex(where: { words($0) == words(a) && !digits($0).isEmpty && digits($0) != digits(a) })
+            else { continue }
+            pairs.append("\"\(gone[i])\" -> \"\(a)\"")
+            gone.remove(at: i)
+        }
+        guard !pairs.isEmpty else { return nil }
+        return "\n\nNumbers changed since the last screen: " + pairs.joined(separator: ", ")
+    }
+}
