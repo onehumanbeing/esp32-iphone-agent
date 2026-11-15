@@ -31,6 +31,11 @@ struct MemoryEntry: Identifiable, Equatable {
         entries = Self.parse((try? String(contentsOf: self.file, encoding: .utf8)) ?? "")
     }
 
+    /// Read the file again after it was edited outside this store (Settings › Files).
+    func reload() {
+        entries = Self.parse((try? String(contentsOf: file, encoding: .utf8)) ?? "")
+    }
+
     /// Adds an entry unless it is empty, sensitive or already known. Returns the entry kept, if any.
     @discardableResult
     func add(_ text: String, kind: MemoryEntry.Kind, topic: String = "") -> MemoryEntry? {

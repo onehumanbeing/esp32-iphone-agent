@@ -260,6 +260,12 @@
 		F7E73EABE70603DF30BE6233 /* AgentLoop+Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */; };
 		FBF6EC7B8825C2E162524CFA /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE9690A776BF887AFFFAE39 /* MemoryView.swift */; };
 		FC0BD528A254726D869FDF5B /* ModelRequestFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96A8E3AF04195B586F10EDC4 /* ModelRequestFailure.swift */; };
+		A11E0F11E000000000000002 /* AgentFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000001 /* AgentFiles.swift */; };
+		A11E0F11E000000000000004 /* PlanText.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000003 /* PlanText.swift */; };
+		A11E0F11E000000000000006 /* PlanEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000005 /* PlanEdit.swift */; };
+		A11E0F11E000000000000008 /* LocalFilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000007 /* LocalFilesView.swift */; };
+		A11E0F11E00000000000000A /* PlanEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E000000000000009 /* PlanEditView.swift */; };
+		A11E0F11E00000000000000C /* PlanEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E0F11E00000000000000B /* PlanEditTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -557,6 +563,12 @@
 		FB11B5F5922F634BEEA3CA38 /* BoardLogDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDump.swift; sourceTree = "<group>"; };
 		FC828B72EC4D19C789358D07 /* UITreeCV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeCV.swift; sourceTree = "<group>"; };
 		FCC7FAA4989F36E7F9B4C021 /* JSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSON.swift; sourceTree = "<group>"; };
+		A11E0F11E000000000000001 /* AgentFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFiles.swift; sourceTree = "<group>"; };
+		A11E0F11E000000000000003 /* PlanText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanText.swift; sourceTree = "<group>"; };
+		A11E0F11E000000000000005 /* PlanEdit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEdit.swift; sourceTree = "<group>"; };
+		A11E0F11E000000000000007 /* LocalFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesView.swift; sourceTree = "<group>"; };
+		A11E0F11E000000000000009 /* PlanEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditView.swift; sourceTree = "<group>"; };
+		A11E0F11E00000000000000B /* PlanEditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEditTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -685,6 +697,7 @@
 				C4C26A4FCAEEF88E765FD58B /* LocalizationTests.swift */,
 				DAA8DFDE53F3D74E87E873A5 /* LocalScriptTests.swift */,
 				2A44F1AFB66E6208FD9D06E4 /* MemoryTests.swift */,
+				A11E0F11E00000000000000B /* PlanEditTests.swift */,
 				F775C2B833B33E951A629957 /* PromptTests.swift */,
 				8F2E6CFBDF20832FF9626D99 /* RecoveryTests.swift */,
 				518388282A27560ED7A447D1 /* ReplayTests.swift */,
@@ -757,6 +770,8 @@
 				1E1E059B86529CBFE2705A0D /* IntentSourceRow.swift */,
 				961DDD85021E59AD3DDF4F82 /* ListenSection.swift */,
 				FAE9690A776BF887AFFFAE39 /* MemoryView.swift */,
+				A11E0F11E000000000000007 /* LocalFilesView.swift */,
+				A11E0F11E000000000000009 /* PlanEditView.swift */,
 				24E3598C8B1D1025A419CE5D /* ModelPicker.swift */,
 				C2BE9FDCCB259EC7A7E259E4 /* ModelSelectionView.swift */,
 				3B94481DB51BD93A2900698F /* ModelSettingsView.swift */,
@@ -846,6 +861,8 @@
 				5962900FEB08728899160DD1 /* DemoRecorder.swift */,
 				1030F3785F036B7A18C44A32 /* DemoAnalysis.swift */,
 				78AB734C6D2C5BEC7112461A /* Replan.swift */,
+				A11E0F11E000000000000003 /* PlanText.swift */,
+				A11E0F11E000000000000005 /* PlanEdit.swift */,
 				771BDB0E73F1A7402AA84D32 /* DemoSteps.swift */,
 				C7F412AA842017FE8B6DD2AA /* IntentLearner.swift */,
 				C7B2BB17E154CD835C045D9E /* FirmwareUpdater.swift */,
@@ -887,6 +904,7 @@
 				4D9FABC284798F9949C1A8EF /* LogUploader.swift */,
 				65B2AF89768742529495A451 /* RemoteLog.swift */,
 				6D53A3E75E88C119A79A2754 /* MemoryStore.swift */,
+				A11E0F11E000000000000001 /* AgentFiles.swift */,
 				B9719A5EC1DD7C5033CC8DF5 /* Metrics.swift */,
 				DAEFE87504F77098EF0AEFFC /* ModelConnectionCheck.swift */,
 				D8A02583BE955659071F3172 /* ModelProvider.swift */,
@@ -1184,6 +1202,7 @@
 				62D20C5D75CE71EBA0799233 /* LocalScriptTests.swift in Sources */,
 				69A6EB86B9D492839AE21C7C /* LocalizationTests.swift in Sources */,
 				94FDACB2484FC9BF5EF837C8 /* MemoryTests.swift in Sources */,
+				A11E0F11E00000000000000C /* PlanEditTests.swift in Sources */,
 				962068E4EB7D31C8E1E0A9F2 /* PromptTests.swift in Sources */,
 				42A1AE0EA1AC18461ED8F33B /* RecoveryTests.swift in Sources */,
 				0383F2FFA507BF8E153AD349 /* ReplayTests.swift in Sources */,
@@ -1314,6 +1333,11 @@
 				3A8EA231A8E341ABA3331AF2 /* RemoteLog.swift in Sources */,
 				6F512EE7C8474BE077416F46 /* MemoryStore.swift in Sources */,
 				FBF6EC7B8825C2E162524CFA /* MemoryView.swift in Sources */,
+				A11E0F11E000000000000002 /* AgentFiles.swift in Sources */,
+				A11E0F11E000000000000004 /* PlanText.swift in Sources */,
+				A11E0F11E000000000000006 /* PlanEdit.swift in Sources */,
+				A11E0F11E000000000000008 /* LocalFilesView.swift in Sources */,
+				A11E0F11E00000000000000A /* PlanEditView.swift in Sources */,
 				7B684FAA8B218BB9798F9EC3 /* Metrics.swift in Sources */,
 				B356EECAFE045249704E63FD /* MockMode.swift in Sources */,
 				CF0916DB59A4A0D050445AE8 /* ModelCall.swift in Sources */,

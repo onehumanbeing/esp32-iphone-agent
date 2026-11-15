@@ -35,6 +35,7 @@ struct ReviewView: View {
     @State private var insertText = ""
     @State private var saving = false
     @State private var optimizing = false
+    @State private var editingPlan = false
     @State private var shareURL: URL?
     @State private var retrying = false
     @State private var retryError: String?
@@ -132,6 +133,11 @@ struct ReviewView: View {
         .sheet(item: $fixing) { s in FixSheet(draft: draft, step: s) }
         .sheet(isPresented: $saving) { SaveIntentSheet(draft: draft, intents: app.intents) { app.recorder.markSaved(draft); dismiss() } }
         .sheet(isPresented: $optimizing) { OptimizeSheet(draft: draft, app: app) }
+        .sheet(isPresented: $editingPlan) {
+            if let folder = draft.folder {
+                NavigationStack { PlanEditView(app: app, folder: folder, draft: draft) }
+            }
+        }
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
         .alert("Insert a step", isPresented: $inserting) {
             TextField("e.g. Tap Save at the top right", text: $insertText)
@@ -375,6 +381,10 @@ struct ReviewView: View {
                         .buttonStyle(BigButton())
                         .disabled(retrying || app.startingAgent || app.agent.running || app.recorder.busy)
                     if retrying { ProgressView("Reconnecting…") }
+                }
+                if draft.isDemo, draft.folder != nil {
+                    Button { editingPlan = true } label: { Label("Edit plan", systemImage: "text.bubble") }
+                        .buttonStyle(BigButton.tinted)
                 }
                 HStack(spacing: Space.m) {
                     Button { optimizing = true } label: { Label("Optimize with AI", systemImage: "sparkles") }
