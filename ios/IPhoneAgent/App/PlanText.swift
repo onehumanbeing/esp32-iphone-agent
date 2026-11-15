@@ -61,6 +61,7 @@ enum PlanText {
         return PlanDocument(name: name, prompt: prompt, until: until, maxLoops: loops, steps: steps)
     }
 
+    @MainActor
     static func document(from draft: ReviewDraft) -> PlanDocument {
         let folder = draft.folder?.standardizedFileURL.path
         let steps = draft.steps.compactMap { step -> PlanStep? in
@@ -103,6 +104,7 @@ enum PlanText {
     }
 
     /// A command the runner knows. Anything else stays a note, so a bad line is visible and not replayed as a tap.
+    @MainActor
     static func action(_ command: String) -> JObject {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         let (bare, label) = DemoRecorder.splitLabel(trimmed)
@@ -167,6 +169,7 @@ enum PlanText {
     }
 
     /// What can be saved without leaving the folder or storing a step the runner cannot read.
+    @MainActor
     static func localCheck(before: String, after: String, sandbox: FileSandbox) -> (plan: PlanDocument?, notes: [String], blocking: Bool) {
         guard let plan = parse(after) else {
             return (nil, [String(localized: "The plan file is not a plan the app can run.")], true)
@@ -231,7 +234,7 @@ enum TextDiff {
         let a = rows(before), b = rows(after)
         let table = lcs(a, b)
         var i = a.count, j = b.count
-        var reversed: [(Kind, String)] = []
+        var reversed: [(Row.Kind, String)] = []
         var guardrail = 0
         while i > 0 || j > 0 {
             guardrail += 1
@@ -294,6 +297,7 @@ extension ReviewDraft {
     }
 }
 
+@MainActor
 enum PlanFolder {
     static func looksLike(_ url: URL) -> Bool {
         var isDir: ObjCBool = false
