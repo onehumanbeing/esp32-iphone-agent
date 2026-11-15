@@ -13,6 +13,7 @@ struct IntentDetailView: View {
     @State private var selection: TextSelection?
     @State private var checking = false  // Replan running after an edit
     @State private var proposal: Replan.Proposal?
+    @State private var renaming: String?  // the name while the rename alert is open
 
     var body: some View {
         if let item = intents.item(id) {
@@ -24,7 +25,14 @@ struct IntentDetailView: View {
                             .foregroundStyle(.white)
                             .frame(width: 72, height: 72)
                             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(IntentTint.color(item.color)))
-                        Text(verbatim: item.name).font(.title2.bold()).multilineTextAlignment(.center)
+                        Button { renaming = item.name } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                                Text(verbatim: item.name).font(.title2.bold()).multilineTextAlignment(.center)
+                                Image(systemName: "pencil").font(.body.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(Text("Rename Intent"))
                     }
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
@@ -131,6 +139,11 @@ struct IntentDetailView: View {
                 }
             }
             .onDisappear { if draft != nil { savePrompt(item) } }
+            .alert("Rename Intent", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField("Name", text: Binding(get: { renaming ?? "" }, set: { renaming = $0 }))
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { rename(item) }
+            }
             .confirmationDialog("Delete this intent?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) { intents.delete(id); dismiss() }
             }
@@ -174,6 +187,15 @@ struct IntentDetailView: View {
                 DebugLog.write("intent \"\(item.name)\": steps not checked after the edit: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Only the name changes; the instruction and the saved steps stay as they are.
+    private func rename(_ item: SavedTask) {
+        let name = (renaming ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        renaming = nil
+        guard !name.isEmpty, name != item.name, var copy = intents.item(id) else { return }
+        copy.name = name
+        intents.upsert(copy)
     }
 
     /// The same editor as a run's review: with its last run's steps if it has one.
