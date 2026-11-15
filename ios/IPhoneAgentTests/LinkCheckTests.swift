@@ -74,10 +74,14 @@ import XCTest
         r.measured(target, CGPoint(x: 0.5, y: 0.545), pixels: pixels)  // ~114 px
         XCTAssertTrue(r.tap())
         XCTAssertFalse(r.tap(), "once per miss")
+        // far the same way again and again (a screen where the pointer reads wrong): one early recalibration after
+        // `retryAfter` taps, then none until `every` taps have passed
+        var early = 0
         while r.taps - (r.last ?? 0) < Recalibration.every {
             r.measured(target, CGPoint(x: 0.9, y: 0.9), pixels: pixels)
-            XCTAssertFalse(r.tap(), "not again within \(Recalibration.every) taps")
+            if r.tap() { early += 1 }
         }
+        XCTAssertEqual(early, 1, "one early recalibration, not one every \(Recalibration.retryAfter) taps")
         r.measured(target, CGPoint(x: 0.9, y: 0.9), pixels: pixels)
         XCTAssertTrue(r.tap())
     }

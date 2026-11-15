@@ -195,4 +195,26 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNil(AppNames.only(in: "把淘宝的链接发到微信"), "two apps")
         XCTAssertNil(AppNames.only(in: "设置一个明天早上的提醒"), "loose words only")
     }
+
+    /// A third same tap with the screen much the same each time is held, even when each read as changed; a tap that
+    /// moves the screen a lot (Continue) is not.
+    func testAThirdTapOnAStillScreenIsHeldButNotOneThatMovesIt() {
+        func tap(_ x: Double, _ y: Double, changed: Bool? = nil) -> JObject {
+            var s: JObject = ["action": .str("tap"), "x": .num(x), "y": .num(y)]
+            if let changed { s["changed"] = .bool(changed) }
+            return s
+        }
+        let t = tap(500, 500, changed: true)
+        var still = NoProgress()
+        _ = still.note([t], big: false)
+        XCTAssertNil(ThirdTapGuard.repeated([tap(505, 495)], progress: still), "the second tap goes")
+        _ = still.note([t], big: false)
+        XCTAssertNotNil(ThirdTapGuard.repeated([tap(505, 495)], progress: still), "the third is held")
+        XCTAssertNil(ThirdTapGuard.repeated([tap(700, 200)], progress: still), "another spot goes")
+        XCTAssertTrue(StuckGuard.repeatHold(ThirdTapGuard.reason))
+        var moving = NoProgress()
+        _ = moving.note([t], big: true)
+        _ = moving.note([t], big: true)
+        XCTAssertNil(ThirdTapGuard.repeated([tap(500, 500)], progress: moving))
+    }
 }

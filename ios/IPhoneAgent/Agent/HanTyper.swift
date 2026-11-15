@@ -37,7 +37,9 @@ import NaturalLanguage
         }
         var last = checked ? await look() : nil  // the screen before the next piece
         var lastRow: Set<Int> = []
-        var pending: (word: String, base: String)?  // a committed word, checked on the next look
+        // a committed word, checked on the next look; `left` is what stays in the field if it did not commit (its
+        // pinyin, and the number key that was to pick it)
+        var pending: (word: String, base: String, left: Int)?
         func remaining(_ piece: Piece) -> String { ([piece] + queue).map(\.text).joined() }
         func stop(_ why: String, _ piece: Piece) -> String {
             "\(why); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
@@ -68,7 +70,10 @@ import NaturalLanguage
                 let letters = checkLetters && plain.contains(where: \.isLetter), symbols = Self.layoutSymbols(in: plain)
                 guard letters || !symbols.isEmpty, let before = last else { typed += s; continue }
                 guard var seen = await next() else { typed += s; continue }
-                if !seen.ok { return stop("\"\(pending!.word)\" did not show up in the field after committing it", piece) }
+                if !seen.ok {
+                    try await erase(plain.count + pending!.left)
+                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
+                }
                 pending = nil
                 if letters, seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
                     try await erase(plain.count)
@@ -97,8 +102,8 @@ import NaturalLanguage
                     continue
                 }
                 if !seen.ok {
-                    try await erase(pinyin.count)
-                    return stop("\"\(pending!.word)\" did not show up in the field after committing it", piece)
+                    try await erase(pinyin.count + pending!.left)
+                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
                 }
                 pending = nil
                 let base = Self.fieldText(last!, minus: Array(lastRow))
@@ -115,11 +120,14 @@ import NaturalLanguage
                     seen = again
                 }
                 let words = seen.row.map { seen.seen.words[$0].text }
+                var left = pinyin.count
                 if seen.row.isEmpty {
                     try await key("space")  // no candidates read: commit the first, checked on the next look
-                } else if let at = Self.choice(word, in: words) {
-                    if at == 0 { try await key("space") } else { try await send(String(at + 1)) }
+                } else if let at = Self.choice(word, in: words), at == 0 || word.count == 1 {
+                    if at == 0 { try await key("space") } else { try await send(String(at + 1)); left += 1 }
                 } else {
+                    // not first: halves, each more likely first, before a number key (a number key can go into the
+                    // pinyin instead of picking, and leave the letters in the field)
                     try await erase(pinyin.count)
                     guard word.count > 1 else {
                         return stop("\"\(word)\" is not among the candidates for \(pinyin) (cleared)", piece)
@@ -129,12 +137,13 @@ import NaturalLanguage
                     continue
                 }
                 typed += word
-                pending = (word, base)
+                pending = (word, base, left)
                 last = seen.seen; lastRow = Set(seen.row)
             }
         }
         if pending != nil, let seen = await next(), !seen.ok {
-            return "\"\(pending!.word)\" did not show up in the field after committing it; typed \"\(typed)\""
+            try await erase(pending!.left)
+            return "\"\(pending!.word)\" did not show up in the field after committing it (cleared); typed \"\(typed)\""
         }
         return nil
     }

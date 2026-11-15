@@ -45,6 +45,9 @@ struct SettingsView: View {
                     NavigationLink { MemoryView(store: MemoryStore.shared) } label: {
                         row("Memory", "brain.head.profile", .teal, value: "\(MemoryStore.shared.entries.count)")
                     }
+                    NavigationLink { LocalFilesView(app: app) } label: {
+                        SettingsLabel(title: "Files", symbol: "folder.fill", color: .cyan)
+                    }
                     Button { CallGuide.shared.pending = CallGuide.Pending(task: nil, intent: nil) } label: {
                         HStack {
                             SettingsLabel(title: "Phone Calls", symbol: "phone.fill", color: .green)
