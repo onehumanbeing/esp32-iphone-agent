@@ -72,6 +72,15 @@ enum Analytics {
     static func flush() {
         guard enabled, !queue.isEmpty, let host else { return }
         guard !sending else { flushRequested = true; return }
+        // JSONSerialization raises an ObjC exception (not a Swift error) on a non-JSON value, which `try?` does not
+        // catch: a struct in board_reboot's "fw" aborted 1.0.5 on every board reboot (2026-11-15). Drop such events.
+        let bad = queue.filter { !JSONSerialization.isValidJSONObject($0) }
+        if !bad.isEmpty {
+            DebugLog.write("analytics: dropped \(bad.count) events with non-JSON props: "
+                           + bad.compactMap { $0["event"] as? String }.joined(separator: ","))
+            queue.removeAll { !JSONSerialization.isValidJSONObject($0) }
+            guard !queue.isEmpty else { return }
+        }
         let batch = queue
         queue = []
         sending = true

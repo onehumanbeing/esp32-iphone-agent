@@ -20,6 +20,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
   tracking speed misses every tap alike); a landing's log line shows the span it moved by.
 - App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
   starts ran hundreds of cancelled checks a second on the main thread.
+- App: with usage stats on, the app no longer crashes after the board restarts (after a firmware update, or
+  when the app opens within 30 s of the board starting). The reboot event carried a value the stats sender could
+  not encode; such events are now dropped instead.
 
 ## App 1.0.6 (TestFlight)
 
