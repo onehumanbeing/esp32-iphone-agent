@@ -23,6 +23,7 @@ struct BoardStatus: Codable, Equatable {
         var n: Int?, kbps: Double?, nack: Int?, drop: Int?
     }
     var fw: FirmwareVersion?  // firmware version (hardware/hid_bridge/version.h); boards before OTA don't send it
+    var tchunk: Int?   // 1: `type` can stop early and reply "err typed N of M: budget|asleep" (firmware 0.2.6)
     var up: Int?
     var rst: String?
     var heap: Int?
@@ -48,6 +49,7 @@ struct BoardStatus: Codable, Equatable {
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
         m.fw = n.fw ?? fw
+        m.tchunk = n.tchunk ?? tchunk
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap

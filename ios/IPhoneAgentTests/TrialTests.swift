@@ -75,6 +75,8 @@ import XCTest
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(AgentLoop.stepLimitReason)]]).reason, .stepLimit)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.board))]]).reason, .boardLost)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.mirroring))]]).reason, .blindMirroring)
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.mirroring, after: 7200))]]).reason, .blindMirroring)
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.locked))]]).reason, .blindMirroring)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(BlindError().reason)]]).reason, .blindMirroring)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str("the alarm app is not installed")]]).reason, .modelFail)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str("x")]]).outcome, "failed")

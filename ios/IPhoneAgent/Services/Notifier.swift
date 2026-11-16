@@ -4,7 +4,7 @@ import UserNotifications
 /// Local notifications for runs: done / failed / needs help / mirroring lost / board disconnected, with
 /// actions (Review, Retry, Stop, Continue, Skip, Take over). Tapping one opens the run's review.
 @MainActor final class Notifier: NSObject, UNUserNotificationCenterDelegate {
-    enum Kind: String { case done, failed, trouble, help, confirm, takeover, mirroring, board, wifi }
+    enum Kind: String { case done, failed, trouble, help, confirm, takeover, mirroring, board, wifi, locked, power }
     enum Action: String { case review, retry, stop, resume, skip, takeOver, report }
 
     /// Called with the action (nil = the notification itself was tapped), the run id and the notification's kind.
@@ -37,6 +37,8 @@ import UserNotifications
             UNNotificationCategory(identifier: Kind.mirroring.rawValue, actions: [stop, review], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.board.rawValue, actions: [stop, review], intentIdentifiers: []),
             UNNotificationCategory(identifier: Kind.wifi.rawValue, actions: [stop, review], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Kind.locked.rawValue, actions: [stop, review], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Kind.power.rawValue, actions: [stop, review], intentIdentifiers: []),
         ])
     }
 
@@ -54,7 +56,7 @@ import UserNotifications
         content.body = body
         content.categoryIdentifier = kind.rawValue
         content.userInfo = ["run": run]
-        let urgent: Set<Kind> = [.help, .confirm, .mirroring, .board, .wifi]  // the run waits for the user
+        let urgent: Set<Kind> = [.help, .confirm, .mirroring, .board, .wifi, .locked, .power]  // the run waits for the user
         content.sound = urgent.contains(kind) ? .default : nil
         content.interruptionLevel = urgent.contains(kind) ? .timeSensitive : .active
         center.removeDeliveredNotifications(withIdentifiers: [Kind.help.rawValue, Kind.confirm.rawValue, Kind.takeover.rawValue])
@@ -67,7 +69,7 @@ import UserNotifications
 
     /// The link is back: the "start mirroring / check the board / join Wi-Fi" asks are stale.
     func clearLinkAsks() {
-        center.removeDeliveredNotifications(withIdentifiers: [Kind.mirroring.rawValue, Kind.board.rawValue, Kind.wifi.rawValue])
+        center.removeDeliveredNotifications(withIdentifiers: [Kind.mirroring.rawValue, Kind.board.rawValue, Kind.wifi.rawValue, Kind.locked.rawValue])
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification)

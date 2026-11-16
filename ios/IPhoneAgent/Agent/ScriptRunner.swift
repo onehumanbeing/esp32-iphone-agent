@@ -206,14 +206,18 @@ extension AgentLoop {
             return true
         }
         record(nil, ["action": .str("help"), "reason": .str(reason)])
-        let choice = await onHelp(reason)
+        let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
             return false
+        case .restart:
+            replay.restart()
+            record(nil, ["action": .str("restarted"), "reason": .str("unattended: the script starts again")])
         case .resume: record(nil, ["action": .str("takeover"), "reason": .str("the user did this part by hand: \(reason)")])
-        case .skip: record(nil, ["action": .str("skipped"), "reason": .str("the user skipped: \(reason)")])
+        case .skip: record(nil, ["action": .str("skipped"), "reason": .str(automatic
+            ? "unattended: nobody answered: \(reason)" : "the user skipped: \(reason)")])
         }
         await screen?.settled()
         return true

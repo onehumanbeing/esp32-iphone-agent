@@ -30,6 +30,7 @@
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
 #include "src/hid/pace.h"
+#include "src/hid/type_budget.h"
 #include "src/heard/heard.h"
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
@@ -181,10 +182,38 @@ String run(const String &line) {
   }
   if (cmd == "click") { mouse.press(MOUSE_LEFT); delay(60); mouse.release(MOUSE_LEFT); holdUntil = 0; return "ok"; }
   if (cmd == "scroll") { mouse.move(0, 0, a, b); return "ok"; }
-  if (cmd == "type") { keyboard.print(arg); return "ok"; }
+  if (cmd == "type") return typeText(arg);
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") { consumer.press(AC_HOME); delay(40); consumer.release(); return "ok"; }
   return "err unknown command";
+}
+
+// One `type` command. keyboard.print blocked loop() for the whole string and the 8 s task watchdog
+// only runs at the top of loop(), so a long text rebooted the board (BLE, hotspot and mirroring dropped).
+// Type one byte at a time, feed the watchdog, and stop at TYPE_BUDGET_MS or if USB suspends.
+// "ok" when finished; "err typed N of M: budget|asleep" when stopped early. Old apps see a normal err.
+String typeText(const String &s) {
+  const int total = s.length();
+  uint32_t started = millis();
+  int typed = 0;
+  esp_task_wdt_reset();
+  for (int i = 0; i < total; i++) {
+    int usb = 1;
+    if (i > 0 && (i % TYPE_USB_EVERY) == 0) {
+      usb = usbReady() ? 1 : 0;
+      esp_task_wdt_reset();
+    }
+    type_stop_t stop = type_before_char(i, (uint32_t)(millis() - started), usb);
+    if (stop != TYPE_GO) {
+      char reply[64];
+      type_reply(reply, sizeof reply, typed, total, stop);
+      return String(reply);
+    }
+    keyboard.write((uint8_t)s[i]);
+    esp_task_wdt_reset();
+    typed++;
+  }
+  return "ok";
 }
 
 static arb_state arb;  // the app or the CLI drives the phone, never both: src/hid/arbiter.h
@@ -372,9 +401,9 @@ String board(const String &line, const String &id, char who) {
 String statusJson(bool full, char who) {
   static const char *apStates[] = {"idle", "connected", "streaming"};
   VideoStats v = video_stats(who);
-  char s[768];
+  char s[896];
   snprintf(s, sizeof s,
-           "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
+           "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
            "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,"
            "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d},"
            "\"udp\":{\"n\":%d,\"kbps\":%lu,\"nack\":%lu,\"drop\":%lu}}",
@@ -408,7 +437,7 @@ String statusJson(bool full, char who) {
   snprintf(s + len - 1, sizeof s - len + 1, ",\"lost\":%lu}", (unsigned long)v.lost);
   if (full) return s;
   // MTU below ~250 (before the MTU exchange): keep only the fields the app needs to stay alive
-  snprintf(s, sizeof s, "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"ble\":{\"mtu\":%u}",
            FW_VERSION, millis(), resetReason(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, ble_mtu());
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"owner\":\"%s\",\"lost\":%lu", owner, (unsigned long)v.lost);
   if (who == FROM_CLI)

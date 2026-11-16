@@ -502,8 +502,9 @@ struct RunEnd: Equatable {
             // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
             else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
-            else if why == Recovery.reason(.board) { reason = .boardLost }
-            else if why == BlindError().reason || why == LinkCheck.reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {
+            else if Recovery.matches(why, .board) { reason = .boardLost }
+            else if why == BlindError().reason || why == LinkCheck.reason
+                        || ([.locked, .hotspot, .mirroring, .frames] as [Recovery.Part]).contains(where: { Recovery.matches(why, $0) }) {
                 reason = .blindMirroring
             } else { reason = .modelFail }  // the model itself said fail
         case "error": reason = .modelError

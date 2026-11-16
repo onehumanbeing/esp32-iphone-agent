@@ -9,7 +9,7 @@ extension AppModel {
         agent.link = { [unowned self] in
             Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen || feed.undecodable)
+                          stalled: feed.frozen || feed.undecodable, usb: board.status?.usb, locked: phoneLocked)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -33,7 +33,7 @@ extension AppModel {
         }
         let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
                                  frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
-                                 stalled: feed.frozen || feed.undecodable)
+                                 stalled: feed.frozen || feed.undecodable, usb: board.status?.usb, locked: phoneLocked)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -81,6 +81,7 @@ extension AppModel {
     private func kind(_ part: Recovery.Part) -> Notifier.Kind {
         switch part {
         case .board: return .board
+        case .locked: return .locked
         case .hotspot: return .wifi
         case .mirroring, .frames: return .mirroring
         }
@@ -89,6 +90,7 @@ extension AppModel {
     private func title(_ part: Recovery.Part) -> String {
         switch part {
         case .board: return String(localized: "Board disconnected")
+        case .locked: return String(localized: "Unlock iPhone to continue")
         case .hotspot: return String(localized: "iPhone left the board's Wi-Fi")
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")
         case .frames: return String(localized: "Waiting for a screen image")

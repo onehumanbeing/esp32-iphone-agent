@@ -61,6 +61,10 @@ import UIKit
     @Published var learnFromRuns: Bool { didSet { defaults.set(learnFromRuns, forKey: "learnFromRuns") } }
     /// Henry 2026-11-13: the island waits between runs with intents and New Task (LiveActivityController.standby).
     @Published var standbyIsland: Bool { didSet { defaults.set(standbyIsland, forKey: "standbyIsland") } }
+    /// Keep going when nobody answers, and recover a dropped link instead of ending the run. Off by default.
+    @Published var unattendedMode: Bool { didSet { defaults.set(unattendedMode, forKey: "unattendedMode") } }
+    /// Start the next model look while the screen is still settling. Off by default; cancelled if the screen moves.
+    @Published var speculativeLook: Bool { didSet { defaults.set(speculativeLook, forKey: "speculativeLook") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
@@ -84,6 +88,8 @@ import UIKit
         restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
         learnFromRuns = defaults.object(forKey: "learnFromRuns") as? Bool ?? true
         standbyIsland = defaults.bool(forKey: "standbyIsland")
+        unattendedMode = defaults.bool(forKey: "unattendedMode")
+        speculativeLook = defaults.bool(forKey: "speculativeLook")
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         provider = defaults.string(forKey: "modelProvider").flatMap(ModelProvider.init(rawValue:))
             ?? ModelProvider.infer(baseURL: baseURL, model: model)

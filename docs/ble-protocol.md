@@ -24,6 +24,8 @@ video stream and replies: see [cli-protocol.md](cli-protocol.md).
 Existing HID commands, unchanged semantics from the old TCP protocol:
 `ping`, `home`, `move DX DY`, `press`, `release`, `click`, `scroll A B`, `type TEXT`, `key COMBO`.
 
+`type` (firmware 0.2.6) types one byte at a time and stops before a 4 s budget, or if USB suspends, so a long string cannot trip the 8 s task watchdog. A finished command still replies `ok`. Stopped early: `err typed N of M: budget` or `err typed N of M: asleep` (N and M are bytes). Older firmware only replies `ok`. Status includes `"tchunk":1` when the board speaks this reply. The app sends text in short chunks either way.
+
 The iOS runner sends `reset` when a task finishes, fails, or is stopped. A stopped task retains its plan, steps, and notebook for resume. Turning off keyboard restoration in Settings skips the screenshot checks and `key eject`.
 
 | Command | Behavior |

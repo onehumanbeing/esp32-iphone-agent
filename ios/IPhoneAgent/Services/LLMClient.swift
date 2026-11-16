@@ -34,6 +34,7 @@ enum ModelImage {
 struct ChatResult {
     var text: String
     var firstToken: Double?  // seconds until the first streamed token
+    var firstDo: Double? = nil  // seconds until the first complete DO line; measurement only
     var total: Double
     var finishReason: String?       // "stop", "length" (max tokens hit), …
     var usage: [String: Int] = [:]  // prompt_tokens, completion_tokens, … when the server sends them
@@ -419,6 +420,7 @@ struct LLMError: LocalizedError {
             guard let piece = delta?["content"] as? String, !piece.isEmpty else { continue }
             if result.firstToken == nil { result.firstToken = now() - started }
             result.text += piece
+            if result.firstDo == nil, StreamMarks.completeDoLine(result.text) { result.firstDo = now() - started }
         }
         // A stream cut before its end (no [DONE], no finish_reason) is a lost reply, not a short one.
         guard done || result.finishReason != nil else {
@@ -469,5 +471,12 @@ struct LLMError: LocalizedError {
     /// Reasoning text (vLLM/DeepSeek `reasoning_content`, others `reasoning`).
     private static func reasoning(_ part: [String: Any]?) -> String {
         part?["reasoning_content"] as? String ?? part?["reasoning"] as? String ?? ""
+    }
+}
+
+/// When the first complete `DO:` line has arrived in a streamed reply. Measurement only.
+enum StreamMarks {
+    static func completeDoLine(_ text: String) -> Bool {
+        text.range(of: #"(?m)^\s*DO\s*[:：].+\n"#, options: .regularExpression) != nil
     }
 }

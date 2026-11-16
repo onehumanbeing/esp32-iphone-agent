@@ -11,7 +11,7 @@ extension AppModel {
     var runID: String { traces.dir?.lastPathComponent ?? "" }
 
     /// Start a task (or a saved intent: its checklist goes to the actor as hints).
-    func run(_ task: String, intent: SavedTask? = nil) async {
+    func run(_ task: String, intent: SavedTask? = nil, unattended: Bool = false) async {
         guard !startingAgent, !agent.running, !recorder.busy else { return }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
         if IntentStore.unfilled(task) {  // a template: who and what are the user's to fill in first
@@ -20,6 +20,7 @@ extension AppModel {
         }
         if Calls.isCall(task, kind: intent?.kind), CallGuide.shared.holds(task, intent: intent) { return }  // a call: the setup guide first, until Don't Show Again
         currentIntent = intent
+        launchUnattended = unattended
         var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped
             task = last.ask
@@ -216,6 +217,11 @@ extension AppModel {
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
             }
+            agent.policy = (launchUnattended || settings.unattendedMode)
+                ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
+            agent.speculate = settings.speculativeLook
+            // Mirroring repair runs only after Settings has learned the Control Center taps for this screen.
+            launchUnattended = false
             agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen
             if startedAway { agent.hints.insert(Self.hereHint, at: 0) }
             step = .agentStart
