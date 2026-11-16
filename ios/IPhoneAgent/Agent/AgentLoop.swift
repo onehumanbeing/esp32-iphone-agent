@@ -120,7 +120,29 @@ extension Gestures {
     /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
     var acceptedLookLinks: Int?
     private enum InvalidatedLook: Error { case connectionChanged }
-    enum HelpChoice { case resume, skip, stop }
+    enum HelpChoice: Equatable { case resume, skip, stop, restart }
+    /// Attended unless the run was started with the setting or the shortcut parameter.
+    var policy = RunPolicy.attended {
+        didSet { recoveryLimit = policy.recoveryLimit }
+    }
+    /// Unattended restarts already used this run (Home Screen, then the task again).
+    var restarts = 0
+    /// Set when an unattended attempt starts over, so the next look knows to reopen the app.
+    var restartNote = ""
+    /// Resumes a help card that `chooseHelp` has given up waiting on (the app clears the banner).
+    var onHelpTimeout: ((HelpChoice) -> Void)?
+    /// True while this app is the one on screen. Mirroring repair stops instead of fighting the person.
+    var userInFront: () -> Bool = { false }
+    var deviceHealth: () -> DeviceHealth.Snapshot = { .ok }
+    var onNotice: ((String, Notifier.Kind) -> Void)?
+    private var lowPowerNoted = false
+    private var batteryWarned = false
+    private var powerHeld = false
+    var mirrorPart: Recovery.Part?
+    var mirrorPartSince = 0.0
+    var mirrorAttempts = 0
+    var mirrorBackoffUntil = 0.0
+    var mirrorSuspicious = false
     /// The run's own reasons to ask (the help panel words them for people).
     static let stepLimitReason = "step limit reached", stallReason = "the screen did not change"
     /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
@@ -167,11 +189,16 @@ extension Gestures {
         inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
         helpAsked = 0
+        restarts = 0
+        restartNote = ""
+        (mirrorPart, mirrorPartSince, mirrorAttempts, mirrorBackoffUntil, mirrorSuspicious) = (nil, 0, 0, 0, false)
+        (lowPowerNoted, batteryWarned, powerHeld) = (false, false, false)
         droppingChosenGesture = false
         chosenGestureDropped = false
         acceptedLookLinks = nil
         replay.restart()
         if !traceStarted { trace?.start(task: task) }
+        trace?.write(kind: "policy", policy.trace)
         if resuming { record(nil, ["action": .str("resumed"), "reason": .str("the run had stopped; it goes on from the screen in front now")]) }
         running = true
         job = Task { [weak self] in
@@ -256,6 +283,8 @@ extension Gestures {
             case .live: break
             case .wait(let stage):
                 if stage != shown { shown = stage; onRecover?(stage) }
+                if stage.part != mirrorPart { mirrorPart = stage.part; mirrorPartSince = now() }
+                await healMirroring(stage)
             case .giveUp(let reason):
                 throw BlindError(reason: reason)
             }
@@ -389,12 +418,16 @@ extension Gestures {
                 }
             }
             while true {
+                try await holdForPower()
                 rounds += 1
                 if rounds > stepLimit || stalls >= maxStalls {
                     let reason = stalls >= maxStalls ? "\(Self.stallReason) in \(stalls) steps" : Self.stepLimitReason
                     record(nil, ["action": .str("fail"), "reason": .str(reason)])
-                    guard try await askForHelp() else { return finish() }
-                    rounds = 0; stalls = 0
+                    switch try await askForHelp() {
+                    case .stop: return finish()
+                    case .goOn: rounds = 0; stalls = 0
+                    case .restart: rounds = 0; stalls = 0; failures = 0
+                    }
                     continue
                 }
                 do {
@@ -406,17 +439,25 @@ extension Gestures {
                         }
                     }
                     if try await step() {
-                        guard steps.last?["action"]?.str == "fail", try await askForHelp() else { return finish() }
-                        stalls = 0
+                        guard steps.last?["action"]?.str == "fail" else { return finish() }
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: stalls = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                         continue
                     }
                     failures = 0
+                    modelBackoffs = 0
                     if roundDroppedByPause { continue }  // no gesture, no stall (the next look takes the flag)
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
                     try await checkLink(unchanged: stalls)
                     if try await stuck() {
-                        guard try await askForHelp() else { return finish() }
-                        stalls = 0
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: stalls = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                     }
                 } catch is InvalidatedLook {
                     failures = 0  // no gesture was sent; the next look restores the screen first
@@ -425,13 +466,25 @@ extension Gestures {
                 } catch let e as LLMError where e.kind == "rate_limit_day" || e.kind == "trial_run_ended" {
                     throw e  // retrying can't help (today's quota, or the free line ended the run): ends it with the message
                 } catch {  // a bad reply or a dropped link: recover, don't crash
+                    if policy.unattended, RunPolicy.backsOff(error) {
+                        let delay = policy.backoff(attempt: modelBackoffs)
+                        modelBackoffs += 1
+                        record(nil, ["action": .str("hiccup"),
+                                     "reason": .str("model busy, waiting \(Int(delay)) s: \(String(error.localizedDescription.prefix(200)))")])
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                    modelBackoffs = 0
                     record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)
                     failures += linkLost ? 0 : 1  // a lost link is not the agent's fault
                     if failures >= maxFailures {
                         record(nil, ["action": .str("fail"), "reason": .str("\(failures) errors in a row")])
-                        guard try await askForHelp() else { return finish() }
-                        failures = 0
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: failures = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                         continue
                     }
                     await screen?.settled()
@@ -447,45 +500,126 @@ extension Gestures {
         finish()
     }
 
-    /// Pauses for the user (at most twice a run). True = go on from the current screen (the model sees what they did).
-    private func askForHelp() async throws -> Bool {
-        guard let onHelp, helpAsked < 2 else { return false }
-        helpAsked += 1
+    /// Unplugged and under 10%: wait (and say so) instead of running the battery down. Never types anything.
+    private func holdForPower() async throws {
+        let snap = deviceHealth()
+        if policy.unattended, snap.lowPower, !lowPowerNoted {
+            lowPowerNoted = true
+            onNotice?(String(localized: "Low Power Mode is on, so Auto-Lock is 30 seconds and the screen may lock."), .power)
+        }
+        if policy.unattended, DeviceHealth.shouldWarn(snap), !batteryWarned {
+            batteryWarned = true
+            onNotice?(String(localized: "Battery is under 30% and the iPhone is unplugged."), .power)
+        }
+        guard policy.unattended, DeviceHealth.shouldPause(snap) else { return }
+        if !powerHeld {
+            powerHeld = true
+            record(nil, ["action": .str("hiccup"), "reason": .str("battery under 10% and unplugged; waiting for power")])
+            onNotice?(String(localized: "Battery is under 10% and the iPhone is unplugged. Plug it in; the run is waiting."), .power)
+        }
+        let deadline = now() + policy.recoveryLimit
+        while DeviceHealth.shouldPause(deviceHealth()) {
+            if now() >= deadline {
+                record(nil, ["action": .str("fail"), "reason": .str("the battery stayed under 10%")])
+                throw BlindError(reason: String(localized: "the battery stayed under 10% and the iPhone was unplugged"))
+            }
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+            try Task.checkCancellation()
+        }
+        powerHeld = false
+    }
+
+    private enum AfterHelp { case stop, goOn, restart }
+    private var modelBackoffs = 0
+
+    /// The person's choice, or the policy's if unattended and `helpTimeout` passes with no answer.
+    func chooseHelp(_ reason: String, confirm: Bool = false) async -> (HelpChoice, Bool) {
+        let answer = confirm ? onConfirm : onHelp
+        guard let answer else { return (.stop, false) }
+        guard let timeout = policy.helpTimeout else { return (await answer(reason), false) }
+        let fallback = policy.fallback(reason: reason, confirm: confirm, restarts: restarts)
+        let once = OnceFlag()
+        return await withCheckedContinuation { (c: CheckedContinuation<(HelpChoice, Bool), Never>) in
+            Task { @MainActor in
+                let choice = await answer(reason)
+                if once.claim() { c.resume(returning: (choice, false)) }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                guard once.claim() else { return }
+                self.onHelpTimeout?(fallback)
+                c.resume(returning: (fallback, true))
+            }
+        }
+    }
+
+    /// Pauses for the user (at most twice a run, unless unattended is restarting on its own).
+    private func askForHelp() async throws -> AfterHelp {
+        if policy.helpTimeout == nil {
+            guard onHelp != nil, helpAsked < 2 else { return .stop }
+        } else if onHelp == nil { return .stop }
         let reason = steps.last?["reason"]?.str ?? ""
         record(nil, ["action": .str("help"), "reason": .str(reason)])
-        let choice = await onHelp(reason)
+        let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
-            return false
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
+            return .stop
+        case .restart:
+            guard policy.unattended, restarts < policy.maxRestarts else {
+                record(nil, ["action": .str("stopped"), "by": .str("policy")])
+                return .stop
+            }
+            restarts += 1
+            restartNote = "This attempt was restarted from the Home Screen. Reopen the task's app and continue the goal."
+            record(nil, ["action": .str("restarted"), "reason": .str("unattended: starting again from the Home Screen")])
+            replay.restart()
+            try await phone?.goHome(again: false)
+            await screen?.settled()
+            return .restart
         case .resume:
+            helpAsked += 1
             record(nil, ["action": .str("takeover"), "reason": .str("the user did this part by hand: \(reason)")])
         case .skip:
-            record(nil, ["action": .str("skipped"), "reason": .str("the user asked to skip this step: \(reason)")])
+            helpAsked += 1
+            record(nil, ["action": .str("skipped"), "reason": .str(automatic
+                ? "unattended: nobody answered, so this step was skipped: \(reason)"
+                : "the user asked to skip this step: \(reason)")])
         }
         await screen?.settled()
-        return true
+        return .goOn
     }
 
     /// The actor asked before a risky step. True = the run is over (stopped).
+    /// Unattended never approves one on its own: no answer, or "don't ask", becomes a skip.
     private func confirm(_ reason: String) async throws -> Bool {
         let mode = askMode ?? .current
-        guard let onConfirm, mode.asks(reason) || (inventory.needed && mode != .never) else {
+        let asks = onConfirm != nil && (mode.asks(reason) || (inventory.needed && mode != .never))
+        if !asks {
+            if policy.unattended {
+                record(nil, ["action": .str("skipped"), "confirmed_by": .str("policy"),
+                             "reason": .str("not done unattended (a risky step is never approved on its own): \(reason)")])
+                return false
+            }
             record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (no need to ask for this): \(reason)")])
             return false
         }
         if inventory.needed { Analytics.capture("confirm_shown", ["kind": "inventory", "items": notebook.items.count]) }
-        let choice = await onConfirm(inventoryReason(reason))
+        let (choice, automatic) = await chooseHelp(inventoryReason(reason), confirm: true)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
             return true
         case .resume:
             record(nil, ["action": .str("confirmed"), "reason": .str("the user said yes, do it now: \(reason)")])
-        case .skip:
-            record(nil, ["action": .str("skipped"), "reason": .str("the user said no, do not do this: \(reason)")])
+        case .skip, .restart:
+            // `.restart` is not a confirm answer. A timeout never returns it for a confirm; if it did, still don't do the step.
+            record(nil, ["action": .str("skipped"), "confirmed_by": .str(automatic ? "policy" : "user"),
+                         "reason": .str(automatic
+                            ? "not done unattended (nobody answered): \(reason)"
+                            : "the user said no, do not do this: \(reason)")])
             await screen?.settled()
         }
         return false
@@ -494,7 +628,7 @@ extension Gestures {
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
         let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background + ToolStore.prompt(tools) + Calls.prompt(task)
-        let all = hints + replay.hints
+        let all = hints + replay.hints + (restartNote.isEmpty ? [] : [restartNote])
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
     }
 
@@ -508,6 +642,10 @@ extension Gestures {
         var timing = Metrics.Step()
         let began = now()
         StepWaits.reset()
+        if policy.unattended, DeviceHealth.isHot(deviceHealth()) {
+            // Initial estimate. A serious thermal state slows the phone; a short pause lets it cool.
+            try await Task.sleep(nanoseconds: UInt64(DeviceHealth.thermalPause * 1_000_000_000))
+        }
         let acts = try await decide()  // nextActions, once more for a repeat that changed nothing
         let decided = now()
         JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1

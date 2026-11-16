@@ -6,6 +6,7 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 - Firmware 0.2.6: `type` feeds the task watchdog per character and stops after a 4 s budget (or if USB suspends) instead of blocking long enough to reboot the board. The reply is `ok`, or `err typed N of M: budget|asleep` when it stops early. Status advertises `"tchunk":1`. Older firmware still answers `ok` only.
 - App: plain text is typed in chunks of at most 48 characters, so a long field stays inside that budget on current and older firmware. A partial reply is reported to the model as typing that stopped; the rest is not sent again in the same command.
+- App: Settings › Unattended (off by default), also a parameter on the Run a Task shortcut. While it is on, help and confirm prompts wait two minutes and then skip or stop — a risky step is never approved on its own, and a passcode is never typed. A failed link check recovers instead of ending the run, model 429/5xx/timeouts back off for up to ten minutes, and a lost link is waited out for two hours. A locked phone (or USB asleep) is its own waiting state. Low Power Mode, low battery and a hot phone are surfaced; under 10% and unplugged the run waits. Learned Screen Mirroring taps can reopen mirroring from Control Center.
 
 ## App 1.0.6 (build 17, TestFlight)
 

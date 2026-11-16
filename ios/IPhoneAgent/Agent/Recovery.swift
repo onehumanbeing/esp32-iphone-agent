@@ -16,9 +16,11 @@ struct Recovery {
         var ap: String?           // idle | connected | streaming
         var frameAt: Double       // when the newest decoded frame arrived
         var stalled = false       // the board itself gets no frames from AirPlay: ask the user at once
+        var usb: String? = nil    // ok | asleep | off; asleep means the phone is locked to USB
+        var locked = false        // protected data unavailable: a passcode is set and the phone is locked
     }
 
-    enum Part: Equatable { case board, hotspot, mirroring, frames }
+    enum Part: Equatable { case board, locked, hotspot, mirroring, frames }
 
     struct Stage: Equatable {
         var part: Part
@@ -32,7 +34,7 @@ struct Recovery {
     }
 
     /// How long each part may come back by itself before the user is asked; then the whole limit.
-    static let quiet: [Part: Double] = [.board: 30, .hotspot: 30, .mirroring: 20, .frames: 20]
+    static let quiet: [Part: Double] = [.board: 30, .locked: 5, .hotspot: 30, .mirroring: 20, .frames: 20]
     static let limit = 300.0
 
     let started: Double
@@ -44,7 +46,10 @@ struct Recovery {
 
     /// Live once the board is back, mirroring streams and a frame newer than the loss has been decoded.
     mutating func next(_ l: Link, at t: Double) -> Next {
+        // Locked sits after the board and before Wi-Fi: USB is asleep or protected data is unavailable.
+        // Nothing here types a passcode or otherwise tries to unlock.
         let part: Part? = !l.connected ? .board
+            : (l.locked || l.usb == "asleep") ? .locked
             : l.sta == 0 ? .hotspot
             : l.ap != "streaming" ? .mirroring
             : l.frameAt <= started ? .frames
@@ -52,16 +57,27 @@ struct Recovery {
         guard let part else { stage = nil; return .live }
         if part != stage?.part { partSince = t }
         stage = Stage(part: part, ask: t - partSince >= (part == .frames && l.stalled ? 0 : Self.quiet[part]!))
-        if t - started >= limit { return .giveUp(Self.reason(part)) }
+        if t - started >= limit { return .giveUp(Self.reason(part, after: limit)) }
         return .wait(stage!)
     }
 
-    static func reason(_ part: Part) -> String {
+    static func reason(_ part: Part, after seconds: Double = Self.limit) -> String {
+        if abs(seconds - Self.limit) < 1 {
+            switch part {
+            case .board: return String(localized: "the board did not come back in 5 minutes")
+            case .locked: return String(localized: "the iPhone stayed locked for 5 minutes")
+            case .hotspot: return String(localized: "the iPhone did not rejoin the board's Wi-Fi in 5 minutes")
+            case .mirroring: return String(localized: "Screen Mirroring did not come back in 5 minutes")
+            case .frames: return String(localized: "no fresh screen image arrived in 5 minutes")
+            }
+        }
+        let minutes = max(1, Int((seconds / 60).rounded()))
         switch part {
-        case .board: return String(localized: "the board did not come back in 5 minutes")
-        case .hotspot: return String(localized: "the iPhone did not rejoin the board's Wi-Fi in 5 minutes")
-        case .mirroring: return String(localized: "Screen Mirroring did not come back in 5 minutes")
-        case .frames: return String(localized: "no fresh screen image arrived in 5 minutes")
+        case .board: return String(localized: "the board did not come back in \(minutes) minutes")
+        case .locked: return String(localized: "the iPhone stayed locked for \(minutes) minutes")
+        case .hotspot: return String(localized: "the iPhone did not rejoin the board's Wi-Fi in \(minutes) minutes")
+        case .mirroring: return String(localized: "Screen Mirroring did not come back in \(minutes) minutes")
+        case .frames: return String(localized: "no fresh screen image arrived in \(minutes) minutes")
         }
     }
 }
@@ -72,6 +88,8 @@ extension Recovery.Stage {
         switch (part, ask) {
         case (.board, false): return "BLE link lost; reconnecting"
         case (.board, true): return "board still gone; asked the user to check it"
+        case (.locked, false): return "iPhone locked; waiting for it to be unlocked (a passcode is never typed)"
+        case (.locked, true): return "iPhone still locked; asked the user to unlock it"
         case (.hotspot, false): return "board up, iPhone not on its hotspot (sta 0); waiting for iOS to rejoin"
         case (.hotspot, true): return "iPhone still off the hotspot; asked the user to join it"
         case (.mirroring, false): return "board and hotspot up, no mirroring session; waiting for iOS to resume mirroring"
@@ -86,6 +104,10 @@ extension Recovery.Stage {
         switch (part, ask) {
         case (.board, _):
             return .waitingForBoard
+        case (.locked, _):
+            return IslandStatus(short: String(localized: "Unlock iPhone"),
+                                full: String(localized: "iPhone is locked. Unlock it and the run goes on. A passcode is never typed."),
+                                look: nil, minimal: String(localized: "Locked"))
         case (.hotspot, false):
             return IslandStatus(short: String(localized: "Joining Wi-Fi…"), full: String(localized: "Rejoining the board's Wi-Fi…"),
                                 look: nil, minimal: String(localized: "Wi-Fi"))
@@ -114,6 +136,7 @@ extension Recovery.Stage {
     var line: String {
         switch (part, ask) {
         case (.board, _): return IslandStatus.waitingForBoard.full
+        case (.locked, _): return String(localized: "The iPhone is locked. Unlock it and the run goes on. A passcode is never typed.")
         case (.hotspot, false): return String(localized: "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…")
         case (.hotspot, true): return String(localized: "Join the board's Wi-Fi in Settings › Wi-Fi; the run goes on when it is back.")
         case (.mirroring, false): return String(localized: "Board is back. Waiting for Screen Mirroring to resume…")
