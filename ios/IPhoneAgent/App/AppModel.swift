@@ -107,6 +107,10 @@ import UIKit
     @Published var mockMirroring = false
     var moodReset: Task<Void, Never>?
     var helpWait: CheckedContinuation<AgentLoop.HelpChoice, Never>?
+    /// Set by a shortcut's Unattended parameter for the run that is about to start.
+    var launchUnattended = false
+    /// Set when protected data becomes unavailable. A passcode is never typed; the run waits.
+    var phoneLocked = false
     var currentIntent: SavedTask?
     var lastTask = ""
     var runStarted = Date()
@@ -252,6 +256,13 @@ import UIKit
         agent.onModelCall = { [weak self] call in self?.modelCalled(call) }
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
+        agent.onHelpTimeout = { [weak self] choice in self?.answerHelp(choice) }
+        agent.deviceHealth = { [weak self] in self?.healthSnapshot() ?? .ok }
+        agent.userInFront = { [weak self] in self?.appIsBackgrounded == false }
+        agent.onNotice = { [weak self] text, kind in
+            guard let self else { return }
+            self.notifier.post(kind, title: String(localized: "Unattended run"), body: text, run: self.runID)
+        }
         agent.gate = { [weak self] in
             try await self?.holdWhileInFront()
             try await self?.holdWhilePaused()
@@ -271,6 +282,9 @@ import UIKit
             await self?.board.commands.keepAwake {
                 guard let self else { return false }
                 return self.feed.live && !self.returningInput
+            } nudgeWhenIdle: {
+                guard let self else { return false }
+                return self.agent.policy.keepAwake && self.agent.running && self.board.status?.usb != "asleep" && !self.phoneLocked
             }
         })
         timers.append(Task { [weak self] in
@@ -289,6 +303,23 @@ import UIKit
         }
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.metrics.enteredForeground(); DebugLog.write("app: foreground"); self?.wifiVideo.kick(); self?.prewarmStream() }
+        }
+        center.addObserver(forName: UIApplication.protectedDataWillBecomeUnavailableNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.phoneLocked = true
+                DebugLog.write("phone: locked (protected data unavailable)")
+            }
+        }
+        center.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.phoneLocked = false; DebugLog.write("phone: unlocked") }
+        }
+        center.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.agent.running, self.agent.policy.unattended, ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+                self.notifier.post(.power, title: String(localized: "Low Power Mode is on"),
+                                   body: String(localized: "Auto-Lock becomes 30 seconds while Low Power Mode is on, so the screen may lock."),
+                                   run: self.runID)
+            }
         }
         if MockMode.on { startMock() }
         runs.reload()

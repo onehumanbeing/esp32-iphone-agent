@@ -257,6 +257,12 @@ struct Run: Identifiable, Equatable {
             case "task": task = rec["task"]?.str ?? ""
             case "step": steps.append(Run.Step(id: steps.count, action: rec.without(["n", "t", "kind", "frame"]), frame: frame,
                                                t: rec["t"]?.double))
+            case "timing":
+                if let last = steps.popLast() {
+                    var action = last.action
+                    action["timing"] = .obj(rec.without(["n", "t", "kind", "frame"]))
+                    steps.append(Run.Step(id: last.id, action: action, frame: last.frame, t: last.t))
+                }
             case "verdict":  // the step's result, so a run continued from disk still says "-> screen changed"
                 if let last = steps.popLast(), let changed = rec["changed"] {
                     var action = last.action

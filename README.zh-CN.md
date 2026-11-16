@@ -44,6 +44,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
+<p align="center">不想自己刷板子？即插即用的 Handsy 设备快来了，<a href="https://handsy.tech/zh/hardware">加入等候名单</a>。</p>
+
 ## 最近更新
 
 <p align="center"><img src="docs/images/highlights-zh.png" alt="1.0.2 和 1.0.3 新功能：能听到手机的声音、免费的 Jev 线路、长任务与逐步回放" width="100%"></p>

@@ -41,16 +41,42 @@ extension AgentLoop {
     /// where it really is (which also teaches the pointer's correction) and look again without it. 2026-11-06:
     /// the pointer 3% above the Search pill read as "changed", so the miss went unseen and nothing was learned.
     func tapResult(_ seen: Data?, _ spots: inout [CGPoint], _ quiet: [CGRect]) async -> Bool {
+        let started = now()
         let (frame, mask) = (screen?.frame, spots)
-        if await Vision.off({ Vision.bigChange(seen, frame, ignore: mask) }) { return true }
+        if await Vision.off({ Vision.bigChange(seen, frame, ignore: mask) }) {
+            verdictSpent += (now() - started) * 1000
+            return true
+        }
         let small = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: quiet) }
+        if small, let target = tapTarget() {
+            let near = await Vision.off { Vision.changed(seen, frame, at: target, ignore: mask) }
+            if Self.changedNearTarget(near) {
+                DebugLog.write("step: the tap changed the screen at the target; skipping the pointer check")
+                verdictSpent += (now() - started) * 1000
+                return true
+            }
+        }
         // Not on a screen that keeps moving (a map, a video: StepWaits.moving): there the wiggle's diff is mostly the
         // screen's own motion, and each look took 1.8-2.4 s, often "not found" (2026-11-11, a Maps run).
-        guard !StepWaits.moving, let landed = await noteLanding() else { return small }
+        let landStarted = now()
+        guard !StepWaits.moving, let landed = await noteLanding() else {
+            verdictSpent += (now() - started) * 1000
+            return small
+        }
+        let landMs = (now() - landStarted) * 1000
+        landingSpent += landMs
         spots.append(landed)
         pointerAt = landed  // the next tap's mask starts where the pointer really is
         let (later, all) = (screen?.frame, spots)
-        return small ? await Vision.off { Vision.changed(seen, later, ignore: all, quiet: quiet) } : false
+        let hit = small ? await Vision.off { Vision.changed(seen, later, ignore: all, quiet: quiet) } : false
+        verdictSpent += max(0, (now() - started) * 1000 - landMs)
+        return hit
+    }
+
+    /// The last tap's target in screen fractions, when the step has one.
+    func tapTarget() -> CGPoint? {
+        guard steps.last?["action"]?.str == "tap", let x = steps.last?["x"]?.double, let y = steps.last?["y"]?.double else { return nil }
+        return CGPoint(x: x / 1000, y: y / 1000)
     }
 
     /// TouchCheck after a round: true = the board's pointer is not reaching the iPhone (a fail step is recorded, the

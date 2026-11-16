@@ -4,6 +4,14 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Firmware 0.2.6: `type` feeds the task watchdog per character and stops after a 4 s budget (or if USB suspends) instead of blocking long enough to reboot the board. The reply is `ok`, or `err typed N of M: budget|asleep` when it stops early. Status advertises `"tchunk":1`. Older firmware still answers `ok` only.
+- App: plain text is typed in chunks of at most 48 characters, so a long field stays inside that budget on current and older firmware. A partial reply is reported to the model as typing that stopped; the rest is not sent again in the same command.
+- App: Settings › Unattended (off by default), also a parameter on the Run a Task shortcut. While it is on, help and confirm prompts wait two minutes and then skip or stop — a risky step is never approved on its own, and a passcode is never typed. A failed link check recovers instead of ending the run, model 429/5xx/timeouts back off for up to ten minutes, and a lost link is waited out for two hours. A locked phone (or USB asleep) is its own waiting state. Low Power Mode, low battery and a hot phone are surfaced; under 10% and unplugged the run waits. Learned Screen Mirroring taps can reopen mirroring from Control Center.
+- App: each step records where its time went (screen, check, model before and after the first token, actions, other). The run review shows a bar on the step and a median summary; Diagnostics shows medians of the latest steps.
+- App: a tap that already changed the screen at its target skips the pointer wiggle. The next look's image (and on-device tree, when that is on) is prepared while the change check runs. Settings › Look ahead (off by default) starts the next model request once the screen is nearly still, cancels it if the screen then moves, and checks the frame again before the gesture.
+
+## App 1.0.6 (build 17, TestFlight)
+
 - App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,
   says to plug the board straight into this iPhone and tap Allow for the accessory, and goes on by itself once
   the mouse shows up (30 s); a board whose USB is asleep asks to unlock the iPhone. It used to say "plug it into

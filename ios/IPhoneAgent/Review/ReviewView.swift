@@ -164,6 +164,9 @@ struct ReviewView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: draft.title).font(.headline).lineLimit(1)
                 subtitle.font(.caption)
+                if let line = timingSummary {
+                    Text(verbatim: line).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                }
             }
             Spacer()
             Menu {
@@ -182,6 +185,16 @@ struct ReviewView: View {
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.s)
+    }
+
+    private var timingSummary: String? {
+        let rows = steps.compactMap { StepTiming.read($0.action) }
+        guard !rows.isEmpty, let median = Metrics.median(rows.map(\.total)) else { return nil }
+        let sum = rows.reduce(StepTiming.zero) { $0.adding($1) }
+        func share(_ part: Double) -> Int { Int((part / max(sum.total, 1) * 100).rounded()) }
+        return String(format: "Median step %.1f s · model %d%% · screen %d%% · check %d%% · actions %d%% · other %d%%",
+                      median / 1000, share(sum.modelBefore + sum.modelAfter), share(sum.frame), share(sum.verdict),
+                      share(sum.hid), share(sum.other))
     }
 
     @ViewBuilder private var subtitle: some View {
@@ -232,6 +245,7 @@ struct ReviewView: View {
                             .font(.caption.weight(.semibold)).tint(.orange)
                     }
                 }
+                if let timing = StepTiming.read(step.action) { StepTimingBar(timing: timing) }
                 if let thought = step.action["thought"]?.str ?? step.action["plan"]?.str ?? step.action["reason"]?.str {
                     Text(verbatim: thought).font(.subheadline).foregroundStyle(.secondary).lineLimit(expanded ? nil : 2)
                         .onTapGesture { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { expanded.toggle() } }
@@ -466,6 +480,66 @@ struct StepDetails: View {
             Text(verbatim: key).font(.caption2.weight(.bold).monospaced()).foregroundStyle(.secondary)
                 .frame(width: 58, alignment: .leading)
             Text(verbatim: value).font(.caption.monospaced()).textSelection(.enabled)
+        }
+    }
+}
+
+/// Where one step's time went, from the trace's timing row. Milliseconds.
+struct StepTiming: Equatable {
+    var frame = 0.0, verdict = 0.0, modelBefore = 0.0, modelAfter = 0.0, hid = 0.0, other = 0.0
+    var total: Double { frame + verdict + modelBefore + modelAfter + hid + other }
+    static let zero = StepTiming()
+
+    func adding(_ other: StepTiming) -> StepTiming {
+        StepTiming(frame: frame + other.frame, verdict: verdict + other.verdict,
+                   modelBefore: modelBefore + other.modelBefore, modelAfter: modelAfter + other.modelAfter,
+                   hid: hid + other.hid, other: self.other + other.other)
+    }
+
+    static func read(_ action: JObject) -> StepTiming? {
+        guard case .obj(let t)? = action["timing"] else { return nil }
+        func n(_ key: String) -> Double { t[key]?.double ?? 0 }
+        let llm = n("llm_ms"), first = n("first_token_ms")
+        let before = first > 0 ? min(first, llm) : llm
+        return StepTiming(frame: n("frame_ms"), verdict: n("verdict_ms") + n("landing_ms"),
+                          modelBefore: before, modelAfter: max(0, llm - before), hid: n("hid_ms"),
+                          other: n("other_ms") + n("lead_ms") + n("housekeeping_ms"))
+    }
+}
+
+struct StepTimingBar: View {
+    var timing: StepTiming
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                let total = max(timing.total, 1)
+                HStack(spacing: 1) {
+                    piece(timing.frame, total, width, .blue)
+                    piece(timing.verdict, total, width, .orange)
+                    piece(timing.modelBefore, total, width, .purple)
+                    piece(timing.modelAfter, total, width, .indigo)
+                    piece(timing.hid, total, width, .green)
+                    piece(timing.other, total, width, .gray)
+                }
+            }
+            .frame(height: 8)
+            .clipShape(Capsule())
+            Text(caption).font(.caption2).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: caption))
+    }
+
+    private var caption: String {
+        String(format: "Screen %.0f · check %.0f · model %.0f+%.0f · actions %.0f · other %.0f ms",
+               timing.frame, timing.verdict, timing.modelBefore, timing.modelAfter, timing.hid, timing.other)
+    }
+
+    @ViewBuilder private func piece(_ value: Double, _ total: Double, _ width: CGFloat, _ color: Color) -> some View {
+        if value > 0 {
+            color.frame(width: max(2, width * value / total))
         }
     }
 }
