@@ -61,6 +61,14 @@ struct Recovery {
         return .wait(stage!)
     }
 
+    /// True for the 5-minute wording and for the same sentence with a longer limit ("in 120 minutes").
+    static func matches(_ why: String, _ part: Part) -> Bool {
+        let full = reason(part)
+        if why == full { return true }
+        guard let range = why.range(of: #" (in|for) \d+ minutes$"#, options: .regularExpression) else { return false }
+        return full.hasPrefix(why[..<range.lowerBound])
+    }
+
     static func reason(_ part: Part, after seconds: Double = Self.limit) -> String {
         if abs(seconds - Self.limit) < 1 {
             switch part {
