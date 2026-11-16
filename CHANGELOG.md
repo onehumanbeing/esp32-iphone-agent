@@ -4,6 +4,9 @@ Full changelog with board firmware and every channel: [handsy.tech/docs/changelo
 
 ## Unreleased (main)
 
+- Firmware 0.2.6: `type` feeds the task watchdog per character and stops after a 4 s budget (or if USB suspends) instead of blocking long enough to reboot the board. The reply is `ok`, or `err typed N of M: budget|asleep` when it stops early. Status advertises `"tchunk":1`. Older firmware still answers `ok` only.
+- App: plain text is typed in chunks of at most 48 characters, so a long field stays inside that budget on current and older firmware. A partial reply is reported to the model as typing that stopped; the rest is not sent again in the same command.
+
 ## App 1.0.6 (build 17, TestFlight)
 
 - App: a start whose Home gestures did nothing while the board's USB is up, but with no mouse on this iPhone,

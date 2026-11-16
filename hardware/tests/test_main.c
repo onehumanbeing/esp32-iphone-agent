@@ -13,6 +13,7 @@
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
 #include "../hid_bridge/src/hid/pace.h"
+#include "../hid_bridge/src/hid/type_budget.h"
 #include "../hid_bridge/src/log/logring.h"
 #include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
 #include "../hid_bridge/src/airplay/ap_internal.h"
@@ -518,6 +519,32 @@ static void test_heard(void) {
   CHECK(strlen(r.text[(r.next + HEARD_LINES - 1) % HEARD_LINES]) == HEARD_TEXT - 1);
 }
 
+static void test_type_budget(void) {
+  CHECK(type_before_char(0, 0, 1) == TYPE_GO);
+  CHECK(type_before_char(15, 100, 0) == TYPE_GO);             // not a check point yet
+  CHECK(type_before_char(16, 100, 0) == TYPE_STOP_ASLEEP);    // USB re-checked every 16
+  CHECK(type_before_char(16, 100, 1) == TYPE_GO);
+  CHECK(type_before_char(3, TYPE_BUDGET_MS, 1) == TYPE_STOP_BUDGET);
+  CHECK(type_before_char(32, TYPE_BUDGET_MS + 1, 0) == TYPE_STOP_ASLEEP);  // asleep wins at a check point
+  CHECK(type_before_char(17, TYPE_BUDGET_MS, 0) == TYPE_STOP_BUDGET);
+  char out[64];
+  CHECK(type_reply(out, sizeof out, 48, 48, TYPE_GO) > 0 && !strcmp(out, "ok"));
+  CHECK(type_reply(out, sizeof out, 12, 48, TYPE_STOP_BUDGET) > 0 && !strcmp(out, "err typed 12 of 48: budget"));
+  CHECK(type_reply(out, sizeof out, 16, 80, TYPE_STOP_ASLEEP) > 0 && !strcmp(out, "err typed 16 of 80: asleep"));
+  // a 500-byte command cannot be one watchdog window: the budget stops it first
+  int typed = 0;
+  for (int i = 0; i < 500; i++) {
+    uint32_t elapsed = (uint32_t)i * 20;  // slower than 8 s / 500
+    type_stop_t stop = type_before_char(i, elapsed, 1);
+    if (stop != TYPE_GO) {
+      CHECK(stop == TYPE_STOP_BUDGET && typed == i && elapsed >= TYPE_BUDGET_MS);
+      break;
+    }
+    typed++;
+  }
+  CHECK(typed > 0 && typed < 500);
+}
+
 int main(void) {
   test_heard();
   test_audio_packets();
@@ -532,6 +559,7 @@ int main(void) {
   test_cli_proto();
   test_arbiter();
   test_pace();
+  test_type_budget();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

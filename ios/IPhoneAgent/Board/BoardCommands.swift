@@ -109,7 +109,10 @@ extension BoardTransport {
         let name = parts.first ?? "", arg = parts.count > 1 ? parts[1] : ""
         switch name {
         case "move": return 5 + Double(arg.split(separator: " ").compactMap { Int($0) }.map(abs).max() ?? 0) / 10 * 0.012
-        case "type": return 5 + 0.1 * Double(arg.count)
+        case "type":
+            // Sized for one chunk. A longer command (older call sites) is capped the same way so the app
+            // does not wait out a watchdog reboot. Initial estimate, matched to TypeChunks.maxChars.
+            return 5 + 0.1 * Double(min(arg.count, TypeChunks.maxChars))
         case "ping": return 8  // an idle check: tolerate a hiccup rather than drop a healthy board
         case "snap": return 15  // a whole GOP over BLE
         case "bench": return 5 + (Double(arg) ?? 0) / 10  // KB at >= 80 kbps
