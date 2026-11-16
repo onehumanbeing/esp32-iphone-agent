@@ -149,7 +149,7 @@ extension AgentLoop {
             let until = now() + MirrorHeal.verifySeconds
             while now() < until {
                 try Task.checkCancellation()
-                let streaming = link?()?.ap == "streaming"
+                let streaming = link?().ap == "streaming"
                 let fresh = (screen?.capturedAt ?? 0) > started
                 if streaming && fresh {
                     try await phone.homeKey()
