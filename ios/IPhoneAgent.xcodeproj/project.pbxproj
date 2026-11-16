@@ -224,6 +224,7 @@
 		A1FBF102A1FBF102A1FBF102 /* RunPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */; };
 		A1FBF104A1FBF104A1FBF104 /* MirrorHeal.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */; };
 		A1FBF106A1FBF106A1FBF106 /* DeviceHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */; };
+		A1FBF10AA1FBF10AA1FBF10A /* LookAhead.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF109A1FBF109A1FBF109 /* LookAhead.swift */; };
 		A1FBF108A1FBF108A1FBF108 /* UnattendedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF107A1FBF107A1FBF107 /* UnattendedTests.swift */; };
 		D4DFFA4AACF51245E446B53F /* IntentLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F412AA842017FE8B6DD2AA /* IntentLearner.swift */; };
 		D5D197473F9BD99FD38F6231 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6EC7C29EBD2DA1A602B0BED2 /* AppShortcuts.xcstrings */; };
@@ -366,6 +367,7 @@
 		A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunPolicy.swift; sourceTree = "<group>"; };
 		A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorHeal.swift; sourceTree = "<group>"; };
 		A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceHealth.swift; sourceTree = "<group>"; };
+		A1FBF109A1FBF109A1FBF109 /* LookAhead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookAhead.swift; sourceTree = "<group>"; };
 		A1FBF107A1FBF107A1FBF107 /* UnattendedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnattendedTests.swift; sourceTree = "<group>"; };
 		39CDABB93A11C0AD55A52E4F /* Notebook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notebook.swift; sourceTree = "<group>"; };
 		3A091027B026D22579AA4972 /* HomeWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWidgets.swift; sourceTree = "<group>"; };
@@ -595,6 +597,7 @@
 				A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */,
 				A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */,
 				A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */,
+				A1FBF109A1FBF109A1FBF109 /* LookAhead.swift */,
 				11AC34B2265506C543C662F5 /* JevStep.swift */,
 				3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */,
 				FCC7FAA4989F36E7F9B4C021 /* JSON.swift */,
@@ -1303,6 +1306,7 @@
 				A1FBF102A1FBF102A1FBF102 /* RunPolicy.swift in Sources */,
 				A1FBF104A1FBF104A1FBF104 /* MirrorHeal.swift in Sources */,
 				A1FBF106A1FBF106A1FBF106 /* DeviceHealth.swift in Sources */,
+				A1FBF10AA1FBF10AA1FBF10A /* LookAhead.swift in Sources */,
 				A37B04CB8C5B3778BBDDB66B /* HarnessLink.swift in Sources */,
 				EF40598A5376153FF906E570 /* HarnessOTA.swift in Sources */,
 				041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */,

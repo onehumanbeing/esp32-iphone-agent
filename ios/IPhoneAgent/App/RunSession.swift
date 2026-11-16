@@ -219,6 +219,7 @@ extension AppModel {
             }
             agent.policy = (launchUnattended || settings.unattendedMode)
                 ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
+            agent.speculate = settings.speculativeLook
             // Mirroring repair runs only after Settings has learned the Control Center taps for this screen.
             launchUnattended = false
             agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen

@@ -45,8 +45,13 @@ struct DiagnosticsView: View {
             SwiftUI.Section("Agent") {
                 row("LLM first token / total", "\(f(metrics.llmFirstMs)) / \(f(metrics.llmTotalMs)) ms")
                 row("LLM ping", f(metrics.llmPingMs) + " ms")
-                if let s = metrics.steps.last {
-                    row("Last step frame / LLM / HID", "\(f(s.frameMs)) / \(f(s.llmMs)) / \(f(s.hidMs)) ms")
+                if !metrics.steps.isEmpty {
+                    let frame = Metrics.median(metrics.steps.map(\.frameMs))
+                    let llm = Metrics.median(metrics.steps.map(\.llmMs))
+                    let hid = Metrics.median(metrics.steps.map(\.hidMs))
+                    let verdict = Metrics.median(metrics.steps.map(\.verdictMs))
+                    row("Median frame / verdict / LLM / HID", "\(f(frame)) / \(f(verdict)) / \(f(llm)) / \(f(hid)) ms")
+                    row("Steps in the median", "\(metrics.steps.count)")
                 }
                 ForEach(metrics.hidMs.keys.sorted(), id: \.self) { k in row("HID \(k)", f(metrics.hidMs[k]) + " ms") }
             }

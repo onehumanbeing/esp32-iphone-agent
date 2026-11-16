@@ -209,6 +209,35 @@ import XCTest
         XCTAssertFalse(spots.valid(width: 100, height: 200, ios: "18.1"))
     }
 
+    func testADoLineCountsOnlyOnceItIsComplete() {
+        var text = "THINK: look\nDO: ta"
+        XCTAssertFalse(StreamMarks.completeDoLine(text))
+        text += "p 10 20\n"
+        XCTAssertTrue(StreamMarks.completeDoLine(text))
+        XCTAssertTrue(StreamMarks.completeDoLine("  DO：wait\n"))
+        XCTAssertFalse(StreamMarks.completeDoLine("DO: wait"))
+    }
+
+    func testAStepTimingRowFeedsTheBar() {
+        let action: JObject = ["action": .str("tap"), "timing": .obj([
+            "frame_ms": .num(100), "verdict_ms": .num(20), "landing_ms": .num(5),
+            "llm_ms": .num(800), "first_token_ms": .num(300), "hid_ms": .num(40),
+            "other_ms": .num(10), "lead_ms": .num(5), "housekeeping_ms": .num(15),
+        ])]
+        let row = StepTiming.read(action)
+        XCTAssertEqual(row?.frame, 100)
+        XCTAssertEqual(row?.verdict, 25)
+        XCTAssertEqual(row?.modelBefore, 300)
+        XCTAssertEqual(row?.modelAfter, 500)
+        XCTAssertEqual(row?.hid, 40)
+        XCTAssertEqual(row?.other, 30)
+        XCTAssertNil(StepTiming.read(["action": .str("tap")]))
+        XCTAssertEqual(Metrics.median([1, 4, 2]), 2)
+        XCTAssertEqual(Metrics.median([1, 2, 3, 4]), 2.5)
+        XCTAssertTrue(AgentLoop.changedNearTarget(true))
+        XCTAssertFalse(AgentLoop.changedNearTarget(false))
+    }
+
     func testLowBatteryPausesOnlyWhenUnplugged() {
         XCTAssertFalse(DeviceHealth.shouldPause(.ok))
         XCTAssertFalse(DeviceHealth.shouldPause(DeviceHealth.Snapshot(battery: 0.05, plugged: true)))

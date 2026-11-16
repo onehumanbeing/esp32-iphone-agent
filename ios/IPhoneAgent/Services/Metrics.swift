@@ -14,6 +14,24 @@ import Foundation
         /// took to update after each recorded step (`record`, on the main thread).
         var otherMs = 0.0, recordMs = 0.0
         var tree = ""  // StepWaits.tree: where the actor's tree was built, and the phone's build ms
+        /// Change check, pointer wiggle, image shrink, on-device tree, and the gap between steps.
+        var verdictMs = 0.0, landingMs = 0.0, treeMs = 0.0, imageMs = 0.0, housekeepingMs = 0.0
+        /// Model stream: first token, first complete DO line, and the end of the stream. 0 when unknown.
+        var firstTokenMs = 0.0, firstDoMs = 0.0, streamEndMs = 0.0
+        var stepIndex = 0
+        var specUsed = false, specCancelled = false, specSavedMs = 0.0
+
+        var object: JObject {
+            ["frame_ms": .num(frameMs.rounded()), "settle_ms": .num(settleMs.rounded()),
+             "verdict_ms": .num(verdictMs.rounded()), "landing_ms": .num(landingMs.rounded()),
+             "llm_ms": .num(llmMs.rounded()), "first_token_ms": .num(firstTokenMs.rounded()),
+             "first_do_ms": .num(firstDoMs.rounded()), "stream_end_ms": .num(streamEndMs.rounded()),
+             "hid_ms": .num(hidMs.rounded()), "lead_ms": .num(leadMs.rounded()),
+             "other_ms": .num(otherMs.rounded()), "housekeeping_ms": .num(housekeepingMs.rounded()),
+             "image_ms": .num(imageMs.rounded()), "tree_ms": .num(treeMs.rounded()),
+             "step": .int(stepIndex), "spec_used": .bool(specUsed), "spec_cancelled": .bool(specCancelled),
+             "spec_saved_ms": .num(specSavedMs.rounded())]
+        }
 
         /// The reply-to-HID split, the first gesture starting `at` (no reply time, e.g. a scripted step: left at 0).
         mutating func lead(replied: Double, decided: Double, gating: Double, at started: Double) {
@@ -93,11 +111,14 @@ import Foundation
     func step(_ s: Step) {
         steps = Array((steps + [s]).suffix(40))
         stepCount += 1
-        DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), LLM %.0f ms, HID %.0f ms, "
-                              + "reply to HID %.0f ms (parse %.0f, gate %.0f, motion %.0f), other %.0f ms (record %.0f)",
-                              stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.llmMs, s.hidMs,
-                              s.leadMs, s.parseMs, s.gateMs, s.motionMs, s.otherMs, s.recordMs)
-                       + (s.tree.isEmpty ? "" : ", tree \(s.tree)"))
+        DebugLog.write(String(format: "step %d timing: frame %.0f ms (settle %.0f ms%@), verdict %.0f ms (landing %.0f), "
+                              + "LLM %.0f ms (first %.0f, DO %.0f, end %.0f), HID %.0f ms, "
+                              + "reply to HID %.0f ms (parse %.0f, gate %.0f, motion %.0f), other %.0f ms (record %.0f, gap %.0f)",
+                              stepCount, s.frameMs, s.settleMs, s.snap ? ", snap" : "", s.verdictMs, s.landingMs,
+                              s.llmMs, s.firstTokenMs, s.firstDoMs, s.streamEndMs, s.hidMs,
+                              s.leadMs, s.parseMs, s.gateMs, s.motionMs, s.otherMs, s.recordMs, s.housekeepingMs)
+                       + (s.tree.isEmpty ? "" : ", tree \(s.tree)")
+                       + (s.specUsed ? ", speculative" : "") + (s.specCancelled ? ", speculative cancelled" : ""))
     }
 
     /// Called every second by a timer; also detects suspension (a gap far longer than the tick).
@@ -113,6 +134,13 @@ import Foundation
         if let since = backgroundSince { backgroundAlive = t - since }
     }
 
+    static func median(_ values: [Double]) -> Double? {
+        let sorted = values.filter { $0 >= 0 }.sorted()
+        guard !sorted.isEmpty else { return nil }
+        let mid = sorted.count / 2
+        return sorted.count.isMultiple(of: 2) ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+    }
+
     func enteredBackground() { backgroundSince = now(); backgroundAlive = 0 }
     func enteredForeground() { backgroundSince = nil }
 
@@ -122,8 +150,16 @@ import Foundation
             "ble_kbps_app": bleKbps, "mtu": mtu, "drops": drops, "fps": fps, "decode_ms": decodeMs,
             "decode_errors": decodeErrors, "background_decode_errors": backgroundDecodeErrors,
             "background_alive_s": backgroundAlive, "suspensions": suspensions, "hid_ms": hidMs,
-            "steps": steps.map { ["frame_ms": $0.frameMs, "llm_ms": $0.llmMs, "hid_ms": $0.hidMs, "settle_ms": $0.settleMs,
-                                  "snap": $0.snap] },
+            "steps": steps.map { step -> [String: Any] in
+                var row: [String: Any] = ["frame_ms": step.frameMs, "llm_ms": step.llmMs, "hid_ms": step.hidMs,
+                                          "settle_ms": step.settleMs, "snap": step.snap, "verdict_ms": step.verdictMs,
+                                          "landing_ms": step.landingMs, "tree_ms": step.treeMs, "image_ms": step.imageMs,
+                                          "housekeeping_ms": step.housekeepingMs, "first_token_ms": step.firstTokenMs,
+                                          "first_do_ms": step.firstDoMs, "stream_end_ms": step.streamEndMs,
+                                          "other_ms": step.otherMs, "step": step.stepIndex,
+                                          "spec_used": step.specUsed, "spec_cancelled": step.specCancelled]
+                return row
+            },
         ]
         out["bench_kbps"] = benchKbps
         out["idr_interval_ms"] = idrIntervalMs

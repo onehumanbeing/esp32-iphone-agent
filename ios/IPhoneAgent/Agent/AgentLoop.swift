@@ -37,6 +37,8 @@ extension Gestures {
     struct Planned {
         var act: JObject
         var shot: Data?  // every action of one reply is drawn on the same screenshot
+        /// The reply was started before this step, from a nearly settled frame. Checked again before the gesture.
+        var speculative = false
     }
 
     let phone: Gestures?
@@ -133,6 +135,16 @@ extension Gestures {
     var onHelpTimeout: ((HelpChoice) -> Void)?
     /// True while this app is the one on screen. Mirroring repair stops instead of fighting the person.
     var userInFront: () -> Bool = { false }
+    /// Start the next model look once the screen is nearly settled. Off unless Settings turns it on.
+    var speculate = false
+    let framePrep = FramePrep()
+    var pendingLook: PendingLook?
+    struct LookClock { var imageMs = 0.0, treeMs = 0.0, firstTokenMs = 0.0, firstDoMs = 0.0, streamEndMs = 0.0 }
+    var lookClock = LookClock()
+    var verdictSpent = 0.0, landingSpent = 0.0
+    var specUsed = false, specCancelled = false
+    private var lastStepEnded = 0.0
+    private var timingIndex = 0
     var deviceHealth: () -> DeviceHealth.Snapshot = { .ok }
     var onNotice: ((String, Notifier.Kind) -> Void)?
     private var lowPowerNoted = false
@@ -222,6 +234,8 @@ extension Gestures {
     }
 
     func stop() {
+        pendingLook?.task.cancel()
+        pendingLook = nil
         if let job { job.cancel() } else { running = false }  // a shown (demo) run has no job
     }
 
@@ -323,11 +337,25 @@ extension Gestures {
             }
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
             let frame = screen.frame, frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
-            let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
-            // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
+            let wantTree = role == "actor" && screenTree && !serverTree
+            var sent: Data?
             var tree: UITree?
-            if role == "actor", screenTree, !serverTree, let sent {
+            if let frame, let ready = await framePrep.take(frame), ready.image.count > 0 {
+                sent = ready.image
+                tree = wantTree ? ready.tree : nil
+                lookClock.imageMs = ready.imageMs
+                lookClock.treeMs = ready.treeMs
+            }
+            if sent == nil {
+                let imageStarted = now()
+                sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
+                lookClock.imageMs = (now() - imageStarted) * 1000
+            }
+            // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
+            if wantTree, tree == nil, let sent {
+                let treeStarted = now()
                 tree = await UITree.build(jpeg: sent)
+                lookClock.treeMs = (now() - treeStarted) * 1000
                 if let tree { DebugLog.write("step " + tree.timingLine) }
             }
             if role == "actor", screenTree {
@@ -375,6 +403,11 @@ extension Gestures {
             if role == "actor" { StepWaits.replied = now() }
             metrics?.llm(first: reply.firstToken, total: reply.total)
             if role == "actor" { StepReport.shared.replied() }
+            if role == "actor" {
+                lookClock.firstTokenMs = (reply.firstToken ?? 0) * 1000
+                lookClock.firstDoMs = (reply.firstDo ?? 0) * 1000
+                lookClock.streamEndMs = reply.total * 1000
+            }
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
             let built = tree != nil
             if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
@@ -392,6 +425,7 @@ extension Gestures {
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
+            if let firstDo = reply.firstDo { rec["first_do_s"] = .num((firstDo * 100).rounded() / 100) }
             // the sent frame's capture time, not the latest frame's (read after the reply, it hid stale frames)
             if lastActed > 0 { rec["frame_after_action_s"] = .num(((frameAt - lastActed) * 100).rounded() / 100) }
             trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
@@ -641,6 +675,8 @@ extension Gestures {
     func step() async throws -> Bool {
         var timing = Metrics.Step()
         let began = now()
+        if lastStepEnded > 0 { timing.housekeepingMs = max(0, (began - lastStepEnded) * 1000) }
+        (verdictSpent, landingSpent) = (0, 0)
         StepWaits.reset()
         if policy.unattended, DeviceHealth.isHot(deviceHealth()) {
             // Initial estimate. A serious thermal state slows the phone; a short pause lets it cool.
@@ -648,6 +684,14 @@ extension Gestures {
         }
         let acts = try await decide()  // nextActions, once more for a repeat that changed nothing
         let decided = now()
+        timing.firstTokenMs = lookClock.firstTokenMs
+        timing.firstDoMs = lookClock.firstDoMs
+        timing.streamEndMs = lookClock.streamEndMs
+        timing.imageMs = lookClock.imageMs
+        timing.treeMs = lookClock.treeMs
+        timing.specUsed = specUsed
+        timing.specCancelled = specCancelled
+        (specUsed, specCancelled) = (false, false)
         JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
@@ -660,14 +704,31 @@ extension Gestures {
             timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap
             timing.recordMs = StepWaits.record * 1000
             timing.tree = StepWaits.tree
-            timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs - timing.leadMs)
+            timing.verdictMs = verdictSpent
+            timing.landingMs = landingSpent
+            timing.stepIndex = timingIndex
+            timingIndex += 1
+            timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs
+                                 - timing.leadMs - timing.verdictMs - timing.landingMs)
             StepWaits.reset()
             metrics?.step(timing)
             StepReport.shared.finished(timing)
+            if !steps.isEmpty { steps[steps.count - 1]["timing"] = .obj(timing.object) }
+            trace?.write(kind: "timing", timing.object)
+            lastStepEnded = now()
         }
         for (i, planned) in acts.enumerated() {
             var act = planned.act
             let name = act["action"]?.str ?? ""
+            if i == 0, planned.speculative, let shot = planned.shot {
+                let nowFrame = screen?.frame
+                let pointer = pointerAt
+                let moved = await Vision.off { Vision.changed(shot, nowFrame, ignore: [pointer]) }
+                if moved {
+                    record(nil, ["action": .str("stale_look"), "reason": .str("the screen changed after the early look")])
+                    return false
+                }
+            }
             if name == "confirm" {
                 record(planned.shot, act)
                 return try await confirm(act["reason"]?.str ?? "")
@@ -748,35 +809,65 @@ extension Gestures {
             }
         }
         timing.motionMs = (await quiet?.value.s ?? 0) * 1000
-        timing.frameMs += await settle(ignoring: spots, busy: await still())
+        let moving = await still()
+        if canSpeculate, let screen {
+            let earlyStarted = now()
+            await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
+            timing.frameMs += (now() - earlyStarted) * 1000
+            let early = screen.frame
+            let mask = spots
+            let busy = moving
+            let big = await Vision.off { Vision.bigChange(seen, early, ignore: mask) }
+            let small = big || await Vision.off { Vision.changed(seen, early, ignore: mask, quiet: busy) }
+            let target = tapTarget()
+            let near: Bool
+            if let target {
+                near = await Vision.off { Vision.changed(seen, early, at: target, ignore: mask) }
+            } else {
+                near = false
+            }
+            let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
+            if !needsLanding {
+                verdict(small)
+                prepareFrame(early)
+                startSpeculative()
+                let rest = now()
+                await screen.settled(quiet: 0.5, least: 0, most: 4, ignoring: spots, busy: moving)
+                timing.frameMs += (now() - rest) * 1000
+                if let early, let later = screen.frame, early != later,
+                   await Vision.off({ Vision.changed(early, later, ignore: mask, quiet: busy) }) {
+                    cancelSpeculative("screen moved")
+                    verdict(await Vision.off { Vision.changed(seen, later, ignore: mask, quiet: busy) })
+                    prepareFrame(later)
+                }
+                try await followCache(seen: seen)
+                saveCheckpoint()
+                return false
+            }
+        }
+        timing.frameMs += await settle(ignoring: spots, busy: moving)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        let (frame, mask, moving) = (screen?.frame, spots, await still())
+        prepareFrame(screen?.frame)
+        let (frame, mask) = (screen?.frame, spots)
         let changed: Bool
         if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed) }
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
         verdict(changed)
+        if screen?.frame != frame { prepareFrame(screen?.frame) }
         try await followCache(seen: seen)
         saveCheckpoint()
         return false
     }
 
+    /// A change in the tap's own neighborhood is a hit: the pointer does not need to be wiggled to confirm it.
+    static func changedNearTarget(_ near: Bool) -> Bool { near }
+
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
-        // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
-        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached"]
         takeSteering()
-        let history = steps.suffix(8).filter {
-            $0["plan"] == nil && $0["action"]?.str != Self.steerAction && $0["action"]?.str != Self.checkpointAction
-        }.map { s -> String in
-            String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
-        }.joined(separator: "\n")
-        let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
-            + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
-        let sound = heard?() ?? ""
-        let prompt = "Goal: \(task)\(steeredSection)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
-            + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
+        let prompt = actorUserPrompt()
+        if let early = try await takeSpeculative(prompt) { return early }
         var reply = ""
         let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)
         for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically

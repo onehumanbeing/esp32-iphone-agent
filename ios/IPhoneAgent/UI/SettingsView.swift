@@ -89,6 +89,9 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.unattendedMode) {
                         SettingsLabel(title: "Unattended", symbol: "moon.zzz.fill", color: .indigo)
                     }
+                    Toggle(isOn: $settings.speculativeLook) {
+                        SettingsLabel(title: "Look ahead", symbol: "hare", color: .orange)
+                    }
                     Button { Task { await app.learnMirrorSpots() } } label: {
                         HStack {
                             SettingsLabel(title: "Learn Screen Mirroring taps", symbol: "rectangle.on.rectangle", color: .blue)
@@ -105,7 +108,7 @@ struct SettingsView: View {
                     + Text(verbatim: " ")
                     + Text("Learn Screen Mirroring taps while mirroring is on and Control Center can be opened. The app remembers the Screen Mirroring button and the board's row for this screen size and iOS version, and uses them only while Unattended is on. It never taps Stop Mirroring while learning.")
                     + Text(verbatim: " ")
-                    + Text("Before a long run: plug in the iPhone, turn off Low Power Mode, set Auto-Lock to Never, and turn on a Focus so notifications don't cover the screen. Auto-Lock can't be read by the app.")
+                    + Text("Before a long run: plug in the iPhone, turn off Low Power Mode, set Auto-Lock to Never, and turn on a Focus so notifications don't cover the screen. Auto-Lock can't be read by the app. Look ahead starts the next model request once the screen is nearly still. It is off by default; a request is thrown away if the screen then changes, and the gesture is checked against a fresh frame before it is sent.")
                 }
                 ListenSection(app: app, audio: app.audio)
                 Section {
