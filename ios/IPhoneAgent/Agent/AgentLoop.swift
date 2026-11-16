@@ -818,7 +818,12 @@ extension Gestures {
             let mask = spots
             let busy = moving
             let big = await Vision.off { Vision.bigChange(seen, early, ignore: mask) }
-            let small = big || await Vision.off { Vision.changed(seen, early, ignore: mask, quiet: busy) }
+            let small: Bool
+            if big {
+                small = true
+            } else {
+                small = await Vision.off { Vision.changed(seen, early, ignore: mask, quiet: busy) }
+            }
             let target = tapTarget()
             let near: Bool
             if let target {
