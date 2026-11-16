@@ -44,6 +44,8 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><b>Building on this project?</b> Keep the <a href="LICENSE">LICENSE</a> and credit <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b> in your README and posts. See <a href="NOTICE">NOTICE</a>.</p>
 
+<p align="center">Don't want to flash a board yourself? A ready-to-plug Handsy device is coming. <a href="https://handsy.tech/hardware">Join the waitlist</a>.</p>
+
 ## What's new
 
 <p align="center"><img src="docs/images/highlights.png" alt="New in 1.0.2 and 1.0.3: it hears the phone, a free Jev line, long tasks with step-by-step replay" width="100%"></p>
