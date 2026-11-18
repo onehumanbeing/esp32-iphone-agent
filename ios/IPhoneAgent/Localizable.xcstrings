@@ -11,6 +11,26 @@
         }
       }
     },
+    "5-hour limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 小时额度"
+          }
+        }
+      }
+    },
+    "%lld%% used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用 %lld%%"
+          }
+        }
+      }
+    },
     "A network without a password: anyone nearby can join it. The board lets only this device mirror to it and encrypts the screen it sends here, but its own hotspot is safer." : {
       "localizations" : {
         "zh-Hans" : {
@@ -281,12 +301,42 @@
         }
       }
     },
+    "ChatGPT sign-in failed (HTTP %lld). Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 登录失败（HTTP %lld），请重试。"
+          }
+        }
+      }
+    },
+    "ChatGPT %@ · signed in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT %@ · 已登录"
+          }
+        }
+      }
+    },
     "Connected. Try this first: %@" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "已连接。先试试这个：%@"
+          }
+        }
+      }
+    },
+    "Copy and Open Sign-in Page" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制并打开登录页"
           }
         }
       }
@@ -381,6 +431,16 @@
         }
       }
     },
+    "Device-code sign-in is off for this ChatGPT account. Turn it on in ChatGPT › Settings › Security, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有开启设备码登录。请在 ChatGPT 的 设置 › 安全 中开启后重试。"
+          }
+        }
+      }
+    },
     "Edit plan with AI" : {
       "localizations" : {
         "zh-Hans" : {
@@ -397,6 +457,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先改好方括号 [ ] 里的内容，比如发给谁、打给谁。"
+          }
+        }
+      }
+    },
+    "Enter this code on OpenAI's page. Tap below to copy it and open the page." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 OpenAI 的页面上输入这个码。点下面的按钮会复制它并打开页面。"
           }
         }
       }
@@ -801,6 +871,16 @@
         }
       }
     },
+    "Only enter a code that you started here. If a website or another person gave you a code, cancel." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只输入你在这里发起的验证码。如果是网站或别人给你的码，请取消。"
+          }
+        }
+      }
+    },
     "On a computer, open %@, plug the board into it and install the Bluetooth firmware. Then come back here." : {
       "localizations" : {
         "zh-Hans" : {
@@ -827,6 +907,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请打开 %@，允许把截图和任务发送给这个模型，然后再问一次。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in returned no authorization. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回授权，请重试。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in did not return a code. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回验证码，请重试。"
           }
         }
       }
@@ -981,6 +1081,16 @@
         }
       }
     },
+    "Resets %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@重置"
+          }
+        }
+      }
+    },
     "Restore on-screen keyboard after runs" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1007,6 +1117,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运行和录制都用你的套餐，不占免费次数。"
+          }
+        }
+      }
+    },
+    "Runs count against your ChatGPT plan's usage limits, the same allowance Codex uses. Plus or Pro works best." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务会消耗你 ChatGPT 套餐的用量额度，和 Codex 用的是同一份。Plus 或 Pro 效果最好。"
           }
         }
       }
@@ -1137,6 +1257,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点这里，马上设置"
+          }
+        }
+      }
+    },
+    "Sign Out" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
+    },
+    "Sign in · uses your Plus or Pro plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 · 使用你的 Plus 或 Pro 套餐"
+          }
+        }
+      }
+    },
+    "Sign in with ChatGPT" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 ChatGPT 登录"
+          }
+        }
+      }
+    },
+    "Sign in to ChatGPT again in Settings › Model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在 设置 › 模型 里重新登录 ChatGPT。"
           }
         }
       }
@@ -1441,6 +1601,16 @@
         }
       }
     },
+    "The sign-in code expired. Start again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码已过期，请重新开始。"
+          }
+        }
+      }
+    },
     "The software keyboard state could not be verified." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1741,6 +1911,16 @@
         }
       }
     },
+    "This ChatGPT account has no plan the app can use." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有 App 能用的套餐。"
+          }
+        }
+      }
+    },
     "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse, and its firmware is USB only." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1841,6 +2021,16 @@
         }
       }
     },
+    "Use Your Subscription" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的订阅"
+          }
+        }
+      }
+    },
     "Uses your Manina AI key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1861,12 +2051,52 @@
         }
       }
     },
+    "Waiting for sign-in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待登录"
+          }
+        }
+      }
+    },
     "Was the run right?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次运行对吗？"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. Try again later." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，请稍后再试。"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. It resets at %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，将在 %@ 重置。"
+          }
+        }
+      }
+    },
+    "Weekly limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每周额度"
           }
         }
       }
