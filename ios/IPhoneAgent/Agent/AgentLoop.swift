@@ -221,6 +221,7 @@ extension Gestures {
     var shotLines: (shot: Data, lines: [DemoAnalysis.Line])?
     var seenLines = SeenLines(), recordAudits = 0  // RecordAudit
     var readPastStart = false  // the last screen read: its dated items all before the goal's dates
+    var treeWait = FramePrep.treeWait  // a look waits this long for the on-device tree (tests on a slow runner: longer)
     var listRead = false, backChecked = false  // the list read past the goal's dates; a scroll back up was refused once
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     var lastServed: String?
@@ -441,12 +442,12 @@ extension Gestures {
             var tree: UITree?
             if let frame {
                 framePrep.start(frame, wantTree: wantTree)  // nothing new when it is the prepared frame
-                if let ready = await framePrep.take(frame, wantTree: wantTree), ready.image.count > 0 {
+                if let ready = await framePrep.take(frame, wantTree: wantTree, treeWait: treeWait), ready.image.count > 0 {
                     sent = ready.image
                     tree = ready.tree
                     lookClock.imageMs = ready.imageMs
                     lookClock.treeMs = ready.treeMs
-                    if ready.treeLate { DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", FramePrep.treeWait)) }
+                    if ready.treeLate { DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", treeWait)) }
                     else if let tree { DebugLog.write("step " + tree.timingLine) }
                 }
             }
