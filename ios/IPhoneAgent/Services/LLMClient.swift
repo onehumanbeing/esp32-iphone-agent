@@ -393,7 +393,7 @@ struct LLMError: LocalizedError {
     /// The model ids from GET {base}/models (OpenAI list format: {"data": [{"id": ...}]}), in the endpoint's order.
     static func models(baseURL: String, apiKey: String) async throws -> [String] {
         var seen = Set<String>()
-        return try await listing(baseURL: baseURL, apiKey: apiKey).compactMap { ($0["id"] ?? $0["name"]) as? String }
+        return try await listing(baseURL: baseURL, apiKey: apiKey).compactMap { ($0["id"] ?? $0["name"] ?? $0["model"]) as? String }
             .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
@@ -427,8 +427,11 @@ struct LLMError: LocalizedError {
         guard (200..<300).contains(status) else {
             throw LLMError(message: "GET /models: HTTP \(status) \(String(decoding: data.prefix(200), as: UTF8.self))")
         }
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return (json?["data"] as? [[String: Any]]) ?? (json?["models"] as? [[String: Any]]) ?? []
+        // {"data": [{"id"}]} (OpenAI), {"models": [...]}, a bare array, or lists of plain ids
+        let json = try? JSONSerialization.jsonObject(with: data)
+        let dict = json as? [String: Any]
+        let items = (dict?["data"] ?? dict?["models"] ?? json) as? [Any] ?? []
+        return items.compactMap { $0 as? [String: Any] ?? ($0 as? String).map { ["id": $0] } }
     }
 
     private func post(_ body: [String: Any], maxTokens: Int, started: Double, requestID: String) async throws

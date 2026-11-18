@@ -22,6 +22,7 @@
 		A012760CBADF39609381B58C /* ActionCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7115BDABDCC063D327F44263 /* ActionCacheTests.swift */; };
 		12CB60794EF25D7E46829057 /* InventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 367988E9889C1393CC8584F8 /* InventoryTests.swift */; };
 		7DD892B0E4372254A2F7F011 /* LongRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */; };
+		C7F1E5000000000000000E01 /* ModelListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000E02 /* ModelListTests.swift */; };
 		3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935598F169616E6F22321BD4 /* StandbyTests.swift */; };
 		041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406D13832E556B804F6F3887 /* HomeParts.swift */; };
 		042350D6CB7A39009DC39CD2 /* LanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A414BF4F4162E2C1E36FC4F5 /* LanTests.swift */; };
@@ -526,6 +527,7 @@
 		7115BDABDCC063D327F44263 /* ActionCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionCacheTests.swift; sourceTree = "<group>"; };
 		367988E9889C1393CC8584F8 /* InventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryTests.swift; sourceTree = "<group>"; };
 		5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongRunTests.swift; sourceTree = "<group>"; };
+		C7F1E5000000000000000E02 /* ModelListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelListTests.swift; sourceTree = "<group>"; };
 		935598F169616E6F22321BD4 /* StandbyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandbyTests.swift; sourceTree = "<group>"; };
 		541D1A2837E5F270700EAF55 /* Redactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redactor.swift; sourceTree = "<group>"; };
 		54211E1AF9F25DF548064BA9 /* RunCardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCardSnapshot.swift; sourceTree = "<group>"; };
@@ -936,6 +938,7 @@
 				7115BDABDCC063D327F44263 /* ActionCacheTests.swift */,
 				367988E9889C1393CC8584F8 /* InventoryTests.swift */,
 				5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */,
+				C7F1E5000000000000000E02 /* ModelListTests.swift */,
 				935598F169616E6F22321BD4 /* StandbyTests.swift */,
 				794E46A6A28E406A3D606661 /* ReviewTests.swift */,
 				C7F1E5000000000000000046 /* LiveNotesTests.swift */,
@@ -1511,6 +1514,7 @@
 				A012760CBADF39609381B58C /* ActionCacheTests.swift in Sources */,
 				12CB60794EF25D7E46829057 /* InventoryTests.swift in Sources */,
 				7DD892B0E4372254A2F7F011 /* LongRunTests.swift in Sources */,
+				C7F1E5000000000000000E01 /* ModelListTests.swift in Sources */,
 				3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */,
 				90594045D55F83E5EEE53574 /* ReviewTests.swift in Sources */,
 				C7F1E5000000000000000047 /* LiveNotesTests.swift in Sources */,
