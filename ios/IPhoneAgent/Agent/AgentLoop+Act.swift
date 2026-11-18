@@ -1,10 +1,15 @@
 import CoreGraphics
+import ImageIO
 import Foundation
 
 /// Carrying out one action, and its effect as the model reads it next round.
 extension AgentLoop {
     /// The last action sent: not a plan row, not the repeat guard's "blocked" row (that one sent nothing).
     var lastSent: JObject? { steps.last { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action } }
+
+    /// The first frame is the Home Screen: not when the scheme opened the task's app before it (a replay skips
+    /// autoOpen, whose "opened" row would otherwise say so).
+    var homeAtStart: Bool { startsOnHome && openedAtStart == nil }
 
     /// The previous round changed nothing on screen, so a tap may have landed off target.
     var missed: Bool { lastSent?["changed"] == .bool(false) }
@@ -20,15 +25,17 @@ extension AgentLoop {
 
     /// What an action did, the way a terminal shows a command's result.
     static func effect(_ s: JObject) -> String {
-        guard let changed = s["changed"]?.bool else { return "" }
+        guard let changed = s["changed"]?.bool else { return s["stale"] == .bool(true) ? staleEffect : "" }  // stale: iPad
         var out = changed ? " -> screen changed" : " -> screen did NOT change"
         let app = s["app"]?.str ?? ""
         switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
-            + " (the search is still on screen): open it by the name this iPhone shows, in its language"
+            + " (the search is still on screen): open it by the name this \(DeviceKind.name) shows, in its language"
         case .notOpened?: out += "; \(app) did not open (Return on its top hit did nothing):"
             + " if Spotlight still lists it, tap its icon there"
+        case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
+            + " tap back (top left) or its tabs to reach the page you need"
         default: break
         }
         if let typed = s["typed"]?.str { out += "; typing stopped: \(typed)" }
@@ -66,40 +73,158 @@ extension AgentLoop {
 
     /// What `open` found, or what `type` could not type: a field for the step (nil for every other action).
     @discardableResult
-    func perform(_ a: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
+    func perform(_ action: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
         guard let phone else { throw DeviceError(message: "no phone") }
+        // iPad: frame to screen coordinates (PadGeometry); an iPhone has no geometry and sends the model's as they are
+        let geometry = screen?.geometry
+        let a = try geometry.map { try PadGeometry.toScreen(action, $0) } ?? action
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
         case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a))
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
-        case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: screen?.aspect ?? 9 / 19.5), hold: true)
+        case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)
         case "type":
             let text = a["text"]?.str ?? ""
-            if Scripts.needsPaste(text) { return ("typed", try await pasteInstead(text)) }  // the board can't type it
-            return try await phone.type(text).map { ("typed", $0) }
+            if Scripts.needsPaste(text) {  // the board can't type it
+                let note = try await pasteInstead(text)
+                sendGuard.typed(text, missing: note == nil ? nil : text)
+                return note.map { ("typed", $0) } ?? ("result", "pasted (the board cannot type this script)")
+            }
+            let note = try await phone.type(text)
+            sendGuard.typed(text, missing: note.flatMap(SendGuard.missing))
+            return note.map { ("typed", $0) }
         case "say":  // the Live Speech field: typed, then return speaks it (never the clipboard: it asks first)
             // part of it not typed: not spoken either, half a sentence would go into the call
             if let missed = try await phone.type(a["text"]?.str ?? "") { return ("typed", missed + "; not said: clear the field and say it again") }
             try await phone.key("enter")
             return nil
-        case "clear": return try await phone.clearField().map { ("cleared", $0) }
+        case "clear":
+            sendGuard.cleared()
+            return try await phone.clearField().map { ("cleared", $0) }
         case "key":
             // `type` picks the keyboard itself: the model's own ctrl+space flipped it back to English right before a
             // type, and the pinyin it then typed went in as letters (2026-11-13)
             if Actions.isKeyboardSwitch(a) { return ("result", "not sent: type switches the keyboard itself; type the text as is, Chinese as characters") }
+            if Actions.isEnter(a), let held = sendGuard.enter(step: steps.count + 1) { return ("result", held) }
             try await phone.key(a["combo"]?.str ?? "")
         case "home":
             // keyOnly: the Home key once, no flick after it (a call's Control Center: the Live Captions panel stays
             // on screen in every app, so "the app's words are still there" always held, and the two flicks that
             // followed collapsed the panel mid-call, 2026-11-14)
             if a["keyOnly"]?.bool == true { try await phone.homeKey() } else { try await phone.goHome(again: homeAgain) }
-        case "open": return ("opened", try await phone.openApp(a["app"]?.str ?? "").rawValue)
-        case "back": try await phone.goBack()
-        case "wait": break
+        case "open":
+            let app = a["app"]?.str ?? ""
+            if AlreadyOpen.holds(app, steps) { return ("opened", OpenResult.already.rawValue) }
+            if HomeSwipeGuard.onHome(steps, startsOnHome: homeAtStart), try await tapHomeIcon(app) {
+                return ("opened", OpenResult.opened.rawValue)
+            }
+            return ("opened", try await phone.openApp(app).rawValue)
+        case "back": return try await backChecked()
+        case "wait": return try await waitFor(a).map { ("result", $0) }
         case let other: throw Actions.ParseError(message: "unknown action \(other ?? "nil")")
         }
         return nil
+    }
+}
+
+extension AgentLoop {
+    /// The top-left back arrow of a pushed page, 0-1000 (where the model tapped it when the edge swipe did nothing).
+    static let backArrow = (x: 56, y: 69)
+    static let backWords: Set<String> = ["<", "‹", "〈", "く", "返回", "Back", "back"]
+
+    /// `back` as the edge swipe, then the top-left arrow when the screen did not move. Henry 2026-11-18: in one run
+    /// back often did nothing and the model spent a step each time tapping the arrow itself.
+    func backChecked() async throws -> (String, String)? {
+        guard let phone else { return nil }
+        let before = screen?.frame
+        try await phone.goBack()
+        lastActed = now()
+        _ = await settle()
+        let (after, pointer) = (screen?.frame, pointerAt)
+        guard let before, !(await Vision.off { Vision.changed(before, after, ignore: [pointer]) }) else { return nil }
+        // the AssistiveTouch button parked there: tapping it opens its menu, not the page's back (2026-11-18)
+        let arrow = (x: Double(Self.backArrow.x) / 1000, y: Double(Self.backArrow.y) / 1000)
+        if (AssistiveTouchSpots.all + assistiveHits.map { (x: Double($0.x) / 1000, y: Double($0.y) / 1000) })
+            .contains(where: { abs($0.x - arrow.x) < 0.08 && abs($0.y - arrow.y) < 0.08 }) {
+            DebugLog.write("back: the swipe changed nothing; the AssistiveTouch button sits on the arrow, not tapped")
+            return ("result", "the back swipe changed nothing, and the AssistiveTouch button covers the top-left arrow: "
+                    + "tap the page's own back button just right of it, or the back arrow's text")
+        }
+        // a page with no back arrow (an app's home: a city or a title up there) is left alone
+        if let after, let image = Vision.image(after) {
+            let size = CGSize(width: image.width, height: image.height)
+            let words = await UITreeOCR.lines(image).filter { line in
+                line.box.count == 4 && Double(line.box[0]) < 0.15 * size.width  // below the status bar's clock, above 12%
+                    && Double(line.box[1] + line.box[3]) / 2 > 0.055 * size.height && Double(line.box[1] + line.box[3]) / 2 < 0.12 * size.height
+            }.map(\.text)
+            let arrow = { (t: String) in Self.backWords.contains(t) || ["<", "‹", "〈", "く"].contains { t.hasPrefix($0) } }
+            if let word = words.first(where: { !arrow($0.trimmingCharacters(in: .whitespaces)) }) {
+                DebugLog.write("back: the swipe changed nothing; top-left shows \"\(word.prefix(12))\", no arrow tapped")
+                return ("result", "the back swipe changed nothing, and this page has no back arrow at the top left")
+            }
+        }
+        DebugLog.write("back: the swipe changed nothing; tapping the top-left arrow")
+        _ = try await perform(["action": .str("tap"), "x": .int(Self.backArrow.x), "y": .int(Self.backArrow.y)])
+        return ("result", "the back swipe did nothing, so the top-left arrow was tapped")
+    }
+
+    /// `open` on the Home Screen with the app's icon on it: tap the icon (above its label) instead of Spotlight.
+    /// 2026-11-17: 3 of 5 failed opens had the icon on screen while Spotlight did not find the app. True only when
+    /// the screen then left the Home Screen; else Spotlight runs as before (a miss costs one OCR, ~0.3 s).
+    func tapHomeIcon(_ app: String) async throws -> Bool {
+        guard let phone, !app.isEmpty, let screen, screen.live, let before = screen.frame, let image = Vision.image(before) else { return false }
+        let lines = await UITreeOCR.lines(image, languages: UITreeOCR.languages(for: app), whole: true)
+        let size = CGSize(width: image.width, height: image.height)
+        guard let spot = Self.homeIconSpot(lines, labels: [app] + AppNames.labels(app), size: size) else { return false }
+        DebugLog.write("open \(app): its icon is on the Home Screen, tapping it")
+        try await phone.tap(spot.x, spot.y, aim: true)
+        lastActed = now()
+        _ = await settle()
+        let after = screen.frame
+        let left = await Vision.off { Vision.bigChange(before, after) }
+        DebugLog.write("open \(app): icon tap \(left ? "opened it" : "did nothing, Spotlight next")")
+        return left
+    }
+
+    /// Where to tap the icon whose label is one of `labels`: above the label by `iconLift` of the label's own
+    /// height (measured, so any screen size and text size), on the icon. Only one such label: two (a widget, a
+    /// folder name) leave it to Spotlight.
+    static let iconLift = 1.5
+    static func homeIconSpot(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> CGPoint? {
+        let spots = AppOpener.resultSpots(lines, labels: labels, size: size)
+        guard spots.count == 1, let label = lines.first(where: { line in
+            line.box.count == 4 && AppOpener.resultSpots([line], labels: labels, size: size) == spots
+        }) else { return nil }
+        let top = Double(label.box[1]), height = Double(label.box[3] - label.box[1])
+        let y = (top - iconLift * height) / size.height
+        return y > 0 ? CGPoint(x: spots[0].x, y: y) : nil
+    }
+}
+
+/// `open APP` while the run is inside that app (it opened it and has not gone Home or opened another since): the
+/// Home key, Spotlight and the typing cost 20-57 s and came back to the same app (2026-11-17: `open 美团外卖` from
+/// one of its shop pages, 57 s, not_opened). Nothing is sent; the model is told to go back instead. Asked a second
+/// time in a row, it really opens (the run may have left the app in a way the steps do not show).
+enum AlreadyOpen {
+    static func holds(_ app: String, _ steps: [JObject]) -> Bool {
+        let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }
+        if let last = sent.last, last["action"]?.str == "open", last["opened"]?.str == OpenResult.already.rawValue { return false }
+        for s in sent.reversed() {
+            switch s["action"]?.str {
+            case "home": return false
+            case "open":
+                guard same(s["app"]?.str ?? "", app) else { return false }
+                if s["opened"]?.str == OpenResult.opened.rawValue { return true }
+            default: continue
+            }
+        }
+        return false
+    }
+
+    private static func same(_ a: String, _ b: String) -> Bool {
+        let n = { (s: String) in s.lowercased().filter { !$0.isWhitespace } }
+        return n(a) == n(b) || !AppNames.labels(a).isEmpty && AppNames.labels(a).contains { n($0) == n(b) }
     }
 }
 
@@ -110,15 +235,16 @@ enum SwipeClamp {
     static let limit = 300.0, edge = 80.0  // Control Center swipes start ~50 from the top
 
     /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
-    static func apply(_ a: inout JObject) {
-        let (x, y, cut) = end(a)
+    static func apply(_ a: inout JObject, limit: Double = limit) {
+        let (x, y, cut) = end(a, limit: limit)
         guard cut else { return }
         (a["x2"], a["y2"]) = (.int(Int(x.rounded())), .int(Int(y.rounded())))
         a["result"] = .str("swipe shortened to \(Int(limit)) units; swipe again to go further")
     }
 
-    /// The swipe's end in 0-1000 units, and whether it was cut short.
-    static func end(_ a: JObject) -> (x: Double, y: Double, cut: Bool) {
+    /// The swipe's end in 0-1000 units, and whether it was cut short; `limit` is shorter on a phone whose lists
+    /// glide on (ScrollMeter.gain).
+    static func end(_ a: JObject, limit: Double = limit) -> (x: Double, y: Double, cut: Bool) {
         let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
         let length = hypot(x2 - x1, y2 - y1)
         let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
@@ -131,9 +257,28 @@ enum SwipeClamp {
 /// A tap outside the 0-1000 screen is never sent: clamped, it lands on the screen's edge (the home bar, Control
 /// Center), where a press sets off system gestures the model never asked for.
 enum OffScreen {
-    static func reason(_ a: JObject) -> String? {
+    /// `image`: the size of the screenshot the model saw. A y past 1000 that fits inside it is most likely in that
+    /// image's pixels (2026-11-17: y 1083-1108 in 540 x 1170 images, 14% of runs): still not tapped (a guessed
+    /// conversion could press Send), but the note gives the 0-1000 point that pixel would be.
+    static func reason(_ a: JObject, image: @autoclosure () -> CGSize? = nil) -> String? {
         guard let x = a["x"]?.double, let y = a["y"]?.double, !(0...1000).contains(x) || !(0...1000).contains(y) else { return nil }
-        return "not tapped: \(Int(x)), \(Int(y)) is off the screen; x and y run 0-1000"
+        var out = "not tapped: \(Int(x)), \(Int(y)) is off the screen; x and y run 0-1000"
+        if let image = image(), image.width > 0, image.height > 1000, (0...image.width).contains(x), (0...image.height).contains(y) {
+            out += " (not pixels of the screenshot; if you meant its pixel \(Int(x)), \(Int(y)), that is x \(Int(x * 1000 / image.width)), "
+                + "y \(Int(y * 1000 / image.height)))"
+        }
+        return out
+    }
+
+    /// The size of the copy the model gets (ModelImage), from the JPEG the step looked at.
+    static func modelSize(_ jpeg: Data?) -> CGSize? {
+        guard let jpeg, let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let pw = props[kCGImagePropertyPixelWidth] as? Int, let ph = props[kCGImagePropertyPixelHeight] as? Int, pw > 0
+        else { return nil }
+        let w = Double(pw), h = Double(ph)
+        let sent = ModelImage.on ? min(Double(ModelImage.maxWidth), w) : w
+        return CGSize(width: sent, height: (h * sent / w).rounded())
     }
 }
 
@@ -167,5 +312,58 @@ enum IslandGuard {
         }
         return "not tapped: \(Int(x)), \(Int(y)) is on the Dynamic Island (top center), where a tap leaves the app;"
             + " tap the element left of x \(Int(zone.minX)), right of x \(Int(zone.maxX)) or below y \(to)"
+    }
+}
+
+/// Enter after a `type`, held back once when it would do harm, for any app (Wiki #1007, 2026-11-16):
+/// - N2: the typing stopped part way ("not typed: ..."), and Enter sent half a message (WeChat, Messages);
+/// - N7: the goal was reached, and the same text was typed and sent again (QQ, ~4 times in one run).
+/// Held once each, with the reason for the model; the same Enter again goes through (a search run twice is
+/// legitimate). A `clear` or a complete `type` starts over.
+struct SendGuard {
+    private(set) var missing: String?  // what the last `type` did not get into the field
+    private(set) var pending: String?  // the last complete `type`, not yet entered
+    private(set) var sent: [String: Int] = [:]  // text -> the step that entered it
+    private var heldIncomplete = false, heldRepeat: String?
+
+    /// The part a `type` note says is missing (`not typed: "..."`). Every note is a problem (a word cleared, symbols
+    /// wrong, nothing typed): "" when it does not say what is missing (the whole text is then taken as unsure).
+    static func missing(_ note: String) -> String? {
+        guard let r = note.range(of: "not typed: \"", options: .backwards) else { return "" }
+        let rest = String(note[r.upperBound...].prefix { $0 != "\"" })
+        return rest
+    }
+
+    mutating func typed(_ text: String, missing: String?) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let missing {
+            self.missing = missing.isEmpty ? text : missing
+            pending = nil
+        } else {
+            self.missing = nil
+            pending = text.isEmpty ? nil : text
+            heldIncomplete = false
+        }
+    }
+
+    mutating func cleared() {
+        (missing, pending, heldIncomplete) = (nil, nil, false)
+    }
+
+    /// Before Enter at `step`: a reason to hold it back, or nil to send it.
+    mutating func enter(step: Int) -> String? {
+        if let missing, !heldIncomplete {
+            heldIncomplete = true
+            return "not sent: the field holds only part of the text (not typed: \"\(missing)\"). Type the rest first,"
+                + " or clear the field; key enter again to send it as it is"
+        }
+        if let text = pending, let at = sent[text], heldRepeat != text {
+            heldRepeat = text
+            return "not sent: \"\(text)\" was already entered at step \(at). If it is on screen, the goal may be done;"
+                + " key enter again only to enter it a second time"
+        }
+        if let text = pending { sent[text] = step }
+        (pending, missing, heldIncomplete, heldRepeat) = (nil, nil, false, nil)
+        return nil
     }
 }

@@ -124,11 +124,13 @@ import Foundation
     func endStandby() { if isStandby { end(nil) } }
 
     /// Step counter, the model's words, the mood; `status` also changes what the character says and where it looks.
+    /// `count`: the task's own done / total (Notebook.count), when the agent gave a total.
     func update(mood: Mood, step: Int, line: String, phase: AgentActivityAttributes.Phase? = nil, status: IslandStatus? = nil,
-                since: Date? = nil) {
+                since: Date? = nil, count: (done: Int, total: Int)? = nil) {
         guard var state = last else { return }
         state.mood = mood
         state.step = step
+        if let count { (state.done, state.total) = (count.done, count.total) }
         state.line = line
         if let phase { state.phase = phase }
         if let since { state.since = since }

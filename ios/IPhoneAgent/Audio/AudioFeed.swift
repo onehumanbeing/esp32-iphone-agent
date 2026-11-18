@@ -173,8 +173,9 @@ enum ListenSetting {
         let lines = await screenLines()
         let t1 = now(), choices = SpeechLanguages.choices(), t2 = now()
         if verbose { DebugLog.write(String(format: "audio: screen text (OCR %.0f ms, choices %.0f ms) ", (t1 - t0) * 1000, (t2 - t1) * 1000) + "\(lines.prefix(12))") }
-        guard let (id, line) = SpeechLanguages.language(of: lines, among: choices),
-              id != SpeechLanguages.second else { return }
+        // off the main thread: it showed in the main-thread stall log (2026-11-19)
+        let found = await Task.detached(priority: .utility) { SpeechLanguages.language(of: lines, among: choices) }.value
+        guard let (id, line) = found, id != SpeechLanguages.second else { return }
         DebugLog.write("audio: the screen is in \(id) (\"\(line.prefix(40))\"); transcribing that from the next sound")
         SpeechLanguages.seen = id
         seenAt = clock()

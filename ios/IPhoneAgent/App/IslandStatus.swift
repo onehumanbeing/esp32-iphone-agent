@@ -75,6 +75,12 @@ struct IslandStatus: Equatable {
              look: nil, minimal: String(localized: "Plan"))
     }
 
+    /// Everything collected, the phone handed back: the result is written in the background.
+    static var wrapping: Self {
+        Self(short: String(localized: "Writing up…"), full: String(localized: "Got everything. Writing the result; the phone is yours"),
+             look: nil, minimal: String(localized: "Write"))
+    }
+
     static var retrying: Self {
         Self(short: String(localized: "Retrying…"), full: String(localized: "The model timed out. Trying once more…"), look: nil, minimal: String(localized: "Retry"))
     }
@@ -113,6 +119,7 @@ struct IslandStatus: Equatable {
         case "home": minimal = String(localized: "Home")
         case "back": minimal = String(localized: "Back")
         case "tool": minimal = String(localized: "Search")
+        case "guide": minimal = String(localized: "Guide")
         default: minimal = String(localized: "Wait")
         }
         func say(_ verb: (String) -> String, _ bare: String, _ what: String?) -> Self {
@@ -146,6 +153,8 @@ struct IslandStatus: Equatable {
             let query = line.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init)?
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
             return say({ String(localized: "Searching \($0)") }, String(localized: "Searching…"), query)
+        case "guide":
+            return say({ String(localized: "Reading the guide for \($0)") }, String(localized: "Reading a guide…"), act["text"]?.str)
         default:
             return Self(short: String(localized: "Waiting…"), full: String(localized: "Waiting for the screen…"), look: nil, minimal: minimal)
         }

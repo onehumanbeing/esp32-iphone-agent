@@ -7,6 +7,9 @@ import Foundation
     var wantsAudio: () -> Bool { get set }
     var onActive: ((Bool) -> Void)? { get set }
     var resumeAt: () -> UInt32? { get set }  // TCP: the decoder's last unit, for `hello … at` (UDP ignores it)
+    /// TCP: prove the token instead of sending it, and decrypt (LanAuth; the board on a home network). Asked when a
+    /// connection opens. UDP ignores it.
+    var secure: () -> Bool { get set }
     var active: Bool { get }
     var kbps: Double { get }
     var nacks: Int { get }   // UDP resend requests (TCP: 0)
@@ -30,15 +33,19 @@ enum VideoTransport {
 /// assembler lost its place); the board sends [u16 LE length][chunk] records, a zero-length one answering
 /// hello/ka. After the ack the app sends "audio\n" if it wants the AirPlay audio: records with flag 0x80
 /// (AudioRecord), split off here before the video assembler sees them.
+/// Secure (LanAuth, a board on a home network): "chal\n" instead, answered by a record "chal<nonce>", then
+/// "auth <hmac> [at <ms>]\n"; every non-empty record after the ack is decrypted, and a resume is "resume [at <ms>]".
 /// A plain BSD socket so the kernel routes 192.168.4.x to the hotspot (see VideoSocket).
 @MainActor final class VideoStream: WifiVideoLink {
     static let port: UInt16 = 7201
+    var port = VideoStream.port  // a test's fake board
 
     var onChunk: ((Data) -> Void)?
     var onAudio: ((Data) -> Void)?
     var wantsAudio: () -> Bool = { false }
     var onActive: ((Bool) -> Void)?
     var resumeAt: () -> UInt32? = { nil }
+    var secure: () -> Bool = { false }
     var log: (String) -> Void = { DebugLog.write($0) }
     private(set) var active = false
     private(set) var kbps = 0.0
@@ -50,6 +57,9 @@ enum VideoTransport {
     private var source: DispatchSourceRead?
     private var target: (ip: String, token: String)?
     private var connected = false, acked = false
+    /// This connection proves the token (secure); `cipher` once the board took the proof.
+    private var proving = false, proved = false
+    private var cipher: LanAuth.Stream?
     private var buffer = Data()
     private var lastByte = 0.0, lastSent = 0.0, openedAt = 0.0
     private var lastError = ""
@@ -74,6 +84,7 @@ enum VideoTransport {
         guard let ip, let token, !ip.isEmpty, !token.isEmpty, ip != "0.0.0.0" else { return stop() }
         if target?.ip == ip && target?.token == token && fd >= 0 { return }
         stop()
+        (refusals, retryAt) = (0, 0)  // a new board address or boot: no backoff carried over
         target = (ip, token)
         open()
         timer = Task { [weak self] in
@@ -94,7 +105,7 @@ enum VideoTransport {
     func resume() {
         guard acked, let token = target?.token else { return }
         audioAsked = false  // older firmware forgets "audio" on any hello: ask again
-        if send(hello(token)) { log("video: wifi stream lost its place; asked to go on" + (resumeAt().map { " after \($0)" } ?? " from the IDR")) }
+        if send(proving ? "resume" + (resumeAt().map { " at \($0)" } ?? "") + "\n" : hello(token)) { log("video: wifi stream lost its place; asked to go on" + (resumeAt().map { " after \($0)" } ?? " from the IDR")) }
     }
 
     func stop() {
@@ -111,6 +122,9 @@ enum VideoTransport {
         connected = false
         acked = false
         audioAsked = false
+        proving = secure()
+        proved = false
+        cipher = nil
         buffer = Data()
         openedAt = now()
         let fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
@@ -121,7 +135,7 @@ enum VideoTransport {
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = Self.port.bigEndian
+        addr.sin_port = port.bigEndian
         guard inet_pton(AF_INET, target.ip, &addr.sin_addr) == 1 else { close(fd); return log("video: bad board ip \(target.ip)") }
         let rc = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
@@ -143,7 +157,7 @@ enum VideoTransport {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.fd == fd else { return }
                 if !batch.isEmpty { self.received(batch) }
-                if closed { self.log("video: wifi stream closed by the board"); self.reopen() }
+                if closed { self.closedByBoard() }
             }
         }
         source.setCancelHandler { close(fd) }
@@ -167,12 +181,38 @@ enum VideoTransport {
         connected = false
         acked = false
         audioAsked = false
+        proved = false
+        cipher = nil
     }
 
     private func reopen() {
         closeSocket()
         setActive(false)
         open()
+    }
+
+    /// Closes in a row before the board answered (it refused the hello, or still served the session from before a
+    /// network change), and when the next try may go.
+    private var refusals = 0, retryAt = 0.0
+    nonisolated static func retryDelay(after refusals: Int) -> Double { min(5, 0.25 * pow(2, Double(max(refusals, 1) - 1))) }
+
+    /// The board closed the stream. Before it answered: the next try waits, longer each time. Reconnecting at once
+    /// tried ~1,100 times in 20 s after the board moved to the home Wi-Fi (2026-11-17), each one a connection the
+    /// board had to take and drop. A session that was up reconnects at once, as before.
+    private func closedByBoard() {
+        guard !acked else {
+            log("video: wifi stream closed by the board")
+            refusals = 0
+            return reopen()
+        }
+        refusals += 1
+        let wait = Self.retryDelay(after: refusals)
+        if refusals == 1 || refusals.isMultiple(of: 10) {
+            log(String(format: "video: the board closed the stream before answering (%d in a row); next try in %.2f s", refusals, wait))
+        }
+        closeSocket()
+        setActive(false)
+        retryAt = now() + wait
     }
 
     private func note(_ what: String, _ code: Int32) {
@@ -191,12 +231,18 @@ enum VideoTransport {
             let len = Int(buffer[at]) | Int(buffer[at + 1]) << 8
             guard buffer.endIndex - at - 2 >= len else { break }
             if len == 0 {
-                if !acked { log("video: wifi on (tcp)"); lastError = "" }
+                if !acked { log("video: wifi on (tcp\(proving ? ", encrypted" : ""))"); lastError = ""; refusals = 0 }
                 acked = true
                 setActive(true)
             } else if acked {
-                let chunk = buffer.subdata(in: (at + 2)..<(at + 2 + len))
+                var chunk = buffer.subdata(in: (at + 2)..<(at + 2 + len))
+                if let cipher { chunk = cipher.crypt(chunk) }
                 if AudioRecord.isAudio(chunk) { onAudio?(chunk) } else { onChunk?(chunk) }
+            } else if proving, !proved, let token = target?.token,
+                      let nonce = LanAuth.challenge(buffer.subdata(in: (at + 2)..<(at + 2 + len))) {
+                // the board's challenge: answer it; the stream is encrypted from the ack on
+                cipher = LanAuth.Stream(token: token, nonce: nonce)
+                proved = send("auth \(LanAuth.video(token: token, nonce: nonce))" + (resumeAt().map { " at \($0)" } ?? "") + "\n")
             }
             at += 2 + len
         }
@@ -210,10 +256,14 @@ enum VideoTransport {
             windowBytes = 0
             windowStart = t
         }
+        if fd < 0, target != nil, retryAt > 0, t >= retryAt {  // a try after the board closed one (closedByBoard)
+            retryAt = 0
+            open()
+        }
         guard let token = target?.token, fd >= 0 else { return }
         if !connected {
-            // Writable once the connect is done: say hello. Give up on a connect that hangs.
-            if send(hello(token)) { connected = true; lastByte = t; return }
+            // Writable once the connect is done: say hello (or ask for a challenge). Give up on a connect that hangs.
+            if send(proving ? "chal\n" : hello(token)) { connected = true; lastByte = t; return }
             if t - openedAt > 5 { reopen() }
             return
         }
@@ -224,7 +274,8 @@ enum VideoTransport {
             return
         }
         if acked && !audioAsked && wantsAudio() { audioAsked = send("audio\n") }  // older firmware ignores it
-        if !acked && t - lastSent >= 1 { _ = send(hello(token)) }  // the keepalive goes from `queue`
+        // the keepalive goes from `queue`; a second "chal" would replace the nonce the answer is for
+        if !acked && !proving && t - lastSent >= 1 { _ = send(hello(token)) }
     }
 
     private func hello(_ token: String) -> String {

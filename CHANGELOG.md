@@ -4,8 +4,38 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.7 · firmware 0.2.6 (TestFlight)
+
+- Agent: model replies are read off the main thread (board replies no longer wait behind them), and the app logs what the main thread runs when it stalls.
+- Agent: a list whose cards already show every fact the goal asks for is read with `collect` from the top and never opened item by item; a collect stops once older items than the goal's dates show and nothing new does, and the run writes its result at once. One item with several facts (time, amount, start, end) stays one line. The first scroll back up after that is refused with the reason; a second goes through.
+- Agent: higher ceilings: model output 8000 tokens (a reply still cut at its ceiling is asked once more with 16000), each up to 300 items, notes up to 1000 characters and 5000 items, 12 write-up rounds after the hand back.
+- Agent: a done after only writing (snap, note, file, progress) ends the run, unless that file or snap failed.
+- App: a free-line lease request that never reached the server is asked again (five times) and says the connection failed instead of "busy".
+- App: Files lists every result once under Results and the rest under Files, and searches names and the text of README, notes, csv and txt. A swipe deletes at once (deleting the open folder from ⋯ still asks).
 - Rebrand: Handsy is now Manina AI, at [manina.ai](https://manina.ai) (handsy.tech redirects there). App text,
   docs, plugin and skill names (`manina`, `manina-run-tasks`) and support addresses use the new name.
+- The name is Manina AI everywhere (App Store has a different app called Manina).
+
+- Firmware 0.2.6: `type` feeds the task watchdog per character and stops after a 4 s budget (or if USB suspends) instead of blocking long enough to reboot the board. The reply is `ok`, or `err typed N of M: budget|asleep` when it stops early. Status advertises `"tchunk":1`. Older firmware still answers `ok` only.
+- Firmware 0.2.6 also: LAN mode with the LAN lock (on a home network only the owner phone mirrors; proof instead of the token, encrypted video), and a new IDR after a full GOP no longer resends the old tail (iPad rotation).
+- App: iPad support (device family 1,2), LAN mode (the board joins the home Wi-Fi), shared prompts for iPhone and iPad.
+- App: plain text is typed in chunks of at most 48 characters, so a long field stays inside that budget on current and older firmware. A partial reply is reported to the model as typing that stopped; the rest is not sent again in the same command.
+- App: Settings › Unattended (off by default), also a parameter on the Run a Task shortcut. While it is on, help and confirm prompts wait two minutes and then skip or stop — a risky step is never approved on its own, and a passcode is never typed. A failed link check recovers instead of ending the run, model 429/5xx/timeouts back off for up to ten minutes, and a lost link is waited out for two hours. A locked phone (or USB asleep) is its own waiting state. Low Power Mode, low battery and a hot phone are surfaced; under 10% and unplugged the run waits. Learned Screen Mirroring taps can reopen mirroring from Control Center.
+- App: each step records where its time went (screen, check, model before and after the first token, actions, other). The run review shows a bar on the step and a median summary; Diagnostics shows medians of the latest steps.
+- App: a tap that already changed the screen at its target skips the pointer wiggle. The next look's image (and on-device tree, when that is on) is prepared while the change check runs. Settings › Look ahead (off by default) starts the next model request once the screen is nearly still, cancels it if the screen then moves, and checks the frame again before the gesture.
+- App: the agent can save its results. `snap PATH [X1 Y1 X2 Y2]` saves the screen (or a box of it) as a .jpg and `file {JSON}` (the memory tool's view / create / str_replace / insert / delete / rename) works in Documents/memory, the folder MEMORY.md lives in; MEMORY.md itself stays the user's. A result is a folder with a Markdown README that shows its images.
+- App: a Files tab (Agent, Runs, Files, Settings) shows Memory (MEMORY.md opens the Memory page; Results inside), Logs and the user's own files, with translated names. Markdown opens rendered with its images. The ⋯ menu adds a folder or a note, imports a file and exports a folder as a .zip; swipe to delete, touch and hold to rename. The app's own data and developer folders show only with Settings › Developer › Show developer files.
+- App: logs live in Documents/logs (debug logs, crash trace, iOS diagnostics) and harness files in Documents/developer; both move there at the first launch. Logs › Send to Developer sends diagnostics, or mails the folder when this build has no upload. The harness scripts read the new paths and fall back to the old ones.
+- App: runs, intents and files point at each other. A run records the intent that started it; its review lists the files it saved; an intent's page lists its last runs and their files; the Files tab lists results newest first with the run they came from, and a result folder opens that run. A .intent file shows its first intent's icon and name (stacked when it holds several); on its page the user picks which intents to add (Select All), and one that may already be saved asks before adding a second copy. Record (Home) and Import (Runs) lost their round background.
+- App: a file or folder in the Files tab can be deleted by swiping, by touch and hold, or from the ⋯ menu inside it (results listed under a run too). Numbered images in a result folder are the user's to delete.
+- App: a note that completes an earlier one (same item, same numbers, more detail) replaces it in notes.md, and at the end a note image the run also saved under another name is shared instead of kept twice.
+- App: when the App Store has a newer version, Home shows a banner and a sheet asks once a day (Update / Later). A firmware release can name the oldest app it needs (`min_app`, `fw_release.py --min-app`); an older app does not offer it and asks for the app update instead.
+- Agent: a `file view` of a path already viewed with no write since says it is unchanged and to finish or change it; looked-up text and file views show even before the first note. Done skips the planner's second look when the progress count is reached and the run wrote its result. `find` that starts with a recommendations feed on screen looks up the page instead of stopping.
+- Agent: once the progress count is reached and a round only writes, the phone is handed back (input released, mirroring off, the island says "Writing up…") and the result is written with text-only model calls; screen actions are refused. If the write-up does not finish in 6 rounds or the model fails, the notes become README.md. A finished run that wrote its own result drops notes.md. The island shows Think from the start of a model call and Wait only after 8 s without an answer.
+- App: Delete Folder sits in the folder's ⋯ menu (one menu, not two). Firmware lists fall back to handsy.tech while manina.ai is not reachable everywhere.
+- Agent: a note's names (a shop, a hotel: parts with no digits) are checked against the page like its amounts; one the page does not show gets the same "check it" reply.
+- App: an intent keeps the first plan of a run that worked and its next runs start from it without waiting for the planner, while the instruction is unchanged. Each plan is a Markdown file in Files › Plans (one per intent, never in intents or .intent files): it opens with the intent, whether the next run uses it and Edit. The app's plan goes when the instruction changes, a run with it fails or is marked wrong, after 7 days, or with Forget Saved Plan; a plan you edited stays until the instruction changes or you delete it. The agent cannot write the folder; unknown header lines from a newer app are kept.
+- App + CLI: intent files are now `.intent` (`.esp32intent` still opens). A .intent file in the Files tab opens a preview with Add to Intents. Format: docs/intent-format.md.
 
 ## App 1.0.6 (build 17, TestFlight)
 
@@ -15,6 +45,14 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
   USB-C" to users whose board was plugged in.
 - App: when no fresh screen image arrives at startup, the app reopens the board's stream once before asking to
   restart Screen Mirroring.
+- Agent: `open` with a Chinese app name types its pinyin letters on the English keyboard first (Spotlight finds
+  apps by pinyin), and the name itself through the pinyin keyboard only when the letters list nothing. Typing
+  Chinese, a word that is not the first candidate goes in by halves instead of by its number key, and a word that
+  did not commit has its letters cleared from the field.
+- Agent: a third tap on the same spot while the screen stays much the same is held back once and the model asked
+  for another way, even when each tap read as a change (the pointer, an animation).
+- Pointer: two far landings in a row off the same way calibrate again after 3 taps instead of waiting 15 (a changed
+  tracking speed misses every tap alike); a landing's log line shows the span it moved by.
 - App: the firmware check on Home runs at most once a minute, in a task a reloaded Home doesn't cancel. Some
   starts ran hundreds of cancelled checks a second on the main thread.
 - App: with usage stats on, the app no longer crashes after the board restarts (after a firmware update, or

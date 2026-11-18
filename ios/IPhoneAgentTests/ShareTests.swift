@@ -81,6 +81,15 @@ final class ShareTests: XCTestCase {
         return settings
     }
 
+    func testAYesToTheOldFreeLineHostHoldsForItsNewName() {
+        _ = fresh()
+        AIConsent.grant("https://llm.handsy.tech/v1")
+        XCTAssertTrue(AIConsent.granted("https://llm.manina.ai/v1"), "the same service under its new name")
+        AIConsent.grant("https://llm.manina.ai/v1")
+        XCTAssertTrue(AIConsent.granted("https://llm.handsy.tech/v1"))
+        XCTAssertFalse(AIConsent.granted("https://api.example.com/v1"), "another host is asked again")
+    }
+
     func testAgreeGrantsBothAndMarksAsked() {
         let settings = fresh()
         XCTAssertTrue(settings.pendingConsent.model)
@@ -93,7 +102,7 @@ final class ShareTests: XCTestCase {
         XCTAssertTrue(JevConsent.granted)
     }
 
-    /// Agree covers Manina Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
+    /// Agree covers Manina AI Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
     func testFreeLineDefaultOnlyWithNothingSetUp() throws {
         let settings = fresh()
         XCTAssertFalse(FirstConsent.freeLineDefault(settings), "an endpoint is set up: the sheet shows that one")

@@ -51,7 +51,7 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   intent list | show NAME          saved intents (the app's format)
   intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]
   intent delete NAME
-  intent export NAME... [--screenshots] [--output FILE]   .esp32intent file for the iOS app
+  intent export NAME... [--screenshots] [--output FILE]   .intent file for the iOS app
   intent import FILE
   memory list | search TEXT        what the agent remembers (the app's MEMORY.md, same format)
   memory add TEXT [--kind preference|fact|app] [--topic APP]

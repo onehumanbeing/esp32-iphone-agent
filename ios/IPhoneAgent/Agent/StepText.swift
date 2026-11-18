@@ -36,10 +36,14 @@ enum StepText {
         case "checkpoint": return String(localized: "Saved progress")
         case "note": return String(localized: "Note")
         case "read": return String(localized: "Read “\(s["what"]?.str ?? "")”")
+        case "collect": return String(localized: "Collected “\(s["what"]?.str ?? "")”")
+        case "find": return String(localized: "Looked for “\(s["text"]?.str ?? "")”")
         case "progress": return String(localized: "Progress")
         case "write": return String(localized: "Copy the notebook")
         case "remember": return String(localized: "Remember")
         case "learn": return String(localized: "Learned")
+        case "snap": return String(localized: "Saved the screen")
+        case "file": return String(localized: "Files")
         case "ai done": return String(localized: "Part done")
         case "ai": return String(localized: "AI: \(s["goal"]?.str ?? "")")
         case "manual": return String(localized: "You: \(s["reason"]?.str ?? "")")
@@ -62,7 +66,7 @@ enum StepText {
         case "swipe", "path", "circle": return "hand.draw"
         case "type", "clear": return "keyboard"
         case "say": return "waveform"
-        case "open": return "magnifyingglass"
+        case "open": return "arrow.up.forward.app"  // not a magnifier: it read as a search button (Henry 2026-11-18)
         case "key": return "command"
         case "home": return "house"
         case "back": return "chevron.backward"
@@ -77,8 +81,11 @@ enum StepText {
         case RepeatGuard.action: return "arrow.uturn.backward"
         case "note", "progress": return "text.bubble"
         case "read": return "doc.text.viewfinder"
+        case "collect", "find": return "list.bullet.rectangle"
         case "write": return "doc.on.clipboard"
         case "remember", "learn": return "brain.head.profile"
+        case "snap": return "camera.viewfinder"
+        case "file": return "folder"
         case "reconnected": return "arrow.triangle.2.circlepath"
         case "resumed": return "play.fill"
         default: return "exclamationmark.triangle"
@@ -87,7 +94,7 @@ enum StepText {
 
     static let notMoves: Set<String> = ["plan", "replan (stuck)", "hiccup", "stopped", "error", "fail", "done", "help",
                                         "takeover", "skipped", "note", "reconnected", "resumed", "confirm", "confirmed",
-                                        "read", "progress", "remember", "learn", "ai done", "check", RepeatGuard.action, "steer", "checkpoint"]
+                                        "read", "progress", "remember", "learn", "file", "snap", "ai done", "check", RepeatGuard.action, "steer", "checkpoint"]
 }
 
 /// How a run ended.

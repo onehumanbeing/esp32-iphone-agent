@@ -9,8 +9,13 @@ enum AIConsent {
 
     static func host(_ baseURL: String) -> String { URL(string: baseURL)?.host ?? baseURL }
 
+    /// Hosts of one service under its old and new name: a consent given to one holds for the other (2026-11-18: a build
+    /// on llm.manina.ai refused every call of a user who had allowed llm.handsy.tech, and the run stopped for help).
+    nonisolated static let sameService: [String: String] = ["llm.handsy.tech": "llm.manina.ai"]
+    nonisolated static func service(_ host: String) -> String { sameService[host.lowercased()] ?? host.lowercased() }
+
     static func granted(_ baseURL: String) -> Bool {
-        !store || UserDefaults.standard.string(forKey: key) == host(baseURL)
+        !store || UserDefaults.standard.string(forKey: key).map(service) == service(host(baseURL))
     }
 
     static func grant(_ baseURL: String) { UserDefaults.standard.set(host(baseURL), forKey: key) }
@@ -49,7 +54,7 @@ extension Settings {
         set { UserDefaults.standard.set(newValue, forKey: RunShare.askedKey) }
     }
 
-    /// Nothing of one's own is set up yet, so Manina Free is what the app starts with (Trial.attach picks it once
+    /// Nothing of one's own is set up yet, so Manina AI Free is what the app starts with (Trial.attach picks it once
     /// the line answers): the sheet shows it and Agree covers it, instead of asking again on the model page.
     static func freeLineDefault(_ settings: Settings) -> Bool {
         Trial.available && settings.provider != .handsyTrial && !settings.isConfigured(settings.provider)

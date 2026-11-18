@@ -33,7 +33,8 @@ import XCTest
     func testTheSameTapAfterAnUnchangedScreenIsNotSentAndTheModelIsAskedAgain() async throws {
         let (agent, phone, model, calls, held) = try await round(
             after: [tap(500, 500, changed: false)], ["THINK: again\nDO: tap 510 490", "THINK: other\nDO: back"])
-        XCTAssertEqual(phone.calls, ["back"], "the repeat was never sent")
+        XCTAssertEqual(phone.calls, ["back", "tap"],  // back on a screen that stays put also taps the top-left arrow
+                       "the repeat was never sent")
         XCTAssertEqual(blocked(agent).count, 1)
         XCTAssertEqual(blocked(agent).first?["reason"]?.str, RepeatGuard.reason("tap"))
         XCTAssertEqual(model.prompts.count, 2)
@@ -56,8 +57,8 @@ import XCTest
     func testTheSameAnswerAgainIsSent() async throws {
         let (agent, phone, model, _, _) = try await round(
             after: [tap(500, 500, changed: false)], ["THINK: a\nDO: tap 500 500", "THINK: b\nDO: tap 500 500"])
-        XCTAssertEqual(model.prompts.count, 2, "asked again once per round only")
-        XCTAssertEqual(blocked(agent).count, 1)
+        XCTAssertEqual(model.prompts.count, 3, "asked again, then once more plainly (#166), never more")
+        XCTAssertEqual(blocked(agent).count, 2)
         XCTAssertEqual(phone.calls.first, "tap")
         XCTAssertEqual(agent.steps.last?["action"]?.str, "tap")
         XCTAssertEqual(agent.steps.last?["changed"], .bool(false), "the stall count sees it as before")
@@ -101,8 +102,8 @@ import XCTest
         await agent.run()
         XCTAssertEqual(asked, [NoProgress.reason], "NoProgress still asks after the same repeats")
         XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "tap" }.count, NoProgress.limit + 1)
-        XCTAssertEqual(blocked(agent).count, NoProgress.limit, "once in each round after the first")
-        XCTAssertEqual(model.prompts.count, 1 + 2 * NoProgress.limit)
+        XCTAssertEqual(blocked(agent).count, 2 * NoProgress.limit, "twice in each round after the first (#166)")
+        XCTAssertEqual(model.prompts.count, 1 + 3 * NoProgress.limit)
         XCTAssertTrue(StepText.notMoves.contains(RepeatGuard.action))
     }
 
@@ -115,6 +116,45 @@ import XCTest
         XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: [confirmed]), "the commit itself")
         let asked = steps + [["action": .str(RepeatGuard.action), "reason": .str(CommitGuard.reason)]]
         XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: asked), "its second answer stands")
+        let nextRow = steps + [["action": .str("swipe"), "x1": .num(800), "y1": .num(400), "x2": .num(200), "y2": .num(400)]]
+        XCTAssertNil(CommitGuard.repeated([tap(500, 938)], after: nextRow), "a bulk delete: another gesture came between")
+    }
+
+    func testAConfirmationStaysInThePromptAfterItScrollsOut() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        agent.steps = [["action": .str("confirmed"), "reason": .str("the user said yes, do it now: delete 20 orders")]]
+            + (0..<9).map { tap(500, Double(100 + $0 * 50), changed: true) }
+        XCTAssertTrue(agent.actorUserPrompt().contains("The user confirmed earlier (still holds):\n- the user said yes, do it now: delete 20 orders"))
+        agent.steps = Array(agent.steps.prefix(3))
+        XCTAssertFalse(agent.actorUserPrompt().contains("confirmed earlier"), "still in the recent actions")
+    }
+
+    func testTheSameAnswerAfterTheHoldIsAskedOnceMoreThenSent() async throws {
+        let (agent, phone, model, _, _) = try await round(after: [tap(500, 500, changed: false)],
+            ["THINK: a\nDO: tap 500 500", "THINK: b\nDO: tap 505 500", "THINK: c\nDO: back"])
+        XCTAssertEqual(model.prompts.count, 3)
+        XCTAssertEqual(blocked(agent).map { $0["reason"]?.str }, [RepeatGuard.reason("tap"), RepeatGuard.insist("tap")])
+        XCTAssertEqual(phone.calls, ["back", "tap"],  // back on a screen that stays put also taps the top-left arrow
+                       "neither repeat was sent")
+    }
+
+    func testScrollGuardHoldsTheFourthScrollInARowOnce() {
+        let swipe: JObject = ["action": .str("swipe"), "x1": .int(500), "y1": .int(700), "x2": .int(500), "y2": .int(400)]
+        let tap: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(1)]
+        XCTAssertNil(ScrollGuard.repeated([swipe], after: [tap, swipe, swipe]), "two in a row")
+        XCTAssertNotNil(ScrollGuard.repeated([swipe], after: [tap, swipe, swipe, swipe]))
+        let held: JObject = ["action": .str(RepeatGuard.action), "reason": .str(ScrollGuard.reason)]
+        XCTAssertNil(ScrollGuard.repeated([swipe], after: [swipe, swipe, swipe, held]), "asked once already")
+        let read: JObject = ["action": .str("read"), "what": .str("x")]
+        XCTAssertNil(ScrollGuard.repeated([swipe], after: [swipe, swipe, read, swipe]), "a read in between")
+        XCTAssertNil(ScrollGuard.repeated([tap], after: [swipe, swipe, swipe]), "not a scroll")
+    }
+
+    func testFeedHeaderOnlyWhenTheSwipeBroughtItUp() {
+        XCTAssertEqual(Feed.reached(["订单信息", "猜你喜欢"], before: ["配送地址"]), "猜你喜欢")
+        XCTAssertNil(Feed.reached(["猜你喜欢"], before: ["猜你喜欢"]), "already on screen before")
+        XCTAssertNil(Feed.header(["我们为你推荐了几家附近评分很高的店铺，欢迎下单"]), "a sentence, not a header")
+        XCTAssertEqual(Feed.header(["You may also like"]), "You may also like")
     }
 }
 
@@ -135,6 +175,8 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNotNil(LoopGuard.repeated([g("tap", 900, 900)], after: [a, b, a]))
         XCTAssertNil(LoopGuard.repeated([g("tap", 500, 500)], after: [a, b, a]))
         XCTAssertNil(LoopGuard.repeated([g("tap", 900, 900)], after: [b, a]), "needs three before it")
+        XCTAssertNil(LoopGuard.repeated([g("tap", 900, 900)], after: [a, b, a], sameScreen: { _, _ in false }),
+                     "the same two moves on new content (a bulk delete)")
     }
 
     func testASwipeOnTheHomeScreenIsHeldButNotFromAnEdgeOrInAnApp() {
@@ -188,11 +230,190 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNil(short["result"])
     }
 
+    func testEnterIsHeldOnceAfterTypingThatStoppedPartWay() {
+        var g = SendGuard()
+        g.typed("我们晚上七点见", missing: SendGuard.missing("\"七点\" is not among the candidates for qidian (cleared); typed \"我们晚上\", not typed: \"七点见\""))
+        XCTAssertEqual(g.missing, "七点见")
+        XCTAssertNotNil(g.enter(step: 3))
+        XCTAssertNil(g.enter(step: 4), "enter again: sent as it is")
+        g.typed("好的", missing: SendGuard.missing("\"好的\" did not show up in the field after committing it (cleared); typed \"好的\""))
+        XCTAssertNotNil(g.enter(step: 5), "a note without the rest: unsure, held once")
+        g.cleared()
+        XCTAssertNil(g.enter(step: 6), "cleared: nothing held")
+    }
+
+    func testTheSameTextEnteredAgainIsHeldOnce() {
+        var g = SendGuard()
+        g.typed("hello", missing: nil)
+        XCTAssertNil(g.enter(step: 2))
+        XCTAssertNil(g.enter(step: 3), "enter with nothing typed since: not a repeat")
+        g.typed("hello", missing: nil)
+        XCTAssertEqual(g.enter(step: 6)?.contains("step 2"), true)
+        XCTAssertNil(g.enter(step: 7), "enter again: entered a second time")
+        g.typed("hello", missing: nil)
+        XCTAssertNotNil(g.enter(step: 9), "a third time is held again")
+        g.typed("bye", missing: nil)
+        XCTAssertNil(g.enter(step: 10))
+        XCTAssertTrue(Actions.isEnter(["action": .str("key"), "combo": .str("Return")]))
+        XCTAssertFalse(Actions.isEnter(["action": .str("key"), "combo": .str("cmd+enter")]))
+    }
+
+    func testPersonalHotspotIsTheBridgeOnItsSubnet() {
+        XCTAssertTrue(Hotspot.sharing([("en0", "192.168.4.2"), ("bridge100", "172.20.10.1")]))
+        XCTAssertFalse(Hotspot.sharing([("en0", "172.20.10.3")]), "joined to another iPhone's hotspot: not sharing")
+        XCTAssertFalse(Hotspot.sharing([("bridge0", "192.168.2.1"), ("pdp_ip0", "10.1.2.3")]))
+    }
+
+    func testSchemesByAnyName() {
+        XCTAssertEqual(AppNames.schemeURLs("微信").map(\.absoluteString), ["weixin://", "wechat://"], "hand list first")
+        XCTAssertEqual(AppNames.schemeURLs("Weixin").map(\.absoluteString), ["weixin://", "wechat://"])
+        XCTAssertEqual(AppNames.schemeURLs("RED").map(\.absoluteString), ["xhsdiscover://"])
+        XCTAssertTrue(AppNames.schemeURLs("设置").isEmpty, "no public scheme: the old way")
+        XCTAssertTrue(AppNames.schemeURLs("SkyTrip").isEmpty, "unknown app: the old way")
+        XCTAssertTrue(AppNames.schemes.keys.allSatisfy { en in AppNames.table.contains { $0[1] == en } }, "every scheme has a table row")
+    }
+
     func testTheOneAppATaskNames() {
         XCTAssertEqual(AppNames.only(in: "给妈妈发短信说晚点回家"), "短信")
         XCTAssertEqual(AppNames.only(in: "Open WeChat and send hi to File Transfer"), "WeChat")
         XCTAssertNil(AppNames.only(in: "Turn on dark mode on my iPhone"), "iPhone is not Phone")
         XCTAssertNil(AppNames.only(in: "把淘宝的链接发到微信"), "two apps")
+        XCTAssertEqual(AppNames.only(in: "打开美团外卖，收集订单"), "美团外卖", "not 美团")
+        XCTAssertEqual(AppNames.only(in: "打开美团外卖，收集 2026年11月9日到今天的所有外卖订单，按收货地区归类，整理成带截图的结果文件。"),
+                       "美团外卖", "文件 later in the task is not the Files app")
+        XCTAssertEqual(AppNames.schemeURLs("美团外卖").map(\.absoluteString), ["meituanwaimai://"], "its own, never 美团's")
+        XCTAssertEqual(AppNames.only(in: "在美团上找一家火锅"), "美团")
+        XCTAssertEqual(AppNames.only(in: "打开携程看订单"), "携程")
         XCTAssertNil(AppNames.only(in: "设置一个明天早上的提醒"), "loose words only")
+        XCTAssertNil(AppNames.only(in: "Check SkyTrip for my next departure. Set an alarm in Clock 30 minutes before"),
+                     "the app the table knows is a later step's")
+        XCTAssertEqual(AppNames.only(in: "先在美团看下订单，然后在微信告诉妈妈"), "美团", "the first step's app")
+        XCTAssertEqual(AppNames.only(in: "查一下 Uber 的行程，然后打开时钟设个闹钟"), "Uber", "Clock comes after then")
+        XCTAssertEqual(AppNames.only(in: "In Clock, add an alarm for 7:00"), "Clock")
+    }
+
+    /// The collected scheme list (AppSchemes.swift): apps the hand table did not know, and its extra schemes.
+    func testCollectedSchemes() {
+        XCTAssertEqual(AppNames.schemeURLs("抖音").map(\.absoluteString), ["snssdk1128://"])
+        XCTAssertEqual(AppNames.schemeURLs("Douyin").map(\.absoluteString), ["snssdk1128://"])
+        XCTAssertEqual(AppNames.schemeURLs("QQ").map(\.absoluteString), ["mqq://"], "mqqapi left out: other apps answer it")
+        XCTAssertEqual(AppNames.schemeURLs("飞书").map(\.absoluteString), ["feishu://"], "lark left out")
+        XCTAssertFalse(AppNames.schemeURLs("Messages").map(\.absoluteString).contains("sms://"))
+        XCTAssertEqual(AppNames.only(in: "打开抖音刷十分钟视频"), "抖音")
+        XCTAssertEqual(AppNames.only(in: "用滴滴打车去机场"), "滴滴")
+        XCTAssertNil(AppNames.only(in: "Zoom in on the map and find a cafe"), "a plain word, not the Zoom app")
+        XCTAssertNil(AppNames.only(in: "帮我点个外卖"), "外卖 alone names no app")
+        let names = AppNames.table.flatMap { $0 }.map(AppNames.norm)
+        XCTAssertEqual(AppNames.table.count, Set(AppNames.table.map { AppNames.norm($0[1]) }).count, "one row per app")
+        XCTAssertGreaterThan(names.count, 300)
+    }
+
+    /// A third same tap with the screen much the same each time is held, even when each read as changed; a tap that
+    /// moves the screen a lot (Continue) is not.
+    func testAThirdTapOnAStillScreenIsHeldButNotOneThatMovesIt() {
+        func tap(_ x: Double, _ y: Double, changed: Bool? = nil) -> JObject {
+            var s: JObject = ["action": .str("tap"), "x": .num(x), "y": .num(y)]
+            if let changed { s["changed"] = .bool(changed) }
+            return s
+        }
+        let t = tap(500, 500, changed: true)
+        var still = NoProgress()
+        _ = still.note([t], big: false)
+        XCTAssertNil(ThirdTapGuard.repeated([tap(505, 495)], progress: still), "the second tap goes")
+        _ = still.note([t], big: false)
+        XCTAssertNotNil(ThirdTapGuard.repeated([tap(505, 495)], progress: still), "the third is held")
+        XCTAssertNil(ThirdTapGuard.repeated([tap(700, 200)], progress: still), "another spot goes")
+        XCTAssertTrue(StuckGuard.repeatHold(ThirdTapGuard.reason))
+        var moving = NoProgress()
+        _ = moving.note([t], big: true)
+        _ = moving.note([t], big: true)
+        XCTAssertNil(ThirdTapGuard.repeated([tap(500, 500)], progress: moving))
+    }
+}
+
+/// Fallbacks of 2026-11-17: paste with read-back, pixel coordinates, the Home Screen icon, the second repeat.
+@MainActor final class FallbackTests: XCTestCase {
+
+    func testOffScreenNoteGivesThePointAPixelYWouldBe() {
+        let a: JObject = ["action": .str("tap"), "x": .int(270), "y": .int(1100)]
+        let note = OffScreen.reason(a, image: CGSize(width: 540, height: 1170)) ?? ""
+        XCTAssertTrue(note.hasPrefix("not tapped:"), note)
+        XCTAssertTrue(note.contains("x 500, y 940"), note)
+        // past the image too: only the plain note
+        let far: JObject = ["action": .str("tap"), "x": .int(270), "y": .int(1300)]
+        XCTAssertFalse(OffScreen.reason(far, image: CGSize(width: 540, height: 1170))!.contains("pixel"))
+        XCTAssertNil(OffScreen.reason(["action": .str("tap"), "x": .int(270), "y": .int(900)], image: CGSize(width: 540, height: 1170)))
+    }
+
+    func testPastedTextIsSeenByItsStartAndEnd() {
+        XCTAssertTrue(AgentLoop.shows("こんにちは", ["メッセージ", "こんにちは"]))
+        XCTAssertTrue(AgentLoop.shows("안녕하세요", ["안녕하세요 |"]))
+        XCTAssertFalse(AgentLoop.shows("안녕하세요", ["메시지"]))
+        let long = "東京駅の近くでおすすめのラーメン屋さんを教えてください"
+        XCTAssertTrue(AgentLoop.shows(long, ["東京駅の近くでおすすめの", "ラーメン屋さんを教えてください"]))
+        XCTAssertFalse(AgentLoop.shows("", ["anything"]))
+    }
+
+    func testCurrentAppIsTheLastOpenedUntilHome() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        XCTAssertNil(agent.currentApp)
+        agent.openedAtStart = "LINE"
+        XCTAssertEqual(agent.currentApp, "LINE")
+        agent.record(nil, ["action": .str("open"), "app": .str("Notes"), "opened": .str("not_found")])
+        XCTAssertEqual(agent.currentApp, "LINE")
+        agent.record(nil, ["action": .str("open"), "app": .str("KakaoTalk"), "opened": .str(OpenResult.opened.rawValue)])
+        agent.record(nil, ["action": .str("tap"), "x": .int(500), "y": .int(500)])
+        XCTAssertEqual(agent.currentApp, "KakaoTalk")
+        agent.record(nil, ["action": .str("home")])
+        XCTAssertNil(agent.currentApp)
+    }
+
+    func testHomeScreenOnlyWhenNoSchemeOpenedTheApp() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        agent.startsOnHome = true
+        XCTAssertTrue(agent.homeAtStart)
+        agent.openedAtStart = "WeChat"
+        XCTAssertFalse(agent.homeAtStart)
+    }
+
+    func testHomeIconSpotIsAboveTheOnlyLabel() {
+        let size = CGSize(width: 1000, height: 2000)
+        let lines: [(text: String, box: [Int])] = [("微信", [400, 800, 600, 840]), ("备忘录", [100, 800, 300, 840])]
+        let p = AgentLoop.homeIconSpot(lines, labels: ["微信", "WeChat"], size: size)
+        XCTAssertEqual(p?.x ?? 0, 0.5, accuracy: 0.001)
+        XCTAssertEqual(p?.y ?? 0, (800 - 1.5 * 40) / 2000, accuracy: 0.001)
+        // the name twice (a widget, a folder): Spotlight decides
+        let twice = lines + [("微信", [400, 1200, 600, 1240])]
+        XCTAssertNil(AgentLoop.homeIconSpot(twice, labels: ["微信"], size: size))
+        XCTAssertNil(AgentLoop.homeIconSpot(lines, labels: ["淘宝"], size: size))
+    }
+
+    func testTheSecondAskIsLeftOutOfTheStuckCount() {
+        XCTAssertTrue(StuckGuard.repeatHold(RepeatGuard.insist("tap")))
+        XCTAssertNil(RepeatGuard.first([["action": .str("done")]]))
+        XCTAssertEqual(RepeatGuard.first([["action": .str("plan")], ["action": .str("tap")]])?["action"]?.str, "tap")
+    }
+}
+
+final class AlreadyOpenTests: XCTestCase {
+    private func opened(_ app: String, _ result: OpenResult = .opened) -> JObject {
+        ["action": .str("open"), "app": .str(app), "opened": .str(result.rawValue)]
+    }
+
+    func testInsideTheAppItOpenedNothingIsSent() {
+        let steps = [opened("美团外卖"), ["action": .str("tap"), "x": .int(1), "y": .int(2)], ["action": .str("back")]]
+        XCTAssertTrue(AlreadyOpen.holds("美团外卖", steps))
+        XCTAssertTrue(AlreadyOpen.holds("Meituan Waimai", steps), "another name of the same app")
+    }
+
+    func testAfterHomeOrAnotherAppItOpens() {
+        XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖"), ["action": .str("home")]]))
+        XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖"), opened("微信")]))
+        XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖", .notOpened)]))
+        XCTAssertFalse(AlreadyOpen.holds("美团外卖", []))
+    }
+
+    func testAskedTwiceInARowItReallyOpens() {
+        XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖"), opened("美团外卖", .already)]))
     }
 }

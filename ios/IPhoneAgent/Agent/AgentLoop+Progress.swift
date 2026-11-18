@@ -60,6 +60,12 @@ extension AgentLoop {
         let before = progress.frame ?? round.indices.lazy.compactMap { self.shots[$0] }.first  // first: what the model saw
         let (frame, spots) = (screen?.frame, [progress.pointer, pointerAt])
         (progress.seen, progress.frame, progress.pointer) = (steps.count, frame, pointerAt)
+        if let limit = limitHit {
+            limitHit = nil
+            record(nil, ["action": .str("fail"), "reason": .str(RateLimit.reason(limit))])
+            return true
+        }
+        if !acts.isEmpty { startLimitCheck() }
         let helped = round.contains { $0["action"]?.str == "help" }
         let big = await Vision.off { Vision.bigChange(before, frame, ignore: spots) }
         if try await touchless(big: big) { return true }

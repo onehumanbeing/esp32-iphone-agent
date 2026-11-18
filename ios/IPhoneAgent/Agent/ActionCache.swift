@@ -55,8 +55,12 @@ extension AgentLoop {
     func followCache(seen: Data?) async throws {
         guard inventory.needed else { return }
         guard let last = steps.last, last["action"]?.str == "tap", last["changed"]?.bool == true,
-              let x = last["x"]?.int, let y = last["y"]?.int, let seen,
-              let label = IntentLearner.label(at: x, y, in: await DemoAnalysis.texts(seen, limit: 80)) else {
+              let x = last["x"]?.int, let y = last["y"]?.int, let seen else { return cache.gap() }
+        // the look's tree has the lines of the screen the tap was chosen on (2026-11-19: a second read took 1.5-5.6 s
+        // after every tap)
+        var shown = lookTree.map { DemoAnalysis.texts(of: $0, limit: 80) } ?? []
+        if shown.isEmpty { shown = await DemoAnalysis.texts(seen, limit: 80) }
+        guard let label = IntentLearner.label(at: x, y, in: shown) else {
             return cache.gap()
         }
         cache.add(label, at: (x, y))

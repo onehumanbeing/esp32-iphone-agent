@@ -17,6 +17,11 @@ import XCTest
         XCTAssertNil(c.reason([swipe(), swipe(), ["action": .str("tap")], swipe()]))
         c.used(at: 4)
         XCTAssertNil(c.reason(circling + [swipe()]), "counted again from the last checkpoint")
+        let taps: [JObject] = Array(repeating: ["action": .str("tap")], count: Checkpoints.reviewEvery)
+        XCTAssertNil(c.reason(Array(circling.prefix(4)) + taps.prefix(0)), "counted from 4")
+        let plan: JObject = ["action": .str("plan"), "plan": .str("x")]
+        let long: [JObject] = Array(taps.prefix(4)) + taps + [plan]
+        XCTAssertEqual(c.reason(long), "review", "the planner looks over a long stretch, a new plan or not")
         c.asked = "repeat"
         XCTAssertEqual(c.reason([]), "repeat")
         c.used(at: 5)
@@ -118,12 +123,12 @@ import XCTest
         XCTAssertEqual(planner?.model, "strong-vision")
         settings.selectedProvider = .handsyTrial
         let free = try await settings.recordingClient()
-        XCTAssertNil(free, "Manina Free: not this install (the server never said recording)")
+        XCTAssertNil(free, "Manina AI Free: not this install (the server never said recording)")
         guard settings.provider == .handsyTrial else { return }  // a build without the free line
         Trial.shared.setKey("hsk_test_" + String(repeating: "k", count: 43))
         defer { Trial.shared.setKey("") }
         let paid = try await settings.recordingClient()
-        XCTAssertEqual(paid?.model, Trial.recordingModel, "a Manina key pays for recordings")
+        XCTAssertEqual(paid?.model, Trial.recordingModel, "a Manina AI key pays for recordings")
         XCTAssertEqual(try Trial.shared.recordingHeaders()["Authorization"], "Bearer hsk_test_" + String(repeating: "k", count: 43))
     }
 

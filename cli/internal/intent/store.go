@@ -1,5 +1,5 @@
 // Package intent keeps saved intents as the iOS app does (SavedTask in Stores.swift, frames in
-// intent-frames/<id>/sNN.jpg) and reads and writes its .esp32intent files (IntentArchive.swift).
+// intent-frames/<id>/sNN.jpg) and reads and writes its .intent files (IntentArchive.swift).
 package intent
 
 import (

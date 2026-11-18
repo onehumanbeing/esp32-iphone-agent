@@ -183,5 +183,37 @@ import XCTest
         store.remove("wiki")
         XCTAssertTrue(store.imported.isEmpty)
     }
-}
 
+    func testPruneKeepsNewestAndReferencedRunsAndFitsTheBudget() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("prune-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let names = ["20261101-100000", "20261102-100000", "20261103-100000", "20261104-100000"]
+        for name in names {
+            let d = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+            try Data(count: 100_000).write(to: d.appendingPathComponent("001.jpg"))
+        }
+        // Under the budget: nothing goes.
+        XCTAssertEqual(TraceStore.prune(root, keep: [], budget: 10_000_000), [])
+        // Over it: the oldest unreferenced runs go; the newest and the intent's run stay.
+        let removed = TraceStore.prune(root, keep: ["20261101-100000"], budget: 1)
+        XCTAssertEqual(removed, ["20261102-100000", "20261103-100000"])
+        let left = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+        XCTAssertEqual(left, ["20261101-100000", "20261104-100000"])
+    }
+
+    func testPruneKeepsEachIntentsNewestRun() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("prune-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runs = [("20261101-100000", "A"), ("20261102-100000", "A"), ("20261103-100000", nil), ("20261104-100000", "B")]
+        for (name, intent) in runs {
+            let d = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+            let head = intent.map { #"{"n": 1, "kind": "task", "intent": "\#($0)"}"# } ?? #"{"n": 1, "kind": "task"}"#
+            try Data((head + "\n").utf8).write(to: d.appendingPathComponent("steps.jsonl"))
+            try Data(count: 100_000).write(to: d.appendingPathComponent("001.jpg"))
+        }
+        let removed = TraceStore.prune(root, keep: [], budget: 1)
+        XCTAssertEqual(removed, ["20261101-100000", "20261103-100000"], "A's older run and the run of no intent go")
+    }
+}

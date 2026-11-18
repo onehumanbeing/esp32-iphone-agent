@@ -100,4 +100,21 @@ import XCTest
         let left = try await home(to: frame(nil, block: CGRect(x: 0.1, y: 0.6, width: 0.8, height: 0.3)), again: true)
         XCTAssertFalse(left, "the app was left")
     }
+
+    func testScreenDiffNamesAChangedNumber() {
+        let before = ["Cart", "Bananas", "Milk", "11 items", "Checkout"], after = ["Cart", "Bananas", "Milk", "12 items", "Checkout"]
+        XCTAssertEqual(ScreenDiff.line(from: before, to: after), "\n\nNumbers changed since the last screen: \"11 items\" -> \"12 items\"")
+        XCTAssertNil(ScreenDiff.line(from: before, to: before), "nothing changed")
+        XCTAssertNil(ScreenDiff.line(from: before, to: before + ["Added to cart"]), "words only: OCR misreads them frame to frame")
+        XCTAssertNil(ScreenDiff.line(from: before + ["Eventbrite"], to: before + ["Eventorite"]), "a misread word")
+        XCTAssertNil(ScreenDiff.line(from: before + ["00"], to: before + ["含11"]), "another word around the number")
+        XCTAssertNil(ScreenDiff.line(from: before, to: ["Settings", "Wi-Fi", "2 items", "General", "Privacy"]), "another screen")
+        XCTAssertNil(ScreenDiff.line(from: ["a", "1 b"], to: ["a", "2 b"]), "too little in common to call it the same screen")
+    }
+
+    func testScreenDiffSkipsTheStatusBar() {
+        var tree = UITree(w: 540, h: 1170, nodes: [])
+        tree.lines = [("9:41", [20, 10, 80, 40]), ("12 items", [20, 600, 200, 640])]
+        XCTAssertEqual(ScreenDiff.texts(tree), ["12 items"])
+    }
 }

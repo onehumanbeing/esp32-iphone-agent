@@ -113,27 +113,22 @@ struct RecoveryPanel: View {
 
     var body: some View {
         Section {
-            HStack(spacing: Space.m) {
+            // Henry 2026-11-18: a blue icon on a red Stop beside a three-line bold title looked off; the big Stop
+            // at the bottom already stops the run, so the card only says what is missing and for how long.
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                 if stage.ask {
                     Image(systemName: "hand.raised.fill").foregroundStyle(Palette.warning)
                 } else {
                     ProgressView()
                 }
-                Text(verbatim: stage.status.full).font(.body.weight(.semibold))
-                Spacer()
-                Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
-                    .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            if stage.line != stage.status.full {
-                Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
-            }
-            HStack {
-                Spacer()
-                Button(role: .destructive) { Task { await app.stopAgent() } } label: {
-                    Label(app.stopping ? LocalizedStringKey("Stopping…") : "Stop", systemImage: "stop.fill")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: stage.status.full).font(.body)
+                    if stage.line != stage.status.full {
+                        Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
+                        .font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .disabled(app.stopping)
             }
         } header: {
             if stage.part == .frames {

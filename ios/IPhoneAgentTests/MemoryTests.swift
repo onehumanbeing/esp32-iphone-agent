@@ -18,11 +18,16 @@ import XCTest
 
     func testSummaryShowsCountsProgressAndTheLastItems() {
         var book = Notebook()
-        book.add((1...12).map { "t\($0)" })
+        let long = String(repeating: "x", count: 180)  // 40 of them: over Notebook.fullChars
+        book.add((1...40).map { "t\($0) \(long)" })
         book.setProgress("folder 1 of 3")
         let s = book.summary(lastItems: 2)
-        XCTAssertTrue(s.hasPrefix("Notebook (12 items collected; progress: folder 1 of 3):"))
-        XCTAssertTrue(s.hasSuffix("  …\n  11. t11\n  12. t12"))
+        XCTAssertTrue(s.hasPrefix("Notebook (40 items collected; progress: folder 1 of 3):"))
+        XCTAssertTrue(s.hasSuffix("  …\n  39. t39 \(long)\n  40. t40 \(long)"))
+        // a notebook that fits is shown whole: the result is written from it (2026-11-19)
+        var short = Notebook()
+        short.add((1...12).map { "t\($0)" })
+        XCTAssertTrue(short.summary(lastItems: 2).hasSuffix("  1. t1\n  2. t2\n  3. t3\n  4. t4\n  5. t5\n  6. t6\n  7. t7\n  8. t8\n  9. t9\n  10. t10\n  11. t11\n  12. t12"))
     }
 
     func testMemoryRoundTripsThePiMemoryFormat() throws {

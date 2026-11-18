@@ -1,6 +1,6 @@
 ---
 name: manina
-description: See and drive a real iPhone through an ESP32 Agent (Manina) board with the esp32agent CLI or MCP server. Use when asked to look at, tap, swipe, type on, or operate an iPhone, or to test an iOS app on a real device.
+description: See and drive a real iPhone through an ESP32 Agent (Manina AI) board with the esp32agent CLI or MCP server. Use when asked to look at, tap, swipe, type on, or operate an iPhone, or to test an iOS app on a real device.
 license: MIT-0
 metadata:
   openclaw:
@@ -10,9 +10,9 @@ metadata:
     homepage: https://manina.ai
 ---
 
-# Manina: drive a real iPhone with esp32agent
+# Manina AI: drive a real iPhone with esp32agent
 
-An ESP32 Agent board (Manina) plugs into the iPhone (USB-C models directly, Lightning models through a Lightning to
+An ESP32 Agent board (Manina AI) plugs into the iPhone (USB-C models directly, Lightning models through a Lightning to
 USB Camera Adapter) and acts as the phone's USB mouse and keyboard. It also receives the iPhone's AirPlay screen mirroring. Your computer reaches
 the board over Bluetooth with the `esp32agent` command line tool, which is also an MCP server. No jailbreak is
 needed.

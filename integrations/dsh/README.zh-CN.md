@@ -2,7 +2,7 @@
 
 [English](README.md) · 简体中文
 
-一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）插件，让 Agent 通过 ESP32 Agent（Manina）板子看到并操作一部真实的 iPhone。它包含：
+一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）插件，让 Agent 通过 ESP32 Agent（Manina AI）板子看到并操作一部真实的 iPhone。它包含：
 
 - `esp32agent` MCP 服务器（`npx -y esp32agent mcp`）：`screenshot`、`tap`、`longpress`、`swipe`、`type_text`、`press_key`、`press_button`、`device_info`，以及保存的意图和历史记录。工具在 dsh 里显示为 `mcp__esp32agent__<tool>`。
 - `manina` 技能：「看一眼 → 做一步 → 再看」的循环、怎么保存做成功的流程，以及安全规则。

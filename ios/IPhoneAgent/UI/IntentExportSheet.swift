@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Share intents as a .esp32intent file, screenshots off unless ticked; one intent can be mailed to us too.
+/// Share intents as a .intent file, screenshots off unless ticked; one intent can be mailed to us too.
 struct IntentExportSheet: View {
     @ObservedObject var app: AppModel
     let intents: [SavedTask]

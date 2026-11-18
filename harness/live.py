@@ -2,7 +2,7 @@
 """The Mac end of the app's harness link (HarnessLink.swift, Debug builds): no devicectl.
 
 Advertises _handsy-harness._tcp over Bonjour; the app connects and streams its log, which lands in
-$LIVE/debug.log (the same lines as Documents/debug.log). Commands for the app: drop a JSON array of launch
+$LIVE/debug.log (the same lines as Documents/logs/debug.log). Commands for the app: drop a JSON array of launch
 arguments into $LIVE/outbox/ (harness/lib.sh does). Screenshots the app sends go to /tmp/harness-shots/.
 $LIVE/connected exists while the app is connected. Run it in the background: harness/live.py &
 """

@@ -138,6 +138,7 @@ extension AppModel {
         DebugLog.write("run \(run): the user says \(correct ? "correct" : "wrong")")
         guard !correct else { return }
         IntentLearner.rejected.insert(run)
+        planCache.forget(run: run)
         for item in intents.items where item.runs.last?.run == run {
             intents.markLastRun(item.id, ok: false)
             if let steps = runs.run(run)?.steps.map(\.action) {
@@ -228,6 +229,7 @@ extension AppModel {
     /// `missed`: the recorded steps that missed in the run (Replay.missed); a run that did not finish demotes them.
     func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool, failed: Bool = false,
                      missed: Set<Int> = []) {
+        keepPlan(intent, run: runID, done: done, failed: failed)
         guard settings.learnFromRuns else { return }
         if done, !IntentLearner.rejected.contains(runID) {
             let lessons = IntentLearner.lessons(steps)
@@ -286,6 +288,22 @@ extension AppModel {
             intents.demote(intent.id, to: demoted, from: runID)
             DebugLog.write("intent \"\(intent.name)\": \(missed.count) missed step(s) demoted after run \(runID) "
                            + "(\(steps.count) → \(demoted.count) steps)")
+        }
+    }
+}
+
+extension AppModel {
+    /// PlanCache after an intent's run: a run that worked keeps its first plan (unless one is already kept and was
+    /// used); a run that used the kept plan and failed drops it, so the next run asks the planner again.
+    func keepPlan(_ intent: SavedTask, run: String, done: Bool, failed: Bool) {
+        if done, !IntentLearner.rejected.contains(run), settings.learnFromRuns, let plan = agent.firstPlan {
+            if !agent.usedCachedPlan || planCache.entry(for: intent) == nil {
+                planCache.save(plan, for: intent, run: run)
+                DebugLog.write("plan cache: kept the plan of run \(run) for \"\(intent.name)\"")
+            }
+        } else if failed, agent.usedCachedPlan {  // a stop by the user says nothing about the plan
+            planCache.drop(intent.id)
+            DebugLog.write("plan cache: run \(run) used the saved plan and did not finish; dropped")
         }
     }
 }

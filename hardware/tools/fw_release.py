@@ -28,6 +28,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", type=Path, default=HW / "build/hid_bridge.ino.bin")
     ap.add_argument("--notes", default="")
+    ap.add_argument("--min-app", help="the oldest app version that may install it, e.g. 1.0.7 (older apps ask to update)")
     ap.add_argument("--version", help="override FW_VERSION (the --crash-test build is 9.9.9)")
     ap.add_argument("--out", type=Path, default=HW / "dist")
     a = ap.parse_args()
@@ -42,6 +43,8 @@ def main() -> None:
     r["sig"] = base64.b64encode(key.sign(signed)).decode()
     if a.notes:
         r["notes"] = a.notes
+    if a.min_app:  # unsigned on purpose: it can only hold an update back, never let another image in
+        r["min_app"] = a.min_app
 
     out = a.out / f"v{version}"
     out.mkdir(parents=True, exist_ok=True)

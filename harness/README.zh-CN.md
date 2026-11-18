@@ -37,11 +37,11 @@ harness/hid.sh "key ctrl+space; type abc; shot"   # 给前台 App 发按键；sh
 harness/hid.sh "gop; video-reconnect; shot"       # 填满 GOP，再断开 Wi-Fi 视频：画面必须恢复实时
 ```
 
-这些脚本把参数写成 `Documents/harness-inbox/<time>.json` 交给 App（Debug 构建每秒读一次），并把 App 调到前台。直接用启动参数会丢：板子重连后，iOS 会为了蓝牙在后台恢复 App，这时 `devicectl` 的启动只会把那个进程带到前台。
+这些脚本把参数写成 `Documents/developer/harness-inbox/<time>.json` 交给 App（Debug 构建每秒读一次），并把 App 调到前台。直接用启动参数会丢：板子重连后，iOS 会为了蓝牙在后台恢复 App，这时 `devicectl` 的启动只会把那个进程带到前台。
 
 板子重启后（每次 `fw.sh`），以及板子的 GOP 缓冲已满时运行 `app.sh` 之后（新的 App 进程需要关键帧，而 iOS 只在开始镜像时发送），都要在 iPhone 上重新选择屏幕镜像。同一个 App 进程内的 Wi-Fi 视频重连会自动恢复，不需要任何操作。
 
-`fw.sh` 把镜像和一个 `firmware.json`（大小、SHA-256、MD5，版本取自 `hardware/hid_bridge/version.h`）复制到 `Documents/harness-fw-<time>/`（每次一个新目录：`devicectl` 不会替换它之前复制过的文件；千万不要传 `--remove-existing-content`，它会清空整个 App 容器），然后把 `-harness-ota <folder>` 交给 App，并跟踪它的日志直到出现结果行（最多 3 分钟）。
+`fw.sh` 把镜像和一个 `firmware.json`（大小、SHA-256、MD5，版本取自 `hardware/hid_bridge/version.h`）复制到 `Documents/developer/harness-fw-<time>/`（每次一个新目录：`devicectl` 不会替换它之前复制过的文件；千万不要传 `--remove-existing-content`，它会清空整个 App 容器），然后把 `-harness-ota <folder>` 交给 App，并跟踪它的日志直到出现结果行（最多 3 分钟）。
 
 ## 安全
 

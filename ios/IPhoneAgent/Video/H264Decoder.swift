@@ -11,6 +11,8 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         let width: Int, height: Int
         let decodeMs: Double
         let unit: AccessUnit
+        /// The decoded frame's size when black bars were cropped off it (Letterbox); nil: the frame is as decoded.
+        var uncropped: CGSize? = nil
     }
 
     var onFrame: ((Frame) -> Void)?
@@ -33,9 +35,37 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     static let emitGap = 0.15
     private var lastEmit = 0.0
     private var held: (CVImageBuffer, Double, AccessUnit)?
+    /// Black bars cropped off before the JPEG (on `queue`); `screen` set by `setScreen`.
+    private var letterbox = Letterbox()
+    private var lastCrop: CGRect?
+
+    /// The device screen's pixels (UIScreen.nativeBounds), for cropping black bars; any thread.
+    func setScreen(_ size: CGSize) {
+        queue.async { [self] in letterbox.screen = size }
+    }
+
+    /// Board time of the last IDR, and whether a unit from before it was dropped since (logged once per IDR).
+    private var idrMs: UInt32?, droppedOld = false
+
+    /// A P-frame stamped before the last IDR belongs to the GOP that IDR ended. Board firmware up to 0.2.5 sent the
+    /// tail it kept past a full GOP once more after the next IDR (an iPad's rotation after its 4 MB GOP filled,
+    /// 2026-11-17): decoded on top of the new IDR, every later frame failed (-12909) until mirroring restarted.
+    static func belongsToAnEarlierGOP(_ unit: AccessUnit, idrMs: UInt32?) -> Bool {
+        guard !unit.idr, !unit.config, let idrMs, unit.boardMs < idrMs else { return false }
+        return idrMs - unit.boardMs < 600_000  // not a board that restarted its clock (its next IDR comes first anyway)
+    }
 
     /// Decode one access unit (call on `queue`).
     func decode(_ unit: AccessUnit) {
+        if Self.belongsToAnEarlierGOP(unit, idrMs: idrMs) {
+            if !droppedOld {
+                droppedOld = true
+                let (at, idr) = (unit.boardMs, idrMs ?? 0)
+                DispatchQueue.main.async { DebugLog.write("decoder: dropped units from before the last IDR (\(at) < \(idr) ms)") }
+            }
+            return
+        }
+        if unit.idr { (idrMs, droppedOld) = (unit.boardMs, false) }
         if unit.idr { (gop, gopBytes) = ([], 0) }
         if gopBytes + unit.data.count <= Self.gopMax, unit.idr || !gop.isEmpty {
             gop.append(unit)
@@ -165,13 +195,24 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     private func jpeg(_ buffer: CVImageBuffer, ms: Double, unit: AccessUnit) -> Frame? {
         var image: CGImage?
         VTCreateCGImageFromCVPixelBuffer(buffer, options: nil, imageOut: &image)
-        guard let image else { onError?("frame -> image failed"); return nil }
+        guard var image else { onError?("frame -> image failed"); return nil }
+        let decoded = CGSize(width: image.width, height: image.height)
+        let full = image
+        let crop = letterbox.content(width: image.width, height: image.height) { Letterbox.isBlack(full, $0) }
+        if crop != lastCrop {
+            lastCrop = crop
+            let line = crop.map { "video: cropping black bars: \(image.width)x\(image.height) -> \(Int($0.width))x\(Int($0.height))" }
+                ?? "video: frames are the screen (\(image.width)x\(image.height)), nothing cropped"
+            DispatchQueue.main.async { DebugLog.write(line) }
+        }
+        if let crop, let cropped = image.cropping(to: crop) { image = cropped }
         let out = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(out, UTType.jpeg.identifier as CFString, 1, nil) else {
             return nil
         }
         CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { return nil }
-        return Frame(jpeg: out as Data, width: image.width, height: image.height, decodeMs: ms, unit: unit)
+        return Frame(jpeg: out as Data, width: image.width, height: image.height, decodeMs: ms, unit: unit,
+                     uncropped: crop == nil ? nil : decoded)
     }
 }

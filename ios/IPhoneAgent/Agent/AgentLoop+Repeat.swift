@@ -28,12 +28,37 @@ enum RepeatGuard {
         "Not done: the same \(action) just left the screen unchanged. "
             + "Choose a different way (another target, scroll, back, open the app, or ask for help)."
     }
+
+    /// The answer to that hold was the same gesture again (issue #166: runs went around this small loop). Asked
+    /// once more, plainly; a third same answer is sent as before. Starts like `reason`, so StuckGuard leaves it out.
+    static func insist(_ action: String) -> String {
+        "Not done: the same \(action) a second time, and it already changed nothing. Do not repeat it: use a "
+            + "different kind of action (another element, a scroll, back, a key, or ask for help)."
+    }
+
+    /// The first gesture of `acts`.
+    static func first(_ acts: [JObject]) -> JObject? { acts.first { Actions.gestures.contains($0["action"]?.str ?? "") } }
 }
 
 /// The tap right after a "confirmed" row did the risky thing (add to cart, send, buy, post). Another tap there
 /// would do it again: iddzz 2026-11-12, the add-to-cart button sat where the options sheet's button was, every tap
 /// "changed the screen", and four chairs went into the cart. Such a tap is not sent at once: the model is told why
 /// and asked once more (the planner answers); its second answer stands.
+/// A third tap on the same spot while the screen stays much the same, even when each one read as "changed": the
+/// pointer, an animation or the Live Activity count as change, so the guard above lets such a repeat through. The rounds before must each have been that one tap with no big change
+/// (NoProgress); a tap that moves the screen a lot each time (Next, Continue) is never held.
+enum ThirdTapGuard {
+    static func repeated(_ acts: [JObject], progress: NoProgress) -> JObject? {
+        guard let first = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              first["action"]?.str == "tap", progress.repeats >= 1, !progress.moved, progress.last.count == 1,
+              NoProgress.same([first], progress.last) else { return nil }
+        return first
+    }
+
+    static let reason = "Not done: the same tap a third time, and the screen has stayed much the same. The target is "
+        + "likely not what you think; choose another element, scroll, go back, or ask for help."
+}
+
 enum CommitGuard {
     static let near = 40.0  // the 0–1000 grid: the same button
 
@@ -42,13 +67,20 @@ enum CommitGuard {
         return steps[(at + 1)...].first { $0["action"]?.str == "tap" }
     }
 
+    /// Only right after the commit: once another gesture came between (a bulk delete swipes the next row, taps its
+    /// checkbox or a dialog's button), the same spot is a new item's button and is not held.
     static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
         guard let tap = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
               tap["action"]?.str == "tap", let x = tap["x"]?.double, let y = tap["y"]?.double,
+              let at = steps.lastIndex(where: { $0["action"]?.str == "confirmed" }),
               let done = commit(in: steps), let dx = done["x"]?.double, let dy = done["y"]?.double,
               abs(x - dx) <= near, abs(y - dy) <= near,
               steps.last?["action"]?.str != RepeatGuard.action else { return nil }  // asked once already
-        return tap
+        let since = steps[(at + 1)...].filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }
+        let onlyThere = since.allSatisfy {
+            $0["action"]?.str == "tap" && abs(($0["x"]?.double ?? -1e3) - dx) <= near && abs(($0["y"]?.double ?? -1e3) - dy) <= near
+        }
+        return onlyThere ? tap : nil
     }
 
     static let reason = "Not done: this taps where the confirmed step was already done, and would do it again "
@@ -57,16 +89,19 @@ enum CommitGuard {
 }
 
 /// Back and forth: the new gesture would make A, B, A, B (two moves undoing each other, e.g. a tab and back, or a
-/// sheet opened and closed). Held back once like a repeat.
+/// sheet opened and closed). Held back once like a repeat. Only when the screen came back as it was: a bulk delete
+/// (swipe the row, tap 删除, swipe the next row, tap 删除) repeats the same two moves on new content each time, and
+/// `sameScreen` (the screens before the two A's) tells it apart.
 enum LoopGuard {
-    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+    static func repeated(_ acts: [JObject], after steps: [JObject], sameScreen: (Int, Int) -> Bool = { _, _ in true }) -> JObject? {
         guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
               RepeatGuard.held.contains(new["action"]?.str ?? "") else { return nil }
-        let sent = steps.filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }.suffix(3)
+        let sent = steps.indices.filter { steps[$0]["plan"] == nil && Actions.gestures.contains(steps[$0]["action"]?.str ?? "") }.suffix(3)
         guard sent.count == 3 else { return nil }
-        let (a, b, c) = (sent[sent.startIndex], sent[sent.startIndex + 1], sent[sent.startIndex + 2])
+        let (ia, ib, ic) = (sent[sent.startIndex], sent[sent.startIndex + 1], sent[sent.startIndex + 2])
+        let (a, b, c) = (steps[ia], steps[ib], steps[ic])
         func same(_ p: JObject, _ q: JObject) -> Bool { NoProgress.same([p], [q]) }
-        guard same(a, c), same(b, new), !same(a, b) else { return nil }
+        guard same(a, c), same(b, new), !same(a, b), sameScreen(ia, ic) else { return nil }
         return new
     }
 
@@ -76,6 +111,30 @@ enum LoopGuard {
 
 /// A swipe on the Home Screen pages through apps or pulls down Search: `open` starts any app from there. Held
 /// back once; a swipe from a screen edge (Control Center, Notification Center) is not.
+/// Swipe after swipe with nothing read, noted or tapped in between: what is looked for may be above, or the page
+/// scrolled past the item into other content (recommendations under an order). Henry 2026-11-18: a detail page
+/// scrolled into the feed below it and the model kept scrolling down. Held back once per run of swipes.
+enum ScrollGuard {
+    static let after = 3
+
+    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+        guard let new = RepeatGuard.first(acts), new["action"]?.str == "swipe" else { return nil }
+        var swipes = 0
+        for step in steps.reversed() {
+            let name = step["action"]?.str ?? ""
+            if name == RepeatGuard.action, (step["reason"]?.str ?? "") == reason { return nil }  // asked once already
+            if name == "swipe" { swipes += 1; continue }
+            if Actions.gestures.contains(name) || ["read", "note", "collect", "find", "each"].contains(name) { break }
+        }
+        return swipes >= after ? new : nil
+    }
+
+    static let reason = "Not done: this is another scroll after \(after) in a row with nothing read or tapped. "
+        + "Check the screen: if it shows content that is not what you are looking for (recommendations, another "
+        + "list, the end of the item), you scrolled past it: scroll back up. If what you want is not on this page, "
+        + "go back or use find \"WORDS\"."
+}
+
 enum HomeSwipeGuard {
     static let edge = 80.0
 
@@ -153,6 +212,12 @@ enum StuckGuard {
 }
 
 extension AgentLoop {
+    /// The screens the model saw before steps `i` and `j` look the same (pointer aside); unknown counts as the same.
+    func sameShots(_ i: Int, _ j: Int) -> Bool {
+        guard let a = shots[i], let b = shots[j] else { return true }
+        return !Vision.changed(a, b, ignore: [pointerAt])
+    }
+
     /// The round's actions (nextActions), asked for once more when they start with a repeat of a gesture that just
     /// changed nothing. Not after a round a pause dropped (the flag is taken here): the person may have changed the
     /// screen meanwhile.
@@ -166,13 +231,19 @@ extension AgentLoop {
             let name = held["action"]?.str ?? ""
             DebugLog.write("repeat guard: the same \(name) again right after it changed nothing; asking once more")
             reason = RepeatGuard.reason(name)
+        } else if ThirdTapGuard.repeated(acts.map(\.act), progress: progress) != nil {
+            DebugLog.write("third tap guard: the same tap a third time on a much unchanged screen; asking once more")
+            reason = ThirdTapGuard.reason
         } else if CommitGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("commit guard: a tap on the confirmed step's spot again; asking once more")
             reason = CommitGuard.reason
-        } else if LoopGuard.repeated(acts.map(\.act), after: steps) != nil {
+        } else if LoopGuard.repeated(acts.map(\.act), after: steps, sameScreen: sameShots) != nil {
             DebugLog.write("loop guard: back and forth between two moves; asking once more")
             reason = LoopGuard.reason
-        } else if HomeSwipeGuard.repeated(acts.map(\.act), after: steps, startsOnHome: startsOnHome) != nil {
+        } else if ScrollGuard.repeated(acts.map(\.act), after: steps) != nil {
+            DebugLog.write("scroll guard: \(ScrollGuard.after) scrolls in a row with nothing read or tapped; asking once more")
+            reason = ScrollGuard.reason
+        } else if HomeSwipeGuard.repeated(acts.map(\.act), after: steps, startsOnHome: homeAtStart) != nil {
             DebugLog.write("home swipe guard: a swipe on the Home Screen; asking once more")
             reason = HomeSwipeGuard.reason
         } else if TypedGuard.repeated(acts.map(\.act), after: steps) != nil {
@@ -181,6 +252,8 @@ extension AgentLoop {
         } else if DoneGuard.premature(acts.map(\.act), after: steps, earlierRuns: !chatContext.isEmpty) {
             DebugLog.write("done guard: done before any move changed the screen; asking once more")
             reason = DoneGuard.reason
+        } else if let audit = await recordAudit(acts.map(\.act)) {
+            reason = audit
         } else {
             return acts
         }
@@ -197,8 +270,19 @@ extension AgentLoop {
         JevGate.hold = true
         defer { JevGate.hold = hold }
         var again = try await nextActions()
-        let both = (acts[0].act["think_s"]?.double ?? 0) + (again[0].act["think_s"]?.double ?? 0)
-        again[0].act["think_s"] = .num((both * 100).rounded() / 100)  // the round's thinking: both calls
+        var thought = (acts[0].act["think_s"]?.double ?? 0) + (again[0].act["think_s"]?.double ?? 0)
+        if StuckGuard.repeatHold(reason), let held = RepeatGuard.first(acts.map(\.act)),
+           let next = RepeatGuard.first(again.map(\.act)), NoProgress.same([next], [held]) {
+            let name = next["action"]?.str ?? ""
+            DebugLog.write("repeat guard: the same \(name) again after the hold; asking for another kind of action")
+            var insist: JObject = ["action": .str(RepeatGuard.action), "reason": .str(RepeatGuard.insist(name))]
+            if again[0].act["jev"] != nil { insist["jev"] = .bool(true) }
+            record(again[0].shot, insist)
+            checkpoints.asked = "repeat"
+            again = try await nextActions()
+            thought += again[0].act["think_s"]?.double ?? 0
+        }
+        again[0].act["think_s"] = .num((thought * 100).rounded() / 100)  // the round's thinking: every call
         return again
     }
 }

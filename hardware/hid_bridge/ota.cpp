@@ -4,6 +4,9 @@
 #include "lwip/sockets.h"
 #include "wifi_video.h"
 #include "logbuf.h"
+#include <esp_random.h>
+#include "mbedtls/sha256.h"
+#include "src/net/lan_lock.h"
 
 const uint16_t PORT = 7300;
 const int IDLE_MS = 5000;  // no bytes for this long: the app is gone
@@ -37,17 +40,43 @@ static bool readLine(int c, char *buf, size_t cap) {
   return n + 1 < cap;
 }
 
+// Two headers. "ota <token> <size> <md5>": the token in the clear, fine on the board's own hotspot, refused under
+// the LAN lock. Or "chal" (answered "chal <nonce>"), then "ota2 <size> <sha256> <hmac>" with
+// hmac = HMAC-SHA256(token, "ota <nonce> <size> <sha256>"): the token never travels and the image is checked
+// against the SHA-256 it signed before the board boots it (src/net/lan_lock.h).
 static void session(int c) {
   timeval tv = {IDLE_MS / 1000, 0};
   setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-  char head[128], tok[40], md5[40];
+  char head[192], tok[40], md5[40], sha[72], mac[72], nonce[LAN_NONCE_HEX + 1] = "";
   unsigned long size = 0;
-  if (!readLine(c, head, sizeof head) || sscanf(head, "ota %39s %lu %39s", tok, &size, md5) != 3)
-    return fail(c, "usage: ota <token> <size> <md5>");
-  if (wv_token() != tok) return fail(c, "wrong token");
-  if (strlen(md5) != 32) return fail(c, "bad md5");
+  if (!readLine(c, head, sizeof head)) return fail(c, "usage: ota <token> <size> <md5>");
+  if (!strcmp(head, "chal")) {
+    uint8_t r[16];
+    esp_fill_random(r, sizeof r);
+    lan_nonce(nonce, r);
+    char line[8 + LAN_NONCE_HEX];
+    snprintf(line, sizeof line, "chal %s\n", nonce);
+    reply(c, line);
+    if (!readLine(c, head, sizeof head)) return fail(c, "usage: ota2 <size> <sha256> <hmac>");
+  }
+  bool signedImage = !strncmp(head, "ota2 ", 5);
+  if (signedImage) {
+    if (!nonce[0] || sscanf(head, "ota2 %lu %71s %71s", &size, sha, mac) != 3 || strlen(sha) != 64)
+      return fail(c, "usage: chal, then ota2 <size> <sha256> <hmac>");
+    char msg[160];
+    snprintf(msg, sizeof msg, "ota %s %lu %s", nonce, size, sha);
+    if (!lan_mac_ok(wv_token().c_str(), msg, mac)) return fail(c, "wrong token");
+  } else {
+    if (sscanf(head, "ota %39s %lu %39s", tok, &size, md5) != 3) return fail(c, "usage: ota <token> <size> <md5>");
+    if (lan_locked()) return fail(c, "use chal and ota2 on this network");
+    if (wv_token() != tok) return fail(c, "wrong token");
+    if (strlen(md5) != 32) return fail(c, "bad md5");
+  }
   if (!Update.begin(size, U_FLASH)) return fail(c, Update.errorString());
-  Update.setMD5(md5);
+  if (!signedImage) Update.setMD5(md5);
+  static mbedtls_sha256_context hash;
+  mbedtls_sha256_init(&hash);
+  mbedtls_sha256_starts(&hash, 0);
   busy = true;
   reply(c, "ok\n");
   board_log("ota: receiving %lu bytes", size);
@@ -56,9 +85,18 @@ static void session(int c) {
     int n = recv(c, buf, size - got < sizeof buf ? size - got : sizeof buf, 0);
     if (n <= 0) { busy = false; return fail(c, "connection lost"); }
     if (Update.write(buf, n) != (size_t)n) { busy = false; return fail(c, Update.errorString()); }
+    if (signedImage) mbedtls_sha256_update(&hash, buf, n);
     got += n;
   }
-  if (!Update.end()) { busy = false; return fail(c, Update.errorString()); }  // includes the MD5 check
+  if (signedImage) {
+    uint8_t d[32];
+    char got[65];
+    mbedtls_sha256_finish(&hash, d);
+    for (int i = 0; i < 32; i++) sprintf(got + 2 * i, "%02x", d[i]);
+    if (strcasecmp(got, sha)) { busy = false; return fail(c, "image does not match its sha256"); }
+  }
+  mbedtls_sha256_free(&hash);
+  if (!Update.end()) { busy = false; return fail(c, Update.errorString()); }  // includes the MD5 check (ota)
   reply(c, "done\n");
   board_log("ota: done, rebooting");
   delay(500);

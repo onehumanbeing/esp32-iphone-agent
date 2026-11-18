@@ -271,6 +271,7 @@ extension AppModel {
                                : "startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
             let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+                                     net: board.status?.net,
                                      frameAt: hasFrame() ? now() : 0, stalled: stalled)
             var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
@@ -341,6 +342,13 @@ extension AppModel {
         }
     }
 
+    /// iPad: the calibration was made in another orientation or mirrored shape than the screen has now, so every
+    /// tap would land elsewhere. Never on iPhone (no geometry).
+    func validateRunGeometry() throws {
+        guard feed.geometry != nil, calibrator.rotated else { return }
+        throw BlindError(reason: String(localized: "The iPad was rotated since the pointer was calibrated. Stop, calibrate it in this orientation, and try again."))
+    }
+
     /// Before each look and gesture of a run. If the agent itself brought the app to the front (it tapped our
     /// Live Activity, a notification or an intent), or Continue was just tapped here, send the app away at once;
     /// if the user opened it, wait until they leave. The model never sees or taps this app's own screens.
@@ -379,6 +387,41 @@ extension AppModel {
     /// How often the startup wait looks for its first frame: often while frames may be on the way, slower
     /// while a link is down (no frame can come until it is back, and the app is in the background).
     static func startupPoll(waiting: Bool) -> Double { waiting ? 0.5 : 0.1 }
+
+    /// Opens `app` by its URL scheme while this app is in front (AppNames.schemes). False: no scheme, not in front,
+    /// not installed, or the app did not leave within 2 s; the caller then goes the old way.
+    func openByScheme(_ app: String) async -> Bool {
+        let began = now()
+        for url in AppNames.schemeURLs(app) {
+            guard !appIsBackgrounded, !Task.isCancelled else { return false }
+            guard await UIApplication.shared.open(url) else { continue }
+            var away = (try? await waitForBackground(0.8)) ?? false
+            // iOS asks "在“美团外卖”中打开？" for a scheme: the board taps 打开 / Open (Henry 2026-11-17: tapped by
+            // hand each time). Only a prompt line that is just that word, read on the mirrored screen.
+            if !away, await tapOpenPrompt() { away = (try? await waitForBackground(3)) ?? false }
+            if !away { away = (try? await waitForBackground(1.2)) ?? false }
+            DebugLog.write(String(format: "open %@ by scheme: %@ (%.0f ms)", app, away ? "opened" : "did not leave", (now() - began) * 1000))
+            Analytics.capture("app_left", ["method": "scheme", "away": away, "ms": Int((now() - began) * 1000)])
+            return away
+        }
+        return false
+    }
+
+    /// The system prompt that asks before another app opens: its 打开 / Open button, tapped by the board.
+    static let openWords = ["打开", "Open", "開啟", "打開"]
+    private func tapOpenPrompt() async -> Bool {
+        guard board.connected, let frame = feed.frame, let image = Vision.image(frame) else { return false }
+        let lines = await UITreeOCR.lines(image, whole: true)
+        let size = CGSize(width: image.width, height: image.height)
+        for word in Self.openWords {
+            guard case .at(let x, let y) = TapText.find(word, in: lines.filter { $0.text.count <= word.count + 1 }, size: size)
+            else { continue }
+            DebugLog.write("open by scheme: iOS asks first; tapping \(word) at \(x) \(y)")
+            do { try await pointer.tap(Double(x) / 1000, Double(y) / 1000) } catch { return false }
+            return true
+        }
+        return false
+    }
 
     private func waitForBackground(_ seconds: Double, stopOnBoardLoss: Bool = false) async throws -> Bool {
         let deadline = now() + seconds

@@ -3,6 +3,18 @@ import XCTest
 
 /// Rounds that change nothing check the link before the model acts again; a pointer far off target calibrates again.
 @MainActor final class LinkCheckTests: XCTestCase {
+    /// These tests check the iPhone's moves; the iPad's own tests set DeviceKind.isPad themselves (CI runs both).
+    private static var wasPad = false
+    override func setUp() {
+        super.setUp()
+        Self.wasPad = DeviceKind.isPad
+        DeviceKind.isPad = false
+    }
+    override func tearDown() {
+        DeviceKind.isPad = Self.wasPad
+        super.tearDown()
+    }
+
     /// A screen that still counts as live but whose fresh frame never comes (nil: can't tell).
     private final class StillScreen: ScreenSource {
         var live = true
@@ -74,12 +86,30 @@ import XCTest
         r.measured(target, CGPoint(x: 0.5, y: 0.545), pixels: pixels)  // ~114 px
         XCTAssertTrue(r.tap())
         XCTAssertFalse(r.tap(), "once per miss")
+        // far the same way again and again (a screen where the pointer reads wrong): one early recalibration after
+        // `retryAfter` taps, then none until `every` taps have passed
+        var early = 0
         while r.taps - (r.last ?? 0) < Recalibration.every {
             r.measured(target, CGPoint(x: 0.9, y: 0.9), pixels: pixels)
-            XCTAssertFalse(r.tap(), "not again within \(Recalibration.every) taps")
+            if r.tap() { early += 1 }
         }
+        XCTAssertEqual(early, 1, "one early recalibration, not one every \(Recalibration.retryAfter) taps")
         r.measured(target, CGPoint(x: 0.9, y: 0.9), pixels: pixels)
         XCTAssertTrue(r.tap())
+    }
+
+    /// 2026-11-16: a steady +65 x (0.065 of the width, ~86 px on 1320) was past Pointer.maxMiss, so never learned,
+    /// and under `miss`, so never calibrated. A share past maxMiss on either side counts as far now.
+    func testAFarShareOfTheWidthCountsEvenUnderTheMissInPixels() {
+        let pixels = CGSize(width: 1320, height: 2868), target = CGPoint(x: 0.3, y: 0.5), found = CGPoint(x: 0.365, y: 0.5)
+        var r = Recalibration()
+        XCTAssertTrue(r.measured(target, found, pixels: pixels, confirmed: true), "first confirmed far: re-home")
+        XCTAssertFalse(r.measured(target, found, pixels: pixels, confirmed: true))
+        XCTAssertTrue(r.take(), "second far the same: calibrate now")
+        XCTAssertFalse(r.take(), "once")
+        var near = Recalibration()
+        near.measured(target, CGPoint(x: 0.35, y: 0.5), pixels: pixels)  // 0.05: the usual correction
+        XCTAssertFalse(near.take())
     }
 
     func testAFailedRecalibrationKeepsThePreviousOneAndRehomes() async throws {

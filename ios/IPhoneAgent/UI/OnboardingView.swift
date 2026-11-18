@@ -16,6 +16,10 @@ struct OnboardingView: View {
     @State private var accepted = false
     @State private var onWiFi = false  // the user says they joined by hand
     @State private var testing = false
+    @State private var lanChoice = false  // See page: the board joins the home Wi-Fi instead of opening its hotspot
+    @State private var lanSSID = ""
+    @State private var lanPass = ""
+    @State private var lanRemember = true
 
     init(app: AppModel, board: BoardLink, feed: VideoFeed, settings: Settings, calibrator: AutoCalibrator,
          pointer: Pointer, start: SetupPage) {
@@ -24,6 +28,7 @@ struct OnboardingView: View {
         _page = State(initialValue: start)
         _accepted = State(initialValue: settings.acceptedDisclaimer)
         _onWiFi = State(initialValue: app.hotspotSSID != nil)
+        _lanChoice = State(initialValue: app.lanMode || !DeviceCaps.hasCellular)
     }
 
     var body: some View {
@@ -32,6 +37,7 @@ struct OnboardingView: View {
             ScrollView {
                 pageContent
                     .padding(.horizontal, Space.xl)
+                    .padWidth(680)
                     .padding(.bottom, Space.xl)
                     .id(page)
                     .transition(.asymmetric(insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
@@ -121,7 +127,7 @@ struct OnboardingView: View {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return pointer.calibrated && !calibrator.busy
+        case .act: return calibrator.hasValidCalibration && !calibrator.busy
         case .brain: return app.modelOK == true
         }
     }
@@ -130,7 +136,7 @@ struct OnboardingView: View {
     private var waiting: Bool {
         switch page {
         case .connect: return !board.connected && (board.scanning || board.connecting || board.linking)
-        case .see: return !streaming && (onHotspot || app.join.busy)
+        case .see: return !streaming && (onHotspot || app.join.busy || app.lanJoin.busy)
         case .act: return calibrator.busy
         case .brain: return testing
         default: return false
@@ -140,7 +146,8 @@ struct OnboardingView: View {
     /// The mouse and mirroring are up: calibration can run.
     private var actReady: Bool { MockMode.on || (calibrator.boardReady && calibrator.mirroring) }
 
-    private var onHotspot: Bool { app.onBoardHotspot(manual: onWiFi) }
+    /// On the network of the chosen mode (a board still in the other mode switches first).
+    private var onHotspot: Bool { lanChoice == app.lanMode && app.onBoardHotspot(manual: onWiFi) }
 
     private var primaryTitle: LocalizedStringKey {
         switch page {
@@ -149,6 +156,7 @@ struct OnboardingView: View {
         case .see:
             if streaming { return "Continue" }
             if onHotspot { return "Waiting for mirroring…" }
+            if lanChoice || app.lanJoin.busy { return app.lanJoin.buttonTitle }  // or switching back to the hotspot
             switch app.join {
             case .joining: return "Joining…"
             case .verifying: return "Checking…"
@@ -156,7 +164,7 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
-            if pointer.calibrated { return "Continue" }
+            if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
         case .brain:
@@ -169,8 +177,8 @@ struct OnboardingView: View {
         switch page {
         case .welcome: return true
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
-        case .see: return streaming || (!onHotspot && !app.join.busy)
-        case .act: return !calibrator.busy && (pointer.calibrated || actReady)
+        case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
+        case .act: return !calibrator.busy && (calibrator.hasValidCalibration || actReady)
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }
@@ -180,8 +188,14 @@ struct OnboardingView: View {
         case .connect where !board.connected:
             board.retryDiscovery()
         case .see where !streaming:
-            app.startJoin()
-        case .act where !pointer.calibrated:
+            if lanChoice {
+                app.startLanJoin(ssid: lanSSID, pass: lanPass, remember: lanRemember)
+            } else if app.lanMode {
+                app.switchToHotspot()  // the board is on the home Wi-Fi: open its hotspot again, then join it
+            } else {
+                app.startJoin()
+            }
+        case .act where !calibrator.hasValidCalibration:
             calibrator.calibrate(why: String(localized: "first setup"))
         case .brain where app.modelOK != true:
             testing = true
@@ -205,7 +219,8 @@ struct OnboardingView: View {
         switch page {
         case .welcome: WelcomePage(accepted: accepted)
         case .connect: ConnectPage(board: board)
-        case .see: SeePage(app: app, board: board, onWiFi: $onWiFi)
+        case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
+                           lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)
         case .act: ActPage(app: app, board: board, calibrator: calibrator, pointer: pointer)
         case .brain: BrainPage(app: app, settings: settings)
         }

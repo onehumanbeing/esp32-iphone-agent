@@ -27,10 +27,18 @@ extension AgentLoop {
                      "moves": .int(moves)])
     }
 
-    /// The notebook of the last checkpoint in `steps`, or an empty one.
+    /// The notebook of the last checkpoint in `steps` (or an empty one), with the notes made after it: a checkpoint
+    /// comes every 10 moves, so a run resumed after a reinstall lost the notes since the last one (2026-11-18).
     static func savedNotebook(_ steps: [JObject]) -> Notebook {
-        guard let text = steps.last(where: { $0["action"]?.str == checkpointAction })?["notebook"]?.str,
-              let book = try? JSONDecoder().decode(Notebook.self, from: Data(text.utf8)) else { return Notebook() }
+        let at = steps.lastIndex(where: { $0["action"]?.str == checkpointAction })
+        var book = at.flatMap { steps[$0]["notebook"]?.str }
+            .flatMap { try? JSONDecoder().decode(Notebook.self, from: Data($0.utf8)) } ?? Notebook()
+        for s in steps[(at.map { $0 + 1 } ?? 0)...] {
+            // notes, and the record reader's lines (2026-11-18: they lived only in "record" rows, lost on Continue)
+            let texts = (s["action"]?.str == "note" ? [s["text"]?.str ?? ""] : [])
+                + (s["recorded"]?.arr ?? []).compactMap(\.str)
+            for text in texts where !text.isEmpty && !book.noted(text) { book.note(text) }
+        }
         return book
     }
 }

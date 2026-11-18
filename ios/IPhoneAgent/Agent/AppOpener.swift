@@ -1,8 +1,10 @@
+import CoreGraphics
 import Foundation
 
 /// What `open APP` found, for the model's next round (AgentLoop.effect).
 enum OpenResult: String {
     case opened, notFound = "not_found", notOpened = "not_opened"
+    case already = "already_open"  // this run opened it and has not left it since: nothing was sent (AlreadyOpen)
     case unchecked  // no live screen: the keys went out, nothing was read back
 }
 
@@ -31,14 +33,21 @@ enum OpenResult: String {
     var language = AppNames.deviceLanguage
     /// Puts text on the clipboard (the agent app hops to the front and back home); nil = no clipboard here.
     var paste: ((String) async throws -> Bool)?
-    /// Taps the Home Screen's Search button; false = none on screen. Used only after cmd+space brought nothing up.
+    /// Taps the Home Screen's Search button; false = none on screen. Used only after cmd+space brought nothing up in this open.
     var searchButton: (() async throws -> Bool)?
+    /// The text lines on a frame with their boxes (pixels, top-left origin) and the frame's size, for tapping a
+    /// listed result; nil = no tapping (tests, no screen).
+    var readBoxes: ((Data) async -> (lines: [(text: String, box: [Int])], size: CGSize))?
+    /// Taps a point (screen fractions), aimed.
+    var tapAt: ((CGPoint) async throws -> Void)?
+    /// The clock for `budget` (seconds).
+    var clock: () -> Double = { CFAbsoluteTimeGetCurrent() }
     static let tries = 2
-    static var buttonFirst: Bool {
-        get { UserDefaults.standard.bool(forKey: "spotlightByButton") }
-        set { UserDefaults.standard.set(newValue, forKey: "spotlightByButton") }
-    }
     static let relooks = 2
+    /// The whole open: no new try and no tap on a listed result after this many seconds; the model decides then
+    /// (2026-11-17: opens took 20-92 s, one 57 s and not opened; most of it pointer searches for the Search button
+    /// and the result row).
+    static let budget = 15.0
 
     func open(_ name: String) async throws -> OpenResult {
         // Only the name asked for: the model sees the iPhone's language on screen and picks another name itself.
@@ -52,24 +61,54 @@ enum OpenResult: String {
         Scripts.needsPaste(name) || HanTyper.isHan(name) && !language.hasPrefix("zh") && paste != nil
     }
 
+    /// What goes into Spotlight for `name`, in order. A Chinese name goes in as its pinyin letters first, typed on
+    /// the English keyboard (Spotlight matches app names by pinyin): no input method, no candidate to pick, nothing
+    /// left uncommitted in the field. The name itself, through the pinyin keyboard, only when the letters list nothing. The same name either way, never another one.
+    static func queries(_ name: String, pasting: Bool) -> [String] {
+        guard !pasting, HanTyper.isHan(name), name.allSatisfy({ HanTyper.isHan(String($0)) || $0 == " " }) else { return [name] }
+        let letters = Pointer.typeable(name).lowercased().filter { $0.isLetter }
+        return letters.count >= 2 ? [letters, name] : [name]
+    }
+
     private func open(named name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
+        let queries = Self.queries(name, pasting: pasting)
+        for (i, query) in queries.enumerated() {
+            let result = try await open(name, typing: query, pasting: pasting)
+            if result == .notFound, i < queries.count - 1 { continue }  // Home first again: nothing left in the field
+            return result
+        }
+        return .notFound
+    }
+
+    private func open(_ name: String, typing query: String, pasting: Bool) async throws -> OpenResult {
         let labels = AppNames.labels(name, language: language)
-        // cmd+space did not bring Spotlight up last try (2026-11-13, twice in one run); once the Search button had to do
-        // it, it goes first after that (cmd+space failed on this iPhone at the start of every call run, ~10 s each)
-        var button = Self.buttonFirst
-        for _ in 0..<Self.tries {
+        // typed as itself, the field shows the name too, so a result row makes two; typed as letters, one row more
+        // than the Home Screen showed (its icon label) is enough
+        var onHome = 0
+        func shows(_ lines: [String]) -> Bool {
+            Self.listed(name, in: lines, as: labels) || query != name && Self.count(name, in: lines) > onHome
+        }
+        // cmd+space first on every open (0.2 s); the Search button (a pointer search, 10-24 s) only after it brought
+        // nothing up in this open. 2026-11-17: a "Search button first" kept across runs since one miss on 11-13 meant
+        // cmd+space was never sent again, and the log said it had failed each time.
+        var button = false
+        let started = clock()
+        func overBudget() -> Bool { clock() - started > Self.budget }
+        for attempt in 0..<Self.tries {
+            if attempt > 0, overBudget() { return .notOpened }
             try await home()
             try await pause(0.4)
             let homeFrame = await look()
+            if query != name { onHome = Self.count(name, in: await homeFrame.asyncMap(read) ?? []) }
             if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
             try await pause(0.7)
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")
             try await key("backspace")
-            // a Chinese name goes in through the pinyin keyboard, committed (HanTyper)
-            if pasting { try await key("cmd+v") } else { try await type(name) }
+            // letters on the English keyboard; a Chinese name itself through the pinyin keyboard, committed (HanTyper)
+            if pasting { try await key("cmd+v") } else { try await type(query) }
             guard var results = await look() else { return .unchecked }
             // Read first: with the board's keyboard iOS shows no on-screen one, so on a plain wallpaper Spotlight
             // looks much like the Home Screen (2026-11-11: WeChat listed, judged "did not come up" twice).
@@ -77,29 +116,63 @@ enum OpenResult: String {
             // The field and the results lag the typing by up to ~1.5 s: the first look still had an empty field over
             // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
             // (not "while the screen changes": the typed name in the field alone is too small a change for `same`).
-            for _ in 0..<Self.relooks where !Self.listed(name, in: lines, as: labels) && !same(results, homeFrame) {
+            for _ in 0..<Self.relooks where !shows(lines) && !same(results, homeFrame) {
                 try await pause(0.6)
                 guard let again = await look() else { break }
                 results = again
                 lines = await read(again)
             }
-            if !Self.listed(name, in: lines, as: labels) {
+            if !shows(lines) {
                 if same(results, homeFrame) { button = true; continue }  // Spotlight did not come up
                 // The typed name is nowhere new on screen: cmd+space did nothing and the frames differ only where
                 // something moves (the Live Activity). 2026-11-13: read as "no such app", so it went on to 电话 on an
                 // English iPhone and Return opened a note; the Search button next time instead.
                 let before = await homeFrame.asyncMap(read) ?? []
-                if Self.count(name, in: lines) <= Self.count(name, in: before) { button = true; continue }
+                if Self.count(query, in: lines) <= Self.count(query, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
-            if button != Self.buttonFirst { Self.buttonFirst = button }
             try await key("enter")  // opens the top hit
             guard let after = await look() else { return .unchecked }
             if ownAppInFront() { continue }
             if !same(after, results), !same(after, homeFrame) { return .opened }
-            if !Self.listed(name, in: await read(after), as: labels) { return .opened }  // a plain screen: Spotlight is gone
+            let afterLines = await read(after)
+            if !shows(afterLines) { return .opened }  // a plain screen: Spotlight is gone
+            // Return did nothing, the results still list the app (Wiki #1007 N1, 33% of runs on 11-16): tap the
+            // listed name itself. Only a line that is the app's name (not one that contains it: a message, a web
+            // hit), at most two, top first; the search field holding the same text may be one of them, a tap there
+            // leaves the results as they were.
+            if let readBoxes, let tapAt, !overBudget() {
+                let (found, size) = await readBoxes(after)
+                for spot in Self.resultSpots(found, labels: [name] + labels, size: size).prefix(2) {
+                    try await tapAt(spot)
+                    guard let now = await look() else { return .unchecked }
+                    if ownAppInFront() { break }
+                    // a new screen is the app (as after Return): never a second tap there with the old results' spots;
+                    // only a screen that stayed the same (a tap on the field) goes on to the next one
+                    if !same(now, after) { return .opened }
+                    if !shows(await read(now)) { return .opened }
+                }
+            }
         }
         return .notOpened
+    }
+
+    /// Where to tap a listed result: the centers (screen fractions) of the lines that are one of `labels` (folded,
+    /// a label cut short with "…" counts), below the status bar and above the home bar, top first.
+    static func resultSpots(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> [CGPoint] {
+        guard size.width > 0, size.height > 0 else { return [] }
+        let wants = Set(labels.map(Scripts.fold).filter { !$0.isEmpty })
+        func isLabel(_ text: String) -> Bool {
+            let line = Scripts.fold(text)
+            if wants.contains(line) { return true }
+            let cut = line.hasSuffix("…") ? String(line.dropLast()) : line.hasSuffix("...") ? String(line.dropLast(3)) : nil
+            return cut.map { c in c.count >= 3 && wants.contains { $0.hasPrefix(c) } } ?? false
+        }
+        return lines.compactMap { line -> CGPoint? in
+            guard line.box.count == 4, isLabel(line.text) else { return nil }
+            let p = CGPoint(x: Double(line.box[0] + line.box[2]) / 2 / size.width, y: Double(line.box[1] + line.box[3]) / 2 / size.height)
+            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x) ? p : nil
+        }.sorted { $0.y < $1.y }
     }
 
     /// Lines that show `name` (folded).

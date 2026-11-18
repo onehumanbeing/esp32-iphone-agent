@@ -12,6 +12,11 @@ import UIKit
     var aspect: Double { get }
     /// The shown frame is older than the last action and nothing newer came: fetch one before the model looks.
     var stale: Bool { get }
+    /// How the frame sits on the device's screen; nil on iPhone (the frame is the screen).
+    var geometry: ScreenGeometry? { get }
+    /// No frame from after the last action arrived although the stream is healthy (iPad: AirPlay held frames back),
+    /// so the shown frame says nothing about what the action did.
+    var behind: Bool { get }
     /// After a gesture that ended at `since`: wait until the screen shows its result (and fetch it, in snap mode).
     /// `ignoring`: where the pointer was and went (fractions); changes there alone are not a result. Nor are changes
     /// only in `busy`: what moved by itself before the gesture (Vision.motion).
@@ -42,6 +47,11 @@ enum FrameMode: String {
     /// The most any later `settled` in the same step waits.
     static let movingCap = 0.8
     static var moving = false
+    /// When a step last found no still moment: a screen that keeps moving (a banner, a live map) does so in the next
+    /// steps too, and each first wait ran to 4 s (2026-11-17, Meituan: 4 s in most steps). Within `recentFor`, the
+    /// first wait is capped at `recentCap`.
+    static var lastMoving = -1000.0
+    static let recentFor = 30.0, recentCap = 2.0
     static var settle = 0.0  // s spent in `settled`
     static var snaps = 0  // snaps asked for
     static var replied = 0.0  // when the actor's last reply arrived (AgentLoop.ask), for Metrics.Step.leadMs
@@ -53,6 +63,8 @@ enum FrameMode: String {
 extension ScreenSource {
     var changed: Double { updated }
     var stale: Bool { false }
+    var geometry: ScreenGeometry? { nil }
+    var behind: Bool { false }
     func afterAction(since: Double, ignoring spots: [CGPoint], busy: [CGRect]) async {
         await settled(ignoring: spots, busy: busy)
     }
@@ -73,7 +85,9 @@ extension ScreenSource {
     /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
     func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = [],
                  busy: [CGRect] = []) async {
-        let started = now(), cap = StepWaits.moving ? StepWaits.movingCap : most
+        let started = now()
+        let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor
+        let cap = StepWaits.moving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
         let most = max(min(most, cap), least)  // the cap shortens the wait for quiet, never the minimum look delay
         defer { StepWaits.settle += now() - started }
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
@@ -89,8 +103,10 @@ extension ScreenSource {
                 moved = checked
             }
         }
-        if !Task.isCancelled, !StepWaits.moving, most >= StepWaits.longWait, now() - started >= most {
+        if !Task.isCancelled, !StepWaits.moving, most >= StepWaits.longWait || recent && most >= StepWaits.recentCap,
+           now() - started >= most {
             StepWaits.moving = true
+            StepWaits.lastMoving = now()
             DebugLog.write(String(format: "settle: no still moment in %.1f s; the screen keeps moving, later waits this step are capped at %.1f s", most, StepWaits.movingCap))
         }
     }
@@ -146,6 +162,7 @@ extension ScreenSource {
 
     init(decoder: H264Decoder = H264Decoder()) {
         self.decoder = decoder
+        decoder.setScreen(UIScreen.main.nativeBounds.size)  // fixed per device: black bars are cropped (Letterbox)
         decoder.onFrame = { [weak self] f in DispatchQueue.main.async { self?.publish(f) } }
         decoder.onError = { [weak self] msg in
             DispatchQueue.main.async {
@@ -186,6 +203,16 @@ extension ScreenSource {
 
     /// Frame width / height (portrait iPhone as a fallback).
     var aspect: Double { size.width > 0 && size.height > 0 ? size.width / size.height : 9 / 19.5 }
+    /// iPad only (nil on iPhone): the shown frame on the screen in its current orientation.
+    var geometry: ScreenGeometry? {
+        guard DeviceKind.isPad, size.width > 0, size.height > 0, frame != nil else { return nil }
+        return DeviceScreen.geometry(frameAspect: aspect)
+    }
+    private(set) var behind = false
+    /// iPad: seconds to wait for a frame after the pointer nudge (see afterAction).
+    static let stallWait = 4.5
+    /// iPad: mouse units the pointer is wiggled by (and back) to make the screen redraw; small, so it stays on target.
+    static let stallNudge = 4
 
     /// Totals for the background summary: access units assembled, and frames shown after decoding.
     private(set) var unitsReceived = 0, framesShown = 0
@@ -255,6 +282,7 @@ extension ScreenSource {
         decodeFailingSince = nil
         if size.width != CGFloat(f.width) || size.height != CGFloat(f.height) {
             size = CGSize(width: f.width, height: f.height)
+            if DeviceKind.isPad { DebugLog.write("video: frames are \(f.width)x\(f.height)") }  // rotation, display size
         }
         metrics?.frameDecoded(ms: f.decodeMs)
     }
@@ -354,6 +382,7 @@ extension ScreenSource {
     /// snap, and snap once more if the GOP still ends before the action.
     func afterAction(since: Double, ignoring spots: [CGPoint], busy: [CGRect]) async {
         var snapped = false
+        behind = false
         do {
             if FrameMode.current == .snap {
                 try await Task.sleep(nanoseconds: 700_000_000)
@@ -366,6 +395,7 @@ extension ScreenSource {
                 await settled(ignoring: spots, busy: busy)
                 if await newer(than: since, timeout: 1.5) { return }
                 if frozen { return DebugLog.write("frame: none after the action; the board's video is frozen (no keyframe)") }
+                if DeviceKind.isPad, !broken, streamOn { return await padStalled(since) }
                 guard broken || !streamOn else { return DebugLog.write("frame: none after the action; screen unchanged") }
                 // the next IDR (~2 s) mends the stream; a snap meanwhile took 12–30 s and gave the board's old GOP
                 if streamOn, await newer(than: since, timeout: 4) { return DebugLog.write("frame: stream mended by the next keyframe") }
@@ -385,6 +415,22 @@ extension ScreenSource {
         // The snap clears `broken` but can still hand back the board's old GOP: 196 s old, a Screen Mirroring menu
         // long closed, was sent and tapped on (2026-11-06)
         if FrameMode.current == .snap || snapped || broken || frozen { staleBefore = since }
+    }
+
+    /// iPad: a healthy stream and no frame after the action is no proof the screen stayed the same. AirPlay on iPad
+    /// held frames back for ~50 s (0-0.2 fps) while the pointer moved (2026-10-26), and every old frame read as
+    /// "screen did NOT change". Nudge the pointer, which redraws the screen and must stream a frame, and wait a little
+    /// more; if still none, the action's effect is unknown (`behind`) rather than "unchanged".
+    private func padStalled(_ since: Double) async {
+        let waited = now()
+        DebugLog.write("frame: none 1.5 s after the action; the sender stalled, nudging the pointer")
+        _ = try? await device?.send("move \(Self.stallNudge) 0")
+        _ = try? await device?.send("move -\(Self.stallNudge) 0")
+        if await newer(than: since, timeout: Self.stallWait) {
+            return DebugLog.write(String(format: "frame: arrived %.1f s after the nudge", now() - waited))
+        }
+        behind = true
+        DebugLog.write(String(format: "frame: still %.1f s older than the action; its effect is unknown", since - capturedAt))
     }
 
     /// While the board's resend goes on (hidden frames still decoding): true once a frame from after `t` shows.

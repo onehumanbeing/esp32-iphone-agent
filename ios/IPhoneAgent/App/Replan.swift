@@ -106,7 +106,7 @@ extension AppModel {
         }
         let reply = try await settings.client("planner").chat(
             system: Replan.prompt, text: Replan.input(old: old, new: item.prompt, steps: steps, checklist: item.checklist),
-            image: nil, maxTokens: 700, temperature: 0)
+            image: nil, maxTokens: 4000, temperature: 0)
         guard let proposal = Replan.parse(reply.text, count: steps.count) else {
             throw LLMError(message: String(localized: "The model did not check the steps."))
         }

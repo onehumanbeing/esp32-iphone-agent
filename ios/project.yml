@@ -10,7 +10,11 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
-    TARGETED_DEVICE_FAMILY: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"  # iPhone and iPad (a Wi-Fi-only iPad uses the board over the LAN)
+packages:
+  MarkdownUI:  # renders the agent's Markdown results with their images (MemoryFiles)
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    from: 2.4.1
 targets:
   IPhoneAgent:
     type: application
@@ -29,6 +33,7 @@ targets:
     dependencies:
       - target: AgentActivity
         embed: true
+      - package: MarkdownUI
     info:
       path: IPhoneAgent/Info.plist
       properties:
@@ -47,9 +52,11 @@ targets:
             CFBundleURLSchemes: [iphoneagent]
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
         NSBluetoothAlwaysUsageDescription: The app talks to its USB board over Bluetooth to see the screen and move the pointer.
         NSLocalNetworkUsageDescription: The app receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
         NSSpeechRecognitionUsageDescription: With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
+        NSSpeechRecognitionUsageDescription~ipad: With Listen to iPad audio on, the app turns the sound your iPad plays while mirroring into text, on this iPad, so the agent can follow videos and calls.
         NSBonjourServices: [_esp32agent._tcp, _handsy-harness._tcp]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
@@ -63,12 +70,12 @@ targets:
           - CFBundleTypeName: $(IA_APP_NAME) intent
             LSHandlerRank: Owner
             LSItemContentTypes: [com.onehumanbeing.esp32agent.intent]
-        UTExportedTypeDeclarations:  # saved intents shared as .esp32intent (JSON)
+        UTExportedTypeDeclarations:  # saved intents shared as .intent (JSON; .esp32intent before 2026-11-16)
           - UTTypeIdentifier: com.onehumanbeing.esp32agent.intent
             UTTypeDescription: $(IA_APP_NAME) intent
             UTTypeConformsTo: [public.json, public.data]
             UTTypeTagSpecification:
-              public.filename-extension: [esp32intent]
+              public.filename-extension: [intent, esp32intent]
               public.mime-type: [application/vnd.esp32agent.intent+json]
         # Optional build-time LLM preset from Config/Local.xcconfig (empty in the open-source build)
         IAPresetBaseURL: $(IA_PRESET_BASE_URL)

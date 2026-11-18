@@ -49,7 +49,7 @@ struct AgentLiveActivity: Widget {
                             Text(verbatim: s.line).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                         }
                         if s.phase == .running && (s.waitingSince == nil || s.finished) {
-                            ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)
+                            StepBar(state: s)
                         }
                         if !s.finished { Buttons(state: s).controlSize(.small) }
                         if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID) }
@@ -61,7 +61,7 @@ struct AgentLiveActivity: Widget {
                 } else if s.phase == .countdown {
                     Image(systemName: "record.circle").foregroundStyle(.white)
                 } else {
-                    Eyes(state: s, stuck: stuck).padding(3).frame(width: 24, height: 24)
+                    Eyes(state: s, stuck: stuck).padding(CountRing.shown(s) ? 5 : 3).frame(width: 24, height: 24).overlay { CountRing(state: s) }
                 }
             } compactTrailing: {
                 if (s.phase == .recording || s.phase.countsDown) && !s.finished {
@@ -76,11 +76,39 @@ struct AgentLiveActivity: Widget {
                     Counter(state: s).font(.caption2)
                 } else {
                     // Screen Mirroring shares the island during a run and leaves only this bubble: the face.
-                    AgentMinimalStatus(state: s, stuck: stuck)
+                    AgentMinimalStatus(state: s, stuck: stuck).scaleEffect(CountRing.shown(s) ? 0.8 : 1).overlay { CountRing(state: s) }
                 }
             }
             .widgetURL(link(context))
             .keylineTint(s.phase == .help ? .orange : s.phase == .recording ? .red : .white)
+        }
+    }
+}
+
+/// The task's own count when the agent gave one (green, done of total), else the steps of the step limit.
+private struct StepBar: View {
+    let state: AgentActivityAttributes.ContentState
+    var body: some View {
+        if let share = state.countShare {
+            ProgressView(value: share).tint(.green)
+        } else {
+            ProgressView(value: Double(min(state.step, state.limit)), total: Double(max(state.limit, 1))).tint(.white)
+        }
+    }
+}
+
+/// A green ring around the face for the task's count (Henry 2026-11-17: steps without an estimate are useless).
+/// With the ring on, the face and its words inside shrink a little so they clear it (Henry 2026-11-18).
+private struct CountRing: View {
+    let state: AgentActivityAttributes.ContentState
+    static func shown(_ state: AgentActivityAttributes.ContentState) -> Bool { state.countShare != nil && !state.finished }
+    var body: some View {
+        if let share = state.countShare, !state.finished {
+            ZStack {
+                Circle().stroke(Color.green.opacity(0.25), lineWidth: 2)
+                Circle().trim(from: 0, to: share).stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
         }
     }
 }
@@ -104,7 +132,11 @@ private struct Counter: View {
                 .monospacedDigit().foregroundStyle(.red).multilineTextAlignment(.trailing)
                 .timerAccessibility("Recording time")
         } else if state.phase != .standby {
-            Text(verbatim: "\(state.step)/\(state.limit)").monospacedDigit().foregroundStyle(.secondary)
+            if let done = state.done, let total = state.total {
+                Text(verbatim: "\(done)/\(total)").monospacedDigit().foregroundStyle(.green)
+            } else {
+                Text(verbatim: "\(state.step)/\(state.limit)").monospacedDigit().foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -255,7 +287,7 @@ private struct LockScreenView: View {
                     if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID).controlSize(.small) }
                 } else {
                     if s.phase == .running {
-                        ProgressView(value: Double(min(s.step, s.limit)), total: Double(max(s.limit, 1))).tint(.white)
+                        StepBar(state: s)
                     }
                     Buttons(state: s).controlSize(.small)
                 }

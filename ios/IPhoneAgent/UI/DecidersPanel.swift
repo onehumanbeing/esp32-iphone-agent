@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The heart of the model page (onboarding's "Give Me a Brain" and Settings › Model): who decides each step.
 /// Two rows, Jev and the large language model: drag a row by its handle to set the order, switch each on or off,
-/// tap one for its settings (Jev: Manina or your own TypeSafe key; the model: provider, key and model). "Ask Both"
+/// tap one for its settings (Jev: Manina AI or your own TypeSafe key; the model: provider, key and model). "Ask Both"
 /// is a small toggle at the header's trailing edge (Henry 2026-11-12: not a card of its own), and the model row
 /// shows whether the last connection test worked. On your own model, switching Jev on asks for its consent first.
 /// Builds without the free line have no Jev: the caller shows the model fields as they are.
@@ -170,10 +170,10 @@ struct DecidersPanel: View {
         }
     }
 
-    private var jevName: String { jevOwnKey && JevConfig.ownActive ? "TypeSafe · \(JevConfig.model)" : "Manina" }
+    private var jevName: String { jevOwnKey && JevConfig.ownActive ? "TypeSafe · \(JevConfig.model)" : "Manina AI" }
 
     private var modelName: String {
-        if freeLine { return trial.keyed ? String(localized: "Manina Plan") : ModelProvider.handsyTrial.title }
+        if freeLine { return trial.keyed ? String(localized: "Manina AI Plan") : ModelProvider.handsyTrial.title }
         guard settings.isConfigured else { return String(localized: "Not set up") }
         return settings.model.isEmpty ? settings.providerName : settings.model
     }
@@ -200,7 +200,7 @@ struct DecidersPanel: View {
         case .jevFirst: return "Jev takes the plain steps in a fraction of a second and leaves the rest to the Large Language Model. Drag ≡ to change the order."
         case .modelFirst: return "The Large Language Model decides. Jev steps in only when the model doesn't answer. Drag ≡ to change the order."
         case .jevOnly: return "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you."
-        case .modelOnly: return freeLine ? "Only the Large Language Model decides. On Manina Free it stays on."
+        case .modelOnly: return freeLine ? "Only the Large Language Model decides. On Manina AI Free it stays on."
             : "Only your Large Language Model decides. Jev sends each step to its server, so it asks you first."
         }
     }

@@ -113,7 +113,10 @@ the session moves there and BLE stays connected as the way back.
   link; after a failed try it waits 10 s, doubling up to a minute.
 - **`net`** (CLI only): `ok {"mode","ssid","pass","ip"}`, the board's Wi-Fi. `net {"mode":"ap"}` or
   `net {"mode":"sta","ssid":…,"pass":…}` changes it, as the app's `net` write does (the iPhone has to mirror over
-  the same network). The CLI's status has `link`: `{"via":"ble"|"wifi","mtu":…,"kbps":…}` for its own link.
+  the same network; going from a home network back to the hotspot restarts the board). The CLI's status has `link`: `{"via":"ble"|"wifi","mtu":…,"kbps":…}` for its own link.
+- **LAN lock** (docs/ble-protocol.md, "LAN mode"): on a home network the board may belong to one phone (`own` 1 in
+  status): only that phone mirrors to it. `own` shows it, `own IP` sets it (a CLI-only setup on a home network can
+  lock the board to its iPhone this way), `own off` forgets it.
 - `ESP32AGENT_TRANSPORT=ble` (or `esp32agent net via ble`) keeps the session on BLE.
 
 ## Sharing the phone with the app
