@@ -1,12 +1,12 @@
-# Installs esp32agent on Windows from the release list (https://handsy.tech/cli/versions.json), else GitHub Releases:
+# Installs esp32agent on Windows from the release list (https://manina.ai/cli/versions.json), else GitHub Releases:
 #   irm https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.ps1 | iex
 # Env: ESP32AGENT_VERSION (default: latest), ESP32AGENT_BIN_DIR (default ~\.local\bin),
-#      ESP32AGENT_VERSIONS_URL (default https://handsy.tech/cli/versions.json),
+#      ESP32AGENT_VERSIONS_URL (default https://manina.ai/cli/versions.json),
 #      ESP32AGENT_ARCHIVE=C:\path\esp32agent_windows_<arch>.zip for a local build (checksums.txt next to it, or
 #      ESP32AGENT_CHECKSUMS), ESP32AGENT_FFMPEG=yes|no to answer the ffmpeg question without a prompt.
 $ErrorActionPreference = 'Stop'
 $repo = 'onehumanbeing/esp32-iphone-agent'
-$versionsUrl = if ($env:ESP32AGENT_VERSIONS_URL) { $env:ESP32AGENT_VERSIONS_URL } else { 'https://handsy.tech/cli/versions.json' }
+$versionsUrl = if ($env:ESP32AGENT_VERSIONS_URL) { $env:ESP32AGENT_VERSIONS_URL } else { 'https://manina.ai/cli/versions.json' }
 $binDir = if ($env:ESP32AGENT_BIN_DIR) { $env:ESP32AGENT_BIN_DIR } else { Join-Path $HOME '.local\bin' }
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'arm64' } 'AMD64' { 'amd64' } default { throw "unsupported CPU $env:PROCESSOR_ARCHITECTURE" } }

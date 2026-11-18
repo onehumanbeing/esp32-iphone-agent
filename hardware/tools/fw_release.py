@@ -8,7 +8,7 @@
     uv run hardware/tools/fw_release.py          # -> hardware/dist/v<version>/{firmware.json, hid_bridge-<version>.bin}
 
 The version is FW_VERSION in hid_bridge/version.h; the board reports it as `fw` in its status. Publish the two
-files at handsy.tech/firmware/ (the only source the app reads); tag the source commit v<version>.
+files at manina.ai/firmware/ (the only source the app reads); tag the source commit v<version>.
 The signing key stays on the release machine (~/.config/esp32agent/firmware-signing.pem); the app only trusts its public key (Firmware.swift).
 """
 import argparse

@@ -3,18 +3,18 @@
 English · [简体中文](README.zh-CN.md)
 
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets the agent see and drive
-a real iPhone through an ESP32 Agent (Handsy) board. It adds:
+a real iPhone through an ESP32 Agent (Manina) board. It adds:
 
 - the `esp32agent` MCP server (`npx -y esp32agent mcp`): `screenshot`, `tap`, `longpress`, `swipe`, `type_text`,
   `press_key`, `press_button`, `device_info`, plus saved intents and history. Tools show up as
   `mcp__esp32agent__<tool>`.
-- the `handsy` skill: the see-act loop, how to save what worked, and safety rules.
+- the `manina` skill: the see-act loop, how to save what worked, and safety rules.
 
 [![DeepSeek Harness drives a real iPhone over Wi-Fi (YouTube)](https://img.youtube.com/vi/DzYv0QVk_No/maxresdefault.jpg)](https://www.youtube.com/watch?v=DzYv0QVk_No)
 
 **[▶ Watch the demo](https://www.youtube.com/watch?v=DzYv0QVk_No)** ·
-**[⚡ Flash the firmware in your browser](https://handsy.tech/install?build=testflight)** ·
-**[📖 Setup guide](https://handsy.tech/docs/cli)**
+**[⚡ Flash the firmware in your browser](https://manina.ai/install?build=testflight)** ·
+**[📖 Setup guide](https://manina.ai/docs/cli)**
 
 Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agent) by Henry Yuan (MIT).
 
@@ -22,9 +22,9 @@ Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agen
 
 1. **Get a board.** Seeed Studio XIAO ESP32S3 (standard 8 MB flash / 8 MB PSRAM) with its antenna, and a short
    USB-C data cable (Lightning iPhones: a Lightning to USB Camera Adapter):
-   [hardware guide](https://handsy.tech/docs/hardware).
+   [hardware guide](https://manina.ai/docs/hardware).
 2. **Flash the firmware** from your browser (Chrome or Edge, board on USB):
-   [handsy.tech/install?build=testflight](https://handsy.tech/install?build=testflight). Firmware v0.2.3 or
+   [manina.ai/install?build=testflight](https://manina.ai/install?build=testflight). Firmware v0.2.3 or
    later (v0.2.2 works over Bluetooth only).
 3. **Pair the computer** within 3 minutes of plugging the board into the iPhone (needs Node.js 18+ and `ffmpeg`):
 
@@ -50,7 +50,7 @@ Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agen
    > Use the esp32agent tools to control my iPhone. Take a screenshot first, then open Settings, go into WLAN, and
    > tell me which Wi-Fi network the phone is connected to. Finally press Home.
 
-Full setup, troubleshooting and every command: [handsy.tech/docs/cli](https://handsy.tech/docs/cli).
+Full setup, troubleshooting and every command: [manina.ai/docs/cli](https://manina.ai/docs/cli).
 
 Check that the layer is loaded (use your own profile name):
 
@@ -63,14 +63,14 @@ server (dsh drops the rest of the inherited environment).
 
 ## Safety
 
-dsh has no per-action confirmation for MCP tools, and these tools act on a real phone. The `handsy` skill tells the
+dsh has no per-action confirmation for MCP tools, and these tools act on a real phone. The `manina` skill tells the
 agent to ask before anything that spends money, sends a message, calls someone, deletes data or changes security
 settings, and to hand passwords and one-time codes to you. Review
-the [skill](skills/handsy/SKILL.md) before you give the agent open-ended tasks.
+the [skill](skills/manina/SKILL.md) before you give the agent open-ended tasks.
 
 ## Development
 
-`skills/handsy/SKILL.md` is a copy of [`skills/handsy/SKILL.md`](../../skills/handsy/SKILL.md) (a package can't
+`skills/manina/SKILL.md` is a copy of [`skills/manina/SKILL.md`](../../skills/manina/SKILL.md) (a package can't
 reach files outside its folder). Run `./check-skill-sync.sh` after editing either one.
 
 ```sh

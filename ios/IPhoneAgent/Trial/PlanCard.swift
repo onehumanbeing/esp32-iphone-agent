@@ -3,7 +3,7 @@ import SwiftUI
 /// The model page's plan banner (onboarding's "Give Me a Brain" and Settings › Model), Henry 2026-11-12: how runs
 /// are paid for, in plain sight, above the deciders. App Store build: its own banners (plans, the loaded plan
 /// and its page) live outside this repository, Henry 2026-11-12: never in TestFlight or here. Every build with the free line: a wide
-/// "Already have a Handsy key? Set it up now" row. With a key: the banner says the plan is active and opens the
+/// "Already have a Manina key? Set it up now" row. With a key: the banner says the plan is active and opens the
 /// key sheet; the App Store build shows the plan, what is left, and opens its plan page instead (both outside
 /// this repository, Henry 2026-11-12: not in TestFlight). One's own API key is set up in the Large Language Model
 /// row below, not here. Builds without the free line show nothing.
@@ -37,7 +37,7 @@ struct PlanCard: View {
                 HandsyStorePlanBanner(manage: { managing = true }, enterKey: { editingKey = true })
                 #else
                 Button { editingKey = true } label: {
-                    PlanBanner(title: Text(trial.keyOn ? "Handsy Plan · Active" : "Handsy Plan · Paused"),
+                    PlanBanner(title: Text(trial.keyOn ? "Manina Plan · Active" : "Manina Plan · Paused"),
                                detail: Text("Key ending in \(String(trial.key.suffix(4)))"))
                 }
                 .buttonStyle(.plain)
@@ -47,7 +47,7 @@ struct PlanCard: View {
                 HandsyStorePlansBanner()
                 #endif
                 Button { editingKey = true } label: {
-                    PlanBanner(symbol: "key.fill", title: Text("Already have a Handsy key?"),
+                    PlanBanner(symbol: "key.fill", title: Text("Already have a Manina key?"),
                                detail: Text("Set it up now: tap here"), dark: false)
                 }
                 .buttonStyle(.plain)
@@ -57,7 +57,7 @@ struct PlanCard: View {
 }
 
 /// A short banner: black with a soft sheen (the plan), or a plain card with a hairline (the key row), in the
-/// app's black-and-white look in light and dark. No symbol: the Handsy logo. Also used by the App Store build's
+/// app's black-and-white look in light and dark. No symbol: the Manina logo. Also used by the App Store build's
 /// plan banner (outside this repository).
 struct PlanBanner: View {
     var symbol: String?
@@ -97,8 +97,8 @@ struct PlanBanner: View {
     }
 }
 
-/// Paste or change a Handsy key (hsk_live_…), or say yes to one a link brought (`offered`). Saved in the
-/// Keychain; the model switches to Handsy, so the deciders above use the plan from the next run.
+/// Paste or change a Manina key (hsk_live_…), or say yes to one a link brought (`offered`). Saved in the
+/// Keychain; the model switches to Manina, so the deciders above use the plan from the next run.
 struct HandsyKeySheet: View {
     var offered: String?
     @Environment(\.dismiss) private var dismiss
@@ -121,15 +121,15 @@ struct HandsyKeySheet: View {
             Image(systemName: "key.fill").font(.title.weight(.semibold)).foregroundStyle(Color(.systemBackground))
                 .frame(width: 64, height: 64).background(Circle().fill(Color.primary))
             VStack(spacing: Space.s) {
-                Text(offered == nil ? "Set Up Your Handsy Key" : "Use This Handsy Key?")
+                Text(offered == nil ? "Set Up Your Manina Key" : "Use This Manina Key?")
                     .font(.title2.bold()).multilineTextAlignment(.center)
-                Text(offered == nil ? "Paste the key from your Handsy plan. Runs then use your plan: no waiting in line, and recordings are read."
-                     : "handsy.tech sent this key to the app. Use it only if you just copied it from your own Handsy plan.")
+                Text(offered == nil ? "Paste the key from your Manina plan. Runs then use your plan: no waiting in line, and recordings are read."
+                     : "manina.ai sent this key to the app. Use it only if you just copied it from your own Manina plan.")
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             field
             if !value.isEmpty && !valid {
-                Text("A Handsy key starts with hsk_").font(.footnote).foregroundStyle(.red)
+                Text("A Manina key starts with hsk_").font(.footnote).foregroundStyle(.red)
             }
             Button { save() } label: {
                 Text("Use This Key").font(.headline).frame(maxWidth: .infinity).frame(height: 52)
@@ -158,7 +158,7 @@ struct HandsyKeySheet: View {
                 Text(verbatim: "hsk_…" + String(offered.suffix(4))).font(.body.monospaced())
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                SecureField("Handsy key", text: $key, prompt: Text(verbatim: "hsk_live_…"))
+                SecureField("Manina key", text: $key, prompt: Text(verbatim: "hsk_live_…"))
                     .font(.body.monospaced()).focused($focused)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .submitLabel(.done).onSubmit { if valid { save() } }
@@ -183,7 +183,7 @@ struct HandsyKeySheet: View {
         dismiss()
     }
 
-    /// Save a key and run on it: the model switches to Handsy, so the deciders use the plan.
+    /// Save a key and run on it: the model switches to Manina, so the deciders use the plan.
     static func use(_ key: String) {
         Trial.shared.setKey(key)
         let settings = AppModel.shared.settings
@@ -192,7 +192,7 @@ struct HandsyKeySheet: View {
     }
 }
 
-/// iphoneagent://key?k=hsk_live_… (handsy.tech's "Open in Handsy" after a purchase on this iPhone): asks first.
+/// iphoneagent://key?k=hsk_live_… (manina.ai's "Open in Manina" after a purchase on this iPhone): asks first.
 /// The link lands while the app is still coming back from the background, and a sheet asked for then is dropped
 /// (iddzz 2026-11-12: two links logged, no sheet), so the sheet waits for the scene to be active.
 struct HandsyKeyOffer: ViewModifier {

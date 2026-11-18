@@ -21,7 +21,7 @@ import (
 )
 
 // DefaultURL lists the releases; ESP32AGENT_VERSIONS_URL overrides it.
-const DefaultURL = "https://handsy.tech/cli/versions.json"
+const DefaultURL = "https://manina.ai/cli/versions.json"
 
 const maxDownload = 200 << 20
 

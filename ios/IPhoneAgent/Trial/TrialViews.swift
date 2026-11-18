@@ -34,7 +34,7 @@ struct TrialPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(verbatim: "Handsy").font(.headline)
+                Text(verbatim: "Manina").font(.headline)
                 Spacer()
                 if trial.keyed { StatusBadge(text: "Key", symbol: "key.fill", emphasized: true) } else { TrialBadge(status: trial.status) }
                 Button { Task { _ = await trial.refresh() } } label: { Image(systemName: "arrow.clockwise") }
@@ -42,10 +42,10 @@ struct TrialPanel: View {
             }
             Text("Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model.")
                 .font(.footnote).foregroundStyle(.secondary)
-            SecureField("Handsy key", text: $key, prompt: Text("Handsy key (optional)"))
+            SecureField("Manina key", text: $key, prompt: Text("Manina key (optional)"))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .onChange(of: key) { _, new in trial.setKey(new) }
-            Text("With a Handsy key, runs use your plan instead of the free runs.")
+            Text("With a Manina key, runs use your plan instead of the free runs.")
                 .font(.footnote).foregroundStyle(.secondary)
             #if HANDSY_STORE
             HandsyStoreEntry()
@@ -76,19 +76,19 @@ struct TrialBadge: View {
 struct TrialConsentSections: View {
     var body: some View {
         Section("Recorded") {
-            Label("Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy", systemImage: "externaldrive")
+            Label("Each run on Manina Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Manina", systemImage: "externaldrive")
             Label("Processed and kept on infrastructure operated by or on behalf of Holomix, Inc.", systemImage: "globe.asia.australia")
             Label("To decide simple steps faster, a step's screenshot, your task and the plan may go to TypeSafe, a service provider", systemImage: "bolt")
         }
         Section {
-            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy.")
+            Text("Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Manina Free. To have records deleted, write to support@manina.ai. You can withdraw this anytime in Settings › Privacy.")
                 .font(.footnote).foregroundStyle(.secondary)
-            if let url = Trial.privacyURL { Link("Handsy Free privacy notice", destination: url).font(.footnote) }
+            if let url = Trial.privacyURL { Link("Manina Free privacy notice", destination: url).font(.footnote) }
         }
     }
 }
 
-/// Settings › Privacy: the installation ID Handsy Free keeps records under, and the mail that asks to delete them.
+/// Settings › Privacy: the installation ID Manina Free keeps records under, and the mail that asks to delete them.
 struct TrialRecordsSection: View {
     var body: some View {
         if Trial.available {
@@ -99,9 +99,9 @@ struct TrialRecordsSection: View {
                 }
                 if let url = Self.mail(id) { Link("Ask to Delete My Records", destination: url) }
             } header: {
-                Text("Handsy Free records")
+                Text("Manina Free records")
             } footer: {
-                Text("Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached.")
+                Text("Manina Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached.")
             }
         }
     }
@@ -109,9 +109,9 @@ struct TrialRecordsSection: View {
     static func mail(_ id: String) -> URL? {
         var parts = URLComponents()
         parts.scheme = "mailto"
-        parts.path = "support@handsy.tech"
-        parts.queryItems = [URLQueryItem(name: "subject", value: "Delete my Handsy Free records"),
-                            URLQueryItem(name: "body", value: "Please delete the Handsy Free records of installation \(id).")]
+        parts.path = "support@manina.ai"
+        parts.queryItems = [URLQueryItem(name: "subject", value: "Delete my Manina Free records"),
+                            URLQueryItem(name: "body", value: "Please delete the Manina Free records of installation \(id).")]
         return parts.url
     }
 }

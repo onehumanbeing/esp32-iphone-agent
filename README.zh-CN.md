@@ -15,11 +15,11 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center">
   <a href="https://testflight.apple.com/join/1xQHgJcA"><b>在 TestFlight 上试用</b></a> ·
-  <a href="https://handsy.tech/zh/install?ref=github"><b>在浏览器里烧录固件</b></a> ·
+  <a href="https://manina.ai/zh/install?ref=github"><b>在浏览器里烧录固件</b></a> ·
   <a href="#不是开发者从这里开始">不是开发者？</a> ·
   <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">看演示</a> ·
-  <a href="https://handsy.tech/zh/docs?ref=github">文档</a> ·
-  <a href="https://handsy.tech/zh/docs/changelog?ref=github">更新记录</a>
+  <a href="https://manina.ai/zh/docs?ref=github">文档</a> ·
+  <a href="https://manina.ai/zh/docs/changelog?ref=github">更新记录</a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · 简体中文</p>
@@ -29,7 +29,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
   <sub>一台真 iPhone 自己做完一节多邻国课程，8 倍速，全程没人碰屏幕。</sub>
 </p>
 
-<p align="center"><a href="https://handsy.tech/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Handsy：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Manina：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -40,21 +40,21 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><b>媒体报道</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">阮一峰《科技爱好者周刊》#415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio 官方推荐</a></p>
 
-<p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://handsy.tech/zh?ref=github">handsy.tech</a></sub></p>
+<p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://manina.ai/zh?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
-<p align="center">不想自己刷板子？即插即用的 Handsy 设备快来了，<a href="https://handsy.tech/zh/hardware">加入等候名单</a>。</p>
+<p align="center">不想自己刷板子？即插即用的 Manina 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
 
 ## 最近更新
 
 <p align="center"><img src="docs/images/highlights-zh.png" alt="1.0.2 和 1.0.3 新功能：能听到手机的声音、免费的 Jev 线路、长任务与逐步回放" width="100%"></p>
 
-- **能听到手机的声音。** 板子转发 AirPlay 音频，iPhone 本机转成文字，听力题、语音提示都能处理。[原理](https://handsy.tech/zh/docs/listen?ref=github)。
+- **能听到手机的声音。** 板子转发 AirPlay 音频，iPhone 本机转成文字，听力题、语音提示都能处理。[原理](https://manina.ai/zh/docs/listen?ref=github)。
 - **免费的 Jev 线路。** 简单的步骤 Jev 不到一秒就做完，其余交给大模型；Agent loop 也重做了，每步只调一次模型。
 - **长任务。** 不再 40 步就停，停下的任务可以接着跑；每次运行都能在手机上逐步回放。
 
-在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装（App Store 版本审核中）。需要板子固件 v0.2.4。[完整更新记录](https://handsy.tech/zh/docs/changelog?ref=github)。
+在 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装（App Store 版本审核中）。需要板子固件 v0.2.4。[完整更新记录](https://manina.ai/zh/docs/changelog?ref=github)。
 
 ## 为什么用一块板子
 
@@ -73,12 +73,12 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 ### 不是开发者？从这里开始
 
-1. **买板子。** Seeed XIAO ESP32S3，约 40 多元：[买什么](https://handsy.tech/zh/docs/hardware?ref=github)。
-2. **在 Chrome 或 Edge 里烧录固件。** 不用装任何工具：[handsy.tech/zh/install](https://handsy.tech/zh/install?ref=github)。
+1. **买板子。** Seeed XIAO ESP32S3，约 40 多元：[买什么](https://manina.ai/zh/docs/hardware?ref=github)。
+2. **在 Chrome 或 Edge 里烧录固件。** 不用装任何工具：[manina.ai/zh/install](https://manina.ai/zh/install?ref=github)。
 3. **安装 App，跟着四步设置走。** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
-   [带图的设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup?ref=github)。
+   [带图的设置指南](https://manina.ai/zh/esp32-iphone-agent-setup?ref=github)。
 
-遇到问题？看[常见问题排查](https://handsy.tech/zh/troubleshooting?ref=github)，或发邮件到 [support@handsy.tech](mailto:support@handsy.tech)。
+遇到问题？看[常见问题排查](https://manina.ai/zh/troubleshooting?ref=github)，或发邮件到 [support@manina.ai](mailto:support@manina.ai)。
 
 > [!NOTE]
 > **免费线路繁忙或报错？** 免费模型线路是大家共用的，有时会繁忙或暂时报错（HTTP 503），任务可能卡住、或每一步都失败。
@@ -86,7 +86,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 ## 工作原理
 
-第一次接触？先看[让 AI 操控 iPhone](https://handsy.tech/zh/ai-control-iphone)，再看 [Handsy 工作原理](https://handsy.tech/zh/how-it-works)。
+第一次接触？先看[让 AI 操控 iPhone](https://manina.ai/zh/ai-control-iphone)，再看 [Manina 工作原理](https://manina.ai/zh/how-it-works)。
 
 ```
 iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）
@@ -109,7 +109,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 ## 硬件
 
-支持的板子和硬件细节见[硬件指南](https://handsy.tech/zh/docs/hardware)。选板子、线材和转接头，或者设置时卡住了，见[安装设置指南](https://handsy.tech/zh/esp32-iphone-agent-setup)。
+支持的板子和硬件细节见[硬件指南](https://manina.ai/zh/docs/hardware)。选板子、线材和转接头，或者设置时卡住了，见[安装设置指南](https://manina.ai/zh/esp32-iphone-agent-setup)。
 
 | 部件 | 说明 |
 |---|---|
@@ -137,7 +137,7 @@ hardware/flash.sh            # 可选参数：[串口] [--debug]
 
 一定要用 `flash.sh` 编译：它会带上 `hardware/hid_bridge/nimble_cfg.h` 里的蓝牙缓冲区配置。
 
-没有 Mac 或不想装工具链？也可以用 Chrome 或 Edge 通过 USB [在网页上刷固件](https://handsy.tech/zh/install)。
+没有 Mac 或不想装工具链？也可以用 Chrome 或 Edge 通过 USB [在网页上刷固件](https://manina.ai/zh/install)。
 
 ### 2. 安装 App
 
@@ -167,11 +167,11 @@ open ios/IPhoneAgent.xcodeproj                                    # 在 iPhone �
 
 ## 在编程 Agent 里使用
 
-`esp32agent` 命令行（npm，`npx -y esp32agent mcp`）是一个 MCP 服务器，电脑上的编程 Agent 可以通过板子看到并操作 iPhone（板子固件需 v0.2.2 或更高），见[把 iPhone 变成 MCP 服务器](https://handsy.tech/zh/iphone-mcp)。本仓库也是一个插件，包含这个 MCP 服务器和一个 Agent 技能（[skills/handsy/SKILL.md](skills/handsy/SKILL.md)）。在 Claude Code 里（[使用教程](https://handsy.tech/zh/claude-code-iphone)）：
+`esp32agent` 命令行（npm，`npx -y esp32agent mcp`）是一个 MCP 服务器，电脑上的编程 Agent 可以通过板子看到并操作 iPhone（板子固件需 v0.2.2 或更高），见[把 iPhone 变成 MCP 服务器](https://manina.ai/zh/iphone-mcp)。本仓库也是一个插件，包含这个 MCP 服务器和一个 Agent 技能（[skills/manina/SKILL.md](skills/manina/SKILL.md)）。在 Claude Code 里（[使用教程](https://manina.ai/zh/claude-code-iphone)）：
 
 ```bash
 /plugin marketplace add onehumanbeing/esp32-iphone-agent
-/plugin install esp32agent@handsy
+/plugin install esp32agent@manina
 ```
 
 或者只添加 MCP 服务器：
@@ -199,7 +199,7 @@ DeepSeek Harness（dsh）：安装 [integrations/dsh](integrations/dsh/README.md
 dsh plugin --profile web add dsh-esp32agent
 ```
 
-命令行工具在电脑上通过蓝牙直接连板子，板子和电脑连同一个 Wi-Fi 后改走 Wi-Fi（`esp32agent net join`），不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://handsy.tech/zh/docs/cli)和 [cli/README.md](cli/README.md)。
+命令行工具在电脑上通过蓝牙直接连板子，板子和电脑连同一个 Wi-Fi 后改走 Wi-Fi（`esp32agent net join`），不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://manina.ai/zh/docs/cli)和 [cli/README.md](cli/README.md)。
 
 ## 模型和提示词
 
@@ -248,7 +248,7 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 - Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
 - 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
 
-遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://handsy.tech/zh/troubleshooting)。
+遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://manina.ai/zh/troubleshooting)。
 
 ## 负责任地使用
 
@@ -263,7 +263,7 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 ## 联系我们
 
-问题或反馈：[support@handsy.tech](mailto:support@handsy.tech) · 官网：[handsy.tech](https://handsy.tech)
+问题或反馈：[support@manina.ai](mailto:support@manina.ai) · 官网：[manina.ai](https://manina.ai)
 
 ## 相关项目
 

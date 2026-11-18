@@ -214,7 +214,7 @@ extension AppModel {
                 step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
                 try Task.checkCancellation()
-                mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
+                mark(Trial.shared.keyed ? "Manina key run (no lease)" : "free line lease")
             }
             agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen
             if startedAway { agent.hints.insert(Self.hereHint, at: 0) }

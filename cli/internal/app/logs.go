@@ -13,7 +13,7 @@ import (
 )
 
 // logs shows the CLI's log (daemon.log), the board's own log (--board), or saves both with the board's state to
-// one file (--save) for support@handsy.tech. Nothing is sent anywhere.
+// one file (--save) for support@manina.ai. Nothing is sent anywhere.
 func (a *App) logs(args []string) int {
 	dev := new(string)
 	fs := newFS(dev)
@@ -83,7 +83,7 @@ func (a *App) saveLogs(dev, output string) int {
 	}
 	abs, _ := filepath.Abs(output)
 	return a.print(daemon.Response{Status: "ok", Data: map[string]string{
-		"filePath": abs, "message": "send this file to support@handsy.tech",
+		"filePath": abs, "message": "send this file to support@manina.ai",
 	}})
 }
 

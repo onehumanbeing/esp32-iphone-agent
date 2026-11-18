@@ -10,7 +10,7 @@ development-signed builds and internal TestFlight; it is not in App Store builds
 |---|---|---|
 | Tool intents: run a task, stop the run, check the run, replay a run | `ios/IPhoneAgent/App/SiriToolIntents.swift` | written, not compiled |
 | Generable request entity, run entity with authenticated properties | same file | written, not compiled |
-| App skill for multi-step guidance | `ios/IPhoneAgent/Skills.skillsbundle/Skills/handsy-run-tasks/SKILL.md` | written, not compiled |
+| App skill for multi-step guidance | `ios/IPhoneAgent/Skills.skillsbundle/Skills/manina-run-tasks/SKILL.md` | written, not compiled |
 | View annotations on the Runs list and the Home run card | `ios/IPhoneAgent/UI/RunViewAnnotations.swift` | written, not compiled |
 
 **Build status.** The code written here was authored on a Linux machine with no Xcode, so the preview
@@ -73,4 +73,4 @@ Useful Apple references: the App Intents documentation for `ToolIntent`, `Genera
 experiences with App Schemas") and 343 ("Explore advanced App Intents features for Siri and Apple
 Intelligence").
 
-Questions: support@handsy.tech
+Questions: support@manina.ai

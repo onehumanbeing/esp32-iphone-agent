@@ -27,7 +27,7 @@ import (
 // sees what the file holds, says yes, and sends the mail themselves. Not offered to agents (no MCP tool).
 
 const (
-	reportAddress = "intents@handsy.tech"
+	reportAddress = "intents@manina.ai"
 	reportBand    = 0.07 // top share of each screen blacked out (Redactor.band): status bar, notifications
 	typedMask     = "•••"
 )

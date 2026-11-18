@@ -15,7 +15,7 @@ import XCTest
         XCTAssertThrowsError(try Trial.shared.headers())  // tests and intent analysis never use the free line
     }
 
-    // MARK: - Handsy key (a plan's key instead of the free runs)
+    // MARK: - Manina key (a plan's key instead of the free runs)
 
     func testAKeyedRunSendsTheKeyAndNoLease() async throws {
         let trial = Trial.shared
@@ -170,10 +170,10 @@ import XCTest
         XCTAssertEqual(reply.text, "DO: wait")
 
         StubProtocol.respond = { _ in
-            (200, "text/event-stream", #"data: {"error": {"code": "busy", "message": "Handsy Free is busy"}}"# + "\n\n")
+            (200, "text/event-stream", #"data: {"error": {"code": "busy", "message": "Manina Free is busy"}}"# + "\n\n")
         }
         do { _ = try await llm.chat(system: "s", text: "t"); XCTFail("expected the gateway's error") } catch {
-            XCTAssertEqual(error.localizedDescription, "Handsy Free is busy")  // its own error, not the cut stream
+            XCTAssertEqual(error.localizedDescription, "Manina Free is busy")  // its own error, not the cut stream
         }
     }
 
@@ -270,7 +270,7 @@ import XCTest
         XCTAssertEqual(ModelRequestFailure.message(timeout), busy)
         XCTAssertEqual(LLMClient.freeLineError(URLError(.networkConnectionLost)).localizedDescription, busy)
         XCTAssertTrue(LLMClient.freeLineError(URLError(.cancelled)) is URLError)
-        let event = LLMError(message: "Handsy Free is busy", reason: "busy"), consent = LLMError(message: "Allow first")
+        let event = LLMError(message: "Manina Free is busy", reason: "busy"), consent = LLMError(message: "Allow first")
         XCTAssertEqual(LLMClient.freeLineError(event).localizedDescription, busy)
         XCTAssertEqual(LLMClient.freeLineError(consent).localizedDescription, "Allow first")  // the user's own step
         XCTAssertEqual(LLMError.trialRunEnded.message, busy)

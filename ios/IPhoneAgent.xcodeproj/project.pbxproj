@@ -719,7 +719,7 @@
 		476B560D1A631C36A87EFFDA /* Skills */ = {
 			isa = PBXGroup;
 			children = (
-				A8A223BC0D47FC3C8B87EDE9 /* handsy-run-tasks */,
+				A8A223BC0D47FC3C8B87EDE9 /* manina-run-tasks */,
 			);
 			path = Skills;
 			sourceTree = "<group>";
@@ -932,12 +932,12 @@
 			path = Review;
 			sourceTree = "<group>";
 		};
-		A8A223BC0D47FC3C8B87EDE9 /* handsy-run-tasks */ = {
+		A8A223BC0D47FC3C8B87EDE9 /* manina-run-tasks */ = {
 			isa = PBXGroup;
 			children = (
 				E9FF335346D08F31D15156F0 /* SKILL.md */,
 			);
-			path = "handsy-run-tasks";
+			path = "manina-run-tasks";
 			sourceTree = "<group>";
 		};
 		AAE61299FC0381CB42923888 /* Resources */ = {

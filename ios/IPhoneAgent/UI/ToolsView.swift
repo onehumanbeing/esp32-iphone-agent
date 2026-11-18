@@ -1,8 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings › Model › Tools: what the agent may look up before or while it acts (Tools.swift). Handsy Search comes
-/// with a Handsy key; Web Search runs on one's own Exa key; more tools come from a JSON file.
+/// Settings › Model › Tools: what the agent may look up before or while it acts (Tools.swift). Manina Search comes
+/// with a Manina key; Web Search runs on one's own Exa key; more tools come from a JSON file.
 struct ToolsView: View {
     @ObservedObject private var store = ToolStore.shared
     @ObservedObject private var trial = Trial.shared
@@ -24,7 +24,7 @@ struct ToolsView: View {
             Section {
                 Button(action: startImport) { Label("Import Tools…", systemImage: "square.and.arrow.down") }
                 if !store.imported.isEmpty {
-                    ShareLink(item: ToolsFile(data: store.export()), preview: SharePreview("Handsy Tools")) {
+                    ShareLink(item: ToolsFile(data: store.export()), preview: SharePreview("Manina Tools")) {
                         Label("Export Tools…", systemImage: "square.and.arrow.up")
                     }
                 }
@@ -52,10 +52,10 @@ struct ToolsView: View {
         .sheet(item: $editing) { ToolKeySheet(tool: $0, store: store) }
     }
 
-    /// The tool file format, on handsy.tech's docs (the Chinese page on a Chinese iPhone).
+    /// The tool file format, on manina.ai's docs (the Chinese page on a Chinese iPhone).
     private var docsURL: URL {
         let zh = locale.language.languageCode == .chinese
-        return URL(string: zh ? "https://handsy.tech/zh/docs/tools" : "https://handsy.tech/docs/tools")!
+        return URL(string: zh ? "https://manina.ai/zh/docs/tools" : "https://manina.ai/docs/tools")!
     }
 
     private func startImport() { importing = true }
@@ -109,7 +109,7 @@ private struct ToolRow: View {
     }
 
     private var status: LocalizedStringKey {
-        if tool.builtin == "handsy" { return keyed ? "Uses your Handsy key" : "Needs a Handsy key" }
+        if tool.builtin == "handsy" { return keyed ? "Uses your Manina key" : "Needs a Manina key" }
         if tool.needsKey && store.key(tool.id).isEmpty { return "No key yet: press and hold to set one" }
         return tool.builtin == nil ? "Imported" : "Uses your own key"
     }

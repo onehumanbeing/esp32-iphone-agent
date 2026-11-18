@@ -5,8 +5,8 @@ struct AboutView: View {
     @ObservedObject var app: AppModel
     static let repo = URL(string: "https://github.com/onehumanbeing/esp32-iphone-agent")!
     static let author = URL(string: "https://x.com/iamhenryyuan")!
-    static let website = URL(string: "https://handsy.tech")!
-    static let privacyPolicy = URL(string: "https://handsy.tech/privacy")!
+    static let website = URL(string: "https://manina.ai")!
+    static let privacyPolicy = URL(string: "https://manina.ai/privacy")!
 
     private var version: String {
         let info = Bundle.main.infoDictionary
