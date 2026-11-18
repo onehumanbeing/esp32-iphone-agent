@@ -4,7 +4,7 @@
     ios/scripts/symbolicate_crash.py crash.json
     ios/scripts/symbolicate_crash.py crash.json --dsym path/to/IPhoneAgent.app.dSYM
 
-crash.json is any of: a MetricKit report from the app (Documents/diagnostics, or Logs > Export all logs), or the
+crash.json is any of: a MetricKit report from the app (Documents/logs/diagnostics, or Logs > Export all logs), or the
 `call_stack` property of a PostHog crash_report event pasted into a file. The crashed thread is printed innermost
 first; frames in the app get function and line from the dSYM, found by UUID with Spotlight (Xcode keeps one per
 archive in ~/Library/Developer/Xcode/Archives) unless --dsym is given.

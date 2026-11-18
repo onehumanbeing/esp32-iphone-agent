@@ -360,6 +360,14 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   bool wasFrozen = gop.frozen, wasLive = tailLive;
   gop_push(&gop, au, len, idr, now);
   bool froze = gop.frozen && !wasFrozen;
+  if (idr && wasFrozen) {  // a new GOP: the tail of the old one is not to be sent after it
+    // It was (0.2.5 and before): a stream on the tail sent the new IDR, then the old tail's P-frames once more, and
+    // the app's decoder failed on every frame until mirroring restarted (an iPad turned after its GOP filled).
+    gop_clear(&tail);
+    tailLive = tailTrimmed = false;
+    sink.onTail = false;
+    sink.tailNext = 0;
+  }
   if (froze) {  // the tail runs for everyone: an app that reconnects goes on from it (resume)
     gop_clear(&tail);
     sink.onTail = sink.followGen == gop.gen;

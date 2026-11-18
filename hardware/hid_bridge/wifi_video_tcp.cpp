@@ -3,9 +3,15 @@
 // and "audio" if it wants the AirPlay audio too (older firmware ignores the line). The board sends records
 // [u16 LE length][chunk]; a zero-length record answers hello and ka. TCP keeps chunks whole and in order,
 // so there are no nacks: a send that stalls for SEND_TIMEOUT_MS drops the session and the app reconnects.
+// On a home network (src/net/lan_lock.h) the app proves the token instead of sending it: "chal" is answered with a
+// record "chal<nonce>", then "auth <hmac> [at <ts>]" opens the session, encrypted from there on, and makes the app's
+// address the board's owner. Once there is an owner the plain "hello" is refused. "resume [at <ts>]" on an open
+// session asks what "hello … at" asks, without the token.
 #include "wifi_video.h"
 #include "cli_link.h"
 #include "logbuf.h"
+#include "netcfg.h"
+#include "src/net/lan_lock.h"
 #if WV_TCP
 #include <esp_random.h>
 #include "freertos/message_buffer.h"
@@ -24,6 +30,8 @@ static volatile uint32_t lastSeen;
 static volatile bool authed, resync, resumeAsked, audioWanted;
 static volatile uint32_t resumeTs;
 static char token[33];
+static char nonce[LAN_NONCE_HEX + 1];  // this connection's challenge, until an `auth` uses it
+static lan_ctr ctr;                    // an `auth` session: records encrypted (under lock)
 static uint32_t winStart, winBytes;
 static volatile uint32_t kbps, drops;
 
@@ -55,6 +63,7 @@ static bool writeRecord(const uint8_t *p, size_t n) {
   rec[0] = (uint8_t)n;
   rec[1] = (uint8_t)(n >> 8);
   if (n) memcpy(rec + 2, p, n);
+  lan_ctr_crypt(&ctr, rec + 2, n);  // an `auth` session only; the keystream runs on across records
   if (writeAll(client, rec, n + 2)) {
     count(n + 2);
     return true;
@@ -65,7 +74,16 @@ static bool writeRecord(const uint8_t *p, size_t n) {
   return false;
 }
 
-static void serve(int fd) {
+// After "hello <token>" or "auth <hmac>": the session is on (under lock). `rest` is what follows: "" or " at <ts>".
+static void open_session(const char *rest) {
+  authed = true;
+  resync = true;  // a new session starts from the IDR, or from just after the app's last AU
+  resumeAsked = rest[0] != 0;
+  resumeTs = resumeAsked ? strtoul(rest + 4, NULL, 10) : 0;
+  writeRecord(NULL, 0);
+}
+
+static void serve(int fd, uint32_t peer) {
   int one = 1;
   setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
   timeval tv = {SEND_TIMEOUT_MS / 1000, (SEND_TIMEOUT_MS % 1000) * 1000};
@@ -78,7 +96,11 @@ static void serve(int fd) {
   client = fd;
   authed = false;
   audioWanted = false;  // asked again on every connection; a resume hello on this one keeps it
+  nonce[0] = 0;
+  lan_ctr_stop(&ctr);
   xSemaphoreGive(lock);
+  char who[16];
+  lan_format_ip(peer, who);
   char line[96];
   size_t used = 0;
   for (;;) {
@@ -92,12 +114,43 @@ static void serve(int fd) {
         const char *rest = line + 6;
         size_t tl = strlen(token);
         if (strncmp(rest, token, tl) || (rest[tl] && strncmp(rest + tl, " at ", 4))) goto done;  // not our app
+        if (lan_locked()) {  // on a home network with an owner the token never travels in the clear
+          board_log("wv: plain hello from %s refused (LAN lock)", who);
+          goto done;
+        }
         xSemaphoreTake(lock, portMAX_DELAY);
-        authed = true;
-        resync = true;  // a new session starts from the IDR, or from just after the app's last AU
-        resumeAsked = rest[tl] != 0;
-        resumeTs = resumeAsked ? strtoul(rest + tl + 4, NULL, 10) : 0;
-        writeRecord(NULL, 0);
+        open_session(rest + tl);
+        xSemaphoreGive(lock);
+      } else if (!authed && !strcmp(line, "chal")) {
+        uint8_t r[16];
+        esp_fill_random(r, sizeof r);
+        uint8_t rec[4 + LAN_NONCE_HEX];
+        xSemaphoreTake(lock, portMAX_DELAY);
+        lan_nonce(nonce, r);
+        memcpy(rec, "chal", 4);
+        memcpy(rec + 4, nonce, LAN_NONCE_HEX);
+        writeRecord(rec, sizeof rec);
+        xSemaphoreGive(lock);
+      } else if (!authed && !strncmp(line, "auth ", 5)) {
+        const char *mac = line + 5, *at = strchr(mac, ' ');
+        char given[LAN_MAC_HEX + 1] = "", msg[8 + LAN_NONCE_HEX];
+        size_t ml = at ? (size_t)(at - mac) : strlen(mac);
+        if (ml == LAN_MAC_HEX) memcpy(given, mac, ml), given[ml] = 0;
+        snprintf(msg, sizeof msg, "video %s", nonce);
+        bool ok = nonce[0] && lan_mac_ok(token, msg, given) && (!at || !strncmp(at, " at ", 4));
+        if (!ok) {
+          board_log("wv: auth from %s refused", who);
+          goto done;
+        }
+        xSemaphoreTake(lock, portMAX_DELAY);
+        lan_ctr_start(&ctr, token, nonce);
+        nonce[0] = 0;  // one use
+        open_session(at ? at : "");
+        xSemaphoreGive(lock);
+        if (net_set_owner(peer)) board_log("wv: %s owns the board on this network", who);
+      } else if (authed && !strncmp(line, "resume", 6) && (!line[6] || !strncmp(line + 6, " at ", 4))) {
+        xSemaphoreTake(lock, portMAX_DELAY);  // "hello … at" on an open session, without the token (any session)
+        open_session(line + 6);
         xSemaphoreGive(lock);
       } else if (authed && !strcmp(line, "ka")) {
         xSemaphoreTake(lock, portMAX_DELAY);
@@ -119,14 +172,17 @@ done:
   xSemaphoreTake(lock, portMAX_DELAY);
   client = -1;
   authed = false;
+  lan_ctr_stop(&ctr);
   xSemaphoreGive(lock);
   close(fd);
 }
 
 static void serverTask(void *) {
   for (;;) {
-    int fd = accept(listener, NULL, NULL);
-    if (fd >= 0) serve(fd);  // one app at a time; a new one waits until this one is gone
+    sockaddr_in peer = {};
+    socklen_t pl = sizeof peer;
+    int fd = accept(listener, (sockaddr *)&peer, &pl);
+    if (fd >= 0) serve(fd, peer.sin_addr.s_addr);  // one app at a time; a new one waits until this one is gone
   }
 }
 

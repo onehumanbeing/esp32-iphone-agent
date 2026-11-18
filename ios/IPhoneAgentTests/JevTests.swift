@@ -221,6 +221,31 @@ import XCTest
         XCTAssertEqual(jev.inputs.count, 7)
     }
 
+    func testUserSideRefusalTellsTheUserOnceAndSkipsJevForTheRun() async throws {
+        let model = SlowModel(), jev = FakeJev()
+        let m = decider(.jevFirst, model: model, jev: jev)
+        var notices: [String] = []
+        m.onNotice = { notices.append($0) }
+        jev.answers = [.success(JevAnswer(reason: "region_blocked")), .success(sure), .success(sure)]
+        for _ in 0..<3 { _ = try await ask(m) }
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(m.userBlock, "region_blocked")
+        XCTAssertEqual(jev.inputs.count, 1, "Jev is not asked again in this run")
+        XCTAssertFalse(m.jevBreaker.isOpen, "the user's region is not an outage")
+    }
+
+    func testTypeSafeUserSideStatuses() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let jev = TypeSafeJev(apiKey: "k", session: URLSession(configuration: config))
+        for (code, reason) in [(451, "region_blocked"), (401, "key_invalid"), (403, "key_invalid"), (402, "no_credit")] {
+            StubProtocol.respond = { _ in (code, "application/json", "{}") }
+            let answer = try await jev.step(JevStepInput.parse(prompt, image: jpeg)!)
+            XCTAssertEqual(answer.reason, reason)
+            XCTAssertNotNil(answer.userSideMessage)
+        }
+    }
+
     // MARK: client
 
     func testStepClientSendsTheStepAndReadsTheAnswer() async throws {
@@ -308,5 +333,12 @@ import XCTest
         let raw = "GET /models: HTTP 400 {\n  \"error\": {\n    \"message\": \"Please pass a valid API key\"\n  }\n}"
         XCTAssertEqual(ProviderFields.short(raw), "Please pass a valid API key")
         XCTAssertEqual(ProviderFields.short("timed out"), "timed out")
+    }
+
+    func testTheModelLooksAfterARoundThatNotedAndMoved() {
+        XCTAssertTrue(AgentLoop.modelLooksNext(["note", "tap"]), "noted, then unfolded: the model reads what the tap shows")
+        XCTAssertTrue(AgentLoop.modelLooksNext(["tap", "swipe"]), "several gestures: the plan is behind")
+        XCTAssertFalse(AgentLoop.modelLooksNext(["tap"]))
+        XCTAssertFalse(AgentLoop.modelLooksNext(["note"]), "nothing moved")
     }
 }

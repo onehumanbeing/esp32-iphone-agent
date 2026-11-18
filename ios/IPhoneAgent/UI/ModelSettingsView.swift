@@ -8,6 +8,7 @@ struct ModelSettingsView: View {
     @State private var advanced = false
     @AppStorage(ModelImage.key) private var shrinkImage = true
     @AppStorage(AppModel.prewarmKey) private var prewarm = true
+    @AppStorage(BriefThink.key) private var briefThink = false
 
     var body: some View {
         Form {
@@ -57,12 +58,14 @@ struct ModelSettingsView: View {
                         .font(.body.monospaced())
                     Toggle("Smaller screenshots", isOn: $shrinkImage)
                     Toggle("Pre-warm screen stream", isOn: $prewarm)
+                    Toggle("Short reasons", isOn: $briefThink)
                 }
             } footer: {
                 if advanced {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("A Planner model different from the Actor model answers the rounds that need judgement: the first one, a run going in circles, and the check before it finishes. A strong planner with a fast actor keeps most steps quick.")
                         Text("Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner.")
+                        Text("Short reasons has the model explain each step in one short sentence, so steps come back sooner.")
                     }
                 }
             }

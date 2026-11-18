@@ -120,6 +120,18 @@ final class FirmwareTests: XCTestCase {
         XCTAssertEqual(progress.last, 1)
     }
 
+    /// LAN lock: the token is proven against the board's nonce and the image's SHA-256 travels under the proof.
+    func testProvenPushAnswersTheChallenge() async throws {
+        let nonce = "0f0e0d0c0b0a09080706050403020100"
+        let board = try FakeOTABoard(cutAfter: nil, nonce: nonce)
+        try await Firmware.push(image, md5: "abc", host: "127.0.0.1", token: "tok", proven: true, port: board.port) { _ in }
+        let (head, body) = board.received()
+        let sha = Firmware.hex(SHA256.hash(data: image))
+        XCTAssertEqual(head, "ota2 \(image.count) \(sha) \(LanAuth.ota(token: "tok", nonce: nonce, size: image.count, sha256: sha))")
+        XCTAssertFalse(head.contains("tok "), "no token in the clear")
+        XCTAssertEqual(body, image)
+    }
+
     func testCutConnectionFails() async throws {
         let board = try FakeOTABoard(cutAfter: 30_000)
         do {
@@ -149,7 +161,7 @@ private final class FakeOTABoard: @unchecked Sendable {
     private let done = DispatchSemaphore(value: 0)
     private var head = "", body = Data()
 
-    init(cutAfter: Int?, answer: String = "ok") throws {
+    init(cutAfter: Int?, answer: String = "ok", nonce: String? = nil) throws {
         let server = socket(AF_INET, SOCK_STREAM, 0)
         fd = server
         var addr = sockaddr_in()
@@ -166,8 +178,15 @@ private final class FakeOTABoard: @unchecked Sendable {
             var line: [UInt8] = [], ch: UInt8 = 0
             while recv(c, &ch, 1, 0) == 1, ch != 10 { line.append(ch) }
             head = String(decoding: line, as: UTF8.self)
+            if head == "chal", let nonce {  // LAN lock: the challenge, then the real header
+                _ = "chal \(nonce)\n".withCString { send(c, $0, strlen($0), 0) }
+                line = []
+                while recv(c, &ch, 1, 0) == 1, ch != 10 { line.append(ch) }
+                head = String(decoding: line, as: UTF8.self)
+            }
             _ = (answer + "\n").withCString { send(c, $0, strlen($0), 0) }
-            guard answer == "ok", let size = Int(head.split(separator: " ")[2]) else { return }
+            let words = head.split(separator: " ")
+            guard answer == "ok", words.count > 2, let size = Int(words[words[0] == "ota2" ? 1 : 2]) else { return }
             var buf = [UInt8](repeating: 0, count: 8192)
             while body.count < size {
                 if let cutAfter, body.count >= cutAfter { return }
@@ -210,5 +229,20 @@ final class CrashFramesTests: XCTestCase {
         XCTAssertFalse(JSONSerialization.isValidJSONObject(["fw": FirmwareVersion([0, 2, 5])]), "the struct is not JSON")
         XCTAssertTrue(JSONSerialization.isValidJSONObject(["fw": FirmwareVersion([0, 2, 5]).plain]))
         XCTAssertEqual(FirmwareVersion([0, 2, 5]).plain, "0.2.5")
+    }
+
+    /// A firmware that needs a newer app is not offered to an older one; the App Store's version is read from lookup.
+    func testMinAppHoldsTheFirmwareBackAndTheStoreVersionIsRead() throws {
+        var r = FirmwareRelease(version: "0.2.6", size: 1, sha256: "", md5: "", url: "x.bin", sig: nil, notes: nil)
+        XCTAssertTrue(r.fits(app: FirmwareVersion([1, 0, 6])), "no min_app: any app")
+        r.min_app = "1.0.7"
+        XCTAssertFalse(r.fits(app: FirmwareVersion([1, 0, 6])))
+        XCTAssertTrue(r.fits(app: FirmwareVersion([1, 0, 7])))
+        let decoded = try JSONDecoder().decode(FirmwareRelease.self, from: Data(#"{"version":"0.2.6","size":1,"sha256":"","md5":"","url":"x","min_app":"1.0.7"}"#.utf8))
+        XCTAssertEqual(decoded.min_app, "1.0.7")
+        let lookup = Data(#"{"resultCount":1,"results":[{"version":"1.0.8","trackViewUrl":"https://apps.apple.com/app/id1"}]}"#.utf8)
+        let found = try XCTUnwrap(AppUpdate.parse(lookup))
+        XCTAssertEqual(found.version, FirmwareVersion([1, 0, 8]))
+        XCTAssertNil(AppUpdate.parse(Data(#"{"resultCount":0,"results":[]}"#.utf8)))
     }
 }

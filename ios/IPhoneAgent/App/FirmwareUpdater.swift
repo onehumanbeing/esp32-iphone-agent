@@ -53,11 +53,17 @@ struct FirmwareReminder {
 
     var busy: Bool { phase == .downloading || phase == .sending || phase == .restarting }
     var current: FirmwareVersion { Firmware.version(of: app.board.status) }
-    var available: Bool { app.board.connected && (release.map { $0.ver > current } ?? false) }
+    var available: Bool { app.board.connected && (release.map { $0.ver > current && $0.fits(app: AppUpdate.current) } ?? false) }
+    /// A newer firmware is out but needs a newer app: the app update is offered instead (AppUpdateBanner).
+    var needsNewerApp: Bool {
+        app.board.connected && (release.map { $0.ver > current && !$0.fits(app: AppUpdate.current) } ?? false)
+    }
     /// Older than this app works with.
     var belowMinimum: Bool { app.board.connected && current < Firmware.required }
     /// Behind the newest release and able to take it over Wi-Fi: asked for on every connection, can be skipped.
-    var outdated: Bool { app.board.connected && FirmwareReminder.outdated(current, latest: release) }
+    var outdated: Bool {
+        app.board.connected && FirmwareReminder.outdated(current, latest: release) && !needsNewerApp
+    }
     /// The sheet opens by itself, titled Board Update Required.
     var required: Bool { belowMinimum || outdated }
     /// Below the minimum and possible now: the sheet can't be put off (an old board needing USB, or no release found, can).
@@ -190,7 +196,8 @@ struct FirmwareReminder {
             do {
                 let started = now()
                 DebugLog.write("firmware: try \(n): sending \(image.count) bytes to \(ip) (BLE \(app.board.connected ? "up" : "down"))")
-                try await Firmware.push(image, md5: release.md5, host: ip, token: token) { p in
+                try await Firmware.push(image, md5: release.md5, host: ip, token: token,
+                                        proven: LanAuth.supported(app.board.status)) { p in
                     Task { @MainActor [weak self] in self?.progress = max(self?.progress ?? 0, p) }
                 }
                 DebugLog.write(String(format: "firmware: board took the image in %.1f s; restarting", now() - started))

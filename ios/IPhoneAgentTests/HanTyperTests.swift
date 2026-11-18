@@ -98,13 +98,15 @@ import XCTest
         XCTAssertEqual(ime.composing, "")
     }
 
-    func testTheRightCandidateIsPickedByItsNumber() async throws {
+    /// A word that is not the first candidate goes in by halves, not by its number (a number key can go into the
+    /// pinyin and leave the letters in the field).
+    func testAWordNotFirstGoesInByHalvesNotByANumber() async throws {
         let ime = FakeIME(knowing: "今天")
         ime.decoys["jintian"] = ["金天"]
         let note = try await ime.typer().type("今天")
         XCTAssertNil(note)
         XCTAssertEqual(ime.field, "今天")
-        XCTAssertTrue(ime.sent.contains("type 2"), "\(ime.sent)")
+        XCTAssertFalse(ime.sent.contains("type 2"), "\(ime.sent)")
     }
 
     func testAWordMissingFromTheCandidatesGoesInCharacterByCharacter() async throws {
@@ -159,14 +161,17 @@ import XCTest
         XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 2, "to English for apple, back to pinyin for 好")
     }
 
-    func testACommitThatDoesNotLandIsReported() async throws {
-        let ime = FakeIME(knowing: "今天")
-        ime.decoys["jintian"] = ["金天"]
+    /// The number key went into the pinyin instead of picking: reported, and the letters and the number cleared.
+    func testACommitThatDoesNotLandIsReportedAndCleared() async throws {
+        let ime = FakeIME(knowing: "北")
+        ime.only["bei"] = ["被", "北"]
         let typer = ime.typer()
-        let broken = HanTyper(send: { s in if s == "2" { ime.sent.append("type 2") } else { ime.send(s) } },  // no digit selection
+        let broken = HanTyper(send: { s in if s == "2" { ime.sent.append("type 2"); ime.composing.append("2") } else { ime.send(s) } },
                               key: typer.key, toggle: typer.toggle, look: typer.look)
-        let note = try await broken.type("今天")
-        XCTAssertTrue(note?.contains("\"今天\" did not show up") == true, note ?? "nil")
+        let note = try await broken.type("北")
+        XCTAssertTrue(note?.contains("\"北\" did not show up") == true, note ?? "nil")
+        XCTAssertEqual(ime.composing, "", "nothing left in the field")
+        XCTAssertEqual(ime.field, "")
     }
 
     func testWithoutAScreenEachWordIsCommittedBlind() async throws {
@@ -251,5 +256,61 @@ import XCTest
         XCTAssertNil(note)
         XCTAssertEqual(ime.field, "天安门")
         XCTAssertFalse(ime.sent.contains("type tian"), "天安 goes in as a pair: \(ime.sent)")
+    }
+}
+
+@MainActor final class TypeChunkTests: XCTestCase {
+    func testLongTextSplitsOnCharacterBoundaries() {
+        let text = String(repeating: "a", count: 500)
+        let parts = TypeChunks.split(text)
+        XCTAssertEqual(parts.joined(), text)
+        XCTAssertTrue(parts.allSatisfy { $0.count <= TypeChunks.maxChars })
+        XCTAssertEqual(parts.count, Int((500 + TypeChunks.maxChars - 1) / TypeChunks.maxChars))
+    }
+
+    func testPinyinAndAccentsAreNotCutInsideACluster() {
+        let mark = "e\u{301}"  // e + combining acute, one Character
+        let text = String(repeating: mark, count: TypeChunks.maxChars + 3)
+        let parts = TypeChunks.split(text)
+        XCTAssertEqual(parts.map(\.count), [TypeChunks.maxChars, 3])
+        XCTAssertEqual(parts.joined(), text)
+        XCTAssertEqual(TypeChunks.split("你好world").joined(), "你好world")
+        XCTAssertEqual(TypeChunks.split(""), [])
+    }
+
+    func testAPartialFirmwareReplyKeepsTheUntypedTail() async {
+        let text = String(repeating: "b", count: 60)
+        var sent: [String] = []
+        do {
+            try await TypeChunks.send(text) { piece in
+                sent.append(piece)
+                if sent.count == 1 {
+                    throw DeviceError(message: "err typed 10 of \(piece.count): budget")
+                }
+            }
+            XCTFail("expected the budget stop")
+        } catch let halt as TypeHalted {
+            XCTAssertEqual(halt.why, "budget")
+            XCTAssertEqual(sent, [String(repeating: "b", count: TypeChunks.maxChars)])
+            XCTAssertEqual(halt.left, String(repeating: "b", count: 60 - 10))
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        XCTAssertEqual(TypeStop.parse("err typed 3 of 8: asleep")?.why, "asleep")
+        XCTAssertNil(TypeStop.parse("err unknown command"))
+    }
+
+    func testTypingStopsAndReportsTheRestOfThePiece() async throws {
+        let text = String(repeating: "c", count: 50) + "尾"
+        var sent: [String] = []
+        let typer = HanTyper(send: { piece in
+            sent.append(piece)
+            if piece.count > 10 { throw DeviceError(message: "err typed 4 of \(piece.count): asleep") }
+        }, key: { _ in }, toggle: {}, look: { nil })
+        let note = try await typer.type(text, checkLetters: false)
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertTrue(note?.contains("typing stopped (asleep)") == true)
+        XCTAssertTrue(note?.contains("not typed:") == true)
+        XCTAssertTrue(note?.contains("尾") == true, note ?? "")
     }
 }

@@ -126,10 +126,10 @@ import XCTest
         agent.heard = { sound }
         _ = try await agent.nextActions()
         XCTAssertFalse(actor.prompts[0].contains("Heard"))
-        XCTAssertTrue(actor.prompts[0].hasSuffix("Recent actions:\n(none)\n\nNext action?"))
+        XCTAssertTrue(actor.prompts[0].hasSuffix("Recent actions:\n(none)\n\n" + AgentLoop.replyFormat))
         sound = "Heard (phone audio, last 30 s):\n- now, 2 s so far: \"hello\""
         _ = try await agent.nextActions()
-        XCTAssertTrue(actor.prompts[1].hasSuffix("Recent actions:\n(none)\n\n" + sound + "\n\nNext action?"))
+        XCTAssertTrue(actor.prompts[1].hasSuffix("Recent actions:\n(none)\n\n" + sound + "\n\n" + AgentLoop.replyFormat))
     }
 
     // MARK: helpers

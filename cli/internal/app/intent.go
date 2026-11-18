@@ -131,7 +131,7 @@ func (a *App) intent(args []string) int {
 	return a.fail(errors.New("usage: esp32agent intent list | show | save | delete | export | import"))
 }
 
-// export writes the intents named (each argument a name or id) as one .esp32intent file.
+// export writes the intents named (each argument a name or id) as one .intent file.
 func (a *App) export(keys []string, screenshots bool, output string) int {
 	if len(keys) == 0 {
 		return a.fail(errors.New("usage: esp32agent intent export NAME|ID... [--screenshots] [--output FILE]"))

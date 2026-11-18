@@ -5,11 +5,17 @@ extension UTType {
     static let esp32Intent = UTType(exportedAs: "com.onehumanbeing.esp32agent.intent", conformingTo: .json)
 }
 
-/// Saved intents as a shareable .esp32intent file (JSON): name, prompt, icon, checklist and recorded steps.
-/// Reference screens only when the user asks for them; never run history or run ids.
+/// Saved intents as a shareable .intent file (JSON): name, prompt, icon, checklist and recorded steps.
+/// Reference screens only when the user asks for them; never run history or run ids. The format is written up in
+/// docs/intent-format.md. Files from before 2026-11-16 end in .esp32intent and still open.
 enum IntentArchive {
     static let format = 1
-    static let fileExtension = "esp32intent"
+    static let fileExtension = "intent"
+    static let extensions: Set<String> = ["intent", "esp32intent"]
+
+    static func isIntentFile(_ name: String) -> Bool {
+        extensions.contains((name as NSString).pathExtension.lowercased())
+    }
     static let maxBytes = 25_000_000
 
     struct File: Codable, Equatable {
@@ -93,17 +99,28 @@ enum IntentArchive {
         var seen = Set(existing.map { key($0.name, $0.prompt) })
         var added: [SavedTask] = []
         for item in items {
-            let name = item.name.isEmpty ? String(item.prompt.prefix(30)) : item.name
-            guard seen.insert(key(name, item.prompt)).inserted else { continue }
-            var intent = SavedTask(name: name, prompt: item.prompt, icon: item.icon, hints: item.hints)
-            intent.until = item.until
-            intent.color = item.color
-            intent.maxLoops = item.maxLoops
-            intent.steps = try item.steps.map { try save($0, for: intent.id) }
-            added.append(intent)
+            guard seen.insert(key(name(item), item.prompt)).inserted else { continue }
+            added.append(try intent(item))
         }
         return (added, items.count - added.count)
     }
+
+    /// A new intent (a new id) for one item, saved even if one like it is already there: the user chose it.
+    static func intent(_ item: Item) throws -> SavedTask {
+        var intent = SavedTask(name: name(item), prompt: item.prompt, icon: item.icon, hints: item.hints)
+        intent.until = item.until
+        intent.color = item.color
+        intent.maxLoops = item.maxLoops
+        intent.steps = try item.steps.map { try save($0, for: intent.id) }
+        return intent
+    }
+
+    /// Files carry no intent ids, so "already saved" is a guess: the same name and words.
+    static func looksSaved(_ item: Item, in existing: [SavedTask]) -> Bool {
+        existing.contains { key($0.name, $0.prompt) == key(name(item), item.prompt) }
+    }
+
+    private static func name(_ item: Item) -> String { item.name.isEmpty ? String(item.prompt.prefix(30)) : item.name }
 
     private static func key(_ name: String, _ prompt: String) -> String {
         name.lowercased() + "\u{1F}" + prompt.lowercased()
@@ -136,7 +153,7 @@ extension RecordedStep {
 }
 
 extension IntentStore {
-    /// A .esp32intent file from Files, the share sheet or Import. Returns how many were added and skipped.
+    /// A .intent file from Files, the share sheet or Import. Returns how many were added and skipped.
     func importFile(_ url: URL) throws -> (added: Int, skipped: Int) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -147,8 +164,30 @@ extension IntentStore {
     }
 }
 
+extension IntentStore {
+    /// The intents the user picked in a .intent file, in the file's order, at the top of the list.
+    func add(_ picked: [IntentArchive.Item]) throws -> Int {
+        let made = try picked.map(IntentArchive.intent)
+        made.reversed().forEach(upsert)
+        return made.count
+    }
+}
+
 extension AppModel {
-    /// A .esp32intent file opened from Files, the share sheet or the intent list's Import.
+    /// The intents picked on a .intent file's page.
+    func addIntents(_ picked: [IntentArchive.Item]) {
+        do {
+            let added = try intents.add(picked)
+            tab = .agent
+            notice = String(localized: "Imported \(added) intents.")
+            say("added intents from a file: \(added)")
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+
+    /// A .intent file opened from Files, the share sheet or the intent list's Import.
     func importIntents(_ url: URL) {
         do {
             let (added, skipped) = try intents.importFile(url)

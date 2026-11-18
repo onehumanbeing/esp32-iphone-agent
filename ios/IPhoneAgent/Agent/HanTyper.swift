@@ -1,6 +1,67 @@
 import Foundation
 import NaturalLanguage
 
+/// Plain text the board types in one `type` command. Initial estimate: short enough that each command
+/// stays inside the firmware's 4 s type budget (and the 8 s task watchdog on older firmware, which types
+/// the whole command before it can feed the watchdog). Splits on extended grapheme clusters, so a
+/// combining accent is never cut in half.
+enum TypeChunks {
+    static let maxChars = 48
+
+    static func split(_ text: String, maxChars: Int = maxChars) -> [String] {
+        guard maxChars > 0, !text.isEmpty else { return text.isEmpty ? [] : [text] }
+        var out: [String] = []
+        var current = ""
+        var count = 0
+        for ch in text {
+            if count >= maxChars {
+                out.append(current)
+                current = ""
+                count = 0
+            }
+            current.append(ch)
+            count += 1
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
+    }
+
+    /// Sends `text` in chunks. A firmware `err typed N of M: budget|asleep` becomes `TypeHalted`
+    /// (N is bytes; chunks are ASCII, so it matches characters). Any other error is rethrown.
+    static func send(_ text: String, _ send: (String) async throws -> Void) async throws {
+        let pieces = split(text)
+        for (i, piece) in pieces.enumerated() {
+            do {
+                try await send(piece)
+            } catch let error as DeviceError {
+                guard let stop = TypeStop.parse(error.message) else { throw error }
+                let kept = min(stop.typed, piece.count)
+                let left = String(piece.dropFirst(kept)) + pieces.dropFirst(i + 1).joined()
+                throw TypeHalted(why: stop.why, left: left)
+            }
+        }
+    }
+}
+
+/// The board stopped halfway through a `type` command. `left` is the part of this send that did not go in.
+struct TypeHalted: Error {
+    var why: String
+    var left: String
+}
+
+enum TypeStop {
+    static func parse(_ message: String) -> (typed: Int, total: Int, why: String)? {
+        guard let range = message.range(of: "typed ") else { return nil }
+        let parts = message[range.upperBound...].split(separator: " ").map(String.init)
+        guard parts.count >= 4, parts[1] == "of", let typed = Int(parts[0]) else { return nil }
+        let totalWord = parts[2].hasSuffix(":") ? String(parts[2].dropLast()) : parts[2]
+        guard let total = Int(totalWord) else { return nil }
+        let why = parts[3].trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+        guard why == "budget" || why == "asleep" else { return nil }
+        return (typed, total, why)
+    }
+}
+
 /// Chinese text through the pinyin keyboard, read back: the board types ASCII only, so Chinese goes in as
 /// toneless pinyin and the keyboard's candidates turn it into characters. A whole sentence's first candidate is
 /// often not the sentence (wrong words, or pinyin left uncommitted in the field), so the text goes in short words
@@ -30,6 +91,18 @@ import NaturalLanguage
     /// Types `text`; nil = typed and checked (or no screen to check), else what went wrong and what is left.
     /// `checkLetters`: the keyboard may be pinyin (unknown), so letters are checked not to stay uncommitted.
     func type(_ text: String, checkLetters: Bool = true) async throws -> String? {
+        do { return try await typeBody(text, checkLetters: checkLetters) }
+        catch let halt as TypeHalted {
+            return "typing stopped (\(halt.why)); not typed: \"\(halt.left)\""
+        }
+    }
+
+    /// A stopped `type` command, with what this piece and the queue still owe the field.
+    private func stopped(_ halt: TypeHalted, typed: String, piece: Piece, queue: ArraySlice<Piece>) -> String {
+        "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(halt.left)\(queue.map(\.text).joined())\""
+    }
+
+    private func typeBody(_ text: String, checkLetters: Bool) async throws -> String? {
         var queue = Self.pieces(text)[...]
         var typed = ""
         let checked = checkLetters || queue.contains {
@@ -37,7 +110,9 @@ import NaturalLanguage
         }
         var last = checked ? await look() : nil  // the screen before the next piece
         var lastRow: Set<Int> = []
-        var pending: (word: String, base: String)?  // a committed word, checked on the next look
+        // a committed word, checked on the next look; `left` is what stays in the field if it did not commit (its
+        // pinyin, and the number key that was to pick it)
+        var pending: (word: String, base: String, left: Int)?
         func remaining(_ piece: Piece) -> String { ([piece] + queue).map(\.text).joined() }
         func stop(_ why: String, _ piece: Piece) -> String {
             "\(why); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
@@ -64,16 +139,21 @@ import NaturalLanguage
             case .plain(let s):
                 let (strokes, plain) = Accents.plan(s)  // accented letters through Option keys
                 guard !strokes.isEmpty else { continue }
-                try await enter(strokes)
+                do { try await enter(strokes) }
+                catch let halt as TypeHalted { return stopped(halt, typed: typed, piece: piece, queue: queue) }
                 let letters = checkLetters && plain.contains(where: \.isLetter), symbols = Self.layoutSymbols(in: plain)
                 guard letters || !symbols.isEmpty, let before = last else { typed += s; continue }
                 guard var seen = await next() else { typed += s; continue }
-                if !seen.ok { return stop("\"\(pending!.word)\" did not show up in the field after committing it", piece) }
+                if !seen.ok {
+                    try await erase(plain.count + pending!.left)
+                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
+                }
                 pending = nil
                 if letters, seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
                     try await erase(plain.count)
                     try await toggle()
-                    try await enter(strokes)
+                    do { try await enter(strokes) }
+                    catch let halt as TypeHalted { return stopped(halt, typed: typed, piece: piece, queue: queue) }
                     guard let again = await next() else { typed += s; continue }
                     if again.row.count >= 2 {
                         try await erase(plain.count)
@@ -83,22 +163,25 @@ import NaturalLanguage
                 }
                 typed += s
                 if Self.symbolsWrong(plain, symbols, now: seen.seen, row: seen.row, before: before, beforeRow: lastRow) {
-                    return "the symbols \(String(symbols)) came out as other characters: the iPhone's hardware keyboard layout"
+                    return "the symbols \(String(symbols)) came out as other characters: the \(DeviceKind.name)'s hardware keyboard layout"
                         + " is not U.S. (Settings > General > Keyboard > Hardware Keyboard); typed \"\(typed)\" with them"
                         + " wrong, not typed: \"\(queue.map(\.text).joined())\""
                 }
                 last = seen.seen; lastRow = Set(seen.row)
             case .han(let word):
                 let pinyin = Pointer.typeable(word)
-                try await send(pinyin)
+                do { try await emit(pinyin) }
+                catch let halt as TypeHalted {
+                    return "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
+                }
                 guard last != nil, var seen = await next() else {  // no screen: commit the first candidate blind
                     try await key("space")
                     typed += word
                     continue
                 }
                 if !seen.ok {
-                    try await erase(pinyin.count)
-                    return stop("\"\(pending!.word)\" did not show up in the field after committing it", piece)
+                    try await erase(pinyin.count + pending!.left)
+                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
                 }
                 pending = nil
                 let base = Self.fieldText(last!, minus: Array(lastRow))
@@ -106,7 +189,10 @@ import NaturalLanguage
                     > Self.count(pinyin, in: base.lowercased()) {  // the letters went in as text: English keyboard
                     try await erase(pinyin.count)
                     try await toggle()
-                    try await send(pinyin)
+                    do { try await emit(pinyin) }
+                    catch let halt as TypeHalted {
+                        return "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
+                    }
                     guard let again = await next() else { try await key("space"); typed += word; continue }
                     guard !again.row.isEmpty else {
                         try await erase(pinyin.count)
@@ -115,11 +201,14 @@ import NaturalLanguage
                     seen = again
                 }
                 let words = seen.row.map { seen.seen.words[$0].text }
+                var left = pinyin.count
                 if seen.row.isEmpty {
                     try await key("space")  // no candidates read: commit the first, checked on the next look
-                } else if let at = Self.choice(word, in: words) {
-                    if at == 0 { try await key("space") } else { try await send(String(at + 1)) }
+                } else if let at = Self.choice(word, in: words), at == 0 || word.count == 1 {
+                    if at == 0 { try await key("space") } else { try await send(String(at + 1)); left += 1 }
                 } else {
+                    // not first: halves, each more likely first, before a number key (a number key can go into the
+                    // pinyin instead of picking, and leave the letters in the field)
                     try await erase(pinyin.count)
                     guard word.count > 1 else {
                         return stop("\"\(word)\" is not among the candidates for \(pinyin) (cleared)", piece)
@@ -129,20 +218,26 @@ import NaturalLanguage
                     continue
                 }
                 typed += word
-                pending = (word, base)
+                pending = (word, base, left)
                 last = seen.seen; lastRow = Set(seen.row)
             }
         }
         if pending != nil, let seen = await next(), !seen.ok {
-            return "\"\(pending!.word)\" did not show up in the field after committing it; typed \"\(typed)\""
+            try await erase(pending!.left)
+            return "\"\(pending!.word)\" did not show up in the field after committing it (cleared); typed \"\(typed)\""
         }
         return nil
+    }
+
+    /// One `type` command, split so a long run cannot sit inside the board's watchdog.
+    private func emit(_ text: String) async throws {
+        try await TypeChunks.send(text, send)
     }
 
     private func enter(_ strokes: [Accents.Stroke]) async throws {
         for stroke in strokes {
             switch stroke {
-            case .text(let t): try await send(t)
+            case .text(let t): try await emit(t)
             case .key(let k): try await key(k)
             }
         }

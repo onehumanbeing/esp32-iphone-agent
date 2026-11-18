@@ -12,7 +12,8 @@ bool ble_app_active();     // that link, and the app sent a real command lately:
 const char FROM_APP = 'a', FROM_CLI = 'c';
 
 void ble_push_cmd(char origin, const char *line, size_t n);
-bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms);  // next command, oldest first
+bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv = nullptr);  // next command, oldest first
+void ble_reply_timing(uint32_t recv, uint32_t queued, uint32_t ran);  // for the next ble_reply: logged when slow
 void ble_reply(const String &line, char dest = FROM_APP);         // queued; sent before any further video
 void ble_status(const String &json);               // latest wins; sent before any further video
 void ble_cli_status(const String &full, const String &compact);  // to the CLI, the form that fits its MTU

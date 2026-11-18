@@ -21,12 +21,16 @@ enum AssistiveTouchSpots {
     }
 
     /// The prompt rule, with the remembered spots in the models' 0–1000 coordinates.
-    static var rule: String {
+    /// The spots are screen fractions (caught on this app's own window); `geometry` (iPad) puts them on the frame.
+    static func rule(geometry: ScreenGeometry? = nil) -> String {
         var text = """
 Never tap the AssistiveTouch floating button (a small translucent round button at a screen edge). \
 If an AssistiveTouch menu panel is visible, close it by tapping outside it.
 """
-        let spots = all.map { "(\(Int($0.x * 1000)), \(Int($0.y * 1000)))" }
+        let spots = all.map { spot -> String in
+            let p = geometry?.framePoint(fromScreen: CGPoint(x: spot.x, y: spot.y)) ?? CGPoint(x: spot.x, y: spot.y)
+            return "(\(Int(p.x * 1000)), \(Int(p.y * 1000)))"
+        }
         if !spots.isEmpty { text += " It was last seen near " + spots.joined(separator: ", ") + "; keep away from there." }
         return text
     }

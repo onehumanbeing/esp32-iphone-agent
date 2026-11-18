@@ -46,7 +46,7 @@ extension AgentLoop {
     func inventoryHold(_ act: JObject, on shot: Data?) async -> String? {
         guard inventory.needed, !inventory.held, !Inventory.confirmed(steps),
               let shot, let x = act["x"]?.int, let y = act["y"]?.int else { return nil }
-        let label = IntentLearner.label(at: x, y, in: await DemoAnalysis.texts(shot, limit: 80))
+        let label = IntentLearner.label(at: x, y, in: await lookLines(for: shot))
         guard inventory.holds(label: label, steps: steps) else { return nil }
         DebugLog.write("inventory: held a tap on \"\(label ?? "")\" before any confirm")
         return Inventory.advice

@@ -3,7 +3,7 @@
 English · [简体中文](README.zh-CN.md)
 
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets the agent see and drive
-a real iPhone through an ESP32 Agent (Manina) board. It adds:
+a real iPhone through an ESP32 Agent (Manina AI) board. It adds:
 
 - the `esp32agent` MCP server (`npx -y esp32agent mcp`): `screenshot`, `tap`, `longpress`, `swipe`, `type_text`,
   `press_key`, `press_button`, `device_info`, plus saved intents and history. Tools show up as

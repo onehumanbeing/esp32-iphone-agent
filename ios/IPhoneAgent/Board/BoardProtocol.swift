@@ -23,6 +23,7 @@ struct BoardStatus: Codable, Equatable {
         var n: Int?, kbps: Double?, nack: Int?, drop: Int?
     }
     var fw: FirmwareVersion?  // firmware version (hardware/hid_bridge/version.h); boards before OTA don't send it
+    var tchunk: Int?   // 1: `type` can stop early and reply "err typed N of M: budget|asleep" (firmware 0.2.6)
     var up: Int?
     var rst: String?
     var heap: Int?
@@ -40,6 +41,7 @@ struct BoardStatus: Codable, Equatable {
     var fz: Int?       // 1: GOP full, no new frame until mirroring sends a keyframe (0.2.2+; nil = 0)
     var ble: BLE?
     var udp: UDP?
+    var own: Int?      // LAN lock (LanAuth): 1 = on a home network with an owner, only it may mirror; nil = no lock
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
@@ -48,6 +50,7 @@ struct BoardStatus: Codable, Equatable {
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
         m.fw = n.fw ?? fw
+        m.tchunk = n.tchunk ?? tchunk
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
@@ -56,6 +59,7 @@ struct BoardStatus: Codable, Equatable {
         let a = ble ?? BLE(), b = n.ble ?? BLE()
         m.ble = BLE(mtu: b.mtu ?? a.mtu, phy: b.phy ?? a.phy, kbps: b.kbps ?? a.kbps, drop: b.drop ?? a.drop)
         m.udp = n.udp ?? udp
+        // own is not carried over either (in every status): a board flashed back to older firmware has no lock
         return m
     }
 }

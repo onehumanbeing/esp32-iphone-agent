@@ -3,7 +3,7 @@ import DeviceCheck
 import Foundation
 import UIKit
 
-/// The free line: Manina's own model on private hardware, free to try while nobody else is using it.
+/// The free line: Manina AI's own model on private hardware, free to try while nobody else is using it.
 ///
 /// Only builds that set IA_TRIAL_ORIGIN (the App Store build) show it. The server does the guarding: it only
 /// enrolls the signed app (App Attest), limits concurrent runs, and limits each run's time, calls and how
@@ -27,16 +27,19 @@ import UIKit
     nonisolated static let recordingModel = "handsy-recording"
     nonisolated static let consentVersion = "2026-10-19"  // the server's recording-consent version
     nonisolated static var privacyURL: URL? { URL(string: origin + "/privacy") }
-    nonisolated static func isTrial(_ baseURL: String) -> Bool { available && URL(string: baseURL)?.host == URL(string: origin)?.host }
+    nonisolated static func isTrial(_ baseURL: String) -> Bool {  // its old host too (AIConsent.sameService)
+        guard available, let a = URL(string: baseURL)?.host, let b = URL(string: origin)?.host else { return false }
+        return AIConsent.service(a) == AIConsent.service(b)
+    }
 
     enum Status { case unknown, free, waiting, busy, usedUp, unavailable }
     @Published private(set) var status = Status.unknown
     /// The server lets this install analyse recordings (`"recording": true` in /trial/status: owner phones).
     @Published private(set) var recordingAllowed = false
-    /// Recordings are read: on an owner phone, or with a Manina key that pays for it (Henry 2026-11-12).
+    /// Recordings are read: on an owner phone, or with a Manina AI key that pays for it (Henry 2026-11-12).
     var canRecord: Bool { keyed || recordingAllowed }
     private var lease: (id: String, token: String, run: String)?
-    /// A Manina key (from a Manina plan): runs go out under it, on the plan's balance. No lease, no waiting in
+    /// A Manina AI key (from a Manina AI plan): runs go out under it, on the plan's balance. No lease, no waiting in
     /// line, and the free runs are not counted. Empty: the free line.
     @Published private(set) var key = Keychain.get(Trial.keyAccount) ?? ""
     nonisolated static let keyAccount = "handsy-key"
@@ -70,7 +73,7 @@ import UIKit
         status = .unknown
         Task { await refresh() }
     }
-    /// What a Manina key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
+    /// What a Manina AI key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
     nonisolated static func looksLikeKey(_ value: String) -> Bool {
         value.hasPrefix("hsk_") && (20...200).contains(value.count)
             && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
@@ -84,7 +87,7 @@ import UIKit
         return URLSession(configuration: config)
     }()
 
-    /// The random ID Manina Free keeps this install's records under (shown in Settings › Privacy).
+    /// The random ID Manina AI Free keeps this install's records under (shown in Settings › Privacy).
     var installationID: String { deviceID }
 
     private var deviceID: String {
@@ -171,7 +174,10 @@ import UIKit
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
         // often as the server says. Cancel ends the wait (the place lapses on the server by itself).
         let asked = Date(), waitUntil = asked.addingTimeInterval(wait)
-        var taken: Lease, waited = false
+        var taken: Lease, waited = false, dropped = 0
+        // Henry 2026-11-19: a claim right after the app went to the background failed in 0.3 s without reaching
+        // the server, and the run ended as "busy". A dropped connection is asked again, not taken as a refusal.
+        let transportRetries = 5
         while true {
             do {
                 taken = try await call("POST", "/trial/leases", token: token,
@@ -182,14 +188,18 @@ import UIKit
                 waited = true
                 app?.homeHint = TrialError.waiting(0).localizedDescription
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
+            } catch let error as URLError where dropped < transportRetries && !Task.isCancelled {
+                dropped += 1
+                DebugLog.write("trial: lease request did not reach the line (\(error.code.rawValue)); asking again (\(dropped))")
+                try await Task.sleep(nanoseconds: 1_000_000_000)
             } catch TrialError.unenrolled where !enrolledAgain {
                 enrolledAgain = true
                 tokenRefused()
                 token = try await enrolledToken()
             } catch {
                 DebugLog.write(String(format: "trial: no lease after %.1f s: %@", Date().timeIntervalSince(asked),
-                                      lastRefusal ?? error.localizedDescription))
-                if error is URLError { throw TrialError.busy }  // the line didn't answer: busy, as for a refusal
+                                      lastRefusal ?? String(describing: error)))
+                if error is URLError { throw TrialError.offline }  // never reached the line: not "busy"
                 if let e = error as? TrialError, !e.ownText { throw TrialError.busy }  // waited too long, refused
                 throw error
             }
@@ -198,6 +208,7 @@ import UIKit
         lease = (taken.lease_id, taken.lease_token, run)
         claimedAt = Date()
         leaseLost = false
+        lostReason = nil
         status = .busy
         DebugLog.write(String(format: "trial: lease %@ claimed (waited %.1f s)", String(taken.lease_id.prefix(8)),
                               claimedAt.timeIntervalSince(asked)))
@@ -205,6 +216,7 @@ import UIKit
     }
     private var claimedAt = Date()
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
+    private var lostReason: String?  // its reason, from the keep-alive
     private var lastRefusal: String?
     private var usedUpToday = false  // .usedUp only for today (rate_limit_day), not all the free runs
     private var usedUpError: TrialError { usedUpToday ? .usedUpToday : .usedUp }
@@ -232,7 +244,7 @@ import UIKit
                 // The server ended this lease (idle, paused, time): final. Stop asking every 10 s, and the run's
                 // next model call fails at once (headers).
                 if failure.hasPrefix("lease_") || failure == "admin_paused" {
-                    await MainActor.run { if self?.lease?.id == id { self?.leaseLost = true } }
+                    await MainActor.run { if self?.lease?.id == id { self?.leaseLost = true; self?.lostReason = failure } }
                     return
                 }
             }
@@ -313,12 +325,12 @@ import UIKit
             return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model, "X-Run-ID": keyRun]
         }
         guard let lease, let token else { throw TrialError.runsOnly }
-        guard !leaseLost else { throw LLMError.trialRunEnded }  // ended on the server: no request would be served
+        guard !leaseLost else { throw lostReason.map(LLMError.timeUpReasons.contains) == true ? LLMError.trialTimeUp : LLMError.trialRunEnded }  // ended on the server
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }
 
-    /// Recording analysis, no lease: the Manina key (it pays per call), else the enrolled install's own token.
+    /// Recording analysis, no lease: the Manina AI key (it pays per call), else the enrolled install's own token.
     func recordingHeaders() throws -> [String: String] {
         if keyed { return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model] }
         guard let token else { throw TrialError.unavailable }
@@ -447,6 +459,7 @@ import UIKit
             request.setValue("application/gzip", forHTTPHeaderField: "Content-Type")
             request.httpBody = gzip
         }
+        lastRefusal = nil  // a refusal of an earlier call (e.g. a 404 of an optional endpoint) is not this one's
         let (data, response) = try await session.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(code) else {
@@ -459,6 +472,41 @@ import UIKit
         }
         if T.self == Empty.self, let empty = Empty() as? T { return empty }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+/// Optimize with AI without one's own model: a job on the server, which picks the model and the machine (Henry
+/// 2026-11-19: "把口子给我留出来": off until the server turns it on; a long run may take minutes, so submit and poll).
+///   GET  /trial/optimize       -> {"on": bool}
+///   POST /trial/optimize       {"system", "input"} -> {"id"}
+///   GET  /trial/optimize/<id>  -> {"status": "queued" | "running" | "done" | "failed", "text"?, "retry_after_ms"?}
+/// The Manina AI key when one is on (it pays), else the install's own token.
+extension Trial {
+    private var optimizeToken: String? { keyed ? key : token }
+
+    func optimizeOn() async -> Bool {
+        guard Self.available, let auth = optimizeToken else { return false }
+        struct On: Decodable { let on: Bool? }
+        let reply: On? = try? await call("GET", "/trial/optimize", token: auth)
+        return reply?.on == true
+    }
+
+    func optimize(system: String, input: String, timeout: Double = 600) async throws -> String {
+        guard let auth = optimizeToken else { throw TrialError.unavailable }
+        struct Job: Decodable { let id: String }
+        struct Progress: Decodable { let status: String; let text: String?; let retry_after_ms: Int? }
+        let job: Job = try await call("POST", "/trial/optimize", token: auth, body: ["system": system, "input": input])
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            let state: Progress = try await call("GET", "/trial/optimize/\(job.id)", token: auth)
+            switch state.status {
+            case "done": if let text = state.text, !text.isEmpty { return text }; throw TrialError.unavailable
+            case "failed": throw TrialError.unavailable
+            default: try await Task.sleep(nanoseconds: UInt64(max(state.retry_after_ms ?? 3000, 1000)) * 1_000_000)
+            }
+        }
+        throw TrialError.unavailable
     }
 }
 
@@ -502,8 +550,9 @@ struct RunEnd: Equatable {
             // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
             else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
-            else if why == Recovery.reason(.board) { reason = .boardLost }
-            else if why == BlindError().reason || why == LinkCheck.reason || ([.hotspot, .mirroring, .frames] as [Recovery.Part]).map(Recovery.reason).contains(why) {
+            else if Recovery.matches(why, .board) { reason = .boardLost }
+            else if why == BlindError().reason || why == LinkCheck.reason
+                        || ([.locked, .hotspot, .mirroring, .frames] as [Recovery.Part]).contains(where: { Recovery.matches(why, $0) }) {
                 reason = .blindMirroring
             } else { reason = .modelFail }  // the model itself said fail
         case "error": reason = .modelError
@@ -532,7 +581,8 @@ struct RunEnd: Equatable {
 
 enum TrialError: LocalizedError {
     case busy, usedUp, usedUpToday, cooldown, unavailable, unsupported, runsOnly
-    case keyRefused, keyEmpty  // a Manina key the server doesn't accept / whose plan has nothing left
+    case offline  // the request did not reach the line (no network, or the connection dropped on the way)
+    case keyRefused, keyEmpty  // a Manina AI key the server doesn't accept / whose plan has nothing left
     case unenrolled  // 401: the server doesn't know this install's token; enroll again
     case waiting(Int)  // milliseconds until asking again
 
@@ -550,23 +600,24 @@ enum TrialError: LocalizedError {
     /// Not the line's side (used up, a few seconds between runs, this phone or build): shown as is, never as busy.
     var ownText: Bool {
         switch self {
-        case .usedUp, .usedUpToday, .cooldown, .unsupported, .runsOnly, .keyRefused, .keyEmpty: return true
+        case .usedUp, .usedUpToday, .cooldown, .unsupported, .runsOnly, .keyRefused, .keyEmpty, .offline: return true
         default: return false
         }
     }
 
     var errorDescription: String? {
         switch self {
-        case .waiting: return String(localized: "Manina Free is busy — waiting in line…")
+        case .waiting: return String(localized: "Manina AI Free is busy — waiting in line…")
         case .usedUp: return String(localized: "You've used the free runs on this iPhone. Add your own model to keep going.")
         case .usedUpToday: return String(localized: "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model.")
-        case .cooldown: return String(localized: "Manina Free needs a few seconds between runs. Try again in a moment.")
-        case .busy: return String(localized: "Manina Free is busy right now — lots of people are using it. Please try again in a moment.")
-        case .unavailable, .unenrolled: return String(localized: "Manina Free isn't available on this phone right now. Use your own model instead.")
-        case .unsupported: return String(localized: "Manina Free needs the App Store version on a real iPhone.")
-        case .keyRefused: return String(localized: "This Manina key isn't accepted. Check it in Settings › Model, or remove it to use the free runs.")
-        case .keyEmpty: return String(localized: "This Manina key has no balance left. Remove it to use the free runs, or add your own model.")
-        case .runsOnly: return String(localized: "Manina Free only runs tasks. Use your own model for tests and intent analysis.")
+        case .cooldown: return String(localized: "Manina AI Free needs a few seconds between runs. Try again in a moment.")
+        case .busy: return String(localized: "Manina AI Free is busy right now — lots of people are using it. Please try again in a moment.")
+        case .unavailable, .unenrolled: return String(localized: "Manina AI Free isn't available on this phone right now. Use your own model instead.")
+        case .unsupported: return String(localized: "Manina AI Free needs the App Store version on a real iPhone.")
+        case .keyRefused: return String(localized: "This Manina AI key isn't accepted. Check it in Settings › Model, or remove it to use the free runs.")
+        case .keyEmpty: return String(localized: "This Manina AI key has no balance left. Remove it to use the free runs, or add your own model.")
+        case .runsOnly: return String(localized: "Manina AI Free only runs tasks. Use your own model for tests and intent analysis.")
+        case .offline: return String(localized: "Couldn't reach Manina AI Free. Check the internet connection and try again.")
         }
     }
 }

@@ -30,6 +30,14 @@ struct AgentActivityAttributes: ActivityAttributes {
         var lookX = 0.0     // where the eyes look, -1...1 (darting while it waits, toward the pointer's target)
         var lookY = 0.0
         var picks: [StandbyPick]?  // standby: the intents on the island, at most 3
+        var done: Int?      // the task's own count from the agent's progress ("3/12 orders"): a green ring
+        var total: Int?
+
+        /// done / total, when the agent gave a count with a total.
+        var countShare: Double? {
+            guard let done, let total, total > 0 else { return nil }
+            return min(1, Double(done) / Double(total))
+        }
 
         var look: CGPoint { CGPoint(x: lookX, y: lookY) }
 

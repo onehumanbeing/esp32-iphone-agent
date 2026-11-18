@@ -2,7 +2,7 @@
 
 **English** | [简体中文](remote-debug-log.zh-CN.md)
 
-Pull the app's **text** debug log (`Documents/debug.log`) from your own iPhone when you can't reach it, for
+Pull the app's **text** debug log (`Documents/logs/debug.log`) from your own iPhone when you can't reach it, for
 example on cellular with the board plugged in. The iPhone can't accept connections, so the app polls a small
 server you run; you file a request there and the app uploads the asked-for tail of the log.
 

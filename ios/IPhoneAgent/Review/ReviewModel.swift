@@ -33,15 +33,21 @@ struct DraftStep: Identifiable, Equatable {
     @Published var prompt: String
     @Published var hints: [String]
     @Published var intentID: UUID?
+    /// A script repeats until this is true on screen (ScriptRunner). Set by Edit plan.
+    @Published var until: String?
+    @Published var maxLoops: Int?
     /// Open the Save sheet right away (Record › Save last run as intent).
     var showSaveOnOpen = false
 
     init(source: Source, folder: URL?, runID: String?, outcome: Outcome?, steps: [DraftStep], name: String,
-         prompt: String, hints: [String] = [], icon: String = "bolt.fill", color: String? = nil, intentID: UUID? = nil) {
+         prompt: String, hints: [String] = [], icon: String = "bolt.fill", color: String? = nil, intentID: UUID? = nil,
+         until: String? = nil, maxLoops: Int? = nil) {
         self.source = source; self.folder = folder; self.runID = runID; self.outcome = outcome
         self.steps = steps; self.name = name; self.prompt = prompt; self.hints = hints; self.icon = icon
         self.color = color
         self.intentID = intentID
+        self.until = until
+        self.maxLoops = maxLoops
         loadEdits()
     }
 
@@ -54,7 +60,8 @@ struct DraftStep: Identifiable, Equatable {
         }
         self.init(source: intent == nil ? (run.isDemo ? .recording : .run) : .intent, folder: run.folder, runID: run.id, outcome: run.outcome,
                   steps: steps, name: intent?.name ?? "", prompt: intent?.prompt ?? run.task,
-                  hints: intent?.checklist ?? [], icon: intent?.symbol ?? "bolt.fill", color: intent?.color, intentID: intent?.id)
+                  hints: intent?.checklist ?? [], icon: intent?.symbol ?? "bolt.fill", color: intent?.color, intentID: intent?.id,
+                  until: intent?.until, maxLoops: intent?.maxLoops)
     }
 
     /// An intent without a reference run: only its words to edit.
@@ -64,7 +71,8 @@ struct DraftStep: Identifiable, Equatable {
             return DemoRecorder.root.appendingPathComponent(name)
         }
         self.init(source: .intent, folder: recording, runID: nil, outcome: nil, steps: [], name: intent.name,
-                  prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, color: intent.color, intentID: intent.id)
+                  prompt: intent.prompt, hints: intent.checklist, icon: intent.symbol, color: intent.color, intentID: intent.id,
+                  until: intent.until, maxLoops: intent.maxLoops)
     }
 
     /// A demonstration: an old recording, or a run DemoRecorder wrote (its steps say `demo`).
@@ -137,6 +145,8 @@ struct DraftStep: Identifiable, Equatable {
         for correction in corrections where !(item.hints ?? []).contains(correction) {
             item.hints = (item.hints ?? []) + [correction]
         }
+        item.until = until
+        item.maxLoops = maxLoops
         return item
     }
 
@@ -240,6 +250,10 @@ struct DraftStep: Identifiable, Equatable {
             var fix: CGPoint?; var note: String; var uncertain: Bool; var inserted: Bool }
         var steps: [Step]
         var name: String, prompt: String, hints: [String], icon: String
+        var until: String?
+        var maxLoops: Int?
+        /// Set once this file records the loop. Older files omit it and keep the intent's loop.
+        var hasRepeat: Bool?
     }
 
     private var editsURL: URL? { folder?.appendingPathComponent("review.json") }
@@ -255,7 +269,7 @@ struct DraftStep: Identifiable, Equatable {
         let e = Edits(steps: steps.map {
             .init(action: PyJSON.dumps($0.action, ascii: false), frame: $0.frame?.lastPathComponent, t: $0.t,
                   verdict: $0.verdict, fix: $0.fix, note: $0.note, uncertain: $0.uncertain, inserted: $0.inserted)
-        }, name: name, prompt: prompt, hints: hints, icon: icon)
+        }, name: name, prompt: prompt, hints: hints, icon: icon, until: until, maxLoops: maxLoops, hasRepeat: true)
         try JSONEncoder().encode(e).write(to: editsURL, options: .atomic)
         persistenceError = nil
     }
@@ -270,5 +284,10 @@ struct DraftStep: Identifiable, Equatable {
                              verdict: s.verdict, fix: s.fix, note: s.note, uncertain: s.uncertain, inserted: s.inserted)
         }
         if intentID == nil { name = e.name; prompt = e.prompt; hints = e.hints; icon = e.icon }
+        if e.hasRepeat == true {
+            let trimmed = e.until?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            until = trimmed.isEmpty ? nil : trimmed
+            maxLoops = e.maxLoops
+        }
     }
 }

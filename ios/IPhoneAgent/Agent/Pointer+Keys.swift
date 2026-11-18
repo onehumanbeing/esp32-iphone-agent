@@ -47,12 +47,21 @@ extension Pointer {
         // ctrl+space cycles every keyboard the phone has (English, 拼音, emoji …). Each press is followed until the
         // screen shows a different keyboard; one that shows no change ends it. iddzz 2026-11-12: the second read
         // came before the switch showed, a second press went on past 拼音 to emoji, and "智能椅" never went in.
+        var pressedAgain = false
         for _ in 0..<3 {
             if layout == .none || (layout == .pinyin) == pinyin { return layout }
             log("type: the keyboard is \(layout == .pinyin ? "pinyin" : "English"); switching")
             let before = layout
             try await toggleKeyboard()
             layout = await changedLayout(from: before)
+            // iPad: the first ctrl+space right after Spotlight opened did nothing, the next one switched (2026-11-17
+            // trace); it reads its keyboard reliably (KeyboardLayout.padLayout), so one more press is safe there
+            if layout == before && DeviceKind.isPad && !pressedAgain {
+                pressedAgain = true
+                log("type: the keyboard still reads \(before == .pinyin ? "pinyin" : "English") after ctrl+space; once more (iPad)")
+                try await toggleKeyboard()
+                layout = await changedLayout(from: before)
+            }
             if layout == before {
                 log("type: the keyboard still reads \(before == .pinyin ? "pinyin" : "English") after ctrl+space; not pressing again")
                 return .none
@@ -66,25 +75,29 @@ extension Pointer {
         return layout == .none || (layout == .pinyin) == pinyin ? layout : .none
     }
 
-    /// The keyboard read until it differs from `before`, for up to 2.5 s (the switch animates).
+    /// The keyboard read until it differs from `before`, for up to 3.5 s (the switch animates). A frame with no
+    /// keyboard to read is not taken as "another keyboard" until the window ends: 2026-11-17 a frame caught
+    /// mid-switch read as none, was taken for emoji, and one more ctrl+space went on round to emoji.
     private func changedLayout(from before: KeyboardLayout) async -> KeyboardLayout {
         guard let screen else { return .none }
-        let until = Date().addingTimeInterval(2.5)
+        let until = Date().addingTimeInterval(3.5)
         var layout = before
         repeat {
             if let frame = screen.frame { layout = await KeyboardLayout.read(frame) }
-            if layout != before { return layout }
+            if layout != before && (layout != .none || before == .none) { return layout }
             try? await Task.sleep(nanoseconds: 250_000_000)
         } while Date() < until
         return layout
     }
 
-    /// ctrl+space (pinyin <-> English), waited for until the screen shows it.
+    /// ctrl+space (pinyin <-> English), waited for until the screen shows it. Frames are looked at from when the
+    /// board answered, not from when the key was sent: on a slow link (2026-11-17: 1.6 s to answer) frames from
+    /// before the switch arrived in between and read as "still pinyin".
     private func toggleKeyboard() async throws {
-        let sent = now()
         try await key("ctrl+space")
+        let done = now()
         guard let screen, screen.live else { return }
-        _ = await screen.fresh(since: sent, timeout: 1.5)
+        _ = await screen.fresh(since: done, timeout: 2.0)
         await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
     }
 
@@ -167,10 +180,17 @@ extension Pointer {
     func tapSearchButton() async throws -> Bool {
         guard let screen, screen.live, let jpeg = screen.frame, let image = Vision.image(jpeg) else { return false }
         guard let box = SearchPill.label(await UITreeOCR.lines(image), size: CGSize(width: image.width, height: image.height)) else {
+            // iPad: no Search pill on its Home Screen, but a swipe down in its middle opens Spotlight. cmd+space did
+            // nothing for a whole run on an iPad Air M3 (2026-11-17: both tries, then the model tapped the icon)
+            if DeviceKind.isPad {
+                log("open: cmd+space brought nothing up; swiping down on the Home Screen (iPad)")
+                try await swipe(0.5, 0.3, 0.5, 0.55, hold: false)
+                return true
+            }
             log("open: cmd+space brought nothing up and no Search button is on screen")
             return false
         }
-        log("open: cmd+space brought nothing up; tapping the Search button")
+        log("open: cmd+space brought nothing up this time; tapping the Search button")
         try await tap(Double(box.midX), Double(box.midY), aim: true)
         return true
     }

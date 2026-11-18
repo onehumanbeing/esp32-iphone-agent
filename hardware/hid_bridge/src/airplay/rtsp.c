@@ -20,6 +20,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ap_internal.h"
+#include "mdns.h"
 
 #define MAX_CONNS 3
 #define MAX_REQUEST (64 * 1024)
@@ -180,7 +181,10 @@ static void server_task(void *arg) {
       ap_conn *c = NULL;
       for (int i = 0; i < MAX_CONNS && !c; i++)
         if (conns[i].fd < 0) c = &conns[i];
-      if (fd >= 0 && !c) {
+      if (fd >= 0 && ap_cfg.allow_peer && !ap_cfg.allow_peer(peer.sin_addr.s_addr)) {
+        ap_log("rtsp: connection from %s refused (not this board's phone)", inet_ntoa(peer.sin_addr));
+        close(fd);
+      } else if (fd >= 0 && !c) {
         close(fd);
       } else if (fd >= 0) {
         memset(c, 0, sizeof *c);
@@ -207,4 +211,9 @@ bool airplay_start(const airplay_cfg *cfg) {
   if (!ap_crypto_init(cfg->ed25519_seed)) return false;
   if (!ap_mdns_start()) ap_log("mdns: advertising failed");
   return xTaskCreatePinnedToCore(server_task, "rtsp", 12 * 1024, NULL, 5, NULL, 0) == pdPASS;
+}
+
+void airplay_readvertise(void) {
+  mdns_free();
+  ap_log(ap_mdns_start() ? "mdns: advertising again on the new network" : "mdns: advertising failed");
 }

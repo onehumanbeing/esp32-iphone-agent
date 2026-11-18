@@ -5,8 +5,11 @@ import Foundation
 /// System apps under their other names: a name Spotlight does not list ("闹钟") is tried as the app's system
 /// name. Rows: Chinese, English, then aliases.
 enum AppNames {
-    /// One app per row: its Chinese (zh-Hans) system name, its English name, then other names people use.
-    static let table: [[String]] = [
+    /// One app per row: its Chinese (zh-Hans) system name, its English name, then other names people use. The hand
+    /// rows first, then the apps only the collected scheme list knows (AppSchemes.swift).
+    static let table: [[String]] = own + collected.map(\.names).filter { app in !own.contains { same(app, $0) } }
+
+    private static let own: [[String]] = [
         ["时钟", "Clock", "闹钟", "计时器", "秒表", "Alarm", "Alarms", "Timer", "Stopwatch"],
         ["备忘录", "Notes", "笔记", "记事本", "便签", "Notepad", "Note"],
         ["设置", "Settings", "设定", "系统设置", "Preferences"],
@@ -41,7 +44,9 @@ enum AppNames {
         ["小红书", "Xiaohongshu", "RED"],
         ["哔哩哔哩", "bilibili", "B站"],
         ["高德地图", "Amap", "高德"],
+        ["美团外卖", "Meituan Waimai", "Meituan Delivery"],  // before 美团: the longer name wins (named)
         ["美团", "Meituan"],
+        ["携程旅行", "Trip.com", "携程", "Ctrip"],
         ["京东", "JD"],
         ["KakaoTalk", "KakaoTalk", "Kakao"],  // no Chinese name: the English one twice
         ["Mercari", "Mercari"],
@@ -102,13 +107,66 @@ enum AppNames {
         "Mercari": ["ja": "メルカリ"],
     ]
 
+    /// URL schemes that open an app's home, by its English name (the table's second column), best first.
+    /// Henry 2026-11-17: a run started in this app goes straight to the task's app by its scheme, no Home gesture and
+    /// no Spotlight; only from the front (iOS opens a URL only for the app in front), else the old way. A scheme
+    /// that is wrong or whose app is not installed makes `open` return false, and the old way follows.
+    /// The hand list first (widely documented), then the collected list's (AppSchemes.swift) for the same app.
+    static let schemes: [String: [String]] = Dictionary(table.map { row in
+        var list = seed[row[1]] ?? []
+        for app in collected where same(app.names, row) {
+            for scheme in app.schemes where !list.contains(where: { $0.caseInsensitiveCompare(scheme) == .orderedSame }) {
+                list.append(scheme)
+            }
+        }
+        return (row[1], list)
+    }.filter { !$0.1.isEmpty }, uniquingKeysWith: { first, _ in first })
+
+    private static let seed: [String: [String]] = [
+        "WeChat": ["weixin://"], "Alipay": ["alipay://"], "Taobao": ["taobao://"], "Weibo": ["sinaweibo://"],
+        "Xiaohongshu": ["xhsdiscover://"], "bilibili": ["bilibili://"], "Amap": ["iosamap://"],
+        "Meituan": ["imeituan://"], "JD": ["openapp.jdmobile://"], "KakaoTalk": ["kakaotalk://"],
+        "Notes": ["mobilenotes://"], "Calendar": ["calshow://"], "Photos": ["photos-redirect://"],
+        "Music": ["music://"], "Maps": ["maps://"], "Shortcuts": ["shortcuts://"], "Mail": ["message://"],
+        "Books": ["ibooks://"], "Podcasts": ["podcasts://"], "App Store": ["itms-apps://"],
+    ]
+
+    /// Two rows are the same app when they share a name.
+    private static func same(_ a: [String], _ b: [String]) -> Bool {
+        a.contains { x in b.contains { norm($0) == norm(x) } }
+    }
+
+    /// The scheme URLs for `name`'s app (any of its names); empty when none is known.
+    static func schemeURLs(_ name: String) -> [URL] {
+        guard let row = row(name) else { return [] }
+        return (schemes[row[1]] ?? []).compactMap(URL.init(string:))
+    }
+
     /// Words that name an app but mostly mean something else in a task ("on my phone", "a photo of", "设置一个").
     static let loose: Set<String> = ["Phone", "Photo", "Note", "Texts", "Browser", "Email", "Timer", "Alarm", "Reminder",
-                                     "设置", "设定", "提醒", "录音", "拍照", "日程", "待办", "浏览器", "邮箱", "笔记"]
+                                     "设置", "设定", "提醒", "录音", "拍照", "日程", "待办", "浏览器", "邮箱", "笔记",
+                                     // collected names that are also plain words or too short to be sure of
+                                     "Threads", "Slack", "Zoom", "Outlook", "Teams", "Google", "Notion",
+                                     "wx", "zfb", "tb", "pdd", "dy", "xhs", "ks", "ds", "tt", "ig", "ins", "fb", "yt",
+                                     "wa", "ncm", "wyy", "aqy", "txsp", "UC", "tg", "bili", "gmaps"]
 
-    /// The one app the task names, as the task writes it, so a run can open it before the first look rather
-    /// than page the Home Screen for it. nil when it names none, or more than one app.
+    /// Where the task's first step ends: an app named after this may be a later step's ("Check SkyTrip for my
+    /// flight. Set an alarm in Clock"), where the table knows only Clock.
+    static let stepEnds = [".", "。", "!", "！", "?", "？", ";", "；", ",", "，", "\n", " then ", " and ", "然后", "之后", "接着", "再"]
+
+    /// The one app the task's first step names, as the task writes it, so a run can open it before the first look
+    /// rather than page the Home Screen for it. nil when the first step names none or more than one (the task
+    /// may start in an app the table does not know).
     static func only(in task: String) -> String? {
+        let firstStep = stepEnds.reduce(task) { head, end in
+            head.range(of: end, options: .caseInsensitive).map { String(head[..<$0.lowerBound]) } ?? head
+        }
+        // the first step's app, whatever the rest names: "打开美团外卖，…整理成带截图的结果文件" names Files (文件)
+        // later, and the run used to start on the Home Screen and Spotlight instead of the scheme (2026-11-17)
+        return named(in: firstStep)
+    }
+
+    private static func named(in task: String) -> String? {
         var found: [(row: Int, name: String)] = []
         for (i, row) in table.enumerated() {
             let hit = row.first { name in
@@ -121,6 +179,10 @@ enum AppNames {
             }
             if let hit, !found.contains(where: { $0.row == i }) { found.append((i, hit)) }
         }
+        // a name inside a longer one is that app's, not another: 美团外卖 is not 美团 (2026-11-17)
+        let all = found
+        found.removeAll { short in all.contains { $0.row != short.row && $0.name.count > short.name.count
+            && $0.name.localizedCaseInsensitiveContains(short.name) } }
         return found.count == 1 ? found[0].name : nil
     }
 

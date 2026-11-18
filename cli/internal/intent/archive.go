@@ -12,10 +12,10 @@ import (
 	"strings"
 )
 
-// The .esp32intent file (IntentArchive.swift). Fields are in key order: the app writes sorted keys.
+// The .intent file (IntentArchive.swift, docs/intent-format.md). Fields are in key order: the app writes sorted keys.
 const (
 	Format    = 1
-	Extension = "esp32intent"
+	Extension = "intent" // .esp32intent before 2026-11-16; import reads either
 	MaxBytes  = 25_000_000
 )
 

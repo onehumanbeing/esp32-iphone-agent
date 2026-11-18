@@ -205,11 +205,11 @@ func TestHistoryAndIntentCommands(t *testing.T) {
 	if o := run(t, a, "history", "new"); o.Status != "ok" {
 		t.Fatalf("new: %+v", o)
 	}
-	o := run(t, a, "intent", "export", "Alarm", "--output", filepath.Join(a.Dir, "a.esp32intent"))
+	o := run(t, a, "intent", "export", "Alarm", "--output", filepath.Join(a.Dir, "a.intent"))
 	if o.Status != "ok" || o.Data["screenshots"] != false {
 		t.Fatalf("export: %+v", o)
 	}
-	if o := run(t, a, "intent", "import", filepath.Join(a.Dir, "a.esp32intent")); o.Status != "ok" || o.Data["skipped"] != 1.0 {
+	if o := run(t, a, "intent", "import", filepath.Join(a.Dir, "a.intent")); o.Status != "ok" || o.Data["skipped"] != 1.0 {
 		t.Fatalf("import of a saved one: %+v", o)
 	}
 

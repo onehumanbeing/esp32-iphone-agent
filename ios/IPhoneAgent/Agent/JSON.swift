@@ -8,6 +8,7 @@ enum JValue: Equatable {
     var int: Int? { if case .int(let v) = self { return v }; return nil }
     var str: String? { if case .str(let v) = self { return v }; return nil }
     var bool: Bool? { if case .bool(let v) = self { return v }; return nil }
+    var arr: [JValue]? { if case .arr(let v) = self { return v }; return nil }
     var double: Double? {
         switch self { case .int(let v): return Double(v); case .num(let v): return v; default: return nil }
     }

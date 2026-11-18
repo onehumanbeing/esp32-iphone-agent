@@ -29,7 +29,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
   <sub>一台真 iPhone 自己做完一节多邻国课程，8 倍速，全程没人碰屏幕。</sub>
 </p>
 
-<p align="center"><a href="https://manina.ai/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Manina：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Manina AI：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -44,7 +44,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
-<p align="center">不想自己刷板子？即插即用的 Manina 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
+<p align="center">不想自己刷板子？即插即用的 Manina AI 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
 
 ## 最近更新
 
@@ -86,7 +86,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 ## 工作原理
 
-第一次接触？先看[让 AI 操控 iPhone](https://manina.ai/zh/ai-control-iphone)，再看 [Manina 工作原理](https://manina.ai/zh/how-it-works)。
+第一次接触？先看[让 AI 操控 iPhone](https://manina.ai/zh/ai-control-iphone)，再看 [Manina AI 工作原理](https://manina.ai/zh/how-it-works)。
 
 ```
 iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）
@@ -94,7 +94,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
    └──────── USB HID 鼠标 + 键盘 ◀──────────── 蓝牙命令 ◀────────────────────┘
 ```
 
-- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。
+- **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。也可以在引导页或 设置 › 开发板 里把板子切到家里的 Wi-Fi（存在板子上）：手机和板子共用路由器，不需要蜂窝数据。板子只支持 2.4 GHz，开了客户端隔离或拦截 mDNS 的路由器会让「屏幕镜像」搜不到板子；热点模式在哪里都能用。
 - **手：USB HID。** 板子是标准 USB 鼠标和键盘。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
@@ -115,7 +115,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 |---|---|
 | **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元；海外可在 [Amazon](https://amzn.to/3U6QKiz)\* 购买。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
 | **USB-C 线** | 短的 USB-C 对 USB-C 线，例如 [Anker 60W，1 英尺，2 条装](https://amzn.to/4yvNyvi)\*。 |
-| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用）。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
+| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用），或者一个板子能加入的 2.4 GHz 家庭 Wi-Fi。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的模型：云端 API 或自己部署。 |
 | **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。用 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装 App 的话，App 这部分不需要 Xcode。 |
 
@@ -235,7 +235,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 ## 路线图
 
 - [x] 去掉电脑：板子负责镜像和点击，手机上的 App 负责思考
-- [ ] 横屏 App（坐标和校准目前按竖屏）
+- [x] iPad 竖屏和横屏（每个方向单独校准；共用提示词，另加 `prompts/devices/ipad.md` 里自己的规则）
+- [ ] iPhone 横屏 App（坐标和校准目前按竖屏）
 - [x] 中文输入（通过板子的键盘按拼音输入；ctrl+space 切换英文和拼音）
 - [ ] 更快：一次模型调用多个动作，只在需要时校正指针
 - [ ] 在 iOS App 内整理一份效果最好的模型推荐列表（[@asharthinks 的建议](https://x.com/asharthinks/status/2110740775030125019)）
@@ -245,8 +246,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 - **AirPlay 源必须是 iPhone。** 不支持从 macOS 屏幕镜像：握手看起来正常，但板子收不到视频。
 - 镜像画面为 480×1040、最高 5 fps；每一步要几秒，主要花在模型上。
 - iOS 不镜像部分界面（输入密码、Apple Pay、DRM 视频），Agent 看不到。手机锁屏后镜像会停止。
-- Agent 运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据。
-- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持横屏 App。
+- Agent 在板子热点上运行时，手机的 Wi-Fi 是板子的热点（没有外网），模型走蜂窝数据；用家里的 Wi-Fi（局域网模式）时走那个网络上网。
+- 中文通过板子的键盘按拼音输入（ctrl+space 在英文和拼音之间切换），不用剪贴板；emoji 会被丢掉。暂不支持 iPhone 横屏 App；iPad 每个方向校准一次（在该方向第一次任务前 App 会自动校准），本 App 只全屏运行，不支持分屏或台前调度。
 
 遇到问题（「屏幕镜像」里找不到 *ESP32 Agent*、板子连不上），见[故障排查](https://manina.ai/zh/troubleshooting)。
 

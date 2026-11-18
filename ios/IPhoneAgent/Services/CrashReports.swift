@@ -1,15 +1,14 @@
 import Foundation
 import MetricKit
 
-/// Crash, hang and CPU/disk diagnostics from iOS (MetricKit), kept on the phone in Documents/diagnostics/.
+/// Crash, hang and CPU/disk diagnostics from iOS (MetricKit), kept on the phone in Documents/logs/diagnostics/.
 /// iOS hands them over at the next launch (up to a day later). They ride along in Logs › Export all logs and
 /// in Report a bug. With usage stats on, crashes and hangs are also sent as events (see `report`): the
 /// exception, the stack as addresses (symbolicated later with the build's dSYM), never app data.
 /// TestFlight builds also send crashes to App Store Connect.
 final class CrashReports: NSObject, MXMetricManagerSubscriber {
     static let shared = CrashReports()
-    static let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("diagnostics", isDirectory: true)
+    static let dir = FilesLayout.logs.appendingPathComponent("diagnostics", isDirectory: true)
 
     func start() { MXMetricManager.shared.add(self) }
 

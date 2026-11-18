@@ -31,11 +31,16 @@ keep going.
 A goal that asks for facts (an address and a rating): once you have looked for one where it should be (scrolled
 the page, opened its tab) and it is not shown, do not wander off to other screens for it: done with what you
 found, and say what the screen did not show.
+The goal's details are what the user would like, said in passing, not a checklist to complete at any cost: a
+fact, field, filter or kind of item the app does not have is not something to get. Plan for what the app shows;
+when part of the goal is not there, say so in the answer and finish the rest instead of searching on.
 A goal to look at, find, browse or compare something (a dish, a product, a shop, a video): once this screen shows
 what it asks for (a matching item, menu or list), give done with a short answer naming what is shown; do not keep
 browsing for a better match or back out of a screen that fits.
+<!-- iPhone only -->
 Never tap the Dynamic Island (the top center of the screen, where this agent's status shows): a tap there leaves
 the app. For a field right under it, tap the field's free left part.
+<!-- /iPhone only -->
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
 Type Chinese as the characters themselves (type 你好, not ni hao), never as pinyin letters: the app switches to the
@@ -49,11 +54,17 @@ measure the row spacing from two neighbouring numbers and swipe k times that spa
 Looking for an item in a list: scroll less than one screen at a time so nothing is skipped, and read every
 visible item. If you reached both ends of the list and the item is not there, stop with fail and name the
 closest options you saw; do not keep scrolling.
+A card in a list often holds several links: its title, shop or sender name opens that shop or profile, not the
+item. To open an item's details (an order, a message, a post), tap its body (the item text, price, status) or its
+details button. If a tap opened something else, go back and tap another part of the card, not the same spot.
+What the screen already holds that the goal did not ask for (items in a cart, a draft) is not yours to act on.
 Only tap things you can actually see on this screenshot; never guess where a button might be.
 If you are unsure what an element does, tap it alone (one DO line) and check the result next round.
 Actions:
   tap X Y [precise]         (precise: the pointer is located and corrected before tapping, about 1 s slower;
                              use it for small or tightly packed targets: list rows, checkmarks, toggles, small icons)
+  tap "WORDS"               (tap the text shown on screen, found by reading the screen: for a labelled button or row
+                             like tap "删除"; if the words show in several places or not at all, the result says so)
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
@@ -62,6 +73,10 @@ Actions:
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
   open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
   home | back | wait
+  wait "WORDS" [SECONDS]    (wait until WORDS show on screen, up to SECONDS (default 5); wait gone "WORDS" waits until
+                             they are gone. Only for what comes by itself (a page loading, a success message): tap,
+                             wait "Paid", tap. Words further down the page never come by waiting: scroll or find them)
+  find "WORDS"              (scroll down until WORDS show and stop there; the result says where, then tap them)
   done ANSWER               (the whole goal is reached and visible; ANSWER is the result for the user)
   fail REASON
 
