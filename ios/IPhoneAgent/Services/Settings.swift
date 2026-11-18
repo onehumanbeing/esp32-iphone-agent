@@ -44,6 +44,9 @@ import UIKit
     @Published private(set) var loadingModels = false
     @Published private(set) var modelsError: String?
     private var modelsRequest = 0
+    /// The endpoint and key the list was last asked for, whatever came back: a picker loads it on its own once per
+    /// setup, Refresh always (#172: an endpoint whose list never came was asked again every time the picker showed).
+    private var modelsTried: String?
     @Published var agentName: String {
         didSet {
             let trimmed = agentName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -154,6 +157,7 @@ import UIKit
         models = []
         freeModels = []
         modelsError = nil
+        modelsTried = nil
     }
 
     var selectedProvider: ModelProvider {
@@ -297,6 +301,7 @@ import UIKit
         guard isConfigured, AIConsent.granted(baseURL), provider != .handsyTrial else { return }  // asks first in store builds
         modelsRequest += 1
         let request = modelsRequest
+        modelsTried = baseURL + "\n" + apiKey
         loadingModels = true
         defer { if request == modelsRequest { loadingModels = false } }
         do {
@@ -309,7 +314,7 @@ import UIKit
             guard request == modelsRequest else { return }
             models = list
             freeModels = free
-            modelsError = list.isEmpty ? String(localized: "The endpoint lists no models.") : nil
+            modelsError = list.isEmpty ? String(localized: "The endpoint lists no models. Enter the model ID under Custom model.") : nil
             // Model order does not indicate image support; never silently select the first entry.
             DebugLog.write("models: \(list.count) listed, first \(list.first ?? "-")")
         } catch {
@@ -319,6 +324,12 @@ import UIKit
             modelsError = error.localizedDescription
             DebugLog.write("models: \(error.localizedDescription)")
         }
+    }
+
+    /// A picker opened: load the list unless it is here, on its way, or was already asked for with this setup.
+    func loadModelsIfNeeded() async {
+        guard models.isEmpty, !loadingModels, modelsTried != baseURL + "\n" + apiKey else { return }
+        await loadModels()
     }
 
     /// The AI-service agreement changed (store builds): refresh what depends on it.

@@ -7095,12 +7095,12 @@
         }
       }
     },
-    "The endpoint lists no models." : {
+    "The endpoint lists no models. Enter the model ID under Custom model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "该接口没有列出任何模型。"
+            "value" : "该接口没有列出任何模型。请在「自定义模型」里填写模型 ID。"
           }
         }
       }
