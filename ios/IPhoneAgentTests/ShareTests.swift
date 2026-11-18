@@ -93,7 +93,7 @@ final class ShareTests: XCTestCase {
         XCTAssertTrue(JevConsent.granted)
     }
 
-    /// Agree covers Manina Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
+    /// Agree covers Manina AI Free only when nothing of one's own is set up; an endpoint of one's own is what is shown.
     func testFreeLineDefaultOnlyWithNothingSetUp() throws {
         let settings = fresh()
         XCTAssertFalse(FirstConsent.freeLineDefault(settings), "an endpoint is set up: the sheet shows that one")

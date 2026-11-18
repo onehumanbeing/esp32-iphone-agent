@@ -115,7 +115,7 @@ struct SettingsView: View {
     private var modelName: String {
         if MockMode.on { return "Demo" }
         if settings.provider == .handsyTrial {
-            return Trial.shared.keyed ? String(localized: "Manina Plan") : ModelProvider.handsyTrial.title
+            return Trial.shared.keyed ? String(localized: "Manina AI Plan") : ModelProvider.handsyTrial.title
         }
         return settings.currentModel ?? String(localized: "Auto")
     }

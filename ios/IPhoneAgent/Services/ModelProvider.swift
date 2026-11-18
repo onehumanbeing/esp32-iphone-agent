@@ -18,7 +18,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .hCompany: return "H Company"
         case .zhipu: return "Zhipu GLM"
         case .others: return "Others"
-        case .handsyTrial: return "Manina Free"
+        case .handsyTrial: return "Manina AI Free"
         }
     }
     var baseURL: String {

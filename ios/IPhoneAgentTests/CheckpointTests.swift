@@ -118,12 +118,12 @@ import XCTest
         XCTAssertEqual(planner?.model, "strong-vision")
         settings.selectedProvider = .handsyTrial
         let free = try await settings.recordingClient()
-        XCTAssertNil(free, "Manina Free: not this install (the server never said recording)")
+        XCTAssertNil(free, "Manina AI Free: not this install (the server never said recording)")
         guard settings.provider == .handsyTrial else { return }  // a build without the free line
         Trial.shared.setKey("hsk_test_" + String(repeating: "k", count: 43))
         defer { Trial.shared.setKey("") }
         let paid = try await settings.recordingClient()
-        XCTAssertEqual(paid?.model, Trial.recordingModel, "a Manina key pays for recordings")
+        XCTAssertEqual(paid?.model, Trial.recordingModel, "a Manina AI key pays for recordings")
         XCTAssertEqual(try Trial.shared.recordingHeaders()["Authorization"], "Bearer hsk_test_" + String(repeating: "k", count: 43))
     }
 

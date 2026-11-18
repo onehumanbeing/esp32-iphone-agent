@@ -1,6 +1,6 @@
 {
   "name": "esp32agent",
-  "displayName": "ESP32 Agent (Manina)",
+  "displayName": "ESP32 Agent (Manina AI)",
   "version": "1.0.0",
   "description": "See and drive a real iPhone from your coding agent through an ESP32 Agent board (USB mouse and keyboard plus AirPlay screen mirroring, reached over Bluetooth). Adds the esp32agent MCP server and a skill with the see-act loop.",
   "author": {
