@@ -29,7 +29,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
   <sub>A real iPhone doing a Duolingo lesson by itself, sped up 8×. Nobody touches the screen.</sub>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -44,7 +44,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><b>Building on this project?</b> Keep the <a href="LICENSE">LICENSE</a> and credit <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b> in your README and posts. See <a href="NOTICE">NOTICE</a>.</p>
 
-<p align="center">Don't want to flash a board yourself? A ready-to-plug Manina device is coming. <a href="https://manina.ai/hardware">Join the waitlist</a>.</p>
+<p align="center">Don't want to flash a board yourself? A ready-to-plug Manina AI device is coming. <a href="https://manina.ai/hardware">Join the waitlist</a>.</p>
 
 ## What's new
 
@@ -93,7 +93,7 @@ Stuck? See [troubleshooting](https://manina.ai/troubleshooting?ref=github) or ma
 
 ## How it works
 
-New to the idea? Start with [AI control for iPhone](https://manina.ai/ai-control-iphone), then [how Manina works](https://manina.ai/how-it-works).
+New to the idea? Start with [AI control for iPhone](https://manina.ai/ai-control-iphone), then [how Manina AI works](https://manina.ai/how-it-works).
 
 ```
 iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──Wi-Fi TCP :7201──▶ ESP32 Agent app (same iPhone)

@@ -2,7 +2,7 @@ import Foundation
 
 /// Tools the agent may call before or while it acts (Henry 2026-11-12): `tool <name> "query"`, answered as text the
 /// next round reads ("Looked up"). A search before acting catches a misspelt brand or a product that doesn't exist.
-/// Three kinds: Manina search (with a Manina key, run by the gateway as part of the key's plan), a built-in
+/// Three kinds: Manina AI search (with a Manina AI key, run by the gateway as part of the key's plan), a built-in
 /// web search on one's own Exa key, and tools imported from a JSON file (an HTTPS endpoint that takes a query). Keys stay in the
 /// Keychain. No tool on: the prompt says nothing about tools.
 struct ToolSpec: Codable, Identifiable, Equatable, Hashable {
@@ -59,7 +59,7 @@ extension ToolSpec {
 
 @MainActor final class ToolStore: ObservableObject {
     static let shared = ToolStore()
-    static let handsy = ToolSpec(id: "search", title: "Manina Search", about: "Search the web: titles, links and snippets.",
+    static let handsy = ToolSpec(id: "search", title: "Manina AI Search", about: "Search the web: titles, links and snippets.",
                                  url: Trial.origin + "/tools/v1/search", builtin: "handsy")
     static let exa = ToolSpec(id: "web", title: "Web Search (Exa)", about: "Search the web: titles, links and snippets.",
                               url: "https://api.exa.ai/search", key_header: "x-api-key", key_prefix: "",
@@ -72,13 +72,13 @@ extension ToolSpec {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         imported = (defaults.data(forKey: "tools").flatMap { try? JSONDecoder().decode([ToolSpec].self, from: $0) }) ?? []
-        enabled = Set(defaults.stringArray(forKey: "toolsOn") ?? ["search"])  // Manina Search: on whenever there is a key
+        enabled = Set(defaults.stringArray(forKey: "toolsOn") ?? ["search"])  // Manina AI Search: on whenever there is a key
     }
 
     /// Every tool this build can show, built-in first.
     var all: [ToolSpec] { (Trial.available ? [Self.handsy] : []) + [Self.exa] + imported }
 
-    /// Usable now: switched on, and its key (Manina's or its own) is there.
+    /// Usable now: switched on, and its key (Manina AI's or its own) is there.
     func ready(_ tool: ToolSpec) -> Bool {
         guard enabled.contains(tool.id) else { return false }
         if tool.builtin == "handsy" { return Trial.shared.keyed }

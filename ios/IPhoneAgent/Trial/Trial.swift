@@ -3,7 +3,7 @@ import DeviceCheck
 import Foundation
 import UIKit
 
-/// The free line: Manina's own model on private hardware, free to try while nobody else is using it.
+/// The free line: Manina AI's own model on private hardware, free to try while nobody else is using it.
 ///
 /// Only builds that set IA_TRIAL_ORIGIN (the App Store build) show it. The server does the guarding: it only
 /// enrolls the signed app (App Attest), limits concurrent runs, and limits each run's time, calls and how
@@ -33,10 +33,10 @@ import UIKit
     @Published private(set) var status = Status.unknown
     /// The server lets this install analyse recordings (`"recording": true` in /trial/status: owner phones).
     @Published private(set) var recordingAllowed = false
-    /// Recordings are read: on an owner phone, or with a Manina key that pays for it (Henry 2026-11-12).
+    /// Recordings are read: on an owner phone, or with a Manina AI key that pays for it (Henry 2026-11-12).
     var canRecord: Bool { keyed || recordingAllowed }
     private var lease: (id: String, token: String, run: String)?
-    /// A Manina key (from a Manina plan): runs go out under it, on the plan's balance. No lease, no waiting in
+    /// A Manina AI key (from a Manina AI plan): runs go out under it, on the plan's balance. No lease, no waiting in
     /// line, and the free runs are not counted. Empty: the free line.
     @Published private(set) var key = Keychain.get(Trial.keyAccount) ?? ""
     nonisolated static let keyAccount = "handsy-key"
@@ -70,7 +70,7 @@ import UIKit
         status = .unknown
         Task { await refresh() }
     }
-    /// What a Manina key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
+    /// What a Manina AI key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
     nonisolated static func looksLikeKey(_ value: String) -> Bool {
         value.hasPrefix("hsk_") && (20...200).contains(value.count)
             && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
@@ -84,7 +84,7 @@ import UIKit
         return URLSession(configuration: config)
     }()
 
-    /// The random ID Manina Free keeps this install's records under (shown in Settings › Privacy).
+    /// The random ID Manina AI Free keeps this install's records under (shown in Settings › Privacy).
     var installationID: String { deviceID }
 
     private var deviceID: String {
@@ -318,7 +318,7 @@ import UIKit
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }
 
-    /// Recording analysis, no lease: the Manina key (it pays per call), else the enrolled install's own token.
+    /// Recording analysis, no lease: the Manina AI key (it pays per call), else the enrolled install's own token.
     func recordingHeaders() throws -> [String: String] {
         if keyed { return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model] }
         guard let token else { throw TrialError.unavailable }
@@ -532,7 +532,7 @@ struct RunEnd: Equatable {
 
 enum TrialError: LocalizedError {
     case busy, usedUp, usedUpToday, cooldown, unavailable, unsupported, runsOnly
-    case keyRefused, keyEmpty  // a Manina key the server doesn't accept / whose plan has nothing left
+    case keyRefused, keyEmpty  // a Manina AI key the server doesn't accept / whose plan has nothing left
     case unenrolled  // 401: the server doesn't know this install's token; enroll again
     case waiting(Int)  // milliseconds until asking again
 
@@ -557,16 +557,16 @@ enum TrialError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .waiting: return String(localized: "Manina Free is busy — waiting in line…")
+        case .waiting: return String(localized: "Manina AI Free is busy — waiting in line…")
         case .usedUp: return String(localized: "You've used the free runs on this iPhone. Add your own model to keep going.")
         case .usedUpToday: return String(localized: "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model.")
-        case .cooldown: return String(localized: "Manina Free needs a few seconds between runs. Try again in a moment.")
-        case .busy: return String(localized: "Manina Free is busy right now — lots of people are using it. Please try again in a moment.")
-        case .unavailable, .unenrolled: return String(localized: "Manina Free isn't available on this phone right now. Use your own model instead.")
-        case .unsupported: return String(localized: "Manina Free needs the App Store version on a real iPhone.")
-        case .keyRefused: return String(localized: "This Manina key isn't accepted. Check it in Settings › Model, or remove it to use the free runs.")
-        case .keyEmpty: return String(localized: "This Manina key has no balance left. Remove it to use the free runs, or add your own model.")
-        case .runsOnly: return String(localized: "Manina Free only runs tasks. Use your own model for tests and intent analysis.")
+        case .cooldown: return String(localized: "Manina AI Free needs a few seconds between runs. Try again in a moment.")
+        case .busy: return String(localized: "Manina AI Free is busy right now — lots of people are using it. Please try again in a moment.")
+        case .unavailable, .unenrolled: return String(localized: "Manina AI Free isn't available on this phone right now. Use your own model instead.")
+        case .unsupported: return String(localized: "Manina AI Free needs the App Store version on a real iPhone.")
+        case .keyRefused: return String(localized: "This Manina AI key isn't accepted. Check it in Settings › Model, or remove it to use the free runs.")
+        case .keyEmpty: return String(localized: "This Manina AI key has no balance left. Remove it to use the free runs, or add your own model.")
+        case .runsOnly: return String(localized: "Manina AI Free only runs tasks. Use your own model for tests and intent analysis.")
         }
     }
 }

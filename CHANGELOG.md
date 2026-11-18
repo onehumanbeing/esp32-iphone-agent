@@ -6,6 +6,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 - Rebrand: Handsy is now Manina AI, at [manina.ai](https://manina.ai) (handsy.tech redirects there). App text,
   docs, plugin and skill names (`manina`, `manina-run-tasks`) and support addresses use the new name.
+- The name is Manina AI everywhere (App Store has a different app called Manina).
 
 ## App 1.0.6 (build 17, TestFlight)
 

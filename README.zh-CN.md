@@ -29,7 +29,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
   <sub>一台真 iPhone 自己做完一节多邻国课程，8 倍速，全程没人碰屏幕。</sub>
 </p>
 
-<p align="center"><a href="https://manina.ai/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Manina：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/zh?ref=github"><img src="docs/images/hero-zh.png" alt="Manina AI：让 AI 操作你的 iPhone。不越狱，不用电脑，只要一块 7 美元的板子。" width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -44,7 +44,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
-<p align="center">不想自己刷板子？即插即用的 Manina 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
+<p align="center">不想自己刷板子？即插即用的 Manina AI 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
 
 ## 最近更新
 
@@ -86,7 +86,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 ## 工作原理
 
-第一次接触？先看[让 AI 操控 iPhone](https://manina.ai/zh/ai-control-iphone)，再看 [Manina 工作原理](https://manina.ai/zh/how-it-works)。
+第一次接触？先看[让 AI 操控 iPhone](https://manina.ai/zh/ai-control-iphone)，再看 [Manina AI 工作原理](https://manina.ai/zh/how-it-works)。
 
 ```
 iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ──Wi-Fi TCP :7201──▶ ESP32 Agent App（同一台 iPhone）

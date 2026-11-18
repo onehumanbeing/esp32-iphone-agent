@@ -60,7 +60,7 @@ struct SendConsentParts: View {
     @ObservedObject var settings: Settings
     var model: Bool
     var jev: Bool
-    var freeLineDefault = false  // first launch, nothing set up yet: Manina Free is what will be used
+    var freeLineDefault = false  // first launch, nothing set up yet: Manina AI Free is what will be used
 
     private var host: String { AIConsent.host(freeLineDefault ? Trial.baseURL : settings.baseURL) }
     private var freeLine: Bool { freeLineDefault || Trial.isTrial(settings.baseURL) }
@@ -74,7 +74,7 @@ struct SendConsentParts: View {
     @ViewBuilder private var modelPart: some View {
         Section {
             // The free line names who runs it, not just its address.
-            if freeLine { recipient("brain", "Large Language Model", String(localized: "Manina Free, operated by Holomix, Inc. (\(host))")) }
+            if freeLine { recipient("brain", "Large Language Model", String(localized: "Manina AI Free, operated by Holomix, Inc. (\(host))")) }
             else { recipient("brain", "Large Language Model", host, mono: true) }
             item("photo", "A screenshot of your mirrored screen at every step of a run, so the AI can see it")
             item("text.bubble", "The task you type and the steps so far")
@@ -90,7 +90,7 @@ struct SendConsentParts: View {
         Section {
             recipient("bolt", "Jev (decision model)",
                       jevOwnKey ? String(localized: "TypeSafe, on your own key")
-                                : String(localized: "Holomix, Inc. (Manina) and its provider TypeSafe"))
+                                : String(localized: "Holomix, Inc. (Manina AI) and its provider TypeSafe"))
             item("photo", "A screenshot of your mirrored screen at every step")
             item("text.bubble", "Your task, the plan and the recent actions")
             if !jevOwnKey { item("lock", "Kept privately to run and improve Jev") }

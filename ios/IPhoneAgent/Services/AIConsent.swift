@@ -49,7 +49,7 @@ extension Settings {
         set { UserDefaults.standard.set(newValue, forKey: RunShare.askedKey) }
     }
 
-    /// Nothing of one's own is set up yet, so Manina Free is what the app starts with (Trial.attach picks it once
+    /// Nothing of one's own is set up yet, so Manina AI Free is what the app starts with (Trial.attach picks it once
     /// the line answers): the sheet shows it and Agree covers it, instead of asking again on the model page.
     static func freeLineDefault(_ settings: Settings) -> Bool {
         Trial.available && settings.provider != .handsyTrial && !settings.isConfigured(settings.provider)
