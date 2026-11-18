@@ -79,7 +79,7 @@ import XCTest
         t = 104
         XCTAssertTrue(feed.heard().contains("now, 4 s so far"))
         feed.receive(record(seq: UInt16(tone.count), flags: AudioRecord.endFlag))
-        for _ in 0..<20 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        for _ in 0..<1000 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }  // until transcribed (10 s cap: slow CI)
         t = 110
         XCTAssertEqual(feed.heard(), "Heard (phone audio, last 30 s; words transcribed on the phone):\n- 6 s ago, 4 s long: \"Your code is 4 2 7 1\"")
         XCTAssertGreaterThan(engine.appended, 0)
@@ -179,14 +179,14 @@ import XCTest
         await Task.yield()
         for (i, f) in tone.dropFirst().enumerated() { feed.receive(record(seq: UInt16(i + 1), flags: 0, frame: f)) }
         feed.receive(record(seq: UInt16(tone.count), flags: AudioRecord.endFlag))
-        for _ in 0..<50 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        for _ in 0..<1000 where feed.segments.last?.final != true { try await Task.sleep(nanoseconds: 10_000_000) }  // until transcribed (10 s cap: slow CI)
         XCTAssertEqual(feed.segments.last?.text, "Go hand")
         feed.adopt(FakeSpeech(text: "ゴハン", confidence: 0.2))  // a fallback reading less surely: the first one stays
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(feed.segments.last?.text, "Go hand")
         let ja = FakeSpeech(text: "ごはんをください", confidence: 0.9)
         feed.adopt(ja)
-        for _ in 0..<50 where feed.segments.last?.redone != true { try await Task.sleep(nanoseconds: 10_000_000) }
+        for _ in 0..<1000 where feed.segments.last?.redone != true { try await Task.sleep(nanoseconds: 10_000_000) }  // until redone (10 s cap: slow CI)
         XCTAssertEqual(feed.segments.last?.text, "ごはんをください")
         XCTAssertGreaterThan(ja.appended, 0)
     }
