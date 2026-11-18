@@ -1,7 +1,7 @@
 import MessageUI
 import SwiftUI
 
-/// Send to Developer: builds the anonymized file, then opens Mail addressed to intents@handsy.tech with it
+/// Send to Developer: builds the anonymized file, then opens Mail addressed to intents@manina.ai with it
 /// attached. Without a Mail account, the file goes to the share sheet with the address shown.
 struct SendIntentView: View {
     @ObservedObject var app: AppModel

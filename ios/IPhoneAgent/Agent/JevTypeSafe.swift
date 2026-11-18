@@ -1,7 +1,7 @@
 import Foundation
 
 /// Jev on your own TypeSafe key: the app asks TypeSafe's systemone itself, with the same request and the same
-/// decision as Handsy's Jev server (handsy-trial-gateway worker/jev/src/step.ts; keep the two in step).
+/// decision as Manina's Jev server (handsy-trial-gateway worker/jev/src/step.ts; keep the two in step).
 @MainActor final class TypeSafeJev: JevStepping {
     static let defaultBaseURL = "https://api.typesafe.ai/v1"
     static let defaultModel = "jev-latest"
@@ -230,7 +230,7 @@ enum JevRules {
     }
 }
 
-/// Where Jev runs: Handsy's server (default), or TypeSafe on the user's own key (Settings › Jev).
+/// Where Jev runs: Manina's server (default), or TypeSafe on the user's own key (Settings › Jev).
 enum JevConfig {
     static let ownKey = "jev.ownKey"   // UserDefaults: use the user's TypeSafe key
     static let modelKey = "jev.model"  // UserDefaults: the TypeSafe model, default jev-latest
@@ -239,7 +239,7 @@ enum JevConfig {
     static let thresholdRange = 0.5...0.9
     /// Shown under the slider: the range where Jev's taps were measured right most of the time.
     static let suggestedRange = 0.55...0.65
-    /// The user's setting. On Handsy's server it can only raise the server's own per-operation minimum.
+    /// The user's setting. On Manina's server it can only raise the server's own per-operation minimum.
     static var threshold: Double {
         let v = UserDefaults.standard.object(forKey: thresholdKey) as? Double ?? defaultThreshold
         return min(thresholdRange.upperBound, max(thresholdRange.lowerBound, v))
@@ -248,7 +248,7 @@ enum JevConfig {
 
     static var apiKey: String { Keychain.get(keychainAccount) ?? "" }
     static var model: String { UserDefaults.standard.string(forKey: modelKey) ?? TypeSafeJev.defaultModel }
-    /// On, with a key: steps go to TypeSafe directly, not to Handsy.
+    /// On, with a key: steps go to TypeSafe directly, not to Manina.
     static var ownActive: Bool { UserDefaults.standard.bool(forKey: ownKey) && !apiKey.isEmpty }
 
     @MainActor static func client() -> JevStepping {

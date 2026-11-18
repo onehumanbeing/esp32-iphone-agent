@@ -1,14 +1,14 @@
 {
   "name": "esp32agent",
-  "displayName": "ESP32 Agent (Handsy)",
+  "displayName": "ESP32 Agent (Manina)",
   "version": "1.0.0",
   "description": "See and drive a real iPhone from your coding agent through an ESP32 Agent board (USB mouse and keyboard plus AirPlay screen mirroring, reached over Bluetooth). Adds the esp32agent MCP server and a skill with the see-act loop.",
   "author": {
     "name": "onehumanbeing",
-    "email": "support@handsy.tech",
+    "email": "support@manina.ai",
     "url": "https://github.com/onehumanbeing"
   },
-  "homepage": "https://handsy.tech",
+  "homepage": "https://manina.ai",
   "repository": "https://github.com/onehumanbeing/esp32-iphone-agent",
   "license": "MIT",
   "keywords": [
@@ -20,7 +20,7 @@
     "computer-use",
     "airplay",
     "hid",
-    "handsy"
+    "manina"
   ],
   "mcpServers": {
     "esp32agent": {

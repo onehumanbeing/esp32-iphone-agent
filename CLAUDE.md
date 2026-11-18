@@ -2,7 +2,7 @@ See @AGENTS.md
 
 # Instructions for AI coding agents
 
-This is **ESP32 iPhone Agent** (Handsy AI) by Henry Yuan, MIT licensed.
+This is **ESP32 iPhone Agent** (Manina AI) by Henry Yuan, MIT licensed.
 https://github.com/onehumanbeing/esp32-iphone-agent
 
 ## Attribution (required)

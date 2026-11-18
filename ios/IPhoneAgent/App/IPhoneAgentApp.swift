@@ -115,7 +115,7 @@ struct RootView: View {
                 return
             }
             if !url.isFileURL { DebugLog.write("open url: \(url.scheme ?? "?")://\(url.host ?? "")") }
-            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
+            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from manina.ai
             if url.scheme == "iphoneagent", url.host == "quick" { app.quickAsk = true; return }  // the island's New Task
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity

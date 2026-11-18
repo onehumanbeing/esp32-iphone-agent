@@ -11,12 +11,12 @@
         }
       }
     },
-    "A Handsy key starts with hsk_" : {
+    "A Manina key starts with hsk_" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy key 以 hsk_ 开头"
+            "value" : "Manina key 以 hsk_ 开头"
           }
         }
       }
@@ -51,12 +51,12 @@
         }
       }
     },
-    "Already have a Handsy key?" : {
+    "Already have a Manina key?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已经有 Handsy key？"
+            "value" : "已经有 Manina key？"
           }
         }
       }
@@ -221,27 +221,27 @@
         }
       }
     },
-    "Handsy Free gives a few runs per phone. A Handsy plan runs without waiting and reads recordings; your own API key works too." : {
+    "Manina Free gives a few runs per phone. A Manina plan runs without waiting and reads recordings; your own API key works too." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy Free 每台手机有几次免费运行。Handsy 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
+            "value" : "Manina Free 每台手机有几次免费运行。Manina 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
           }
         }
       }
     },
-    "Handsy Free gives a few runs per phone. A plan runs without waiting and reads your recordings." : {
+    "Manina Free gives a few runs per phone. A plan runs without waiting and reads your recordings." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy Free 每台手机有几次免费运行。套餐无需排队，还能分析你的录制。"
+            "value" : "Manina Free 每台手机有几次免费运行。套餐无需排队，还能分析你的录制。"
           }
         }
       }
     },
-    "Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
+    "Manina Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -251,7 +251,7 @@
         }
       }
     },
-    "Handsy Free records" : {
+    "Manina Free records" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -261,7 +261,7 @@
         }
       }
     },
-    "Handsy Free, operated by Holomix, Inc. (%@)" : {
+    "Manina Free, operated by Holomix, Inc. (%@)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -271,52 +271,52 @@
         }
       }
     },
-    "Handsy Plan" : {
+    "Manina Plan" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐"
+            "value" : "Manina 套餐"
           }
         }
       }
     },
-    "Handsy Plan · Active" : {
+    "Manina Plan · Active" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐 · 已启用"
+            "value" : "Manina 套餐 · 已启用"
           }
         }
       }
     },
-    "Handsy Plan · Paused" : {
+    "Manina Plan · Paused" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐 · 已暂停"
+            "value" : "Manina 套餐 · 已暂停"
           }
         }
       }
     },
-    "Handsy key" : {
+    "Manina key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 密钥"
+            "value" : "Manina 密钥"
           }
         }
       }
     },
-    "Handsy key (optional)" : {
+    "Manina key (optional)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 密钥（可选）"
+            "value" : "Manina 密钥（可选）"
           }
         }
       }
@@ -331,12 +331,12 @@
         }
       }
     },
-    "I Have a Handsy Key" : {
+    "I Have a Manina Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "我有 Handsy key"
+            "value" : "我有 Manina key"
           }
         }
       }
@@ -391,12 +391,12 @@
         }
       }
     },
-    "Needs a Handsy key" : {
+    "Needs a Manina key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要 Handsy key"
+            "value" : "需要 Manina key"
           }
         }
       }
@@ -461,12 +461,12 @@
         }
       }
     },
-    "Paste the key from your Handsy plan. Runs then use your plan: no waiting in line, and recordings are read." : {
+    "Paste the key from your Manina plan. Runs then use your plan: no waiting in line, and recordings are read." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "粘贴你 Handsy 套餐里的 key。之后运行使用你的套餐：不用排队，也能分析录制。"
+            "value" : "粘贴你 Manina 套餐里的 key。之后运行使用你的套餐：不用排队，也能分析录制。"
           }
         }
       }
@@ -501,12 +501,12 @@
         }
       }
     },
-    "Recording needs a Handsy key or your own model. Add one in Settings › Model." : {
+    "Recording needs a Manina key or your own model. Add one in Settings › Model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "录制需要 Handsy key 或你自己的模型，请在 设置 › 模型 里添加。"
+            "value" : "录制需要 Manina key 或你自己的模型，请在 设置 › 模型 里添加。"
           }
         }
       }
@@ -631,12 +631,12 @@
         }
       }
     },
-    "Set Up Your Handsy Key" : {
+    "Set Up Your Manina Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "设置你的 Handsy key"
+            "value" : "设置你的 Manina key"
           }
         }
       }
@@ -731,7 +731,7 @@
         }
       }
     },
-    "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+    "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Manina Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1061,12 +1061,12 @@
         }
       }
     },
-    "Use This Handsy Key?" : {
+    "Use This Manina Key?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用这个 Handsy key？"
+            "value" : "使用这个 Manina key？"
           }
         }
       }
@@ -1081,12 +1081,12 @@
         }
       }
     },
-    "Uses your Handsy key" : {
+    "Uses your Manina key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用你的 Handsy key"
+            "value" : "使用你的 Manina key"
           }
         }
       }
@@ -1261,22 +1261,22 @@
         }
       }
     },
-    "This Handsy key has no balance left. Remove it to use the free runs, or add your own model." : {
+    "This Manina key has no balance left. Remove it to use the free runs, or add your own model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个 Handsy 密钥的额度已用完。删除它可改用免费次数，或添加你自己的模型。"
+            "value" : "这个 Manina 密钥的额度已用完。删除它可改用免费次数，或添加你自己的模型。"
           }
         }
       }
     },
-    "This Handsy key isn't accepted. Check it in Settings › Model, or remove it to use the free runs." : {
+    "This Manina key isn't accepted. Check it in Settings › Model, or remove it to use the free runs." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个 Handsy 密钥无效。请在「设置 › 模型」中检查，或删除它改用免费次数。"
+            "value" : "这个 Manina 密钥无效。请在「设置 › 模型」中检查，或删除它改用免费次数。"
           }
         }
       }
@@ -1321,12 +1321,12 @@
         }
       }
     },
-    "With a Handsy key, runs use your plan instead of the free runs." : {
+    "With a Manina key, runs use your plan instead of the free runs." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "填入 Handsy 密钥后，任务会使用你的套餐额度，不占用免费次数。"
+            "value" : "填入 Manina 密钥后，任务会使用你的套餐额度，不占用免费次数。"
           }
         }
       }
@@ -1711,12 +1711,12 @@
         }
       }
     },
-    "handsy.tech sent this key to the app. Use it only if you just copied it from your own Handsy plan." : {
+    "manina.ai sent this key to the app. Use it only if you just copied it from your own Manina plan." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "handsy.tech 把这个 key 发给了 App。只有刚从你自己的 Handsy 套餐里复制的才使用。"
+            "value" : "manina.ai 把这个 key 发给了 App。只有刚从你自己的 Manina 套餐里复制的才使用。"
           }
         }
       }
@@ -9933,12 +9933,12 @@
         }
       }
     },
-    "Holomix, Inc. (Handsy) and its provider TypeSafe" : {
+    "Holomix, Inc. (Manina) and its provider TypeSafe" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Holomix, Inc.（Handsy）及其服务商 TypeSafe"
+            "value" : "Holomix, Inc.（Manina）及其服务商 TypeSafe"
           }
         }
       }
@@ -10083,22 +10083,22 @@
         }
       }
     },
-    "Steps go straight from this iPhone to TypeSafe on your key; Handsy gets nothing. The key stays in this iPhone's Keychain." : {
+    "Steps go straight from this iPhone to TypeSafe on your key; Manina gets nothing. The key stays in this iPhone's Keychain." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Handsy 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
+            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Manina 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
           }
         }
       }
     },
-    "Steps go to Jev on Handsy's server, free of charge." : {
+    "Steps go to Jev on Manina's server, free of charge." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每一步发给 Handsy 服务器上的 Jev，免费。"
+            "value" : "每一步发给 Manina 服务器上的 Jev，免费。"
           }
         }
       }
@@ -10133,17 +10133,17 @@
         }
       }
     },
-    "Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy" : {
+    "Each run on Manina Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Manina" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Handsy"
+            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Manina"
           }
         }
       }
     },
-    "Handsy Free privacy notice" : {
+    "Manina Free privacy notice" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10153,17 +10153,17 @@
         }
       }
     },
-    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy." : {
+    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Manina Free. To have records deleted, write to support@manina.ai. You can withdraw this anytime in Settings › Privacy." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@handsy.tech。你可以随时在“设置 › 隐私”中撤回同意。"
+            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@manina.ai。你可以随时在“设置 › 隐私”中撤回同意。"
           }
         }
       }
     },
-    "Handsy Free is busy right now — lots of people are using it. Please try again in a moment." : {
+    "Manina Free is busy right now — lots of people are using it. Please try again in a moment." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10173,7 +10173,7 @@
         }
       }
     },
-    "Handsy Free isn't available on this phone right now. Use your own model instead." : {
+    "Manina Free isn't available on this phone right now. Use your own model instead." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10183,7 +10183,7 @@
         }
       }
     },
-    "Handsy Free needs the App Store version on a real iPhone." : {
+    "Manina Free needs the App Store version on a real iPhone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10193,7 +10193,7 @@
         }
       }
     },
-    "Handsy Free only runs tasks. Use your own model for tests and intent analysis." : {
+    "Manina Free only runs tasks. Use your own model for tests and intent analysis." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10203,7 +10203,7 @@
         }
       }
     },
-    "Handsy Free is busy — waiting in line…" : {
+    "Manina Free is busy — waiting in line…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10213,7 +10213,7 @@
         }
       }
     },
-    "Only the Large Language Model decides. On Handsy Free it stays on." : {
+    "Only the Large Language Model decides. On Manina Free it stays on." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10523,12 +10523,12 @@
         }
       }
     },
-    "Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Handsy's server may ask for more on some kinds of steps." : {
+    "Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Manina's server may ask for more on some kinds of steps." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jev 只在把握不低于这个值时才自己走这一步，否则交给大语言模型。调低更快，调高更稳。Handsy 服务器对某些类型的步骤可能要求更高。"
+            "value" : "Jev 只在把握不低于这个值时才自己走这一步，否则交给大语言模型。调低更快，调高更稳。Manina 服务器对某些类型的步骤可能要求更高。"
           }
         }
       }
@@ -10543,7 +10543,7 @@
         }
       }
     },
-    "Handsy Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off." : {
+    "Manina Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10603,7 +10603,7 @@
         }
       }
     },
-    "Handsy Free needs a few seconds between runs. Try again in a moment." : {
+    "Manina Free needs a few seconds between runs. Try again in a moment." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {

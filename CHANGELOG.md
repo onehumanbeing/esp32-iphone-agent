@@ -1,8 +1,11 @@
 # Changelog
 
-Full changelog with board firmware and every channel: [handsy.tech/docs/changelog](https://handsy.tech/docs/changelog).
+Full changelog with board firmware and every channel: [manina.ai/docs/changelog](https://manina.ai/docs/changelog).
 
 ## Unreleased (main)
+
+- Rebrand: Handsy is now Manina AI, at [manina.ai](https://manina.ai) (handsy.tech redirects there). App text,
+  docs, plugin and skill names (`manina`, `manina-run-tasks`) and support addresses use the new name.
 
 ## App 1.0.6 (build 17, TestFlight)
 

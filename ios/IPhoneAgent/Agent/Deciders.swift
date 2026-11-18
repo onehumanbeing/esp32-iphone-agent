@@ -60,8 +60,8 @@ struct Deciders: Equatable, Codable {
     }
 }
 
-/// Steps go to Jev only after this separate yes, per target: Handsy (Holomix, Inc. and its provider TypeSafe),
-/// or TypeSafe on the user's own key. Handsy Free's own agreement already covers Jev on Handsy.
+/// Steps go to Jev only after this separate yes, per target: Manina (Holomix, Inc. and its provider TypeSafe),
+/// or TypeSafe on the user's own key. Manina Free's own agreement already covers Jev on Manina.
 enum JevConsent {
     static let key = "jevConsentVersion"
     static let version = "2026-11-06"

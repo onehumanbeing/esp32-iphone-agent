@@ -7,10 +7,10 @@ import SwiftUI
 @MainActor final class CallGuide: ObservableObject {
     static let shared = CallGuide()
     static let seenKey = "callGuideHidden"  // set only by Don't Show Again
-    /// handsy.tech's Phone calls page (the setup video and these steps), in the app's language.
+    /// manina.ai's Phone calls page (the setup video and these steps), in the app's language.
     static var page: URL {
         let zh = Bundle.main.preferredLocalizations.first?.hasPrefix("zh") == true  // the language the app shows
-        return URL(string: "https://handsy.tech/" + (zh ? "zh/" : "") + "docs/phone-calls")!
+        return URL(string: "https://manina.ai/" + (zh ? "zh/" : "") + "docs/phone-calls")!
     }
 
     struct Pending: Identifiable {

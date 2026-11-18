@@ -362,7 +362,7 @@ import UIKit
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 
-    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Handsy key (paid
+    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Manina key (paid
     /// per call) or where the server allows it (owner phones); else nil. Own endpoint: the Planner model, else the shared one.
     func recordingClient() async throws -> LLMClient? {
         guard provider == .handsyTrial else { return try await client("planner") }
@@ -391,7 +391,7 @@ import UIKit
     var jevOn: Bool { Trial.available && Deciders.load(freeLine: provider == .handsyTrial, defaults: defaults).isOn(.jev) }
 
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
-        let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key
+        let freeLine = provider == .handsyTrial  // the free line asks Manina's Jev itself, unless Jev has its own key
         guard Trial.available, !freeLine || JevConfig.ownActive, !JevConsent.needed(freeLine: freeLine) else { return nil }
         let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }

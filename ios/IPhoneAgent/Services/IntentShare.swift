@@ -2,11 +2,11 @@ import Foundation
 import UIKit
 import Vision
 
-/// Send to Developer: one intent, made anonymous on the phone, attached to a mail to intents@handsy.tech.
+/// Send to Developer: one intent, made anonymous on the phone, attached to a mail to intents@manina.ai.
 /// Screens get the top band blacked out, every line of text Vision finds pixelated, and are shrunk; typed
 /// text and setup secrets are replaced. The user sees the mail before it goes.
 enum IntentShare {
-    static let address = "intents@handsy.tech"
+    static let address = "intents@manina.ai"
     static let width: CGFloat = 480
     /// Written into the mail, so the promise travels with the file.
     static func mailBody(screenshots: Bool) -> String {

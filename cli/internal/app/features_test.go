@@ -83,7 +83,7 @@ func TestReportShowsTheRedactedFileAndOnlyOpensTheMail(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
 	}
-	if len(opened) != 2 || !strings.HasPrefix(opened[0][len(opened[0])-1], "mailto:intents@handsy.tech?subject=Intent:%20Alarm&body=Attached:%20") {
+	if len(opened) != 2 || !strings.HasPrefix(opened[0][len(opened[0])-1], "mailto:intents@manina.ai?subject=Intent:%20Alarm&body=Attached:%20") {
 		t.Fatalf("opened %v", opened)
 	}
 	u, _ := url.Parse(opened[0][len(opened[0])-1])

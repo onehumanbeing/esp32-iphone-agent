@@ -72,7 +72,7 @@ struct LLMError: LocalizedError {
 
     /// Free line, mid-run: anything on the line's side reads as busy, never as the app failing.
     static var lineBusy: String {
-        String(localized: "Handsy Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off.")
+        String(localized: "Manina Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off.")
     }
 
     /// The free line ended this run (its lease): the run stops instead of retrying.
@@ -208,7 +208,7 @@ struct LLMError: LocalizedError {
         guard (200..<300).contains(status), var result else {
             DebugLog.write(String(format: "llm ✗ HTTP %d after %.1f s: %@", status, now() - started, String(errorText.prefix(200))))
             if Trial.isTrial(baseURL.absoluteString), let refused = Self.freeLineError(status: status, errorText: errorText) {
-                // a refused Handsy key says nothing about the install's own token
+                // a refused Manina key says nothing about the install's own token
                 if status == 401, Self.keyError(errorText) == nil { Trial.shared.tokenRefused() }  // token refused: the next run enrolls again
                 else if refused.kind == LLMError.trialRunEnded.kind { Trial.shared.runEnded() }
                 throw refused
@@ -242,7 +242,7 @@ struct LLMError: LocalizedError {
         ["quota", "rate_limit_day"].contains(trialReason(errorText))
     }
 
-    /// A Handsy key the gateway refuses: unknown, revoked or expired (key_invalid), or nothing left on its plan
+    /// A Manina key the gateway refuses: unknown, revoked or expired (key_invalid), or nothing left on its plan
     /// or its own limit (key_balance, key_limit). Final: asking again can't help.
     nonisolated static func keyError(_ errorText: String) -> TrialError? {
         switch trialReason(errorText) {

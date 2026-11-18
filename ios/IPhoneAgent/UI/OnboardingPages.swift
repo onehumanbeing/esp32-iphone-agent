@@ -135,13 +135,13 @@ struct DemoOffer: View {
 }
 
 struct FirmwareLinks: View {
-    static let install = URL(string: "https://handsy.tech/install")!
+    static let install = URL(string: "https://manina.ai/install")!
 
     /// One line, so both links stay above the bottom button on every iPhone.
     var body: some View {
         HStack(spacing: Space.m) {
             Text("New board?").foregroundStyle(.secondary)
-            Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
+            Link(destination: Self.install) { Label { Text(verbatim: "manina.ai/install") } icon: { Image(systemName: "desktopcomputer") } }
             Link(destination: AboutView.repo) {
                 Label { Text(verbatim: "GitHub") } icon: {
                     Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)

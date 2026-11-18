@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// A board firmware release: `firmware.json` next to the image on handsy.tech (hardware/tools/fw_release.py). Signed with the project's Ed25519 key, so a changed release page
+/// A board firmware release: `firmware.json` next to the image on manina.ai (hardware/tools/fw_release.py). Signed with the project's Ed25519 key, so a changed release page
 /// or a hacked site can't put other code on the board.
 /// A firmware version like the repo's release tags: "0.2.0", shown as v0.2.0. Boards from before semver report
 /// a plain number n (OTA test builds 2 and 3), read as 0.0.n so any tagged release is newer.
@@ -49,12 +49,12 @@ struct FirmwareRelease: Codable, Equatable {
 }
 
 enum Firmware {
-    /// Releases come from handsy.tech only: we control it, so test releases can be staged there too.
+    /// Releases come from manina.ai only: we control it, so test releases can be staged there too.
     /// TestFlight builds (`fastlane beta testflight:true` sets TESTFLIGHT) read their own list, signed with the same key.
     #if TESTFLIGHT
-    static let sources = [URL(string: "https://handsy.tech/firmware/testflight/firmware.json")!]
+    static let sources = [URL(string: "https://manina.ai/firmware/testflight/firmware.json")!]
     #else
-    static let sources = [URL(string: "https://handsy.tech/firmware/firmware.json")!]
+    static let sources = [URL(string: "https://manina.ai/firmware/firmware.json")!]
     #endif
     /// The oldest board firmware this app works with; an older board gets the update before anything else.
     static let required = FirmwareVersion([0, 2, 0])

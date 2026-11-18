@@ -10,7 +10,7 @@ HOW IT WORKS
 • Every step is recorded. Replay a run, fix a step, and save it as your own intent.
 
 CHOOSE YOUR MODEL
-Use the free Handsy line (limited capacity, not available in every region) or connect a vision model you choose: a cloud API or your own server. Before anything is sent, the app tells you where screenshots and task text go and asks for your consent. Runs and logs stay on your iPhone until you share them.
+Use the free Manina line (limited capacity, not available in every region) or connect a vision model you choose: a cloud API or your own server. Before anything is sent, the app tells you where screenshots and task text go and asks for your consent. Runs and logs stay on your iPhone until you share them.
 
 OPEN SOURCE
 The app and the board firmware are open source: github.com/onehumanbeing/esp32-iphone-agent

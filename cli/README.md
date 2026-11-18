@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/ma
 ```
 
 Windows (PowerShell): `irm https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.ps1 | iex`.
-npm: `npm install -g esp32agent`. The scripts read the release list at `https://handsy.tech/cli/versions.json`
+npm: `npm install -g esp32agent`. The scripts read the release list at `https://manina.ai/cli/versions.json`
 (falling back to GitHub Releases) and check the archive's SHA-256. Screenshots need `ffmpeg` (the installers offer
 brew / apt / dnf / winget). Later: `esp32agent upgrade`.
 
@@ -113,7 +113,7 @@ you type in (agents can't call it, and there is no MCP tool for it). It writes a
 folder: typed text becomes `•••`, IP addresses are removed, and with `--screenshots` each screen gets the top 7%
 (status bar, notifications) blacked out and is shrunk to 480 px wide; other text on the screens stays readable.
 It prints exactly what the file holds (name, prompt, hints, step count, screenshots, path) and continues only when
-you type `y`: then it opens a mail to `intents@handsy.tech` in your mail app and shows the file. Attach it and send
+you type `y`: then it opens a mail to `intents@manina.ai` in your mail app and shows the file. Attach it and send
 it yourself; esp32agent never sends anything.
 
 ## Limits
@@ -138,6 +138,6 @@ ESP32AGENT_SIM=$PWD/hardware/tests/sim/cli_sim esp32agent screenshot   # the CLI
 
 Release: push a tag `cli-vX.Y.Z`; `.github/workflows/cli.yml` builds darwin (cgo, CoreBluetooth), linux and
 windows (pure Go) for amd64/arm64 and uploads the archives with `checksums.txt`. It also leaves a `versions.json`
-artifact ([format](install/versions.example.json)); merging it into `https://handsy.tech/cli/versions.json` is
+artifact ([format](install/versions.example.json)); merging it into `https://manina.ai/cli/versions.json` is
 manual. `ESP32AGENT_VERSIONS_URL` points `upgrade` and the installers at another list (tests). Installer testing:
 `ESP32AGENT_ARCHIVE=/path/esp32agent_darwin_arm64.tar.gz sh cli/install/install.sh` (checksums.txt next to it).
