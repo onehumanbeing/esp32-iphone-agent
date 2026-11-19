@@ -196,7 +196,10 @@ import UIKit
                 case .panel: what = "brought down a system panel"
                 case .short(let below): what = String(format: "stopped %.1f%% below the top", below * 100)
                 }
-                if miss == .panel { await closePanel() }
+                if miss == .panel, !(await closePanel()) {
+                    app.say("calibration: home pushing up \(n) reports \(what), and it did not go away")
+                    return .failed("a system panel covers the app")
+                }
                 guard attempt < 3, let next = HomeTuning.next(after: miss, from: n) else {
                     app.say("calibration: home pushing up \(n) reports \(what); no other count to try")
                     return .failed("homing \(what)")
@@ -208,15 +211,15 @@ import UIKit
         return .failed("homing")
     }
 
-    /// Notification Center (or Control Center) covers the app: swipe up from the bottom edge, as a finger would.
-    private func closePanel() async {
-        let device = app.board.commands
-        _ = try? await device.send("move 0 2000 40")  // to the bottom edge, where the pointer stops
-        _ = try? await device.send("move 500 0 40")
-        _ = try? await device.send("flick 0 -1200 20")
+    /// Notification Center covers the app: the pointer going down to the bottom edge puts it away (iPad Air M3,
+    /// 2026-11-20). No swipe: a swipe up from the bottom edge that arrives once the panel is gone turns the app into
+    /// a window, and calibration needs it full screen. True once the app is in front again (up to 3 s).
+    private func closePanel() async -> Bool {
+        _ = try? await app.board.commands.send("move 0 2000 40")  // to the bottom edge, where the pointer stops
         app.pointer.forgetPosition()
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-        app.say(DeviceScreen.sceneActive ? "calibration: the panel is closed" : "calibration: a panel still covers the app")
+        for _ in 0..<30 where !DeviceScreen.sceneActive { try? await Task.sleep(nanoseconds: 100_000_000) }
+        app.say(DeviceScreen.sceneActive ? "calibration: the panel went away" : "calibration: a panel still covers the app")
+        return DeviceScreen.sceneActive
     }
 
     /// The fallback: find the pointer in the mirrored video.
