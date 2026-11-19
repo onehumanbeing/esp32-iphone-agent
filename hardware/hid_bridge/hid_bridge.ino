@@ -55,12 +55,16 @@ const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the boa
 BleHidMouse mouse;
 BleHidKeyboard keyboard;
 BleHidConsumer consumer;
-// Homing reports as fast as the link takes them, as on USB. 15 ms (one per BLE connection interval) made `home`
-// push against the top edge for ~375 ms, and iPadOS opened Notification Center (iPad Air M3, 2026-11-19); the
-// USB build's 2 ms pushes for ~50 ms and never did. A full notify buffer waits in the HID send (ble_hid.cpp).
+// Homing over BLE: iPadOS opens Notification Center when the pointer keeps pushing up at the top edge with an app
+// in front. BLE takes a report about every 14 ms whatever the gap, so the USB build's 25 reports up (~50 ms at
+// 2 ms) became ~350 ms and opened it every time (iPad Air M3, 2026-11-20, in the app during calibration). Measured
+// there: 5 reports up reach the top from the bottom edge (landscape), 18 from near the top did not open it, 25 did.
+// 10 leaves room for portrait, which is ~1.45x taller. The gap stays short; the link sets the pace.
 const int HOME_REPORT_MS = 4;
+const int HOME_UP_REPORTS = 10;
 #else
 const int HOME_REPORT_MS = 2;
+const int HOME_UP_REPORTS = HOME_REPORTS;
 #if ABS_POINTER
 AbsMouse mouse;  // flash.sh --abs: same calls as USBHIDMouse, plus `abs`
 #else
@@ -170,11 +174,12 @@ String run(const String &line) {
   }
   if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
-    // `home MS`: another report interval (1-30 ms), to try one on a device without a new build
-    const long gap = arg.length() ? a : HOME_REPORT_MS;
-    if (gap < 1 || gap > 30) return "err usage: home [MS 1-30]";
+    // `home [MS [UP]]`: another report interval (1-30 ms) or number of reports up, to try on a device
+    long gap = HOME_REPORT_MS, up = HOME_UP_REPORTS;
+    if (arg.length() && (sscanf(arg.c_str(), "%ld %ld", &gap, &up) < 1 || gap < 1 || gap > 30 || up < 1 || up > 60))
+      return "err usage: home [MS 1-30 [UP 1-60]]";
     for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(gap); }
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(gap); }
+    for (int i = 0; i < up; i++) { mouse.move(0, -127); delay(gap); }
     return "ok";
   }
   if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
