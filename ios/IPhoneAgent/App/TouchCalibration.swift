@@ -26,7 +26,7 @@ extension AutoCalibrator {
         /// iPad over Bluetooth: this app is in front for the whole calibration, so leaving the front means homing
         /// pushed at the top edge long enough to bring down Notification Center (HomeTuning).
         func checkPanel() throws {
-            if pointer.homeUp?() != nil && !DeviceScreen.foreground { throw HomeTuning.Miss.panel }
+            if pointer.homeUp?() != nil && !DeviceScreen.sceneActive { throw HomeTuning.Miss.panel }
         }
         var total = full ? Self.roughStops.count + Self.targets.count + 1 : 1
         var clicks = 0, hits = 0

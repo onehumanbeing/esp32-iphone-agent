@@ -216,7 +216,7 @@ import UIKit
         _ = try? await device.send("flick 0 -1200 20")
         app.pointer.forgetPosition()
         try? await Task.sleep(nanoseconds: 1_000_000_000)
-        app.say(DeviceScreen.foreground ? "calibration: the panel is closed" : "calibration: a panel still covers the app")
+        app.say(DeviceScreen.sceneActive ? "calibration: the panel is closed" : "calibration: a panel still covers the app")
     }
 
     /// The fallback: find the pointer in the mirrored video.
