@@ -87,7 +87,7 @@ extension AppModel {
 
     private func kind(_ part: Recovery.Part) -> Notifier.Kind {
         switch part {
-        case .board, .pointer: return .board
+        case .board, .cable, .pointer: return .board
         case .locked: return .locked
         case .hotspot: return .wifi
         case .mirroring, .frames: return .mirroring
@@ -97,6 +97,7 @@ extension AppModel {
     private func title(_ stage: Recovery.Stage) -> String {
         switch stage.part {
         case .pointer: return String(localized: "Pair the Bluetooth pointer")
+        case .cable: return String(localized: "Plug the board into this iPhone")
         case .board: return String(localized: "Board disconnected")
         case .locked: return String(localized: "Unlock iPhone to continue")
         case .hotspot: return stage.lan ? String(localized: "Board left the Wi-Fi") : String(localized: "iPhone left the board's Wi-Fi")

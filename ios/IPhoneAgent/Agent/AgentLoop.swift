@@ -346,7 +346,7 @@ extension Gestures {
     /// lost link before Recovery.limit.
     func waitForScreen(poll: Double = 0.5, forceRestore: Bool = false,
                        deadline: Double? = nil) async throws -> Double? {
-        guard let screen, forceRestore || !screen.live || link?().needsPointer == true else { return nil }
+        guard let screen, forceRestore || !screen.live || link?().inputGone == true else { return nil }
         let deadline = deadline ?? now() + recoveryLimit
         var recovery = Recovery(at: now(), limit: max(0, deadline - now()))
         var shown: Recovery.Stage?
@@ -391,7 +391,7 @@ extension Gestures {
 
     func connectionChanged(since revision: Int?) -> Bool {
         guard let device = phone?.device else { return false }
-        return !device.connected || link?().needsPointer == true || revision.map { device.links != $0 } == true
+        return !device.connected || link?().inputGone == true || revision.map { device.links != $0 } == true
     }
 
     /// iPad: the screen rotated or the mirrored shape changed since `revision` (never on iPhone: no geometry).

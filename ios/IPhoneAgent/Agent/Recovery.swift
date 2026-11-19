@@ -18,14 +18,17 @@ struct Recovery {
         var frameAt: Double       // when the newest decoded frame arrived
         var stalled = false       // the board itself gets no frames from AirPlay: ask the user at once
         var needsPointer = false  // The pointer can disconnect while GATT and mirroring stay up.
-        var usb: String? = nil    // ok | asleep | off; asleep means the phone is locked to USB
+        var usb: String? = nil    // USB HID boards only (nil on a wireless one): ok | asleep | off; asleep = locked
         var locked = false        // protected data unavailable: a passcode is set and the phone is locked
 
         /// The board joins the home Wi-Fi instead of opening its hotspot.
         var lan: Bool { net == "sta" || net == "none" }
+        /// The board is up but its mouse no longer reaches this iPhone, while mirroring may still stream.
+        var inputGone: Bool { needsPointer || usb == "off" }
     }
 
-    enum Part: Equatable { case board, locked, pointer, hotspot, mirroring, frames }
+    /// `cable`: a USB HID board that stays powered (a charger, a battery) but is no longer plugged into this iPhone.
+    enum Part: Equatable { case board, locked, cable, pointer, hotspot, mirroring, frames }
 
     struct Stage: Equatable {
         var part: Part
@@ -40,7 +43,7 @@ struct Recovery {
     }
 
     /// How long each part may come back by itself before the user is asked; then the whole limit.
-    static let quiet: [Part: Double] = [.board: 30, .locked: 5, .pointer: 5, .hotspot: 30, .mirroring: 20, .frames: 20]
+    static let quiet: [Part: Double] = [.board: 30, .locked: 5, .cable: 10, .pointer: 5, .hotspot: 30, .mirroring: 20, .frames: 20]
     static let limit = 300.0
 
     let started: Double
@@ -56,6 +59,7 @@ struct Recovery {
         // Nothing here types a passcode or otherwise tries to unlock.
         let part: Part? = !l.connected ? .board
             : (l.locked || l.usb == "asleep") ? .locked
+            : l.usb == "off" ? .cable
             : l.needsPointer ? .pointer
             : l.sta == 0 ? .hotspot
             : l.ap != "streaming" ? .mirroring
@@ -84,6 +88,7 @@ struct Recovery {
             switch part {
             case .board: return String(localized: "the board did not come back in 5 minutes")
             case .locked: return String(localized: "the iPhone stayed locked for 5 minutes")
+            case .cable: return String(localized: "the board was not plugged back into the iPhone in 5 minutes")
             case .pointer: return String(localized: "the Bluetooth pointer did not reconnect in 5 minutes")
             case .hotspot: return lan
                 ? String(localized: "the board did not rejoin the Wi-Fi in 5 minutes")
@@ -96,6 +101,7 @@ struct Recovery {
         switch part {
         case .board: return String(localized: "the board did not come back in \(minutes) minutes")
         case .locked: return String(localized: "the iPhone stayed locked for \(minutes) minutes")
+        case .cable: return String(localized: "the board was not plugged back into the iPhone in \(minutes) minutes")
         case .pointer: return String(localized: "the Bluetooth pointer did not reconnect in \(minutes) minutes")
         case .hotspot: return lan
             ? String(localized: "the board did not rejoin the Wi-Fi in \(minutes) minutes")
@@ -110,6 +116,8 @@ extension Recovery.Stage {
     /// For the log: "recover: …".
     var logLine: String {
         switch (part, ask) {
+        case (.cable, false): return "board up, its USB is not connected to this iPhone (usb off); waiting for it"
+        case (.cable, true): return "board's USB still off this iPhone; asked the user to plug it in"
         case (.pointer, _): return "waiting for the Bluetooth pointer to reconnect to this iPhone"
         case (.board, false): return "BLE link lost; reconnecting"
         case (.board, true): return "board still gone; asked the user to check it"
@@ -127,6 +135,10 @@ extension Recovery.Stage {
     /// Dynamic Island label: compact and full.
     var status: IslandStatus {
         switch (part, ask) {
+        case (.cable, _):
+            return IslandStatus(short: String(localized: "Plug in board"),
+                                full: String(localized: "The board isn't plugged into this iPhone. Plug it in and the run goes on."),
+                                look: nil, minimal: String(localized: "USB"))
         case (.pointer, _):
             return IslandStatus(short: String(localized: "Pointer"), full: String(localized: "Waiting for the Bluetooth pointer…"), look: nil)
         case (.board, _):
@@ -166,6 +178,8 @@ extension Recovery.Stage {
     /// One sentence for the Live Activity line, the in-app banner and the notification body.
     var line: String {
         switch (part, ask) {
+        case (.cable, false): return String(localized: "The board's USB left this iPhone. Waiting for it to come back…")
+        case (.cable, true): return String(localized: "Plug the board into this iPhone's USB-C port; the run goes on when it is back.")
         case (.pointer, false): return String(localized: "Waiting for the Bluetooth pointer…")
         case (.pointer, true): return String(localized: "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings.")
         case (.board, _): return IslandStatus.waitingForBoard.full

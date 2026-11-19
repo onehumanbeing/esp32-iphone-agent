@@ -332,6 +332,20 @@ import XCTest
         XCTAssertEqual(merged.seen(by: "iPad15,3").ap, "streaming")
     }
 
+    func testAUSBBoardLeavingThisIPhoneInvalidatesThePointerAndAsksToPlugIn() {
+        let board = BoardLink(mock: true)
+        board.updateStatus(BoardStatus(usb: "ok", ap: "streaming"))
+        let plugged = board.commands.links
+        board.updateStatus(BoardStatus(usb: "off"))
+        XCTAssertNotEqual(board.commands.links, plugged, "the pointer the app tracked is gone with the USB link")
+        XCTAssertEqual(board.status?.needsUSBHost, true)
+        XCTAssertEqual(board.status?.needsWirelessPointer, false)
+        let off = board.commands.links
+        board.updateStatus(BoardStatus(usb: "ok"))
+        XCTAssertEqual(board.commands.links, off, "coming back does not invalidate again")
+        XCTAssertEqual(board.status?.inputReady, true)
+    }
+
     func testWirelessPairingIsSeparateFromTheControlConnection() throws {
         let board = BoardLink(mock: true)
         let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"esp32s3","usb":"ok","hid":"off","ap":"streaming"}"#.utf8)))

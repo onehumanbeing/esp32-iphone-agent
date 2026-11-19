@@ -337,9 +337,9 @@ import Foundation
 
     func updateStatus(_ s: BoardStatus) {
         let merged = (currentStatus?.merged(with: s) ?? s).seen(by: DeviceInfo.model)
-        if status?.isWirelessHID == true && status?.inputReady == true && merged.needsWirelessPointer {
-            commands.inputLinkLost()
-        }
+        // Either transport: the pointer the app tracked is gone (Bluetooth dropped, USB unplugged or asleep), so
+        // in-flight moves and the known position no longer hold.
+        if status?.inputReady == true && !merged.inputReady { commands.inputLinkLost() }
         wirelessBoardID = merged.isWirelessHID ? (peripheral?.identifier ?? pairedID) : nil
         statusRevision += 1
         status = merged

@@ -260,7 +260,7 @@ import UIKit
             self?.metrics.status(s)
             self?.logStatus(s)
             self?.matchMirrorDisplay(s)
-            if s.inputState == nil || s.needsWirelessPointer { self?.beginLinkRecoveryDisplay() }
+            if s.inputState == nil || s.needsWirelessPointer || s.needsUSBHost { self?.beginLinkRecoveryDisplay() }
             else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in
