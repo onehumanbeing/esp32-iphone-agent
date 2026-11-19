@@ -83,7 +83,7 @@ func TestReportShowsTheRedactedFileAndOnlyOpensTheMail(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
 	}
-	if len(opened) != 2 || !strings.HasPrefix(opened[0][len(opened[0])-1], "mailto:intents@handsy.tech?subject=Intent:%20Alarm&body=Attached:%20") {
+	if len(opened) != 2 || !strings.HasPrefix(opened[0][len(opened[0])-1], "mailto:intents@manina.ai?subject=Intent:%20Alarm&body=Attached:%20") {
 		t.Fatalf("opened %v", opened)
 	}
 	u, _ := url.Parse(opened[0][len(opened[0])-1])
@@ -205,11 +205,11 @@ func TestHistoryAndIntentCommands(t *testing.T) {
 	if o := run(t, a, "history", "new"); o.Status != "ok" {
 		t.Fatalf("new: %+v", o)
 	}
-	o := run(t, a, "intent", "export", "Alarm", "--output", filepath.Join(a.Dir, "a.esp32intent"))
+	o := run(t, a, "intent", "export", "Alarm", "--output", filepath.Join(a.Dir, "a.intent"))
 	if o.Status != "ok" || o.Data["screenshots"] != false {
 		t.Fatalf("export: %+v", o)
 	}
-	if o := run(t, a, "intent", "import", filepath.Join(a.Dir, "a.esp32intent")); o.Status != "ok" || o.Data["skipped"] != 1.0 {
+	if o := run(t, a, "intent", "import", filepath.Join(a.Dir, "a.intent")); o.Status != "ok" || o.Data["skipped"] != 1.0 {
 		t.Fatalf("import of a saved one: %+v", o)
 	}
 

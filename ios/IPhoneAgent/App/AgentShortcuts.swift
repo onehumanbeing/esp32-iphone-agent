@@ -8,11 +8,16 @@ struct RunTaskIntent: LiveActivityIntent {
     static let description = IntentDescription("Asks the agent to do a task on this phone, like \"Open Settings and go to Wi-Fi\".")
 
     @Parameter(title: "Task", requestValueDialog: "What should I do?") var task: String
+    /// Shortcuts automation can turn this on for one run. Off leaves the app's Unattended setting in charge.
+    @Parameter(title: "Unattended", default: false)
+    var unattended: Bool
 
-    static var parameterSummary: some ParameterSummary { Summary("Ask the agent to \(\.$task)") }
+    static var parameterSummary: some ParameterSummary {
+        Summary("Ask the agent to \(\.$task)") { \.$unattended }
+    }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let line = await AgentRequests.handle?(.runTask(task)) ?? AgentRequests.unavailable
+        let line = await AgentRequests.handle?(.runTask(task, unattended: unattended)) ?? AgentRequests.unavailable
         return .result(dialog: "\(line)")
     }
 }

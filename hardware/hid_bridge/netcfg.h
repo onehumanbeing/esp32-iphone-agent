@@ -14,6 +14,9 @@ int net_peers();                         // stations on our SoftAP, or 1 when co
 bool net_up();                           // has an IP address
 bool net_coex(const String &pref);       // Wi-Fi/BLE radio share: "bt" | "balance" (boot default) | "wifi"
 const char *net_coex_mode();
+// LAN lock (src/net/lan_lock.h): the owner's IPv4 (network order, 0 = none), kept in NVS for this station network
+// and forgotten when the network changes. True if it changed.
+bool net_set_owner(uint32_t ip);
 
 // AirPlay settings (take effect on the next boot of the receiver)
 uint16_t cfg_width();

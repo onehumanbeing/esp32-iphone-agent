@@ -19,6 +19,7 @@ struct IPhoneAgentApp: App {
     @StateObject private var app = AppModel.shared
 
     init() {
+        FilesLayout.migrate()  // before anything opens a log
         CrashTrace.install()
         _ = AppModel.shared  // also on a background launch for an App Intent, which shows no scene
         CrashReports.shared.start()
@@ -32,7 +33,7 @@ struct IPhoneAgentApp: App {
     }
 }
 
-enum AppTab: Hashable { case agent, runs, settings }
+enum AppTab: Hashable { case agent, runs, files, settings }
 
 /// The setup screens; Home's status chips open the one that fixes a problem.
 enum SetupPage: Int, CaseIterable, Identifiable {
@@ -49,17 +50,11 @@ struct RootView: View {
     @ObservedObject private var callGuide = CallGuide.shared
 
     var body: some View {
-        TabView(selection: $app.tab) {
-            HomeView(app: app, board: app.board, feed: app.feed, agent: app.agent, settings: settings,
-                     intents: app.intents, recorder: app.recorder)
-                .tabItem { Label("Agent", image: "AgentGlyph") }  // the character, not an SF smiley
-                .tag(AppTab.agent)
-            RunsView(app: app, runs: app.runs, agent: app.agent)
-                .tabItem { Label("Runs", systemImage: "play.rectangle.on.rectangle") }
-                .tag(AppTab.runs)
-            SettingsView(app: app, settings: settings, board: app.board)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
-                .tag(AppTab.settings)
+        // In the background nothing is on screen, yet every AppModel change (1.5/s in a run) re-ran every tab's
+        // body, the Files tab's with file system reads, and the face's animation ticked: all on the main thread,
+        // which also carries the board's replies. 2026-11-19 (Gaode): the main thread was busy 44% of a run.
+        Group {
+            if scene == .background && app.agent.running { Color.clear } else { tabs }  // a run only: edits keep their views
         }
         .alert(Text(verbatim: app.notice ?? ""), isPresented: Binding(get: { app.notice != nil }, set: { if !$0 { app.notice = nil } })) {
             Button("OK") {}
@@ -99,14 +94,20 @@ struct RootView: View {
         .onChange(of: scene) { old, new in
             DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
             if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground
+            #if DEBUG
+            if new == .active { DevInbox.run() }
+            #endif
         }
         .onAppear {
+            #if DEBUG
+            DevInbox.run()
+            #endif
             if privacyAsked { setUp() } else { consent = true }  // what is sent and kept, before setup
             app.probe.install(CalibrationOverlay(calibrator: app.calibrator, probe: app.probe, pointer: app.pointer))
         }
         .modifier(HandsyKeyOffer())
         .onOpenURL { url in
-            if url.isFileURL && url.pathExtension.lowercased() == IntentArchive.fileExtension {  // shared intents
+            if url.isFileURL && IntentArchive.isIntentFile(url.lastPathComponent) {  // shared intents
                 app.importIntents(url)
                 return
             }
@@ -115,7 +116,7 @@ struct RootView: View {
                 return
             }
             if !url.isFileURL { DebugLog.write("open url: \(url.scheme ?? "?")://\(url.host ?? "")") }
-            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from handsy.tech
+            if HandsyKeyOffer.handle(url) { return }  // iphoneagent://key?k=… from manina.ai
             if url.scheme == "iphoneagent", url.host == "quick" { app.quickAsk = true; return }  // the island's New Task
             if app.handleDebug(url) { return }  // iphoneagent://run?task=…, calibrate, stop, bench, snap
             // iphoneagent://run/<id> from the Live Activity
@@ -127,6 +128,25 @@ struct RootView: View {
                 app.tab = .agent
             } else { app.openReview(run: id) }
         }
+    }
+
+    private var tabs: some View {
+        TabView(selection: $app.tab) {
+            HomeView(app: app, board: app.board, feed: app.feed, agent: app.agent, settings: settings,
+                     intents: app.intents, recorder: app.recorder)
+                .tabItem { Label("Agent", image: "AgentGlyph") }  // the character, not an SF smiley
+                .tag(AppTab.agent)
+            RunsView(app: app, runs: app.runs, agent: app.agent)
+                .tabItem { Label("Runs", systemImage: "play.rectangle.on.rectangle") }
+                .tag(AppTab.runs)
+            NavigationStack { LocalFilesView(app: app) }
+                .tabItem { Label("Files", systemImage: "folder") }
+                .tag(AppTab.files)
+            SettingsView(app: app, settings: settings, board: app.board)
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
+        }
+        .ignoringForeignKeyboard()  // iPad: Spotlight's keyboard from a run left Start in the middle of the screen
     }
 
     private func setUp() {

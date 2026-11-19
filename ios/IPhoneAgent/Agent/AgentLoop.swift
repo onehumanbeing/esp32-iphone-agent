@@ -37,12 +37,16 @@ extension Gestures {
     struct Planned {
         var act: JObject
         var shot: Data?  // every action of one reply is drawn on the same screenshot
+        /// The reply was started before this step, from a nearly settled frame. Checked again before the gesture.
+        var speculative = false
     }
 
     let phone: Gestures?
     let screen: ScreenSource?
     var actor: ChatModel?, planner: ChatModel?
     var checkpointModel: ChatModel?, checkpoints = Checkpoints()  // some rounds go to the planner (AgentLoop+Checkpoint)
+    /// Copies the plan's RECORD fields off each screen in the background (Recorder.swift); no Jev, no tree headers.
+    var reader: ChatModel?, recorder = RecorderState()
     let trace: TraceStore?
     /// maxSteps is only a safety cap (a Duolingo lesson is ~80 rounds; 40 cut it in half, 2026-11-06). A run that
     /// is stuck stops sooner: `maxStalls` rounds in a row that changed nothing on screen. Either way the user is asked.
@@ -67,7 +71,11 @@ extension Gestures {
     var chosenGestureDropped = false
     /// The last round sent nothing because the person paused: it says nothing about the screen.
     var roundDroppedByPause = false
-    static let maxTokens = ["planner": 1500, "actor": 1000, "reader": 2000]
+    /// Ceilings, not budgets: tokens cost only when written. Henry 2026-11-19: the actor's 1000 cut every README
+    /// write of a 25-order run (11 retries, never finished). A reply still cut at its ceiling is asked once more
+    /// with `cutRetryTokens` (the gateway lowers anything above its own ceiling, never refuses it).
+    static let maxTokens = ["planner": 8000, "actor": 8000, "reader": 8000]
+    static let cutRetryTokens = 16_000
     private var job: Task<Void, Never>?
     var beforeFinish: (() async -> Void)?
     var onFinish: (() -> Void)?
@@ -85,10 +93,13 @@ extension Gestures {
     var onDoing: ((Doing) -> Void)?
     /// Every model request, answered or failed (timing and token counts, for usage stats).
     var onModelCall: ((ModelCall) -> Void)?
-    enum Doing { case looking, waiting, planning, thinking, retrying, acting(JObject) }
+    enum Doing { case looking, waiting, planning, thinking, retrying, wrapping, acting(JObject) }
+    static let slowAnswer = 8.0  // seconds with no token before the island says Wait
     /// Hints from a saved intent's checklist, appended to the actor's system prompt (empty = the original prompt).
     var hints: [String] = []
     var inventory = Inventory()  // a task over many items: list, confirm, then act (AgentLoop+Inventory)
+    var eachChecked = Set<String>()  // each orders whose first item the model has checked (AgentLoop+Each)
+    var eachDone = Set<String>()  // cards each has already opened this run
     var cache = ActionCache()  // taps that follow the same tap each time, done by code (ActionCache)
     var cachedSteps = 0
     var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
@@ -105,13 +116,48 @@ extension Gestures {
     var island: () -> CGRect? = { nil }
     /// The run starts on the Home Screen (RunSession left for it): `open` the app a task names, hold Home swipes.
     var startsOnHome = false
+    /// Enter after typing (Wiki #1007 N2/N7), not tied to any app: see SendGuard.
+    var sendGuard = SendGuard()
+    /// The app the run's start opened by its URL scheme (RunSession): autoOpen only records it.
+    var openedAtStart: String?
     /// A script's part is running (ScriptRunner.subGoal): its done needs no planner check, the script goes on.
     var inPart = false
     /// Lessons the actor offered (learn); kept only when the run ends with done.
     var learned: [String] = []
     /// Tool answers this run ("Looked up", newest last) and the tools it may call (fixed at the start: same prompt).
     var lookedUp: [String] = []
+    var fileView: String?  // the last long `file` result (a listing, a file's text), for the next round only
+    var viewedSinceWrite: Set<String> = []  // paths `file view` read since the run last wrote a file
+    var resultWritten = false  // a `file` write that worked this run (the README, a table)
+    /// A saved plan for this run (PlanCache), set before start: the first round goes to the actor with it.
+    var cachedPlan: String?
+    private(set) var usedCachedPlan = false
+    /// The plan the planner wrote in the run's first round (or the cached one used): what PlanCache keeps.
+    var firstPlan: String?
+    var handedBack = false  // everything collected: the phone is the user's again, the result is written without it
+    var handBackRounds = 0
+    var onHandBack: (() async -> Void)?  // the app lets go of the phone (pointer, island)
     var tools: [ToolSpec] = []
+    /// Apps with a guide on the server (set before start: same system prompt all run) and the guides loaded.
+    var guides: [AppGuide] = []
+    var guided: [AppGuide] = []
+    var pageFrames: [Data] = []  // the screens of the page on screen, since it opened (NoteCheck)
+    /// When this run (not a resume of it) started, and the result folders there were then (MemoryFiles).
+    var filesSince = Date()
+    /// Spots (0-1000) where a tap of this run opened the AssistiveTouch menu (AssistiveTouchGuard).
+    var assistiveHits: [CGPoint] = []
+    var resultsAtStart = ""
+    /// The run's notes on disk as they are made (LiveNotes); `resultName` names their folder (the intent's name).
+    var liveNotes = LiveNotes()
+    var resultName: String?
+    var runFolder: String?  // where this run's results go (RunFolder), fixed at its start
+    var scrollGain = 1.0  // how far this phone's lists glide past a swipe (ScrollMeter), 1 = not at all
+    var foldersAtStart: Set<String> = []  // top-level folders there were then
+    /// RateLimit: the background read of the last round's screen, the lines it read, and a hit that stops the run.
+    var limitCheck: Task<(Data, [DemoAnalysis.Line], String?), Never>?
+    var limitFrame: Data?
+    var limitLines: [DemoAnalysis.Line] = []
+    var limitHit: String?
     /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
     var onWrite: ((String) async throws -> Bool)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
@@ -119,8 +165,43 @@ extension Gestures {
     private var helpAsked = 0
     /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
     var acceptedLookLinks: Int?
-    private enum InvalidatedLook: Error { case connectionChanged }
-    enum HelpChoice { case resume, skip, stop }
+    /// iPad: the screen's orientation and shape when the accepted look was taken (nil on iPhone). A rotation since
+    /// then puts its coordinates somewhere else, so its actions are dropped and the model looks again.
+    var acceptedLookGeometry: ScreenGeometry?
+    private enum InvalidatedLook: Error { case connectionChanged, geometryChanged }
+    enum HelpChoice: Equatable { case resume, skip, stop, restart }
+    /// Attended unless the run was started with the setting or the shortcut parameter.
+    var policy = RunPolicy.attended {
+        didSet { recoveryLimit = policy.recoveryLimit }
+    }
+    /// Unattended restarts already used this run (Home Screen, then the task again).
+    var restarts = 0
+    /// Set when an unattended attempt starts over, so the next look knows to reopen the app.
+    var restartNote = ""
+    /// Resumes a help card that `chooseHelp` has given up waiting on (the app clears the banner).
+    var onHelpTimeout: ((HelpChoice) -> Void)?
+    /// True while this app is the one on screen. Mirroring repair stops instead of fighting the person.
+    var userInFront: () -> Bool = { false }
+    /// Start the next model look once the screen is nearly settled. Off unless Settings turns it on.
+    var speculate = false
+    let framePrep = FramePrep()
+    var pendingLook: PendingLook?
+    struct LookClock { var imageMs = 0.0, treeMs = 0.0, firstTokenMs = 0.0, firstDoMs = 0.0, streamEndMs = 0.0 }
+    var lookClock = LookClock()
+    var verdictSpent = 0.0, landingSpent = 0.0
+    var specUsed = false, specCancelled = false
+    private var lastStepEnded = 0.0
+    private var timingIndex = 0
+    var deviceHealth: () -> DeviceHealth.Snapshot = { .ok }
+    var onNotice: ((String, Notifier.Kind) -> Void)?
+    private var lowPowerNoted = false
+    private var batteryWarned = false
+    private var powerHeld = false
+    var mirrorPart: Recovery.Part?
+    var mirrorPartSince = 0.0
+    var mirrorAttempts = 0
+    var mirrorBackoffUntil = 0.0
+    var mirrorSuspicious = false
     /// The run's own reasons to ask (the help panel words them for people).
     static let stepLimitReason = "step limit reached", stallReason = "the screen did not change"
     /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
@@ -134,8 +215,15 @@ extension Gestures {
     var serverTree = false
     /// The free line with Tree source › On-device (Debug): the phone's tree in Spark's compact listing and numbering.
     var compactTree = false
+    /// The last tree sent and its frame, for ScreenDiff; `screenDiff` is what changed from the tree before it.
+    var lastTreeTexts: [String]?, lastTreeFrame: Data?, screenDiff: String?
+    var lookTree: UITree?, lookFrame: Data?  // the actor's last look and its frame: its OCR, read once (lookLines)
+    var shotLines: (shot: Data, lines: [DemoAnalysis.Line])?
+    var seenLines = SeenLines(), recordAudits = 0  // RecordAudit
+    var readPastStart = false  // the last screen read: its dated items all before the goal's dates
+    var listRead = false, backChecked = false  // the list read past the goal's dates; a scroll back up was refused once
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
-    private(set) var lastServed: String?
+    var lastServed: String?
 
     init(phone: Gestures?, screen: ScreenSource?, actor: ChatModel?, planner: ChatModel?, trace: TraceStore?,
          maxSteps: Int = 300, maxFailures: Int = 3, maxStalls: Int = 12) {
@@ -152,7 +240,10 @@ extension Gestures {
         JevGate.hold = false
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
-            notebook = Notebook(); learned = []; lookedUp = []
+            recorder.task?.cancel(); recorder = RecorderState()
+            notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
+            filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
+            limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
         }
         StepReport.shared.clear()
@@ -163,15 +254,34 @@ extension Gestures {
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         steering = []
-        if !resume { (cache, cachedSteps) = (ActionCache(), 0) }
+        if !resume { (cache, cachedSteps, eachChecked, eachDone) = (ActionCache(), 0, [], []) }
+        (seenLines, recordAudits) = (SeenLines(), 0)
         inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
         helpAsked = 0
+        restarts = 0
+        restartNote = ""
+        sendGuard = SendGuard()
+        (mirrorPart, mirrorPartSince, mirrorAttempts, mirrorBackoffUntil, mirrorSuspicious) = (nil, 0, 0, 0, false)
+        (lowPowerNoted, batteryWarned, powerHeld) = (false, false, false)
         droppingChosenGesture = false
         chosenGestureDropped = false
         acceptedLookLinks = nil
+        acceptedLookGeometry = nil
         replay.restart()
         if !traceStarted { trace?.start(task: task) }
+        trace?.write(kind: "policy", policy.trace)
+        usedCachedPlan = false
+        if !resuming { firstPlan = nil }
+        if !resuming, let saved = cachedPlan, !saved.isEmpty {  // the planner's first round is skipped (PlanCache)
+            plan = saved
+            firstPlan = saved
+            usedCachedPlan = true
+            checkpoints.lastAt = 0
+            record(nil, ["action": .str("plan"), "plan": .str(saved), "plan_zh": .str(saved), "cached": .bool(true)])
+            DebugLog.write("plan: the intent's saved plan (\(saved.count) chars); no planner for the first round")
+        }
+        cachedPlan = nil
         if resuming { record(nil, ["action": .str("resumed"), "reason": .str("the run had stopped; it goes on from the screen in front now")]) }
         running = true
         job = Task { [weak self] in
@@ -195,6 +305,8 @@ extension Gestures {
     }
 
     func stop() {
+        pendingLook?.task.cancel()
+        pendingLook = nil
         if let job { job.cancel() } else { running = false }  // a shown (demo) run has no job
     }
 
@@ -204,12 +316,24 @@ extension Gestures {
         if running { throw DeviceError(message: "stop the agent first") }
         task = ""; plan = ""; steps = []; shots = [:]
         acceptedLookLinks = nil
+        acceptedLookGeometry = nil
+    }
+
+    /// One action as the debug log shows it: the action without bookkeeping, and what came of it (2026-11-17: the
+    /// log had each step's timings but not what the step did; that was only in the trace on the phone).
+    nonisolated static func logLine(_ step: JObject) -> String? {
+        guard let name = step["action"]?.str, name != "plan" else { return nil }
+        let shown = Actions.key(step).without(["action", "result", "reason", "opened", "timing", "planner", "cached", "plan_zh"])
+        let args = shown.keys.map { k in "\(k)=\(String(PyJSON.dumps(shown[k]!, ascii: false).prefix(60)))" }.joined(separator: " ")
+        let outcome = [step["opened"]?.str, step["result"]?.str, step["reason"]?.str].compactMap { $0 }.first.map { " -> " + $0.prefix(120) } ?? ""
+        return "\(name) \(args)" + outcome
     }
 
     func record(_ shot: Data? = nil, _ step: JObject) {
         if let shot { shots[steps.count] = shot }
         steps.append(JObject([("t", .num(now())), ("shot", .bool(shot != nil))]).merging(step))
         trace?.write(kind: "step", step)
+        if let line = Self.logLine(step) { DebugLog.write("step \(steps.count): \(line)") }  // what was done, beside the timings
         let listed = now()
         onStep?()
         StepWaits.record += now() - listed  // measured: the steps list reloads on the main thread (2026-11-11)
@@ -229,7 +353,7 @@ extension Gestures {
         defer { if shown != nil { onRecover?(nil) } }
         while true {
             try Task.checkCancellation()
-            guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board)) }
+            guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board, lan: shown?.lan ?? false)) }
             var state = link?() ?? Recovery.Link(connected: phone?.device.connected ?? true, sta: nil,
                                         ap: screen.live ? "streaming" : nil, frameAt: screen.live ? now() : 0)
             if forceRestore, state.connected, state.sta != 0, state.ap == "streaming" {
@@ -250,12 +374,14 @@ extension Gestures {
                 guard !connectionChanged(since: restoringLinks), screen.live else { break }
                 await screen.settled()
                 try Task.checkCancellation()
-                guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board)) }
+                guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board, lan: shown?.lan ?? false)) }
                 guard !connectionChanged(since: restoringLinks) else { break }
                 return now() - recovery.started
             case .live: break
             case .wait(let stage):
                 if stage != shown { shown = stage; onRecover?(stage) }
+                if stage.part != mirrorPart { mirrorPart = stage.part; mirrorPartSince = now() }
+                await healMirroring(stage)
             case .giveUp(let reason):
                 throw BlindError(reason: reason)
             }
@@ -268,11 +394,19 @@ extension Gestures {
         return !device.connected || link?().needsPointer == true || revision.map { device.links != $0 } == true
     }
 
+    /// iPad: the screen rotated or the mirrored shape changed since `revision` (never on iPhone: no geometry).
+    private func geometryChanged(since revision: ScreenGeometry?) -> Bool {
+        guard let revision else { return false }
+        return !revision.matches(screen?.geometry)
+    }
+
     func ask(_ role: String, _ llm: ChatModel, _ system: String, _ prompt: String,
                      temperature: Double = 0, retryTimeout: Bool = true,
-                     reconnectUntil: Double? = nil) async throws -> (String, Double, Data?) {
+                     reconnectUntil: Double? = nil, budget: Int? = nil) async throws -> (String, Double, Data?) {
         var prompt = prompt
         var reconnectDeadline = reconnectUntil
+        var turned = 0  // iPad: replies dropped for a rotation in this ask (never on iPhone)
+        if handedBack { return try await askWithoutScreen(role, llm, system, prompt, temperature: temperature, budget: budget) }
         while true {
             try await gate?()
             // a stale frame (the stream broke after the last action) is fetched again, never sent
@@ -293,13 +427,33 @@ extension Gestures {
                 acceptedLookLinks = restoredLinks
             }
             guard let screen, screen.live else { throw BlindError() }  // never let the model act blind
-            let frame = screen.frame, frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
-            let sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
-            // the tree of exactly the frame sent, so `tap #ID` lands on what the model saw
+            var frame = screen.frame
+            let frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
+            let requestGeometry = screen.geometry
+            let wantTree = role == "actor" && screenTree && !serverTree
+            // the frame prepared for this look when the screen has not changed since: its image and tree are
+            // (being) built, a newer copy of the same screen would start them over (2026-11-18: 14 of 21 looks)
+            if let now = frame, let prepared = framePrep.frame, prepared != now {
+                let pointer = pointerAt
+                if await !Vision.off({ Vision.changed(prepared, now, ignore: [pointer]) }) { frame = prepared }
+            }
+            var sent: Data?
             var tree: UITree?
-            if role == "actor", screenTree, !serverTree, let sent {
-                tree = await UITree.build(jpeg: sent)
-                if let tree { DebugLog.write("step " + tree.timingLine) }
+            if let frame {
+                framePrep.start(frame, wantTree: wantTree)  // nothing new when it is the prepared frame
+                if let ready = await framePrep.take(frame, wantTree: wantTree), ready.image.count > 0 {
+                    sent = ready.image
+                    tree = ready.tree
+                    lookClock.imageMs = ready.imageMs
+                    lookClock.treeMs = ready.treeMs
+                    if ready.treeLate { DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", FramePrep.treeWait)) }
+                    else if let tree { DebugLog.write("step " + tree.timingLine) }
+                }
+            }
+            if sent == nil {
+                let imageStarted = now()
+                sent = frame.map(ModelImage.forModel)  // the model's copy; the trace keeps the full frame
+                lookClock.imageMs = (now() - imageStarted) * 1000
             }
             if role == "actor", screenTree {
                 let ms = { (s: Double) in Int((s * 1000).rounded()) }
@@ -307,18 +461,32 @@ extension Gestures {
                     ?? (serverTree ? "server" : "none")
             }
             // the same place and format as Spark's: appended to the user text, after the prompt
-            let text = prompt + (tree.map { compactTree ? $0.compactListing : $0.listing } ?? "")
-            onDoing?(retryTimeout ? .waiting : .retrying)
+            if let tree, sent != lastTreeFrame {  // a retry or a second ask on the same frame keeps the line
+                let texts = ScreenDiff.texts(tree)
+                screenDiff = lastTreeTexts.flatMap { ScreenDiff.line(from: $0, to: texts) }
+                (lastTreeTexts, lastTreeFrame) = (texts, sent)
+            }
+            if role == "actor" {
+                (lookTree, lookFrame) = (tree, frame)
+                if let tree, !recordFields.isEmpty { seenLines.add(tree.lines.map(\.text)) }
+            }
+            if role == "actor", let frame, let sent { offerToRecorder(full: frame, sent: sent) }
+            let text = prompt + (tree == nil ? "" : screenDiff ?? "") + (tree.map { compactTree ? $0.compactListing : $0.listing } ?? "")
+            // Henry 2026-11-18: Wait until the first token, then Think, flipped twice per call (68 times in one run).
+            // Think from the start; Wait only when the line is slow to answer.
+            let busy: Doing = role == "planner" ? .planning : .thinking
+            onDoing?(retryTimeout ? busy : .retrying)
+            let slow = retryTimeout ? Task { [weak self] in
+                try await Task.sleep(nanoseconds: UInt64(Self.slowAnswer * 1e9))
+                self?.onDoing?(.waiting)
+            } : nil
             let reporting = llm as? ModelProgressReporting
             reporting?.onProgress = { [weak self] progress in
-                switch progress {
-                case .waiting: self?.onDoing?(retryTimeout ? .waiting : .retrying)
-                case .receiving: self?.onDoing?(role == "planner" ? .planning : .thinking)
-                }
+                if progress == .receiving { slow?.cancel(); self?.onDoing?(busy) }
             }
-            defer { reporting?.onProgress = nil }
+            defer { reporting?.onProgress = nil; slow?.cancel() }
             let reply: ChatResult
-            let maxTokens = Self.maxTokens[role] ?? 1000
+            let maxTokens = budget ?? Self.maxTokens[role] ?? 8000
             do {
                 DebugLog.write("model request starting (\(role)): \(llm.model), maxTokens \(maxTokens), image \((sent?.count ?? 0) / 1024) KB")
                 reply = try await llm.chat(system: system, text: text, image: sent,
@@ -342,10 +510,20 @@ extension Gestures {
                 return try await ask(role, llm, system, prompt, temperature: temperature, retryTimeout: false,
                                      reconnectUntil: reconnectDeadline)
             }
+            if reply.finishReason == "length", maxTokens < Self.cutRetryTokens, !Task.isCancelled {
+                DebugLog.write("model reply cut at \(maxTokens) tokens (\(role)); asking once more with \(Self.cutRetryTokens)")
+                return try await ask(role, llm, system, prompt, temperature: temperature, retryTimeout: retryTimeout,
+                                     reconnectUntil: reconnectDeadline, budget: Self.cutRetryTokens)
+            }
             let seconds = ((now() - started) * 100).rounded() / 100
             if role == "actor" { StepWaits.replied = now() }
             metrics?.llm(first: reply.firstToken, total: reply.total)
             if role == "actor" { StepReport.shared.replied() }
+            if role == "actor" {
+                lookClock.firstTokenMs = (reply.firstToken ?? 0) * 1000
+                lookClock.firstDoMs = (reply.firstDo ?? 0) * 1000
+                lookClock.streamEndMs = reply.total * 1000
+            }
             onModelCall?(ModelCall(role: role, model: llm.model, reply: reply, error: nil, imageKB: (sent?.count ?? 0) / 1024))
             let built = tree != nil
             if !built, role == "actor", serverTree, let data = reply.tree { tree = UITree(json: data) }
@@ -363,10 +541,19 @@ extension Gestures {
                 if answer != reply.text { rec["resolved"] = .str(answer) }
             }
             if let first = reply.firstToken { rec["first_token_s"] = .num((first * 100).rounded() / 100) }
+            if let firstDo = reply.firstDo { rec["first_do_s"] = .num((firstDo * 100).rounded() / 100) }
             // the sent frame's capture time, not the latest frame's (read after the reply, it hid stale frames)
             if lastActed > 0 { rec["frame_after_action_s"] = .num(((frameAt - lastActed) * 100).rounded() / 100) }
             trace?.write(frame, kind: "llm", rec.merging(reply.diagnostics))
             try Task.checkCancellation()
+            if geometryChanged(since: requestGeometry) {
+                turned += 1
+                guard turned <= Self.turnRetries else { throw BlindError(reason: Self.turningReason) }
+                DebugLog.write("model reply discarded (\(turned) of \(Self.turnRetries)): the screen rotated or the mirrored "
+                               + "shape changed; looking again once it holds still")
+                await steadyGeometry()
+                continue
+            }
             if connectionChanged(since: requestLinks) {
                 DebugLog.write("model reply discarded: board connection changed; restoring the screen before another look")
                 acceptedLookLinks = requestLinks
@@ -374,6 +561,7 @@ extension Gestures {
                 continue
             }
             acceptedLookLinks = requestLinks
+            acceptedLookGeometry = requestGeometry
             return (answer, seconds, frame)
         }
     }
@@ -388,13 +576,31 @@ extension Gestures {
                     DebugLog.write("auto open: \(e.localizedDescription); the model goes on")
                 }
             }
+            if foldersAtStart.isEmpty { foldersAtStart = RunFolder.folders() }
+            if runFolder == nil {
+                runFolder = RunFolder.from(steps) ?? LiveNotes.newFolder(resultName ?? task, since: filesSince, files: MemoryFiles.open(since: filesSince))
+            }
+            if let runFolder { liveNotes.use(runFolder, files: MemoryFiles.open()) }
+            await guideAtStart()
             while true {
+                try await holdForPower()
                 rounds += 1
+                if handedBack {
+                    handBackRounds += 1
+                    if handBackRounds > HandBack.rounds || failures >= 2 {
+                        DebugLog.write("hand back: the write-up did not finish; the notes stand as the result")
+                        record(nil, ["action": .str("done"), "answer": .str(""), "reason": .str("the notes are the result")])
+                        return finish()
+                    }
+                }
                 if rounds > stepLimit || stalls >= maxStalls {
                     let reason = stalls >= maxStalls ? "\(Self.stallReason) in \(stalls) steps" : Self.stepLimitReason
                     record(nil, ["action": .str("fail"), "reason": .str(reason)])
-                    guard try await askForHelp() else { return finish() }
-                    rounds = 0; stalls = 0
+                    switch try await askForHelp() {
+                    case .stop: return finish()
+                    case .goOn: rounds = 0; stalls = 0
+                    case .restart: rounds = 0; stalls = 0; failures = 0
+                    }
                     continue
                 }
                 do {
@@ -406,17 +612,26 @@ extension Gestures {
                         }
                     }
                     if try await step() {
-                        guard steps.last?["action"]?.str == "fail", try await askForHelp() else { return finish() }
-                        stalls = 0
+                        guard steps.last?["action"]?.str == "fail" else { return finish() }
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: stalls = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                         continue
                     }
                     failures = 0
+                    modelBackoffs = 0
                     if roundDroppedByPause { continue }  // no gesture, no stall (the next look takes the flag)
                     stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
+                    if handedBack { continue }  // no screen to check or be stuck on
                     try await checkLink(unchanged: stalls)
                     if try await stuck() {
-                        guard try await askForHelp() else { return finish() }
-                        stalls = 0
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: stalls = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                     }
                 } catch is InvalidatedLook {
                     failures = 0  // no gesture was sent; the next look restores the screen first
@@ -425,13 +640,25 @@ extension Gestures {
                 } catch let e as LLMError where e.kind == "rate_limit_day" || e.kind == "trial_run_ended" {
                     throw e  // retrying can't help (today's quota, or the free line ended the run): ends it with the message
                 } catch {  // a bad reply or a dropped link: recover, don't crash
+                    if policy.unattended, RunPolicy.backsOff(error) {
+                        let delay = policy.backoff(attempt: modelBackoffs)
+                        modelBackoffs += 1
+                        record(nil, ["action": .str("hiccup"),
+                                     "reason": .str("model busy, waiting \(Int(delay)) s: \(String(error.localizedDescription.prefix(200)))")])
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                    modelBackoffs = 0
                     record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)
                     failures += linkLost ? 0 : 1  // a lost link is not the agent's fault
                     if failures >= maxFailures {
                         record(nil, ["action": .str("fail"), "reason": .str("\(failures) errors in a row")])
-                        guard try await askForHelp() else { return finish() }
-                        failures = 0
+                        switch try await askForHelp() {
+                        case .stop: return finish()
+                        case .goOn: failures = 0
+                        case .restart: rounds = 0; stalls = 0; failures = 0
+                        }
                         continue
                     }
                     await screen?.settled()
@@ -447,45 +674,126 @@ extension Gestures {
         finish()
     }
 
-    /// Pauses for the user (at most twice a run). True = go on from the current screen (the model sees what they did).
-    private func askForHelp() async throws -> Bool {
-        guard let onHelp, helpAsked < 2 else { return false }
-        helpAsked += 1
+    /// Unplugged and under 10%: wait (and say so) instead of running the battery down. Never types anything.
+    private func holdForPower() async throws {
+        let snap = deviceHealth()
+        if policy.unattended, snap.lowPower, !lowPowerNoted {
+            lowPowerNoted = true
+            onNotice?(String(localized: "Low Power Mode is on, so Auto-Lock is 30 seconds and the screen may lock."), .power)
+        }
+        if policy.unattended, DeviceHealth.shouldWarn(snap), !batteryWarned {
+            batteryWarned = true
+            onNotice?(String(localized: "Battery is under 30% and the iPhone is unplugged."), .power)
+        }
+        guard policy.unattended, DeviceHealth.shouldPause(snap) else { return }
+        if !powerHeld {
+            powerHeld = true
+            record(nil, ["action": .str("hiccup"), "reason": .str("battery under 10% and unplugged; waiting for power")])
+            onNotice?(String(localized: "Battery is under 10% and the iPhone is unplugged. Plug it in; the run is waiting."), .power)
+        }
+        let deadline = now() + policy.recoveryLimit
+        while DeviceHealth.shouldPause(deviceHealth()) {
+            if now() >= deadline {
+                record(nil, ["action": .str("fail"), "reason": .str("the battery stayed under 10%")])
+                throw BlindError(reason: String(localized: "the battery stayed under 10% and the iPhone was unplugged"))
+            }
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+            try Task.checkCancellation()
+        }
+        powerHeld = false
+    }
+
+    private enum AfterHelp { case stop, goOn, restart }
+    private var modelBackoffs = 0
+
+    /// The person's choice, or the policy's if unattended and `helpTimeout` passes with no answer.
+    func chooseHelp(_ reason: String, confirm: Bool = false) async -> (HelpChoice, Bool) {
+        let answer = confirm ? onConfirm : onHelp
+        guard let answer else { return (.stop, false) }
+        guard let timeout = policy.helpTimeout else { return (await answer(reason), false) }
+        let fallback = policy.fallback(reason: reason, confirm: confirm, restarts: restarts)
+        let once = OnceFlag()
+        return await withCheckedContinuation { (c: CheckedContinuation<(HelpChoice, Bool), Never>) in
+            Task { @MainActor in
+                let choice = await answer(reason)
+                if once.claim() { c.resume(returning: (choice, false)) }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                guard once.claim() else { return }
+                self.onHelpTimeout?(fallback)
+                c.resume(returning: (fallback, true))
+            }
+        }
+    }
+
+    /// Pauses for the user (at most twice a run, unless unattended is restarting on its own).
+    private func askForHelp() async throws -> AfterHelp {
+        if policy.helpTimeout == nil {
+            guard onHelp != nil, helpAsked < 2 else { return .stop }
+        } else if onHelp == nil { return .stop }
         let reason = steps.last?["reason"]?.str ?? ""
         record(nil, ["action": .str("help"), "reason": .str(reason)])
-        let choice = await onHelp(reason)
+        let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
-            return false
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
+            return .stop
+        case .restart:
+            guard policy.unattended, restarts < policy.maxRestarts else {
+                record(nil, ["action": .str("stopped"), "by": .str("policy")])
+                return .stop
+            }
+            restarts += 1
+            restartNote = "This attempt was restarted from the Home Screen. Reopen the task's app and continue the goal."
+            record(nil, ["action": .str("restarted"), "reason": .str("unattended: starting again from the Home Screen")])
+            replay.restart()
+            try await phone?.goHome(again: false)
+            await screen?.settled()
+            return .restart
         case .resume:
+            helpAsked += 1
             record(nil, ["action": .str("takeover"), "reason": .str("the user did this part by hand: \(reason)")])
         case .skip:
-            record(nil, ["action": .str("skipped"), "reason": .str("the user asked to skip this step: \(reason)")])
+            helpAsked += 1
+            record(nil, ["action": .str("skipped"), "reason": .str(automatic
+                ? "unattended: nobody answered, so this step was skipped: \(reason)"
+                : "the user asked to skip this step: \(reason)")])
         }
         await screen?.settled()
-        return true
+        return .goOn
     }
 
     /// The actor asked before a risky step. True = the run is over (stopped).
-    private func confirm(_ reason: String) async throws -> Bool {
+    /// Unattended never approves one on its own: no answer, or "don't ask", becomes a skip.
+    func confirm(_ reason: String) async throws -> Bool {
         let mode = askMode ?? .current
-        guard let onConfirm, mode.asks(reason) || (inventory.needed && mode != .never) else {
+        let asks = onConfirm != nil && (mode.asks(reason) || (inventory.needed && mode != .never))
+        if !asks {
+            if policy.unattended {
+                record(nil, ["action": .str("skipped"), "confirmed_by": .str("policy"),
+                             "reason": .str("not done unattended (a risky step is never approved on its own): \(reason)")])
+                return false
+            }
             record(nil, ["action": .str("confirmed"), "reason": .str("go ahead (no need to ask for this): \(reason)")])
             return false
         }
         if inventory.needed { Analytics.capture("confirm_shown", ["kind": "inventory", "items": notebook.items.count]) }
-        let choice = await onConfirm(inventoryReason(reason))
+        let (choice, automatic) = await chooseHelp(inventoryReason(reason), confirm: true)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
             return true
         case .resume:
             record(nil, ["action": .str("confirmed"), "reason": .str("the user said yes, do it now: \(reason)")])
-        case .skip:
-            record(nil, ["action": .str("skipped"), "reason": .str("the user said no, do not do this: \(reason)")])
+        case .skip, .restart:
+            // `.restart` is not a confirm answer. A timeout never returns it for a confirm; if it did, still don't do the step.
+            record(nil, ["action": .str("skipped"), "confirmed_by": .str(automatic ? "policy" : "user"),
+                         "reason": .str(automatic
+                            ? "not done unattended (nobody answered): \(reason)"
+                            : "the user said no, do not do this: \(reason)")])
             await screen?.settled()
         }
         return false
@@ -493,13 +801,37 @@ extension Gestures {
 
     /// The actor's system prompt: the original, plus an intent's checklist as hints.
     var actorPrompt: String {
-        let base = Prompts.actor + "\n" + AssistiveTouchSpots.rule + background + ToolStore.prompt(tools) + Calls.prompt(task)
-        let all = hints + replay.hints
+        let base = BriefThink.apply(Prompts.actor) + "\n" + AssistiveTouchSpots.rule(geometry: screen?.geometry) + background
+            + ToolStore.prompt(tools) + AppGuides.prompt(guides) + resultsSection + Calls.prompt(task)
+        let all = hints + replay.hints + (restartNote.isEmpty ? [] : [restartNote])
         return all.isEmpty ? base : base + "\n\nHints for this task:\n" + all.map { "- " + $0 }.joined(separator: "\n")
+    }
+
+    /// A part of the step after its gestures that took over a second, logged (2026-11-18: 17.9 s after a tap, unseen).
+    static func logSlow(_ what: String, since t: Double) {
+        let s = now() - t
+        if s >= 1 { DebugLog.write(String(format: "slow: %@ took %.1f s", what, s)) }
+    }
+
+    func timed<T>(_ what: String, _ body: () async throws -> T) async rethrows -> T {
+        let t = now(), before = MainLag.shared.phase
+        MainLag.shared.phase = what
+        defer { Self.logSlow(what, since: t); MainLag.shared.phase = before }
+        return try await body()
+    }
+
+    func timed<T>(_ what: String, _ body: () throws -> T) rethrows -> T {
+        let t = now(), before = MainLag.shared.phase
+        MainLag.shared.phase = what
+        defer { Self.logSlow(what, since: t); MainLag.shared.phase = before }
+        return try body()
     }
 
     func finish() {
         keepLessons()
+        let last = steps.last { !["plan", "timing", "verdict"].contains($0["action"]?.str ?? "") }?["action"]?.str
+        liveNotes.finish(done: last == "done", task: task, files: MemoryFiles.open(since: filesSince),
+                         asResult: handedBack && !resultWritten)
         if let metrics { trace?.writeMetrics(metrics.snapshot()) }
     }
 
@@ -507,10 +839,26 @@ extension Gestures {
     func step() async throws -> Bool {
         var timing = Metrics.Step()
         let began = now()
+        if lastStepEnded > 0 { timing.housekeepingMs = max(0, (began - lastStepEnded) * 1000) }
+        (verdictSpent, landingSpent) = (0, 0)
         StepWaits.reset()
+        if policy.unattended, DeviceHealth.isHot(deviceHealth()) {
+            // Initial estimate. A serious thermal state slows the phone; a short pause lets it cool.
+            try await Task.sleep(nanoseconds: UInt64(DeviceHealth.thermalPause * 1_000_000_000))
+        }
+        MainLag.shared.phase = "look"
         let acts = try await decide()  // nextActions, once more for a repeat that changed nothing
+        MainLag.shared.phase = "gestures"
         let decided = now()
-        JevGate.hold = acts.filter { Actions.gestures.contains($0.act["action"]?.str ?? "") }.count > 1
+        timing.firstTokenMs = lookClock.firstTokenMs
+        timing.firstDoMs = lookClock.firstDoMs
+        timing.streamEndMs = lookClock.streamEndMs
+        timing.imageMs = lookClock.imageMs
+        timing.treeMs = lookClock.treeMs
+        timing.specUsed = specUsed
+        timing.specCancelled = specCancelled
+        (specUsed, specCancelled) = (false, false)
+        JevGate.hold = Self.modelLooksNext(acts.map { $0.act["action"]?.str ?? "" })
         timing.llmMs = (acts[0].act["think_s"]?.double ?? 0) * 1000
         let seen = acts[0].shot
         var spots = [pointerAt]  // where the pointer was and goes: pointer moves are not screen changes
@@ -522,28 +870,70 @@ extension Gestures {
             timing.snap = StepWaits.snaps > 0 || FrameMode.current == .snap
             timing.recordMs = StepWaits.record * 1000
             timing.tree = StepWaits.tree
-            timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs - timing.leadMs)
+            timing.verdictMs = verdictSpent
+            timing.landingMs = landingSpent
+            timing.stepIndex = timingIndex
+            timingIndex += 1
+            timing.afterMs = lastActed > decided ? (now() - lastActed) * 1000 : 0
+            MainLag.shared.phase = "between steps"
+            timing.otherMs = max(0, (now() - began) * 1000 - timing.llmMs - timing.frameMs - timing.hidMs
+                                 - timing.leadMs - timing.verdictMs - timing.landingMs)
             StepWaits.reset()
             metrics?.step(timing)
             StepReport.shared.finished(timing)
+            if !steps.isEmpty { steps[steps.count - 1]["timing"] = .obj(timing.object) }
+            trace?.write(kind: "timing", timing.object)
+            lastStepEnded = now()
         }
+        await handBackIfCollected(acts)
         for (i, planned) in acts.enumerated() {
             var act = planned.act
             let name = act["action"]?.str ?? ""
+            if handedBack, !HandBack.allowed.contains(name) {
+                act["reason"] = .str(HandBack.refusal)
+                record(nil, act)
+                continue
+            }
+            if i == 0, planned.speculative, let shot = planned.shot {
+                let nowFrame = screen?.frame
+                let pointer = pointerAt
+                let moved = await Vision.off { Vision.changed(shot, nowFrame, ignore: [pointer]) }
+                if moved {
+                    record(nil, ["action": .str("stale_look"), "reason": .str("the screen changed after the early look")])
+                    return false
+                }
+            }
             if name == "confirm" {
                 record(planned.shot, act)
                 return try await confirm(act["reason"]?.str ?? "")
             }
+            if name == "collect" || name == "find" || name == "each" {  // works the list itself; the next look starts where it ended
+                onDoing?(.acting(act))
+                switch name {
+                case "collect": try await collect(&act)
+                case "find": try await find(&act)
+                default: try await each(&act)
+                }
+                record(planned.shot, act)
+                return false
+            }
             if Actions.notebookActions.contains(name) {
-                if name == "tool" { onDoing?(.acting(act)) }  // the island says what it looks up while it waits
+                if name == "tool" || name == "guide" { onDoing?(.acting(act)) }  // the island says what it looks up while it waits
                 try await notebookAction(&act)
                 record(planned.shot, act)
                 if name == "write" { return false }
+                // a file or snap that did not work: the model sees why before a done in the same round ends the run
+                if name == "file" || name == "snap", !(act["reason"]?.str ?? "").hasPrefix("ok") { return false }
                 continue
             }
+            fileView = nil  // read once; a gesture changes the subject
             if name == "done" { attachNotebook(&act) }
             if name != "done" && name != "fail" {
                 let gating = now()
+                if i == 0, let limit = await takeLimitCheck() {  // nothing sent past the app's own limit
+                    limitHit = limit
+                    return false
+                }
                 if try await pausedBeforeGesture() {
                     if i == 0 { JevGate.hold = false }  // nothing was sent; the next look may use Jev
                     roundDroppedByPause = i == 0
@@ -551,6 +941,9 @@ extension Gestures {
                 }
                 guard !connectionChanged(since: acceptedLookLinks) else {
                     throw InvalidatedLook.connectionChanged
+                }
+                guard !geometryChanged(since: acceptedLookGeometry) else {
+                    throw InvalidatedLook.geometryChanged
                 }
                 onDoing?(.acting(act))  // the thought (on the first act) names the target
                 if quiet == nil { quiet = Self.motion(seen, screen?.frame) }  // the screen just before acting
@@ -572,30 +965,31 @@ extension Gestures {
                         return false
                     }
                 }
-                if name == "swipe" { SwipeClamp.apply(&act) }
-                if name == "tap", let off = OffScreen.reason(act) {  // y 1108 tapped the home bar's edge (2026-11-13)
-                    act["result"] = .str(off)
-                    DebugLog.write("step: tap not sent, \(off)")
+                if name == "swipe", let refusal = scrollBackRefusal(act) {
+                    act["result"] = .str(refusal)
                     record(planned.shot, act)
                     return false
                 }
-                if name == "tap", let held = await inventoryHold(act, on: planned.shot ?? seen) {
-                    act["result"] = .str(held)
-                    record(planned.shot, act)
-                    return false
-                }
-                if name == "tap", let off = IslandGuard.apply(&act, zone: island()) {
-                    act["result"] = .str(off)
-                    DebugLog.write("step: tap not sent, \(off)")
-                    record(planned.shot, act)
-                    return false
+                if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit / max(1, scrollGain)) }
+                if name == "tap" {
+                    switch await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap) {
+                    case .send: break
+                    case .held(let why):
+                        act["result"] = .str(why)
+                        record(planned.shot, act)
+                        return false
+                    case .ask(let why):  // the code's own check: a tap that pays or cannot be undone
+                        act["result"] = .str("not sent: the user is asked first (\(why))")
+                        record(planned.shot, act)
+                        return try await confirm(why)
+                    }
                 }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
                 act["act_s"] = .num((s * 100).rounded() / 100)
-                spots += pointerPath(act)
+                spots += pointerPath(act, geometry: screen?.geometry)
                 pointerAt = spots.last!
             }
             record(planned.shot, act)
@@ -603,6 +997,10 @@ extension Gestures {
             let following = i < acts.count - 1 ? acts[i + 1].act["action"]?.str : nil
             if name == "tap" && (following == "type" || following == "key" || following == "clear") {  // a missed tap never opened the field
                 timing.frameMs += await settle(ignoring: spots, busy: await still())
+                if screen?.behind == true {  // iPad: no frame shows whether the tap opened the field; look again
+                    unseen()
+                    return false
+                }
                 if !(try await tapChanged(seen, &spots, quiet: await still(), confirmed: confirmed)) {
                     verdict(false)
                     return false  // skip the rest; the actor looks again
@@ -610,48 +1008,109 @@ extension Gestures {
             }
         }
         timing.motionMs = (await quiet?.value.s ?? 0) * 1000
-        timing.frameMs += await settle(ignoring: spots, busy: await still())
+        MainLag.shared.phase = "after gestures: frame and verdict"
+        let moving = await still()
+        if canSpeculate, let screen {
+            let earlyStarted = now()
+            await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
+            timing.frameMs += (now() - earlyStarted) * 1000
+            let early = screen.frame
+            let mask = spots
+            let busy = moving
+            let big = await Vision.off { Vision.bigChange(seen, early, ignore: mask) }
+            let small: Bool
+            if big {
+                small = true
+            } else {
+                small = await Vision.off { Vision.changed(seen, early, ignore: mask, quiet: busy) }
+            }
+            let target = tapTarget()
+            let near: Bool
+            if let target {
+                near = await Vision.off { Vision.changed(seen, early, at: target, ignore: mask) }
+            } else {
+                near = false
+            }
+            let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
+            if !needsLanding {
+                verdict(small)
+                prepareFrame(early)
+                startSpeculative()
+                let rest = now()
+                await screen.settled(quiet: 0.5, least: 0, most: 4, ignoring: spots, busy: moving)
+                timing.frameMs += (now() - rest) * 1000
+                if let early, let later = screen.frame, early != later,
+                   await Vision.off({ Vision.changed(early, later, ignore: mask, quiet: busy) }) {
+                    cancelSpeculative("screen moved")
+                    verdict(await Vision.off { Vision.changed(seen, later, ignore: mask, quiet: busy) })
+                    prepareFrame(later)
+                }
+                try await timed("follow cache") { try await followCache(seen: seen) }
+                timed("checkpoint") { saveCheckpoint() }
+                return false
+            }
+        }
+        timing.frameMs += await settle(ignoring: spots, busy: moving)
         // feedback for the next round (a notebook action alone moves nothing: no verdict)
         guard !Actions.notebookActions.contains(steps.last?["action"]?.str ?? "") else { return false }
-        let (frame, mask, moving) = (screen?.frame, spots, await still())
+        if screen?.behind == true {  // iPad: the frame is from before the action; "did NOT change" would be a guess
+            unseen()
+            return false
+        }
+        prepareFrame(screen?.frame)
+        let (frame, mask) = (screen?.frame, spots)
         let changed: Bool
-        if steps.last?["action"]?.str == "tap" { changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed) }
+        if steps.last?["action"]?.str == "tap" {
+            let t = now()
+            changed = try await tapChanged(seen, &spots, quiet: moving, confirmed: confirmed)
+            Self.logSlow("tap check", since: t)
+        }
         else { changed = await Vision.off { Vision.changed(seen, frame, ignore: mask, quiet: moving) } }
+        if changed, try await closedAssistiveMenu() { verdict(false); return false }
+        if changed { await timed("feed") { await noteFeed(seen: seen) } }
+        if changed, let now = screen?.frame {  // this page's screens: a scroll adds one, anything else starts over
+            pageFrames = steps.last?["action"]?.str == "swipe" ? Array((pageFrames + [now]).suffix(NoteCheck.pageScreens)) : [now]
+        }
         verdict(changed)
-        try await followCache(seen: seen)
-        saveCheckpoint()
+        if screen?.frame != frame { prepareFrame(screen?.frame) }
+        try await timed("follow cache") { try await followCache(seen: seen) }
+        timed("checkpoint") { saveCheckpoint() }
         return false
     }
 
+    /// Put before the prompt when the last reply had no DO line.
+    static let formatAgain = "Your last reply had no DO line. Reply only in the THINK / PLAN / DO format, never JSON, "
+        + "tool calls or a description of the screen.\n\n"
+
+    /// A change in the tap's own neighborhood is a hit: the pointer does not need to be wiggled to confirm it.
+    static func changedNearTarget(_ near: Bool) -> Bool { near }
+
     func nextActions() async throws -> [Planned] {
         guard let actor else { throw LLMError(message: "no actor model") }
-        // actions and their effect only: echoing earlier thoughts makes the model repeat them instead of looking
-        let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
-                                   "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached"]
         takeSteering()
-        let history = steps.suffix(8).filter {
-            $0["plan"] == nil && $0["action"]?.str != Self.steerAction && $0["action"]?.str != Self.checkpointAction
-        }.map { s -> String in
-            String(PyJSON.dumps(s.without(hidden)).prefix(300)) + Self.effect(s)
-        }.joined(separator: "\n")
-        let collected = notebook.isEmpty ? "" : "\n\n" + notebook.summary()
-            + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
-        let sound = heard?() ?? ""
-        let prompt = "Goal: \(task)\(steeredSection)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
-            + (history.isEmpty ? "(none)" : history) + collected + (sound.isEmpty ? "" : "\n\n" + sound) + "\n\nNext action?"
+        let prompt = actorUserPrompt()
+        if let early = try await takeSpeculative(prompt) { return early }
         var reply = ""
         let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)
-        for attempt in 0..<3 {  // retry unparseable replies, a little less deterministically
-            var (text, seconds, frame) = try await askRound(attempt == 0 ? checkpoint : nil, actor, prompt,
-                                                            temperature: 0.4 * Double(attempt))
+        // An unparseable reply is asked again at temperature 0 with the format first: a warmer retry was worse
+        // (2026-11-17 gateway records: 16% off-format at 0, 41% at 0.4-0.8).
+        for attempt in 0..<3 {
+            var (text, seconds, frame) = try await askRound(attempt == 0 ? checkpoint : nil, actor,
+                                                            attempt == 0 ? prompt : Self.formatAgain + prompt, temperature: 0)
             var acts: [JObject]
-            do { acts = try Actions.parseActions(text) } catch { reply = text; continue }
+            do { acts = try Actions.parseActions(text) } catch {
+                reply = text
+                DebugLog.write("actor reply off-format (try \(attempt + 1)): \(text.prefix(120).replacingOccurrences(of: "\n", with: " "))")
+                continue
+            }
+            if acts[0]["repaired"] != nil { DebugLog.write("actor reply repaired into DO lines") }
             if checkpoint == nil, !inPart, let checked = try await confirmDone(acts, prompt),
                let theirs = try? Actions.parseActions(checked.0) {
                 (text, seconds, frame, acts) = (checked.0, seconds + checked.1, checked.2 ?? frame, theirs)
             }
             reply = text
             if let new = Actions.planBlock(text), new != plan {  // the model keeps its own plan up to date
+                if firstPlan == nil, checkpoints.answered { firstPlan = new }  // the planner's first plan (PlanCache)
                 plan = new
                 record(frame, ["action": .str("plan"), "plan": .str(new), "plan_zh": .str(new)])
             }

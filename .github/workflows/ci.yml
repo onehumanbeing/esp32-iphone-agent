@@ -59,13 +59,18 @@ jobs:
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]  # the app runs on both; the iPad runs the unit tests only
     defaults:
       run:
         working-directory: ios
     env:
       # PRs: unit tests only. The UI tests (IntentFlowTests) take ~5.5 min and are the flaky part;
       # they still run on every push to main / release-1.0.
-      ONLY_TESTING: ${{ github.event_name == 'pull_request' && '-only-testing:IPhoneAgentTests' || '' }}
+      ONLY_TESTING: ${{ (github.event_name == 'pull_request' || matrix.device == 'iPad') && '-only-testing:IPhoneAgentTests' || '' }}
+      DEVICE: ${{ matrix.device }}
     steps:
       - uses: actions/checkout@v5
       - name: Pick simulator
@@ -77,7 +82,7 @@ jobs:
           sdk = os.environ["SDK"].replace(".", "-")
           rts = sorted((k for k in devs if ".iOS-" in k), key=lambda k: (not k.endswith("iOS-" + sdk), k))
           for rt in rts:
-              phones = [d for d in devs[rt] if d["name"].startswith("iPhone")]
+              phones = [d for d in devs[rt] if d["name"].startswith(os.environ["DEVICE"] + " ")]
               phones.sort(key=lambda d: "Pro" not in d["name"])
               if phones:
                   print(phones[0]["udid"]); print(phones[0]["name"], rt, file=sys.stderr); break

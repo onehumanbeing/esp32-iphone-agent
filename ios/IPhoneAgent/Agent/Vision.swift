@@ -220,6 +220,10 @@ enum Vision {
         return Double(total) / n < 10 && Double(big) / n < 0.04
     }
 
+    /// Frames are searched for the pointer at most this wide: what every stream was before the iPad's 1200 px one
+    /// (an iPhone's 718 px stays as is), where the pointer still covers dozens of pixels.
+    static let pointerWidth = 720
+
     /// Where the pointer is in `before`, given it moved right by `shift` (fraction of width) in `after`.
     ///
     /// Only the pointer moved between the two frames, so the changed pixels within `reach` of `near` are the
@@ -230,7 +234,8 @@ enum Vision {
         guard let ia = image(before), let ib = image(after), ia.width == ib.width, ia.height == ib.height else {
             return nil
         }
-        let w = ia.width, h = ia.height
+        // at most `pointerWidth` wide: an iPad's 1200 px frame took 4.4 s per aim at full size (Debug, 2026-10-29)
+        let w = min(ia.width, pointerWidth), h = w == ia.width ? ia.height : max(1, ia.height * w / ia.width)
         let a = gray(ia, w, h), b = gray(ib, w, h)
         let nx = Double(near.x), ny = Double(near.y), rx = Double(reach.x), ry = Double(reach.y)
         let left = max(0, Int((nx - rx) * Double(w)))

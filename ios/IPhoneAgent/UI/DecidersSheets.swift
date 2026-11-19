@@ -20,7 +20,7 @@ struct ModelFieldsSheet: View {
     }
 }
 
-/// The Jev row's fold: Handsy's server (default), or TypeSafe on your own key.
+/// The Jev row's fold: Manina AI's server (default), or TypeSafe on your own key.
 struct JevFieldsSheet: View {
     @AppStorage(JevConfig.ownKey) private var ownKey = false
     @AppStorage(JevConfig.modelKey) private var model = TypeSafeJev.defaultModel
@@ -33,7 +33,7 @@ struct JevFieldsSheet: View {
             Form {
                 Section {
                     Picker("Runs on", selection: $ownKey) {
-                        Text(verbatim: "Handsy").tag(false)
+                        Text(verbatim: "Manina AI").tag(false)
                         Text("TypeSafe, your key").tag(true)
                     }
                     if ownKey {
@@ -45,8 +45,8 @@ struct JevFieldsSheet: View {
                         }
                     }
                 } footer: {
-                    Text(ownKey ? "Steps go straight from this iPhone to TypeSafe on your key; Handsy gets nothing. The key stays in this iPhone's Keychain."
-                         : "Steps go to Jev on Handsy's server, free of charge.")
+                    Text(ownKey ? "Steps go straight from this iPhone to TypeSafe on your key; Manina AI gets nothing. The key stays in this iPhone's Keychain."
+                         : "Steps go to Jev on Manina AI's server, free of charge.")
                 }
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 Section {
@@ -61,7 +61,7 @@ struct JevFieldsSheet: View {
                         Button("Reset to Default") { threshold = JevConfig.defaultThreshold }
                     }
                 } footer: {
-                    Text("Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Handsy's server may ask for more on some kinds of steps.")
+                    Text("Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Manina AI's server may ask for more on some kinds of steps.")
                 }
                 if ownKey, let url = URL(string: "https://typesafe.ai") {
                     Section { KeyLinkRow(title: "Get a TypeSafe key", url: url) }

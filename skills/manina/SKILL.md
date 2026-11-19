@@ -1,18 +1,18 @@
 ---
-name: handsy
-description: See and drive a real iPhone through an ESP32 Agent (Handsy) board with the esp32agent CLI or MCP server. Use when asked to look at, tap, swipe, type on, or operate an iPhone, or to test an iOS app on a real device.
+name: manina
+description: See and drive a real iPhone through an ESP32 Agent (Manina AI) board with the esp32agent CLI or MCP server. Use when asked to look at, tap, swipe, type on, or operate an iPhone, or to test an iOS app on a real device.
 license: MIT-0
 metadata:
   openclaw:
     requires:
       bins: [npx, ffmpeg]
     envOptional: [ESP32AGENT_DEVICE]
-    homepage: https://handsy.tech
+    homepage: https://manina.ai
 ---
 
-# Handsy: drive a real iPhone with esp32agent
+# Manina AI: drive a real iPhone with esp32agent
 
-An ESP32 Agent board (Handsy) plugs into the iPhone (USB-C models directly, Lightning models through a Lightning to
+An ESP32 Agent board (Manina AI) plugs into the iPhone (USB-C models directly, Lightning models through a Lightning to
 USB Camera Adapter) and acts as the phone's USB mouse and keyboard. It also receives the iPhone's AirPlay screen mirroring. Your computer reaches
 the board over Bluetooth with the `esp32agent` command line tool, which is also an MCP server. No jailbreak is
 needed.
@@ -22,7 +22,7 @@ iPhone only for now. iPad support is coming soon.
 ## Prerequisites
 
 - A Seeed Studio XIAO ESP32S3 board (8 MB flash, 8 MB PSRAM), or a similar ESP32-S3 board with native USB.
-- Board firmware v0.2.2 or later. Install it in Chrome or Edge at https://handsy.tech/install
+- Board firmware v0.2.2 or later. Install it in Chrome or Edge at https://manina.ai/install
   (one USB data cable, nothing else to install).
 - On the iPhone:
   - AssistiveTouch on (Settings > Accessibility > Touch > AssistiveTouch), so the mouse pointer shows and taps.
@@ -151,7 +151,7 @@ You are using a real phone with the owner's accounts, money and contacts.
 | `video frozen` | Ask the user to stop and restart Screen Mirroring |
 | `phone usb asleep` | The phone is locked; ask the user to unlock it |
 | `busy: the app is using the phone` | The ESP32 Agent iOS app is driving the phone. Wait and retry later |
-| `no cli service (firmware too old?)` | Update the board firmware to v0.2.2 or later at https://handsy.tech/install |
+| `no cli service (firmware too old?)` | Update the board firmware to v0.2.2 or later at https://manina.ai/install |
 | `not supported on ESP32 Agent` | There is no app list, UI tree or file access; work from screenshots |
 | Taps land off target | Make sure AssistiveTouch is on and the pointer is visible, run `calibrate`, or use `io tap --aim` |
 | Screenshot fails | Check that `ffmpeg` is installed and Screen Mirroring is on |
@@ -159,4 +159,4 @@ You are using a real phone with the owner's accounts, money and contacts.
 Limits: screenshots can be up to about a second behind and animations look choppy. Typing is ASCII only, one key
 per character. HOME is the only button: no volume or power buttons, and no installing or launching apps directly.
 
-Help: support@handsy.tech · https://handsy.tech
+Help: support@manina.ai · https://manina.ai

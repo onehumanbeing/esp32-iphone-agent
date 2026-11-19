@@ -45,7 +45,8 @@ enum UITreeOCR {
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
         }
-        return await withCheckedContinuation { done in
+        let pending = PendingRequest()
+        return await withTaskCancellationHandler { await withCheckedContinuation { done in
             let once = Vision.Once()
             let request = VNRecognizeTextRequest { request, _ in
                 guard once.take() else { return }
@@ -79,9 +80,22 @@ enum UITreeOCR {
             request.recognitionLevel = .accurate
             if let languages { request.recognitionLanguages = languages } else { request.automaticallyDetectsLanguage = true }
             request.usesLanguageCorrection = false
+            pending.set(request)
             DispatchQueue.global(qos: .userInitiated).async {
+                guard !pending.cancelled else { if once.take() { done.resume(returning: []) }; return }
                 do { try VNImageRequestHandler(cgImage: image).perform([request]) } catch { if once.take() { done.resume(returning: []) } }
             }
-        }
+        } } onCancel: { pending.cancel() }
     }
+}
+
+/// The OCR request of a tree no one waits for any more (a newer frame came): cancelled, so it stops taking the CPU
+/// from the one that is wanted. 2026-11-18: up to four reads ran at once, 5 s each (p50), on a phone in the background.
+private final class PendingRequest: @unchecked Sendable {
+    private let lock = NSLock()
+    private var request: VNRequest?
+    private var stopped = false
+    var cancelled: Bool { lock.withLock { stopped } }
+    func set(_ r: VNRequest) { lock.withLock { request = r } }
+    func cancel() { lock.withLock { stopped = true; request?.cancel() } }
 }

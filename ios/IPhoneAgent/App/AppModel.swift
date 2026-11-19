@@ -26,6 +26,7 @@ import UIKit
         ? TraceStore(root: FileManager.default.temporaryDirectory.appendingPathComponent("demo-traces"))
         : TraceStore()
     let intents = IntentStore()
+    let planCache = PlanCache(folder: PlanCache.defaultFolder)  // an intent's first plan, reused while it is unchanged
     private(set) lazy var runs = RunStore(traces: traces)
     private(set) lazy var threads = ThreadStore()
     let pointer: Pointer
@@ -107,11 +108,16 @@ import UIKit
     @Published var mockMirroring = false
     var moodReset: Task<Void, Never>?
     var helpWait: CheckedContinuation<AgentLoop.HelpChoice, Never>?
+    /// Set by a shortcut's Unattended parameter for the run that is about to start.
+    var launchUnattended = false
+    /// Set when protected data becomes unavailable. A passcode is never typed; the run waits.
+    var phoneLocked = false
     var currentIntent: SavedTask?
     var lastTask = ""
     var runStarted = Date()
     var runUsage = ModelUsage()
     private var settingsSink: AnyCancellable?
+    private var geometrySink: AnyCancellable?
     var videoSink: AnyCancellable?
     var videoDir: URL?
     private(set) lazy var calibrator = AutoCalibrator(app: self)
@@ -128,6 +134,21 @@ import UIKit
     static var prewarmOn: Bool { UserDefaults.standard.object(forKey: prewarmKey) as? Bool ?? true }
     var lastWidgetReload = 0.0
 
+    /// Old traces off the disk, away from the main thread; the run list is read again after.
+    private func pruneTraces() {
+        guard !MockMode.on else { return }
+        let keep = Set(intents.items.flatMap { [$0.refRun, $0.learnedFrom, $0.runs.last?.run].compactMap { $0 } })
+        let root = traces.root
+        Task.detached(priority: .utility) { [weak self] in
+            let removed = TraceStore.prune(root, keep: keep)
+            guard !removed.isEmpty else { return }
+            await MainActor.run {
+                DebugLog.write("traces: removed \(removed.count) old runs")
+                self?.runs.reload()
+            }
+        }
+    }
+
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
@@ -135,6 +156,7 @@ import UIKit
                           screen: feed)
         agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
         PhoneMouse.start()
+        MainLag.shared.start()
         agent.metrics = metrics
         agent.island = { DeviceScreen.island }
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
@@ -146,8 +168,16 @@ import UIKit
         board.commands.log = say
         pointer.log = say
         pointer.screenAspect = { DeviceScreen.aspect }
+        pointer.currentGeometry = { [weak self] in self?.feed.geometry }  // nil on iPhone
+        if DeviceKind.isPad {  // turned: the orientation's own calibration, if it has one
+            geometrySink = feed.$size.removeDuplicates().receive(on: RunLoop.main).sink { [weak self] _ in
+                guard let self else { return }
+                pointer.adopt(feed.geometry)
+            }
+        }
         pointer.locate = { [weak self] jpeg in await self?.locatePointer(jpeg) }
         pointer.ownAppInFront = { [weak self] in self.map { !$0.appIsBackgrounded } ?? false }
+        pointer.openByScheme = { [weak self] in await self?.openByScheme($0) ?? false }
         // Lines come from any thread (a firmware check, MetricKit's crash report): hop to the main actor when
         // needed instead of asserting, which crashed build 24 and then every launch that got the report.
         DebugLog.relay = { [weak self] line in
@@ -191,6 +221,13 @@ import UIKit
         setListening(ListenSetting.on)
         feed.continuous = { [weak self] in self?.wifiVideo.active ?? false }
         wifiVideo.resumeAt = { [weak self] in self?.feed.resumeMs }
+        // a board on a home network that has the LAN lock: the token is proven, never sent, and the video encrypted
+        // (lanMode: a status not in yet counts as the hotspot; "status.net != ap" read nil as a home network, so the
+        // hotspot's first session went encrypted, 2026-11-17)
+        wifiVideo.secure = { [weak self] in
+            guard let self, LanAuth.supported(board.status) else { return false }
+            return lanMode
+        }
         feed.onGap = { [weak self] in self?.wifiVideo.resume() }
         wifiVideo.onActive = { [weak self] on in
             self?.feed.resetStream()  // the board resends from the IDR on the new path
@@ -209,15 +246,21 @@ import UIKit
             self?.feed.frozen = frozen
             if s.ap == "streaming" { Analytics.captureOnce("mirroring_started") }
             if started { DebugLog.write("mirroring started"); self?.prewarmStream() }  // a pre-warm at link-up fails until mirroring runs
+            if s.ap == "streaming", self?.networkSwitched == true { self?.networkSwitched = false }
+            #if DEBUG
+            if started { self?.displayTrialSession() }
+            #endif
             if let up = s.up { self?.feed.boardClock(ms: up) }
             self?.metrics.status(s)
             self?.logStatus(s)
+            self?.matchMirrorDisplay(s)
             if s.inputState == nil || s.needsWirelessPointer { self?.beginLinkRecoveryDisplay() }
             else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in
             guard let self else { return }
             Analytics.captureOnce("board_connected")
+            mirrorDisplayAsked = false
             feed.resetStream()
             metrics.mtu = board.mtu
             updateWifiVideo()
@@ -244,8 +287,14 @@ import UIKit
         board.commands.onTiming = { [weak self] name, ms in self?.metrics.hidMs[name] = ms }
         agent.beforeFinish = { [weak self] in
             guard let self else { return }
+            if !self.agent.handedBack { await self.returnInput(checkKeyboard: true) }  // else already given back
+            try? await self.feed.stream(false)
+        }
+        agent.onHandBack = { [weak self] in  // collected: the phone is the user's while the result is written
+            guard let self else { return }
             await self.returnInput(checkKeyboard: true)
             try? await self.feed.stream(false)
+            Haptics.success()
         }
         agent.onFinish = { [weak self] in self?.agentFinished() }
         agent.onStep = { [weak self] in self?.stepped() }
@@ -253,9 +302,17 @@ import UIKit
         agent.onModelCall = { [weak self] call in self?.modelCalled(call) }
         agent.onHelp = { [weak self] reason in await self?.needsHelp(reason) ?? .stop }
         agent.onConfirm = { [weak self] reason in await self?.needsHelp(reason, confirm: true) ?? .stop }
+        agent.onHelpTimeout = { [weak self] choice in self?.answerHelp(choice) }
+        agent.deviceHealth = { [weak self] in self?.healthSnapshot() ?? .ok }
+        agent.userInFront = { [weak self] in self?.appIsBackgrounded == false }
+        agent.onNotice = { [weak self] text, kind in
+            guard let self else { return }
+            self.notifier.post(kind, title: String(localized: "Unattended run"), body: text, run: self.runID)
+        }
         agent.gate = { [weak self] in
             try await self?.holdWhileInFront()
             try await self?.holdWhilePaused()
+            try self?.validateRunGeometry()
         }
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
@@ -272,6 +329,9 @@ import UIKit
             await self?.board.commands.keepAwake {
                 guard let self else { return false }
                 return self.feed.live && !self.returningInput
+            } nudgeWhenIdle: {
+                guard let self else { return false }
+                return self.agent.policy.keepAwake && self.agent.running && self.board.status?.usb != "asleep" && !self.phoneLocked
             }
         })
         timers.append(Task { [weak self] in
@@ -291,8 +351,26 @@ import UIKit
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.metrics.enteredForeground(); DebugLog.write("app: foreground"); self?.wifiVideo.kick(); self?.prewarmStream() }
         }
+        center.addObserver(forName: UIApplication.protectedDataWillBecomeUnavailableNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.phoneLocked = true
+                DebugLog.write("phone: locked (protected data unavailable)")
+            }
+        }
+        center.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.phoneLocked = false; DebugLog.write("phone: unlocked") }
+        }
+        center.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.agent.running, self.agent.policy.unattended, ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+                self.notifier.post(.power, title: String(localized: "Low Power Mode is on"),
+                                   body: String(localized: "Auto-Lock becomes 30 seconds while Low Power Mode is on, so the screen may lock."),
+                                   run: self.runID)
+            }
+        }
         if MockMode.on { startMock() }
         runs.reload()
+        pruneTraces()
         handleLaunchArguments()
         publishWidget()
     }
@@ -423,7 +501,9 @@ import UIKit
     /// board erases the dump once read at boot, so each one is reported for the boot it belongs to.
     private func reportBoardReboot(_ s: BoardStatus, up: Int) {
         let bootedAt = now() - Double(up) / 1000
-        guard abs(bootedAt - lastBoardBoot) > 60 else { return }  // the same boot, seen again
+        // the same boot, seen again (its estimate moves by a second or so). 60 s took a crash 42 s after a power-on for
+        // that boot, and its dump was never read (2026-11-17)
+        guard abs(bootedAt - lastBoardBoot) > 10 else { return }
         lastBoardBoot = bootedAt
         Task { [weak self] in
             guard let self else { return }
@@ -431,6 +511,31 @@ import UIKit
             DebugLog.write("board: crash record: \(crash ?? "-")")
             Analytics.capture("board_reboot", ["reset": s.rst ?? "?", "fw": Firmware.version(of: s).plain, "up_s": up / 1000,
                                                "heap_kb": (s.heap ?? 0) / 1024, "dump": crash ?? ""])
+        }
+    }
+
+    /// The board advertises the AirPlay display for one device (it is stored on the board). iPad: when it reports
+    /// another size than the iPad wants, set the iPad's. iPhone: left alone, except a board an iPad set to its
+    /// display (not taller than wide, which an iPhone never wants) goes back to the default. iOS reads the
+    /// display when Screen Mirroring starts, so a session already running keeps its size until mirroring restarts.
+    func matchMirrorDisplay(_ s: BoardStatus) {
+        guard !MockMode.on, !mirrorDisplayAsked, let w = s.w, let h = s.h else { return }
+        let want = DeviceCaps.mirrorDisplay
+        #if DEBUG
+        let testing = DeviceCaps.mirrorDisplayOverride != nil
+        #else
+        let testing = false
+        #endif
+        guard (w, h) != want, DeviceKind.isPad || testing || DeviceCaps.iPadsDisplay(w: w, h: h) else { return }
+        mirrorDisplayAsked = true
+        Task {
+            do {
+                try await board.commands.send("res \(want.w) \(want.h)")
+                DebugLog.write("AirPlay display \(w)x\(h) -> \(want.w)x\(want.h) for this device"
+                               + (s.ap == "streaming" ? "; applies when Screen Mirroring next starts" : ""))
+            } catch {
+                DebugLog.write("AirPlay display: res \(want.w) \(want.h) failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -454,8 +559,25 @@ import UIKit
     @Published var join = JoinState.idle
     var joinTask: Task<Void, Never>?
 
+    /// Asked the board for this device's AirPlay display on this link already (reset on link-up), so a refused `res`
+    /// isn't resent with every status.
+    var mirrorDisplayAsked = false
+    /// Debug display test (iphoneagent://display): sizes still to advertise, one per mirroring session.
+    var displayTrials: [(w: Int, h: Int)] = []
+
     /// Set when one-tap join failed: the user joins in Settings with the shown password.
     @Published var manualHotspot: NetConfig?
+
+    /// Switching the board between its hotspot and the home Wi-Fi (state machine in LanJoin.swift).
+    @Published var lanJoin = LanJoinState.idle
+    var lanJoinTask: Task<Void, Never>?
+    /// The network the board is configured for in LAN mode (net read returns the station's credentials there).
+    @Published var lanSSID: String?
+    /// The phone can reach the board over the LAN (same network name, or the video channel is up).
+    @Published var phoneOnBoardLAN = false
+    /// The board moved to another network (home Wi-Fi <-> its hotspot) and no mirroring session runs on the new one
+    /// yet: iOS does not follow it, Screen Mirroring has to be started again (MirroringRestartHint).
+    @Published var networkSwitched = false
 
     func bench(kb: Int = 256) async {
         do {

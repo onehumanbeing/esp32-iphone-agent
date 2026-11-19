@@ -34,9 +34,9 @@ if corrupt:
 print(f"firmware {manifest['version']} {len(image)} bytes{' (corrupted)' if corrupt else ''}")
 PY
 for f in hid_bridge.ino.bin firmware.json; do  # never --remove-existing-content: it wipes the whole app container
-  dc device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/$DIR/$f" >/dev/null
+  dc device copy to "${ON[@]}" --source "$STAGE/$f" --destination "Documents/developer/$DIR/$f" >/dev/null
 done
 rm -rf "$STAGE"
 FROM=$(launch -harness-ota "$DIR")
-echo "copied to Documents/$DIR; the app is installing it"
+echo "copied to Documents/developer/$DIR; the app is installing it"
 follow "$FROM" '^[^ ]+ (harness ota|firmware):' '^[^ ]+ harness ota: (done|failed)' 180 'harness ota: failed'

@@ -30,7 +30,9 @@
 #include "src/airplay/airplay.h"
 #include "src/hid/arbiter.h"
 #include "src/hid/pace.h"
+#include "src/hid/type_budget.h"
 #include "src/heard/heard.h"
+#include "src/net/lan_lock.h"
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
 #include "board_support.h"
@@ -206,7 +208,7 @@ String run(const String &line) {
   }
   if (cmd == "click") { mouse.press(MOUSE_LEFT); delay(60); mouse.release(MOUSE_LEFT); holdUntil = 0; return "ok"; }
   if (cmd == "scroll") { mouse.move(0, 0, a, b); return "ok"; }
-  if (cmd == "type") { keyboard.print(arg); return "ok"; }
+  if (cmd == "type") return typeText(arg);
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") {
 #ifdef HID_TRANSPORT_BLE
@@ -218,6 +220,38 @@ String run(const String &line) {
     return "ok";
   }
   return "err unknown command";
+}
+
+// One `type` command. keyboard.print blocked loop() for the whole string and the 8 s task watchdog
+// only runs at the top of loop(), so a long text rebooted the board (BLE, hotspot and mirroring dropped).
+// Type one byte at a time, feed the watchdog, and stop at TYPE_BUDGET_MS or if USB suspends.
+// "ok" when finished; "err typed N of M: budget|asleep" when stopped early. Old apps see a normal err.
+String typeText(const String &s) {
+  const int total = s.length();
+  uint32_t started = millis();
+  int typed = 0;
+  esp_task_wdt_reset();
+  for (int i = 0; i < total; i++) {
+    int usb = 1;
+    if (i > 0 && (i % TYPE_USB_EVERY) == 0) {
+#ifdef HID_TRANSPORT_BLE
+      usb = ble_hid_ready() ? 1 : 0;  // no USB link to the phone on this board: the wireless HID is the input
+#else
+      usb = usbReady() ? 1 : 0;
+#endif
+      esp_task_wdt_reset();
+    }
+    type_stop_t stop = type_before_char(i, (uint32_t)(millis() - started), usb);
+    if (stop != TYPE_GO) {
+      char reply[64];
+      type_reply(reply, sizeof reply, typed, total, stop);
+      return String(reply);
+    }
+    keyboard.write((uint8_t)s[i]);
+    esp_task_wdt_reset();
+    typed++;
+  }
+  return "ok";
 }
 
 static arb_state arb;  // the app or the CLI drives the phone, never both: src/hid/arbiter.h
@@ -401,6 +435,18 @@ String board(const String &line, const String &id, char who) {
     if (arg.length() && !net_coex(arg)) return "err usage: coex bt|balance|wifi";
     return String("ok ") + net_coex_mode();
   }
+  if (cmd == "own") {  // LAN lock (src/net/lan_lock.h): `own` shows the owner, `own off` forgets it, `own IP` sets it
+    char ip[16];
+    if (arg == "off") net_set_owner(0);
+    else if (arg.length()) {
+      uint32_t a;
+      if (!lan_parse_ip(arg.c_str(), &a) || !a) return "err usage: own [IP | off]";
+      if (strcmp(net_mode(), "ap") == 0) return "err not on a home network";
+      net_set_owner(a);
+    }
+    lan_format_ip(lan_owner(), ip);
+    return String("ok ") + (lan_owner() ? ip : "none") + (lan_locked() ? " locked" : "");
+  }
   if (cmd == "unpair") {
     ble_reply(id + " ok");  // answer before the link goes down
     ble_unpair();
@@ -420,14 +466,14 @@ String statusJson(bool full, char who) {
   VideoStats v = video_stats(who);
   char s[BOARD_STATUS_CAP];
   snprintf(s, sizeof s,
-           "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
-           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,\"lost\":%lu,"
+           "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"rst\":\"%s\",\"heap\":%u,\"psram\":%u,\"usb\":\"%s\",\"net\":\"%s\",\"ip\":\"%s\",\"sta\":%d,"
+           "\"ap\":\"%s\",\"w\":%u,\"h\":%u,\"kbps\":%lu,\"fps\":%.1f,\"idr\":%lu,\"gop\":%lu,\"vage\":%lu,\"ovf\":%lu,\"fz\":%d,\"lost\":%lu,\"own\":%d,"
            "\"ble\":{\"mtu\":%u,\"phy\":%u,\"kbps\":%lu,\"drop\":%lu,\"rdrop\":%lu,\"n\":%d},"
            "\"udp\":{\"n\":%d,\"kbps\":%lu,\"nack\":%lu,\"drop\":%lu}}",
            FW_VERSION, millis(), resetReason(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), usbState(), net_mode(), net_ip().c_str(), net_peers(),
            apStates[airplay_state()], cfg_width(), cfg_height(), (unsigned long)v.kbps, v.fps, (unsigned long)v.idr_ms,
-           (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, (unsigned long)v.overflows, v.frozen, (unsigned long)v.lost, ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
+           (unsigned long)v.gop_bytes, (unsigned long)v.age_ms, (unsigned long)v.overflows, v.frozen, (unsigned long)v.lost, lan_locked(), ble_mtu(), ble_phy(), (unsigned long)ble_kbps(), (unsigned long)ble_drops(),
            (unsigned long)ble_reply_drops(), ble_peers(), wv_active(), (unsigned long)wv_kbps(),
            (unsigned long)wv_nacks(), (unsigned long)wv_drops());
   // owner: who drives the phone (app, cli, none); the CLI's busy is 1 while that is the app
@@ -458,8 +504,9 @@ String statusJson(bool full, char who) {
   }
   if (full && strlen(s) < sizeof s - 1) return s;
   // On small MTUs, keep control and reconnect fields first; include diagnostics only if they fit.
-  snprintf(s, sizeof s, "{\"fw\":\"%s\"," ABS_FIELD "\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"owner\":\"%s\"%s",
-           FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, owner, board_status_fields());
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"owner\":\"%s\",\"own\":%d%s",
+           FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, owner, lan_locked(),
+           board_status_fields());
 #ifdef HID_TRANSPORT_BLE
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
 #endif
@@ -529,6 +576,7 @@ void startAirplay() {
   cfg.on_audio = wv_audio;
   cfg.log = logLine;
   cfg.on_lost = video_on_lost;
+  cfg.allow_peer = lan_peer_ok;  // on a home network: only the owner's phone mirrors
   if (!airplay_start(&cfg)) board_log("airplay: start failed");
 }
 
@@ -646,7 +694,9 @@ void loop() {
     return;
   }
   char who;
-  if (!ble_pop_cmd(line, who, 50)) return;
+  uint32_t recv = 0;
+  if (!ble_pop_cmd(line, who, 50, &recv)) return;
+  uint32_t popped = millis();
   int sp = line.indexOf(' ');
   String id = sp < 0 ? line : line.substring(0, sp);
   String rest = sp < 0 ? "" : line.substring(sp + 1);
@@ -657,6 +707,7 @@ void loop() {
   String reply = id.toInt() || id == "0" ? board(rest, id, who) : "err missing request id";
   if (reply.length()) {
     if (!rest.startsWith("result")) keepReply(id, reply, who);
+    ble_reply_timing(recv, popped - recv, millis() - popped);
     ble_reply(id + " " + reply, who);
   }
 #if DEBUG_SERIAL

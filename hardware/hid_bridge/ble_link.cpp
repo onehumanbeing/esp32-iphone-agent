@@ -31,6 +31,7 @@ static_assert(MYNEWT_VAL(BLE_L2CAP_COC_MAX_NUM) == 1 && MYNEWT_VAL(BLE_L2CAP_COC
 
 #define UUID(s) "6e400001-a9e8-4b1b-9c39-6d6f8a3c" s
 const size_t CMD_MAX = 512;
+const uint32_t SLOW_REPLY_MS = 250;
 const size_t TEXT_MAX = 514;               // MTU 517 - 3
 const uint32_t VIDEO_TIMEOUT_MS = 1500;    // a full buffer waits; only a stalled link drops the chunk
 const uint32_t REPLY_TIMEOUT_MS = 3000;    // replies retry this long (video is paused meanwhile)
@@ -56,12 +57,14 @@ struct Command {
   uint32_t hidSession;
 #endif
   char origin;
+  uint32_t recv;  // millis() when it came in, so a slow reply can say where its time went
   char line[CMD_MAX - 1];
 };
 
 struct Text {
   char dest;  // FROM_APP or FROM_CLI: whose reply this is
   uint16_t len;
+  uint32_t recv, ran, queued;  // a reply's command: when it came in, ms it waited and ran (0: not a command reply)
   char s[TEXT_MAX];
 };
 
@@ -378,9 +381,16 @@ static void txTask(void *) {
   static Text t;
   for (;;) {
     if (xQueueReceive(replyQueue, &t, pdMS_TO_TICKS(20)) == pdTRUE) {
+      uint32_t picked = millis();
       if (t.dest == FROM_CLI) cli_send_ctrl('r', t.s, t.len, REPLY_TIMEOUT_MS);
       else sendText(CH_REPLY, t, REPLY_TIMEOUT_MS);
       ctrlPending--;
+      uint32_t total = t.recv ? millis() - t.recv : 0;
+      if (total > SLOW_REPLY_MS)  // the board's share of a slow command; the app logs the round trip
+        board_log("slow reply %.*s: waited %lu, ran %lu, reply queued %lu, sent in %lu ms (%lu on the board)",
+                  (int)(t.len < 24 ? t.len : 24), t.s, (unsigned long)t.queued, (unsigned long)t.ran,
+                  (unsigned long)(picked - t.recv - t.queued - t.ran), (unsigned long)(millis() - picked),
+                  (unsigned long)total);
     }
     xSemaphoreTake(statusLock, portMAX_DELAY);
     bool due = statusDirty, cliDue = cliStatusDirty;
@@ -554,6 +564,8 @@ bool ble_app_connected() {
 
 bool ble_app_active() { return appSeenMs && millis() - appSeenMs < APP_IDLE_MS && ble_app_connected(); }
 
+// The receive time goes with a queued command so a slow reply can say where its time went
+// (2026-11-18: commands took 0.6-2.2 s for 20 s at a run's start, cause unknown).
 void ble_push_cmd(char origin, const char *line, size_t n) {
   Command cmd{};
   cmd.origin = origin;
@@ -561,27 +573,35 @@ void ble_push_cmd(char origin, const char *line, size_t n) {
   cmd.hidSession = ble_hid_session();
 #endif
   if (!n) return;
+  cmd.recv = millis();
   memcpy(cmd.line, line, n < sizeof(cmd.line) - 1 ? n : sizeof(cmd.line) - 1);
   lastCmdMs = millis();
   xQueueSend(cmdQueue, &cmd, 0);  // full queue: the sender times out and retries
 }
 
-bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms) {
+static uint32_t replyRecv, replyQueued, replyRan;  // set by the loop for the reply it is about to queue
+
+bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv) {
   Command cmd;
   if (xQueueReceive(cmdQueue, &cmd, pdMS_TO_TICKS(wait_ms)) != pdTRUE) return false;
 #ifdef HID_TRANSPORT_BLE
   if (!ble_hid_command_begin(cmd.hidSession)) return false;
 #endif
   origin = cmd.origin;
+  if (recv) *recv = cmd.recv;
   line = cmd.line;
   return true;
 }
+
+void ble_reply_timing(uint32_t recv, uint32_t queued, uint32_t ran) { replyRecv = recv, replyQueued = queued, replyRan = ran; }
 
 void ble_reply(const String &line, char dest) {
   if (dest == FROM_CLI ? cli_slot() < 0 : !anySubscribed(CH_REPLY)) return;
   Text t;
   t.dest = dest;
   toText(t, line);
+  t.recv = replyRecv, t.queued = replyQueued, t.ran = replyRan;
+  replyRecv = replyQueued = replyRan = 0;
   ctrlPending++;
   if (xQueueSend(replyQueue, &t, pdMS_TO_TICKS(200)) != pdTRUE) {  // 8 replies stuck: the link is gone
     ctrlPending--;

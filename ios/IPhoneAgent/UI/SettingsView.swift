@@ -85,6 +85,31 @@ struct SettingsView: View {
                     Text("The model checks a screenshot when a run ends. If it restores the keyboard, it checks a second screenshot. Gentle Home swipe: the swipe up to the Home Screen at a run's start goes at half the board's top speed. Intents learn from runs: when an intent's saved steps miss and the AI finishes the task, that run's steps replace them; Wrong on the finished run undoes it. Blur screens in reviews: a review's screenshots stay blurred until you tap one, so chats and messages do not show in a screen recording.")
                     + Text(verbatim: " ") + Text("Standby in Dynamic Island: between runs the island shows your three most used intents and New Task; an intent tapped there runs on the app you are in.")
                 }
+                Section {
+                    Toggle(isOn: $settings.unattendedMode) {
+                        SettingsLabel(title: "Unattended", symbol: "moon.zzz.fill", color: .indigo)
+                    }
+                    Toggle(isOn: $settings.speculativeLook) {
+                        SettingsLabel(title: "Look ahead", symbol: "hare", color: .orange)
+                    }
+                    Button { Task { await app.learnMirrorSpots() } } label: {
+                        HStack {
+                            SettingsLabel(title: "Learn Screen Mirroring taps", symbol: "rectangle.on.rectangle", color: .blue)
+                            Spacer()
+                            Text(MirrorSpots.load()?.validNow == true ? "Learned" : "Not learned")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .tint(.primary)
+                } header: {
+                    Text("Unattended")
+                } footer: {
+                    Text("Unattended: a run keeps going when you don't answer. Help and confirm prompts wait two minutes, then skip or stop. A risky step is never approved on its own, and a passcode is never typed. A dropped link is recovered for up to two hours instead of ending the run. Shortcuts can turn this on for one run with the Unattended parameter.")
+                    + Text(verbatim: " ")
+                    + Text("Learn Screen Mirroring taps while mirroring is on and Control Center can be opened. The app remembers the Screen Mirroring button and the board's row for this screen size and iOS version, and uses them only while Unattended is on. It never taps Stop Mirroring while learning.")
+                    + Text(verbatim: " ")
+                    + Text("Before a long run: plug in the iPhone, turn off Low Power Mode, set Auto-Lock to Never, and turn on a Focus so notifications don't cover the screen. Auto-Lock can't be read by the app. Look ahead starts the next model request once the screen is nearly still. It is off by default; a request is thrown away if the screen then changes, and the gesture is checked against a fresh frame before it is sent.")
+                }
                 ListenSection(app: app, audio: app.audio)
                 Section {
                     NavigationLink { DiagnosticsView(app: app, metrics: app.metrics, board: board, feed: app.feed) } label: {
@@ -115,7 +140,7 @@ struct SettingsView: View {
     private var modelName: String {
         if MockMode.on { return "Demo" }
         if settings.provider == .handsyTrial {
-            return Trial.shared.keyed ? String(localized: "Handsy Plan") : ModelProvider.handsyTrial.title
+            return Trial.shared.keyed ? String(localized: "Manina AI Plan") : ModelProvider.handsyTrial.title
         }
         return settings.currentModel ?? String(localized: "Auto")
     }
@@ -134,6 +159,7 @@ struct DeveloperView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var audio: AudioFeed
     @AppStorage(MockMode.key) private var demoData = false
+    @AppStorage(FilesLayout.developerKey) private var developerFiles = false
     @AppStorage(TreeSource.key) private var treeSource = TreeSource.fallback.rawValue
     @State private var language = "ja-JP"
     @State private var testing = false
@@ -148,6 +174,13 @@ struct DeveloperView: View {
                 Toggle(isOn: $demoData) { SettingsLabel(title: "Demo data", symbol: "theatermasks", color: .purple) }
             } footer: {
                 Text("Demo data fakes a board, a finished run and the whole setup, to try the app without hardware. Takes effect after you quit and reopen the app.")
+            }
+            Section {
+                Toggle(isOn: $developerFiles) {
+                    SettingsLabel(title: "Show developer files", symbol: "hammer", color: .gray)
+                }
+            } footer: {
+                Text("The Files tab also lists the app's own data (runs, chats, intent screens) and test tools. Deleting those can break runs and intents.")
             }
             #if DEBUG
             Section {
@@ -217,6 +250,7 @@ struct DeveloperView: View {
 struct BoardSettingsView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
+    @State private var lanSheet = false
 
     var body: some View {
         List {
@@ -255,26 +289,49 @@ struct BoardSettingsView: View {
                 }
             }
             Section {
-                Button { app.startJoin() } label: {
-                    HStack {
-                        Text("Join the Board's Wi-Fi")
-                        Spacer()
-                        if app.join.busy { ProgressView() }
+                if app.networkSwitched && board.status?.ap != "streaming" { MirroringRestartHint(app: app) }
+                if app.lanMode {
+                    ValueRow(title: "Mode", value: String(localized: "Home Wi-Fi (LAN)"))
+                    if let ssid = app.lanSSID ?? board.net?.ssid { ValueRow(title: "Network", value: ssid) }
+                    Button { lanSheet = true } label: { Text("Change Wi-Fi Network…") }
+                        .disabled(!board.connected || app.lanJoin.busy)
+                    Button { app.switchToHotspot() } label: {
+                        HStack {
+                            Text("Switch Back to the Board's Hotspot")
+                            Spacer()
+                            if app.lanJoin.busy { ProgressView() }
+                        }
                     }
-                }
-                .disabled(app.join.busy)
-                if let ssid = app.hotspotSSID { ValueRow(title: "Network", value: ssid) }
-                if let net = app.manualHotspot, let pass = net.pass {
-                    if let ssid = net.ssid { ValueRow(title: "Network", value: ssid) }
-                    ValueRow(title: "Password", value: pass)
-                    Button { UIPasteboard.general.string = pass; Haptics.success() } label: { Text("Copy Wi-Fi Password") }
-                    Button { UIPasteboard.general.string = pass; Hotspot.openWiFiSettings() } label: { Text("Open Settings") }
+                    .disabled(!board.connected || app.lanJoin.busy)
+                } else {
+                    Button { app.startJoin() } label: {
+                        HStack {
+                            Text("Join the Board's Wi-Fi")
+                            Spacer()
+                            if app.join.busy { ProgressView() }
+                        }
+                    }
+                    .disabled(app.join.busy)
+                    if let ssid = app.hotspotSSID { ValueRow(title: "Network", value: ssid) }
+                    if let net = app.manualHotspot, let pass = net.pass {
+                        if let ssid = net.ssid { ValueRow(title: "Network", value: ssid) }
+                        ValueRow(title: "Password", value: pass)
+                        Button { UIPasteboard.general.string = pass; Haptics.success() } label: { Text("Copy Wi-Fi Password") }
+                        Button { UIPasteboard.general.string = pass; Hotspot.openWiFiSettings() } label: { Text("Open Settings") }
+                    }
+                    Button { lanSheet = true } label: { Text("Use a Home Wi-Fi Network Instead…") }
+                        .disabled(!board.connected || app.lanJoin.busy)
                 }
             } header: {
                 Text("Wi-Fi")
             } footer: {
-                Text("Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
+                if app.lanMode {
+                    Text("The board and this device share your Wi-Fi network. If the board stops showing up in Screen Mirroring, the router may isolate devices from each other or block mDNS — switch back to the board's hotspot.")
+                } else {
+                    Text("Turn off Personal Hotspot before joining. While joined, the internet goes over cellular data. Switch back in Settings › Wi-Fi when you are done.")
+                }
             }
+            .sheet(isPresented: $lanSheet) { LanSheet(app: app) }
             FirmwareSection(app: app, updater: app.firmware, board: board)
             if board.pairedID != nil {
                 Section {

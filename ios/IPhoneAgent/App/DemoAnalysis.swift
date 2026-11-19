@@ -42,11 +42,11 @@ enum DemoAnalysis {
             text += "\nChange \(first + k) (screen \(k + 1) to \(k + 2)): \(await hint(screens[k], screens[k + 1], lines))."
             text += "\nText on screen \(k + 1): " + (lines.isEmpty ? "(none)" : lines.map(\.listed).joined(separator: "; "))
         }
-        return try await model.chat(system: prompt, text: text, images: screens, maxTokens: 600, temperature: 0).text
+        return try await model.chat(system: prompt, text: text, images: screens, maxTokens: 2000, temperature: 0).text
     }
 
     static func summarize(_ model: LLMClient, steps: [String]) async throws -> String {
-        try await model.chat(system: summaryPrompt, text: steps.joined(separator: "\n"), maxTokens: 400, temperature: 0).text
+        try await model.chat(system: summaryPrompt, text: steps.joined(separator: "\n"), maxTokens: 2000, temperature: 0).text
     }
 
     struct Line { let text: String; let x: Int, y: Int
@@ -59,6 +59,15 @@ enum DemoAnalysis {
         let w = Double(img.width), h = Double(img.height)
         let found: [(text: String, box: [Int])] = await UITreeOCR.lines(img)
         return found.prefix(limit).map { line -> Line in
+            let b = line.box.map(Double.init)
+            return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000))
+        }
+    }
+
+    /// The same lines from a tree already built (its OCR), with no second read.
+    static func texts(of tree: UITree, limit: Int = 30) -> [Line] {
+        let w = Double(max(tree.w, 1)), h = Double(max(tree.h, 1))
+        return tree.lines.prefix(limit).map { line -> Line in
             let b = line.box.map(Double.init)
             return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000))
         }

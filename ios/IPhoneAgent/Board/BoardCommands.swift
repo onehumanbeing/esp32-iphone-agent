@@ -112,7 +112,10 @@ extension BoardTransport {
         let name = parts.first ?? "", arg = parts.count > 1 ? parts[1] : ""
         switch name {
         case "move": return 5 + Double(arg.split(separator: " ").compactMap { Int($0) }.map(abs).max() ?? 0) / 10 * 0.012
-        case "type": return 5 + 0.1 * Double(arg.count)
+        case "type":
+            // Sized for one chunk. A longer command (older call sites) is capped the same way so the app
+            // does not wait out a watchdog reboot. Initial estimate, matched to TypeChunks.maxChars.
+            return 5 + 0.1 * Double(min(arg.count, TypeChunks.maxChars))
         case "ping": return 8  // an idle check: tolerate a hiccup rather than drop a healthy board
         case "snap": return 15  // a whole GOP over BLE
         case "bench": return 5 + (Double(arg) ?? 0) / 10  // KB at >= 80 kbps
@@ -225,13 +228,16 @@ extension BoardTransport {
 
     /// While idle: ping every few seconds, so a board that went away shows as gone within seconds, and nudge
     /// the pointer now and then so the phone does not auto-lock. Runs until cancelled.
-    func keepAwake(idle: Double = 25, heartbeat: Double = 2, screenLive: @escaping () -> Bool) async {
+    func keepAwake(idle: Double = 25, heartbeat: Double = 2, screenLive: @escaping () -> Bool,
+                   nudgeWhenIdle: @escaping () -> Bool = { false }) async {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(heartbeat * 1e9))
             if !connected || now() - beat < heartbeat { continue }
             do {
-                // nudge only a phone that is awake and mirroring: there is nothing to keep awake otherwise
-                if now() - last > idle && screenLive() {
+                // 20 s is under a 30 s auto-lock. Initial estimate: HID may reset the idle timer; confirm on a device.
+                // The pair of moves nets to no pointer change and does not go through Pointer, so it is not a rehome.
+                let wait = nudgeWhenIdle() ? 20.0 : idle
+                if now() - last > wait && (screenLive() || nudgeWhenIdle()) {
                     for move in ["move 1 0", "move -1 0"] {
                         try await send(move, timeout: nil) {
                             guard screenLive() else { throw CancellationError() }

@@ -60,6 +60,8 @@ struct ModelLaunchConfiguration {
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
 ///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
+///   iphoneagent://display?try=1040x720,1440x1000   (Debug: advertise each size for one mirroring session, log what
+///                                                  iOS streams, then go back to the default; ?reset=1 stops)
 /// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
@@ -88,6 +90,8 @@ extension AppModel {
                 intents.items.filter { $0.name == old || $0.prompt.hasPrefix(old) }.forEach { intents.delete($0.id) }
             }
             intents.add(name: arg("name") ?? "", prompt: prompt)
+        case "line":  // iphoneagent://line?free=1: runs go out on the free line (the Manina AI key kept, off); free=0: on the key
+            Trial.shared.setKeyOn(arg("free") != "1")
         case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
             CallGuide.seen = false
         case "bench":
@@ -95,6 +99,13 @@ extension AppModel {
         case "tree":
             guard let source = arg("source").flatMap(TreeSource.init(rawValue:)) else { return false }
             setTreeSource(source)
+        #if DEBUG
+        case "display":
+            startDisplayTrial(arg("reset") != nil ? [] : (arg("try") ?? "").split(separator: ",").compactMap {
+                let p = $0.split(separator: "x").compactMap { Int($0) }
+                return p.count == 2 ? (p[0], p[1]) : nil
+            })
+        #endif
         default:
             return false
         }
@@ -210,7 +221,7 @@ extension AppModel {
             return true
         }
         if !keyed.isEmpty { say("debug: keys stored for " + keyed.map(\.title).joined(separator: ", ")) }
-        // -import-intents <file>: an .esp32intent copied into Documents (devicectl), imported like an opened file
+        // -import-intents <file>: a .intent file copied into Documents (devicectl), imported like an opened file
         if let name = value(after: "-import-intents"), !name.contains("/"),
            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             importIntents(docs.appendingPathComponent(name))
@@ -285,12 +296,11 @@ extension AppModel {
     }
 
     #if DEBUG
-    /// harness/lib.sh drops `Documents/harness-inbox/<time>.json` = ["-run", "<task>"] (launch arguments): iOS
+    /// harness/lib.sh drops `Documents/developer/harness-inbox/<time>.json` = ["-run", "<task>"] (launch arguments): iOS
     /// often restores the app for Bluetooth first, and devicectl's launch then only brings it to the front, without
     /// the arguments. Checked every second; each file is handled once and removed.
     func readHarnessInbox() {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("harness-inbox")
+        let dir = FilesLayout.developer.appendingPathComponent("harness-inbox")
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
         for name in names.sorted() where name.hasSuffix(".json") {
             let file = dir.appendingPathComponent(name)
@@ -400,8 +410,8 @@ extension AppModel {
                     } else { reply = "err not found" }
                 } else if command == "shot" {  // the mirrored screen now, for harness/hid.sh to pull
                     await feed.settled(most: 1.5)
-                    let name = "harness-shots/\(Int(Date().timeIntervalSince1970)).jpg"
-                    let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
+                    let name = "harness-shots/\(Int(Date().timeIntervalSince1970)).jpg"  // in Documents/developer
+                    let url = FilesLayout.developer.appendingPathComponent(name)
                     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                     reply = (try? feed.frame?.write(to: url)) != nil ? "saved " + name : "err no frame"
                     if let jpeg = feed.frame { HarnessLink.shared.sendFile(name, jpeg) }  // harness/live.py saves it
@@ -432,3 +442,41 @@ extension AppModel {
         return false
     }
 }
+
+#if DEBUG
+extension AppModel {
+    /// Which stream iOS sends for an advertised AirPlay display: the board's size is set now, and each new mirroring
+    /// session logs what arrived (frames, AirPlay rate, the board's GOP and heap) after 12 s, then moves on to the next
+    /// size; after the last, back to the default. The display applies from the next Screen Mirroring start.
+    func startDisplayTrial(_ sizes: [(w: Int, h: Int)]) {
+        displayTrials = Array(sizes.dropFirst())
+        DeviceCaps.mirrorDisplayOverride = sizes.first
+        let want = DeviceCaps.mirrorDisplay
+        DebugLog.write(sizes.isEmpty ? "display test: off, back to \(want.w)x\(want.h)"
+                       : "display test: advertising \(want.w)x\(want.h); restart Screen Mirroring (\(sizes.count) size(s) to go)")
+        mirrorDisplayAsked = false
+        if let s = board.status {
+            if sizes.isEmpty, !DeviceKind.isPad, s.w != want.w || s.h != want.h {  // an iPhone back to its default
+                Task { _ = try? await board.commands.send("res \(want.w) \(want.h)") }
+            } else {
+                matchMirrorDisplay(s)
+            }
+        }
+    }
+
+    /// A mirroring session started: during a test, report it once the stream has run a while, then go on.
+    func displayTrialSession() {
+        guard let tried = DeviceCaps.mirrorDisplayOverride else { return }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
+            guard let self, DeviceCaps.mirrorDisplayOverride.map({ $0 == tried }) == true else { return }
+            let s = self.board.status
+            DebugLog.write("display test: advertised \(tried.w)x\(tried.h) -> frames \(Int(self.feed.size.width))x\(Int(self.feed.size.height)), "
+                + String(format: "AirPlay %.0f kbps %.1f fps, GOP %d KB, heap %d KB, overflows %d", s?.kbps ?? 0, s?.fps ?? 0,
+                         (s?.gop ?? 0) / 1024, (s?.heap ?? 0) / 1024, s?.ovf ?? 0)
+                + ", screen \(Int(DeviceScreen.size.width))x\(Int(DeviceScreen.size.height)) pt")
+            self.startDisplayTrial(self.displayTrials)
+        }
+    }
+}
+#endif

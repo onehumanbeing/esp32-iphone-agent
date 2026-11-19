@@ -102,4 +102,21 @@ import UIKit
         XCTAssertEqual(file.note, IntentShare.reviewNote)
         XCTAssertEqual(try IntentArchive.decode(data), [item], "the note doesn't change what is imported")
     }
+
+    /// Henry 2026-11-16: in a file with several intents the user picks which to add; one that looks saved (same
+    /// name and words, files carry no ids) is only marked, and adding it again makes a second copy.
+    func testPickedIntentsAddEvenWhenTheyLookSaved() throws {
+        let items = [IntentArchive.Item(name: "Alarm", prompt: "Set an alarm for 7:00", icon: "alarm.fill", color: "red"),
+                     IntentArchive.Item(name: "Text Mom", prompt: "Text Mom I'm on my way")]
+        let store = IntentStore(defaults: UserDefaults(suiteName: "pick-" + UUID().uuidString)!)
+        let before = store.items.count
+        XCTAssertEqual(try store.add([items[0]]), 1)
+        XCTAssertEqual(store.items.first?.name, "Alarm")
+        XCTAssertEqual(store.items.first?.color, "red")
+        XCTAssertTrue(IntentArchive.looksSaved(items[0], in: store.items))
+        XCTAssertFalse(IntentArchive.looksSaved(items[1], in: store.items))
+        XCTAssertEqual(try store.add(items), 2, "the user chose it: no skipping")
+        XCTAssertEqual(store.items.count, before + 3)
+        XCTAssertEqual(store.items.prefix(2).map(\.name), ["Alarm", "Text Mom"], "file order, at the top")
+    }
 }

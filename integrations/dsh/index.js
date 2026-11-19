@@ -1,4 +1,4 @@
-/** Registers the handsy skill that teaches the agent the see-act loop for the esp32agent MCP tools. */
+/** Registers the manina skill that teaches the agent the see-act loop for the esp32agent MCP tools. */
 
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url'
 export const name = 'dsh-esp32agent'
 export const inject = ['skills']
 
-const SKILL_DIR = fileURLToPath(new URL('./skills/handsy/', import.meta.url))
+const SKILL_DIR = fileURLToPath(new URL('./skills/manina/', import.meta.url))
 const SKILL_PATH = `${SKILL_DIR}SKILL.md`
-// Same rank as dsh's bundled skills (BUNDLED_SKILL_RANK), so a user's own handsy skill wins.
+// Same rank as dsh's bundled skills (BUNDLED_SKILL_RANK), so a user's own manina skill wins.
 const RANK = 600
 
 function parse(raw) {
@@ -23,7 +23,7 @@ function parse(raw) {
 export function apply(ctx) {
   const { description } = parse(readFileSync(SKILL_PATH, 'utf8'))
   const candidate = {
-    name: 'handsy', description,
+    name: 'manina', description,
     invocation: { modelInvocable: true, userInvocable: true },
     provider: name, source: 'bundled', rank: RANK,
     resourceBase: { kind: 'directory', path: SKILL_DIR },

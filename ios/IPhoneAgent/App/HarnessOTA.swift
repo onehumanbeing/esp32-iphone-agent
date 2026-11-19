@@ -28,8 +28,7 @@ extension AppModel {
 
     private func runHarnessOTA(_ dir: String) async throws -> String {
         guard !dir.isEmpty, !dir.hasPrefix("."), !dir.contains("/") else { throw Firmware.Failure("bad folder \(dir)") }
-        let manifest = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(dir + "/firmware.json")
+        let manifest = Firmware.folder(dir).appendingPathComponent("firmware.json")
         guard let data = try? Data(contentsOf: manifest),
               let url = (try? JSONDecoder().decode(FirmwareRelease.self, from: data)).flatMap({ URL(string: $0.url, relativeTo: manifest) }),
               url.isFileURL, let image = try? Data(contentsOf: url) else { throw Firmware.Failure("no firmware.json and image in Documents/\(dir)") }

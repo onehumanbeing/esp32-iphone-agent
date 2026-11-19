@@ -11,7 +11,7 @@ extension AppModel {
     var runID: String { traces.dir?.lastPathComponent ?? "" }
 
     /// Start a task (or a saved intent: its checklist goes to the actor as hints).
-    func run(_ task: String, intent: SavedTask? = nil) async {
+    func run(_ task: String, intent: SavedTask? = nil, unattended: Bool = false) async {
         guard !startingAgent, !agent.running, !recorder.busy else { return }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
         if IntentStore.unfilled(task) {  // a template: who and what are the user's to fill in first
@@ -20,6 +20,7 @@ extension AppModel {
         }
         if Calls.isCall(task, kind: intent?.kind), CallGuide.shared.holds(task, intent: intent) { return }  // a call: the setup guide first, until Don't Show Again
         currentIntent = intent
+        launchUnattended = unattended
         var task = task, resume = false
         if ChatContext.isContinue(task), let last = threads.current.turns.last {  // "continue": the last task, from where it stopped
             task = last.ask
@@ -28,6 +29,7 @@ extension AppModel {
         lastTask = task
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
+        agent.cachedPlan = resume ? nil : intent.flatMap { planCache.reload(); return planCache.entry(for: $0)?.plan }  // PlanCache
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
         pointer.overlayStays = Calls.isCall(task, kind: intent?.kind)
         if agent.replay.steps.isEmpty, Calls.isCall(task, kind: intent?.kind) {  // a call: the fast scripted way (Calls.script)
@@ -129,10 +131,14 @@ extension AppModel {
             if settings.provider == .handsyTrial { try await Trial.shared.precheck() }  // free line: open? (lease later)
             let actor = try await settings.client("actor")
             let jev = settings.jevActor(around: actor)  // Jev on, asked from the app
+            jev?.onNotice = { [weak self] in self?.notice = $0 }
             if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
             agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
             agent.checkpointModel = try await settings.checkpointClient()
+            let reader = try? await settings.client("reader")  // RECORD fields read in the background
+            reader?.retriesBusy = false
+            agent.reader = reader
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
             agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
             agent.compactTree = settings.provider == .handsyTrial && TreeSource.current == .device  // Debug only
@@ -153,7 +159,7 @@ extension AppModel {
         let t0 = now()
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
-        if !(resume && traces.dir != nil) { traces.start(task: task) }
+        if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
         Analytics.capture("run_started", settings.analyticsModel.merging(
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
         startVideo()
@@ -185,7 +191,9 @@ extension AppModel {
             try Task.checkCancellation()
             usedInput = true
             step = .homeBar
-            if !resume {  // resuming waits for the user to switch back: a pointer parked on the home bar only
+            // started here, a task naming one app with a known scheme: straight into it (AppNames.schemes)
+            let schemeApp = (resume ? agent.currentApp : startedAway ? nil : AppNames.only(in: task)).flatMap { AppNames.schemeURLs($0).isEmpty ? nil : $0 }  // resume: back into the run's app
+            if !resume && schemeApp == nil {  // resuming waits for the user to switch back: a pointer parked on the home bar only
                 // invites a stray stroke there (2026-11-12)
                 try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
                 mark("pointer on the home bar")
@@ -200,7 +208,15 @@ extension AppModel {
             let requestedAt = appIsBackgrounded && backgroundEnteredAt > 0 ? backgroundEnteredAt : now()
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
             step = .leaveApp
-            let away = try await (resume ? waitForSwitchBack() : leaveForRun())
+            var openedAtStart: String?
+            if !resume || agent.guides.isEmpty { AppGuides.shared.prefetch() }  // answered while the app opens and the first frame comes
+            if let schemeApp, await openByScheme(schemeApp) {
+                openedAtStart = schemeApp
+                mark("opened \(schemeApp) by scheme")
+            } else if schemeApp != nil {
+                try? await pointer.aimHomeBar()
+            }
+            let away = try await (openedAtStart != nil ? true : resume ? waitForSwitchBack() : leaveForRun())
             try Task.checkCancellation()
             guard away else {  // never let the agent start on its own app
                 throw DeviceError(message: String(localized: "\(AppName.current) is still on screen"))
@@ -222,11 +238,23 @@ extension AppModel {
                 step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
                 try Task.checkCancellation()
-                mark(Trial.shared.keyed ? "Handsy key run (no lease)" : "free line lease")
+                mark(Trial.shared.keyed ? "Manina AI key run (no lease)" : "free line lease")
             }
+            agent.policy = (launchUnattended || settings.unattendedMode)
+                ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
+            agent.speculate = settings.speculativeLook
+            // A run resumed after a relaunch has no list yet: without it the app's guide was gone from step one of the
+            // resumed part (2026-11-18, a food-order run tapped shop names again after each Continue).
+            if !resume || agent.guides.isEmpty { agent.guides = await AppGuides.shared.list() }  // prefetched; none when unreachable
+            // Mirroring repair runs only after Settings has learned the Control Center taps for this screen.
+            launchUnattended = false
             agent.startsOnHome = !resume && !startedAway  // leaveForRun went to the Home Screen
+            agent.openedAtStart = openedAtStart  // or the scheme went straight to the task's app
+            if !resume { agent.resultName = currentIntent?.name }  // names the folder the notes go to (LiveNotes)
+            if !resume { pointer.forgetPosition() }  // the first gesture homes the pointer
             if startedAway { agent.hints.insert(Self.hereHint, at: 0) }
             step = .agentStart
+            try validateRunGeometry()
             try agent.start(task, traceStarted: true, resume: resume)
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.
@@ -340,7 +368,9 @@ extension AppModel {
         guard agent.running, let last = agent.steps.last, help == nil else { return }
         let moved = !StepText.notMoves.contains(last["action"]?.str ?? "")
         runMood = moved ? .acting : .thinking
-        live.update(mood: runMood ?? .thinking, step: moveCount, line: StepText.line(last), phase: paused ? .paused : .running)
+        let count = agent.notebook.count.flatMap { c in c.total.map { (done: c.done, total: $0) } }
+        live.update(mood: runMood ?? .thinking, step: moveCount, line: StepText.line(last), phase: paused ? .paused : .running,
+                    count: count)
         if moved {
             moodReset?.cancel()
             moodReset = Task { [weak self] in
@@ -361,6 +391,7 @@ extension AppModel {
         case .planning: live.show(.planning, mood: .thinking)
         case .thinking: live.show(.thinking, mood: .thinking)
         case .retrying: live.show(.retrying, mood: .thinking)
+        case .wrapping: live.show(.wrapping, mood: .thinking)
         case .acting(let act): live.show(.acting(act), mood: .acting)
         }
     }
@@ -455,8 +486,7 @@ extension AppModel {
         // present again, and a second open while the first is still animating in can leave it closed (2026-11-13:
         // the review of a stopped run showed for ~1 s, then Home).
         if let open = review, open.runID == id, open.steps.count == run.steps.count { return }
-        let intent = intents.items.first { $0.refRun == id || $0.runs.contains { $0.run == id } }
-        review = ReviewDraft(run: run, intent: intent)
+        review = ReviewDraft(run: run, intent: intents.intent(of: run))
     }
 
     /// The model rewrites the prompt and checklist from the trace and the user's corrections.
@@ -468,10 +498,15 @@ extension AppModel {
                      String(localized: "The + button is at the top right of Alarms"),
                      String(localized: "Check all seven days under Repeat, then tap Back")])
         }
-        let reply = try await settings.client("planner").chat(system: ReviewDraft.optimizerPrompt,
-                                                              text: draft.optimizerInput(), image: nil,
-                                                              maxTokens: 800, temperature: 0.2)
-        guard let result = ReviewDraft.parseOptimized(reply.text) else {
+        // one's own model answers at once; the free line and Manina AI keys go through the server's job (Trial)
+        let text: String
+        if settings.provider == .handsyTrial {
+            text = try await Trial.shared.optimize(system: ReviewDraft.optimizerPrompt, input: draft.optimizerInput())
+        } else {
+            text = try await settings.client("planner").chat(system: ReviewDraft.optimizerPrompt, text: draft.optimizerInput(),
+                                                             image: nil, maxTokens: 8000, temperature: 0.2).text
+        }
+        guard let result = ReviewDraft.parseOptimized(text) else {
             throw LLMError(message: String(localized: "The model gave no improved prompt."))
         }
         return result
@@ -556,8 +591,21 @@ extension AppModel {
     // MARK: - recording the run
 
     /// Saves the mirror stream at ~2 fps into the run folder (video/<ms>.jpg), for the review's video view.
+    /// Debug builds only (Henry 2026-11-19): a release build keeps each step's screenshot, not the stream (one
+    /// long run: 10,335 frames at 2 fps against 389 step screenshots).
+    static var recordsVideo: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    private static let videoWrites = DispatchQueue(label: "video.frames", qos: .utility)
+
     private func startVideo() {
-        guard let dir = traces.dir?.appendingPathComponent("video") else { return }
+        guard Self.recordsVideo, let dir = traces.dir?.appendingPathComponent("video") else { return }
+        traces.pruneVideo()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         videoDir = dir
         videoSink = feed.$frame.compactMap { $0 }
@@ -570,7 +618,8 @@ extension AppModel {
     func saveVideoFrame(_ jpeg: Data?) {
         guard !paused else { return }
         guard let jpeg, let dir = videoDir else { return }
-        try? jpeg.write(to: dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg"))
+        let file = dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg")
+        Self.videoWrites.async { try? jpeg.write(to: file) }  // off the main thread, which carries the board's replies
     }
 
     /// The built-in "Send diagnostics" intent: no board, model or free line slot needed.

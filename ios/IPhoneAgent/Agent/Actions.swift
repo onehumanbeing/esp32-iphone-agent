@@ -9,31 +9,47 @@ enum Actions {
 
     /// Bookkeeping keys that are not part of the action itself.
     static let meta: Set<String> = ["t", "thought", "thought_zh", "think_s", "act_s", "shot", "_shot", "changed", "replay", "jev",
-                                     "landed", "again", "demo", "sure", "label", "detour", "slot", "keyOnly"]
+                                     "landed", "again", "demo", "sure", "label", "detour", "slot", "keyOnly", "repaired"]
 
     /// action name -> argument names; numeric arguments are 0-1000 screen coordinates
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "clear": [], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
         "home": [], "back": [], "wait": [], "open": ["app"],
-        "read": ["what"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
+        "read": ["what"], "collect": ["what"], "find": ["text"], "each": ["text"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
         "tool": ["text"],  // tool <name> "query" (Tools.swift)
+        "guide": ["text"],  // guide APP: that app's notes from the server (AppGuides.swift)
         "say": ["text"],  // say "TEXT": Live Speech says it into a call (Calls.swift)
+        "file": ["text"],  // file {JSON}: the agent's files, memory tool commands (MemoryFiles)
+        "snap": ["text"],  // snap PATH [X1 Y1 X2 Y2]: this screen, or a box of it, saved as a .jpg (MemoryFiles)
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the screen.
     static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open", "say"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
-    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool"]
+    static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool", "guide", "file", "snap"]
 
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
         let (head, rest) = partition(line.trimmingCharacters(in: .whitespacesAndNewlines))
         let name = head.lowercased()
         guard let keys = actions[name] else { throw ParseError(message: "unknown action: \(line.prefix(100))") }
+        if name == "each" {  // each "ANCHOR" read "WHAT" [max N]: quotes kept, Each.parse reads them
+            return ["action": .str(name), "text": .str(rest.trimmingCharacters(in: .whitespacesAndNewlines))]
+        }
         if let first = keys.first, textArgs.contains(first) {
             let text = rest.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
             return ["action": .str(name), first: .str(text)]
+        }
+        if name == "wait", let until = WaitFor.parse(rest) {  // wait "成功" / wait gone "加载中" [SECONDS]
+            var action: JObject = ["action": .str(name), "text": .str(until.text), "seconds": .num(until.seconds)]
+            if until.gone { action["gone"] = .bool(true) }
+            return action
+        }
+        if name == "tap", let words = quoted(rest) {  // tap "删除": the words, placed by OCR (TapText)
+            var action: JObject = ["action": .str(name), "text": .str(words)]
+            if rest.lowercased().hasSuffix("precise") { action["precise"] = .bool(true) }
+            return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
         if keys == ["points"] {
@@ -57,7 +73,13 @@ enum Actions {
     static func parseActions(_ text: String) throws -> [JObject] {
         let thought = firstGroup(#"^\s*THINK\s*[:：]\s*(.*?)\s*$"#, in: text, multiline: true)
         let zh = firstGroup(#"^\s*ZH\s*[:：]\s*(.*?)\s*$"#, in: text, multiline: true)
-        var acts = try allGroups(#"^\s*DO\s*[:：]\s*(.*?)\s*$"#, in: text).map(parseCommand).prefix(6).map { $0 }
+        let lines = allGroups(#"^\s*DO\s*[:：]\s*(.*?)\s*$"#, in: text)
+        if lines.isEmpty, let fixed = ReplyRepair.repair(text) {  // a JSON action, a tool call: the same actions
+            var acts = try parseActions(fixed)
+            acts[0]["repaired"] = .bool(true)
+            return acts
+        }
+        var acts = try lines.map(parseCommand).prefix(6).map { $0 }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
         acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
@@ -70,19 +92,34 @@ enum Actions {
     /// opened another panel, and a trailing "done" ended the run unsent.) Switching the keyboard (ctrl+space) ends
     /// the batch: the model must see which layout it got before typing (2026-11-03: "key ctrl+space, type …" twice
     /// in a row toggled back to pinyin and left the English text as an unconfirmed pinyin string).
+    /// Actions that only write (the screen, the notebook, a file): a done after them still sees what the model saw.
+    static let screenless: Set<String?> = ["note", "progress", "remember", "learn", "file", "snap"]
+
     static func blindSafe(_ acts: [JObject]) -> [JObject] {
-        let ending: Set<String?> = ["done", "fail", "confirm", "write", "say"]  // after say: listen
+        let ending: Set<String?> = ["done", "fail", "confirm", "write", "say", "collect", "find", "each"]  // after say: listen
         var out: [JObject] = []
         var typed = false
         for a in acts {
             let name = a["action"]?.str
-            // `read` copies the screen the model looked at: only before any gesture
-            if !out.isEmpty && (ending.contains(name) || name == "read" || typed && name != "key") { break }
+            // after writing only (a snap, a note, a file) nothing on the screen moved: a done may follow. 2026-11-19
+            // (Ctrip): "snap, done" six rounds in a row, each done cut, the run snapped and wrote on for 70 s.
+            if name == "done" || name == "fail", !out.isEmpty, out.allSatisfy({ screenless.contains($0["action"]?.str) }) {
+                out.append(a)
+                break
+            }
+            // `read` and `snap` copy the screen the model looked at: only before any gesture
+            if !out.isEmpty && (ending.contains(name) || name == "read" || name == "snap" || typed && name != "key") { break }
             out.append(a)
             if ending.contains(name) || name == "open" || isKeyboardSwitch(a) { break }
             typed = typed || name == "type"
         }
         return out
+    }
+
+    /// `key enter` / `key return`: what sends a typed message or submits a field.
+    static func isEnter(_ a: JObject) -> Bool {
+        guard a["action"]?.str == "key", let combo = a["combo"]?.str?.lowercased() else { return false }
+        return ["enter", "return"].contains(combo.trimmingCharacters(in: .whitespaces))
     }
 
     static func isKeyboardSwitch(_ a: JObject) -> Bool {
@@ -118,6 +155,16 @@ enum Actions {
 
     private static func trim(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// The words of `"…"` (or “…”) at the start of `s`.
+    private static func quoted(_ s: String) -> String? {
+        let t = trim(s)
+        guard let open = t.first, open == "\"" || open == "“" else { return nil }
+        let rest = t.dropFirst()
+        guard let close = rest.firstIndex(where: { $0 == "\"" || $0 == "”" }) else { return nil }
+        let words = trim(String(rest[..<close]))
+        return words.isEmpty ? nil : words
+    }
+
     private static func partition(_ s: String) -> (String, String) {
         guard let i = s.firstIndex(of: " ") else { return (s, "") }
         return (String(s[..<i]), String(s[s.index(after: i)...]))
@@ -147,8 +194,15 @@ enum Actions {
     }
 }
 
-/// Screen points (fractions) the pointer passes through for one action.
-func pointerPath(_ act: JObject) -> [CGPoint] {
+/// Frame points (fractions) the pointer passes through for one action. home and back are fixed spots on the screen:
+/// `geometry` (iPad) places them on a letterboxed frame.
+func pointerPath(_ act: JObject, geometry: ScreenGeometry? = nil) -> [CGPoint] {
+    let path = pointerPathOnScreen(act)
+    guard let geometry, ["home", "back"].contains(act["action"]?.str) else { return path }
+    return path.map(geometry.framePoint(fromScreen:))
+}
+
+private func pointerPathOnScreen(_ act: JObject) -> [CGPoint] {
     func n(_ k: String) -> Double { act[k]?.double ?? 0 }
     func f(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x / 1000, y: y / 1000) }
     switch act["action"]?.str {

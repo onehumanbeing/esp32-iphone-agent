@@ -15,7 +15,7 @@ import XCTest
         XCTAssertThrowsError(try Trial.shared.headers())  // tests and intent analysis never use the free line
     }
 
-    // MARK: - Handsy key (a plan's key instead of the free runs)
+    // MARK: - Manina AI key (a plan's key instead of the free runs)
 
     func testAKeyedRunSendsTheKeyAndNoLease() async throws {
         let trial = Trial.shared
@@ -75,6 +75,8 @@ import XCTest
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(AgentLoop.stepLimitReason)]]).reason, .stepLimit)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.board))]]).reason, .boardLost)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.mirroring))]]).reason, .blindMirroring)
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.mirroring, after: 7200))]]).reason, .blindMirroring)
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.locked))]]).reason, .blindMirroring)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(BlindError().reason)]]).reason, .blindMirroring)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str("the alarm app is not installed")]]).reason, .modelFail)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str("x")]]).outcome, "failed")
@@ -171,10 +173,10 @@ import XCTest
         XCTAssertEqual(reply.text, "DO: wait")
 
         StubProtocol.respond = { _ in
-            (200, "text/event-stream", #"data: {"error": {"code": "busy", "message": "Handsy Free is busy"}}"# + "\n\n")
+            (200, "text/event-stream", #"data: {"error": {"code": "busy", "message": "Manina AI Free is busy"}}"# + "\n\n")
         }
         do { _ = try await llm.chat(system: "s", text: "t"); XCTFail("expected the gateway's error") } catch {
-            XCTAssertEqual(error.localizedDescription, "Handsy Free is busy")  // its own error, not the cut stream
+            XCTAssertEqual(error.localizedDescription, "Manina AI Free is busy")  // its own error, not the cut stream
         }
     }
 
@@ -259,6 +261,9 @@ import XCTest
                        "lease_idle")
         XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"reason": "lease_idle", "status": "busy"}"#)?.kind,
                        LLMError.trialRunEnded.kind)  // ends the run
+        let timeUp = LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "lease_ended"}"#)
+        XCTAssertEqual(timeUp?.message, LLMError.trialTimeUp.message, "time up is said as it is")
+        XCTAssertEqual(timeUp?.kind, LLMError.trialRunEnded.kind)
         XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "quota"}"#)?.message,
                        TrialError.usedUp.localizedDescription)
         XCTAssertEqual(LLMClient.freeLineError(status: 429, errorText: #"{"status": "busy", "reason": "rate_limit_day"}"#)?.message,
@@ -271,7 +276,7 @@ import XCTest
         XCTAssertEqual(ModelRequestFailure.message(timeout), busy)
         XCTAssertEqual(LLMClient.freeLineError(URLError(.networkConnectionLost)).localizedDescription, busy)
         XCTAssertTrue(LLMClient.freeLineError(URLError(.cancelled)) is URLError)
-        let event = LLMError(message: "Handsy Free is busy", reason: "busy"), consent = LLMError(message: "Allow first")
+        let event = LLMError(message: "Manina AI Free is busy", reason: "busy"), consent = LLMError(message: "Allow first")
         XCTAssertEqual(LLMClient.freeLineError(event).localizedDescription, busy)
         XCTAssertEqual(LLMClient.freeLineError(consent).localizedDescription, "Allow first")  // the user's own step
         XCTAssertEqual(LLMError.trialRunEnded.message, busy)

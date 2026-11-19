@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/ma
 ```
 
 Windows（PowerShell）：`irm https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.ps1 | iex`。
-npm：`npm install -g esp32agent`。安装脚本读取 `https://handsy.tech/cli/versions.json` 上的版本列表（读不到时改用 GitHub Releases），并校验压缩包的 SHA-256。截图需要 `ffmpeg`（安装脚本会提示用 brew / apt / dnf / winget 安装）。以后升级：`esp32agent upgrade`。
+npm：`npm install -g esp32agent`。安装脚本读取 `https://manina.ai/cli/versions.json` 上的版本列表（读不到时改用 GitHub Releases），并校验压缩包的 SHA-256。截图需要 `ffmpeg`（安装脚本会提示用 brew / apt / dnf / winget 安装）。以后升级：`esp32agent upgrade`。
 
 ## 配对
 
@@ -49,8 +49,8 @@ npm：`npm install -g esp32agent`。安装脚本读取 `https://handsy.tech/cli/
 | `intent list`、`intent show NAME\|ID` | 保存的意图 |
 | `intent save --name N --prompt P [--hint H ...] [--from-run RUN [--steps 1,3,4]]` | 保存意图；步骤取自某次运行中可以重放的操作（全部，或 `history show` 里的编号） |
 | `intent delete NAME\|ID` | |
-| `intent export NAME\|ID... [--screenshots] [--output FILE]` | 导出 iOS App 能导入的 `.esp32intent` 文件；加 `--screenshots` 才带参考截图 |
-| `intent import FILE` | 导入 `.esp32intent` 文件（来自 App 或 `export`）；名称和提示词都相同的已有意图会跳过 |
+| `intent export NAME\|ID... [--screenshots] [--output FILE]` | 导出 iOS App 能导入的 `.intent` 文件；加 `--screenshots` 才带参考截图 |
+| `intent import FILE` | 导入 `.intent` 文件（来自 App 或 `export`）；名称和提示词都相同的已有意图会跳过 |
 | `memory list`、`memory search TEXT [--limit N]` | Agent 记住的内容，最相关的在前 |
 | `memory add TEXT [--kind preference\|fact\|app] [--topic APP]` | 记住一行；密码、验证码、银行卡号和证件号会被拒绝 |
 | `memory rm ID` | |
@@ -79,7 +79,7 @@ MCP 工具：`screenshot`（返回图片）、`tap`、`longpress`、`swipe`、`t
 
 daemon 会像 iOS App 记录运行一样，记下每个操作和截图：配置目录里的 `runs/<yyyyMMdd-HHmmss>/steps.jsonl`（操作用 0–1000 的屏幕单位，画面存成 480 像素宽的 JPEG）。空闲 10 分钟后或运行 `history new` 时开始新的一次运行；保留最新的 100 次。所有内容都不会离开这台电脑。
 
-意图是保存下来的任务：名称、提示词、最多 6 条提示，以及录下的步骤和对应画面（配置目录里的 `intents.json` 和 `intent-frames/<id>/`，字段和 App 一致）。`intent save --from-run RUN` 会取这次运行中可以重放的操作（点按、滑动、输入、按键、回主屏幕）。`intent export` 和 `intent import` 使用 App 的 `.esp32intent` 格式，所以意图可以在 CLI 和 iPhone App 之间互传（隔空投送或「文件」App）。
+意图是保存下来的任务：名称、提示词、最多 6 条提示，以及录下的步骤和对应画面（配置目录里的 `intents.json` 和 `intent-frames/<id>/`，字段和 App 一致）。`intent save --from-run RUN` 会取这次运行中可以重放的操作（点按、滑动、输入、按键、回主屏幕）。`intent export` 和 `intent import` 使用 App 的 `.intent` 格式，所以意图可以在 CLI 和 iPhone App 之间互传（隔空投送或「文件」App）。
 
 ## 记忆
 
@@ -87,7 +87,7 @@ iOS App 把用户告诉它的内容（偏好、事实、某个 App 怎么用）�
 
 ## 把意图分享给开发者（可选）
 
-`esp32agent report --intent NAME [--screenshots]` 可以帮助大家改进意图。它只能在你亲自输入的终端里运行（Agent 调用不了，也没有对应的 MCP 工具）。它会在临时目录写一个脱敏的 `.esp32intent`：输入过的文字变成 `•••`，IP 地址会被删掉；加 `--screenshots` 时，每张截图顶部 7%（状态栏、通知）会被涂黑，并缩到 480 像素宽，画面上的其他文字仍然看得清。它会先列出文件里的全部内容（名称、提示词、提示、步骤数、截图、路径），你输入 `y` 才会继续：然后在你的邮件 App 里打开一封发给 `intents@handsy.tech` 的邮件，并显示这个文件。附上文件后由你自己发送；esp32agent 不会自己发送任何东西。
+`esp32agent report --intent NAME [--screenshots]` 可以帮助大家改进意图。它只能在你亲自输入的终端里运行（Agent 调用不了，也没有对应的 MCP 工具）。它会在临时目录写一个脱敏的 `.intent`：输入过的文字变成 `•••`，IP 地址会被删掉；加 `--screenshots` 时，每张截图顶部 7%（状态栏、通知）会被涂黑，并缩到 480 像素宽，画面上的其他文字仍然看得清。它会先列出文件里的全部内容（名称、提示词、提示、步骤数、截图、路径），你输入 `y` 才会继续：然后在你的邮件 App 里打开一封发给 `intents@manina.ai` 的邮件，并显示这个文件。附上文件后由你自己发送；esp32agent 不会自己发送任何东西。
 
 ## 限制
 
@@ -107,4 +107,4 @@ make -C hardware/tests/sim      # 模拟板子（固件的 cli_link.cpp）：启
 ESP32AGENT_SIM=$PWD/hardware/tests/sim/cli_sim esp32agent screenshot   # 让 CLI 连模拟器
 ```
 
-发布：推送 tag `cli-vX.Y.Z`；`.github/workflows/cli.yml` 会为 amd64/arm64 构建 darwin（cgo、CoreBluetooth）、linux 和 windows（纯 Go）版本，并上传压缩包和 `checksums.txt`。它还会生成一个 `versions.json` 产物（[格式](install/versions.example.json)）；把它合并进 `https://handsy.tech/cli/versions.json` 需要手动完成。`ESP32AGENT_VERSIONS_URL` 可以让 `upgrade` 和安装脚本改读另一份列表（用于测试）。测试安装脚本：`ESP32AGENT_ARCHIVE=/path/esp32agent_darwin_arm64.tar.gz sh cli/install/install.sh`（`checksums.txt` 放在同一目录）。
+发布：推送 tag `cli-vX.Y.Z`；`.github/workflows/cli.yml` 会为 amd64/arm64 构建 darwin（cgo、CoreBluetooth）、linux 和 windows（纯 Go）版本，并上传压缩包和 `checksums.txt`。它还会生成一个 `versions.json` 产物（[格式](install/versions.example.json)）；把它合并进 `https://manina.ai/cli/versions.json` 需要手动完成。`ESP32AGENT_VERSIONS_URL` 可以让 `upgrade` 和安装脚本改读另一份列表（用于测试）。测试安装脚本：`ESP32AGENT_ARCHIVE=/path/esp32agent_darwin_arm64.tar.gz sh cli/install/install.sh`（`checksums.txt` 放在同一目录）。

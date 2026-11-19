@@ -1,9 +1,9 @@
 ---
-name: handsy-run-tasks
-description: Guides Siri through multi-step work with ESP32 Agent (Handsy), which operates a real iPhone by looking at the screen and tapping, swiping and typing. Use when a request needs a phone task done or a recorded run replayed, and more than one step or tool may be involved.
+name: manina-run-tasks
+description: Guides Siri through multi-step work with ESP32 Agent (Manina AI), which operates a real iPhone by looking at the screen and tapping, swiping and typing. Use when a request needs a phone task done or a recorded run replayed, and more than one step or tool may be involved.
 ---
 
-# Working with ESP32 Agent (Handsy)
+# Working with ESP32 Agent (Manina AI)
 
 ESP32 Agent drives a physical iPhone through a board plugged into it. It sees the phone's screen and
 moves the pointer, so it can do what a person would do by hand. Every task is one run, and every run
@@ -74,4 +74,4 @@ ask the person to confirm, and pass the task along only after they agree.
 If a task needs a password, passcode, Face ID or a one-time code, stop and hand it to the person.
 Do not ask them to say such a value out loud to you.
 
-Help: support@handsy.tech
+Help: support@manina.ai

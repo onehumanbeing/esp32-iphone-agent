@@ -10,6 +10,13 @@ The model prompts the app sends, as plain text. They are bundled into the app at
   the whole goal is visible. Lists the action syntax the app parses.
 - `app-rules.md`: rules for running inside the phone (never touch this app, toggles, home screen icons); appended
   to the actor prompt.
+- `reader.md`: copies the items a `read` action asks for off one screen, for the notebook.
+- One set for every device. An iPad gets the same files with "iPhone" read as "iPad", without the passages
+  between `<!-- iPhone only -->` and `<!-- /iPhone only -->` (an iPhone gets them, without the marker lines), and
+  then its own rules: `devices/ipad.md` after the actor prompt (its layouts: tab bars in the middle or a sidebar,
+  panels and popovers, small targets; the dock, Split View and Slide Over, back on a left-hand pane) and
+  `devices/ipad-reader.md` after the reader's. So what differs comes last and the shared part is written once;
+  PromptTests checks that the iPhone's prompt is the files as they are.
 
 Edit, rebuild, and compare runs in the app's Runs tab. Keep the action list in `actor.md` in sync with
 `ios/IPhoneAgent/Agent/Actions.swift`. Each file's final newline is not part of the prompt.

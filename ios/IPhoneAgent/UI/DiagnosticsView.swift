@@ -36,6 +36,9 @@ struct DiagnosticsView: View {
                 row("IDR interval (board / app)", "\(board.status?.idr.map { "\($0) ms" } ?? "–") / \(f(metrics.idrIntervalMs)) ms")
                 row("GOP buffered", board.status?.gop.map { "\($0 / 1024) KB" } ?? "–")
                 row("Resolution", board.status.map { "\($0.w ?? 0) x \($0.h ?? 0)" } ?? "–")
+                if DeviceKind.isPad {  // the iPad fits its screen into that display: the frames have the screen's shape
+                    row("Frames", feed.size.width > 0 ? "\(Int(feed.size.width)) x \(Int(feed.size.height))" : "–")
+                }
                 row("Decoded fps", f(metrics.fps, "%.1f"))
                 row("Decode", f(metrics.decodeMs, "%.1f") + " ms")
                 row("Snap -> decoded", f(metrics.snapMs) + " ms")
@@ -45,8 +48,13 @@ struct DiagnosticsView: View {
             SwiftUI.Section("Agent") {
                 row("LLM first token / total", "\(f(metrics.llmFirstMs)) / \(f(metrics.llmTotalMs)) ms")
                 row("LLM ping", f(metrics.llmPingMs) + " ms")
-                if let s = metrics.steps.last {
-                    row("Last step frame / LLM / HID", "\(f(s.frameMs)) / \(f(s.llmMs)) / \(f(s.hidMs)) ms")
+                if !metrics.steps.isEmpty {
+                    let frame = Metrics.median(metrics.steps.map(\.frameMs))
+                    let llm = Metrics.median(metrics.steps.map(\.llmMs))
+                    let hid = Metrics.median(metrics.steps.map(\.hidMs))
+                    let verdict = Metrics.median(metrics.steps.map(\.verdictMs))
+                    row("Median frame / verdict / LLM / HID", "\(f(frame)) / \(f(verdict)) / \(f(llm)) / \(f(hid)) ms")
+                    row("Steps in the median", "\(metrics.steps.count)")
                 }
                 ForEach(metrics.hidMs.keys.sorted(), id: \.self) { k in row("HID \(k)", f(metrics.hidMs[k]) + " ms") }
             }
@@ -65,10 +73,42 @@ struct DiagnosticsView: View {
                 if board.status?.isWirelessHID == true { row("Bluetooth HID", board.status?.hid ?? "–") }
                 row("Network", "\(board.status?.net ?? "–") \(board.status?.ip ?? "")")
             }
+            if app.lanMode {
+                SwiftUI.Section {
+                    row("Board's Wi-Fi", app.lanSSID ?? board.net?.ssid ?? "–")
+                    row("This device on it", app.phoneOnBoardLAN ? "yes" : "no")
+                    row("Video channel", app.wifiVideo.active ? "Wi-Fi" : "down (BLE)")
+                    row("Local Network permission", LocalNetworkPermission.granted ? "allowed" : "not confirmed")
+                    if let hint = lanHint { Text(hint).font(.caption) }
+                } header: {
+                    Text("LAN")
+                }
+            }
         }
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
+        .task { if app.lanMode { await app.refreshHotspot() } }
+    }
+
+    /// The likely LAN-mode failure, from what the board and the phone each report.
+    private var lanHint: String? {
+        let s = board.status
+        if s?.net == "none" { return String(localized: "The board is not on the Wi-Fi. Check the network and password in Settings › Board.") }
+        guard s?.net == "sta" else { return nil }
+        if !LocalNetworkPermission.granted && !app.wifiVideo.active {
+            return String(localized: "Local Network permission is off, so the screen comes over slow BLE. Allow it in Settings › ESP32 Agent › Local Network.")
+        }
+        if !app.phoneOnBoardLAN {
+            return String(localized: "This device and the board are on different networks; Screen Mirroring won't find the board.")
+        }
+        if s?.ap == "idle" {
+            return String(localized: "Same network, but the board doesn't show up in Screen Mirroring: the router may isolate devices from each other or block mDNS (common on office and hotel networks). The board's own hotspot always works — switch in Settings › Board.")
+        }
+        if s?.ap == "streaming", feed.updated > 0, now() - feed.updated > 3 {
+            return String(localized: "The mirrored image is stale: a busy 2.4 GHz band or router rate limiting can starve it.")
+        }
+        return nil
     }
 
     private func test(_ title: LocalizedStringKey, _ symbol: String, _ run: @escaping () async -> Void) -> some View {

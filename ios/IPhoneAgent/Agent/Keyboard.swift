@@ -8,8 +8,18 @@ enum KeyboardLayout: Equatable {
     static func read(_ jpeg: Data) async -> KeyboardLayout {
         guard let image = Vision.image(jpeg), let rows = bottomRows(image) else { return .none }
         let words = await text(in: rows)
+        if DeviceKind.isPad, let layout = padLayout(words) { return layout }
         if words.contains(where: { $0.contains("拼") || $0.contains("空格") || $0.contains("选定") }) { return .pinyin }
         return words.contains("123") ? .english : .none  // both layouts have the 123 key
+    }
+
+    /// iPad: the key left of A names the other layout: "abc" on the pinyin keyboard, "拼音" on the English one (2026-11-17
+    /// trace: the English keyboard read as pinyin for its 拼音 key, and its ".?123" keys never matched "123").
+    static func padLayout(_ words: [String]) -> KeyboardLayout? {
+        if words.contains(where: { $0.trimmingCharacters(in: .whitespaces).lowercased() == "abc" }) { return .pinyin }
+        if words.contains(where: { $0.trimmingCharacters(in: .whitespaces) == "拼音" }) { return .english }
+        if words.contains(where: { $0.contains("拼") || $0.contains("选定") }) { return .pinyin }  // its space bar
+        return words.contains(where: { $0.hasSuffix("123") }) ? .english : nil
     }
 
     /// The keyboard's bottom rows, scaled up to ~2000 px wide: the space bar's 拼 is a tiny grey glyph that

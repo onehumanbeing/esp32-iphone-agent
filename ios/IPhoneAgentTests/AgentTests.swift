@@ -159,7 +159,8 @@ import XCTest
             }
         }
         _ = try await agent.nextActions()
-        XCTAssertEqual(states.first, "waiting")
+        XCTAssertEqual(states.first, "thinking", "Think from the start: no Wait/Think flip on a quick answer")
+        XCTAssertFalse(states.contains("waiting"))
         XCTAssertEqual(states.last, "thinking")
         XCTAssertFalse(states.contains("planning"))
         XCTAssertNil(model.onProgress)
@@ -251,7 +252,7 @@ import XCTest
         _ = try await agent.nextActions()
         XCTAssertTrue(actor.prompts[0].hasSuffix(
             "Recent actions:\n{\"action\": \"tap\", \"x\": 1, \"y\": 2} -> screen changed\n"
-            + "{\"action\": \"type\", \"text\": \"caf\\u00e9\"}\n\nNext action?"))
+            + "{\"action\": \"type\", \"text\": \"caf\\u00e9\"}\n\n" + AgentLoop.replyFormat))
     }
 
     func testRunStopsAfterThreeErrorsInARow() async {
@@ -292,6 +293,56 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["answer"], .str("ok"))
         XCTAssertTrue(model.prompts[0].contains("Plan:\n(none yet: write one)"))  // one call plans and acts
         XCTAssertTrue(model.prompts[1].contains("Plan:\n1. Go home\n\nRecent actions:"))  // the layout Jev reads
+    }
+
+    func testOnceEverythingIsCollectedThePhoneIsHandedBackAndTheResultWrittenWithoutIt() async throws {
+        let task = "handback\(UUID().uuidString.prefix(6)) orders"
+        let model = FakeModel { n in
+            switch n {
+            case 1: return "THINK: one\nDO: tap 500 500\nDO: note Shop A ¥5\nDO: progress 1/1 orders"
+            case 2: return ##"THINK: write\##nDO: file {"command":"create","path":"README.md","file_text":"# Orders\n- Shop A ¥5"}"##
+            case 3: return "THINK: look again\nDO: tap 500 500"
+            default: return "THINK: there\nDO: done ok"
+            }
+        }
+        let phone = FakeGestures()
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        var handed = 0
+        agent.onHandBack = { handed += 1 }
+        try agent.start(task)
+        await agent.waitUntilStopped()
+        let folder = try XCTUnwrap(agent.runFolder)
+        defer { try? FileManager.default.removeItem(at: MemoryFiles.root.appendingPathComponent(folder)) }
+        XCTAssertEqual(handed, 1)
+        XCTAssertEqual(phone.calls.filter { $0.hasPrefix("tap") }.count, 1, "no gesture after the hand back")
+        XCTAssertNotNil(model.images[1], "the round that turned to writing still had the screen")
+        XCTAssertNil(model.images[2], "after the hand back: text only")
+        XCTAssertTrue(model.prompts[2].contains("handed back"))
+        XCTAssertTrue(agent.steps.contains { $0["reason"]?.str == HandBack.refusal })
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "done")
+        let dir = MemoryFiles.root.appendingPathComponent(folder)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("README.md").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("notes.md").path), "the README says it all")
+        XCTAssertFalse(HandBack.starts(["file"], count: (1, nil)), "total unknown: keep the phone")
+        XCTAssertFalse(HandBack.starts(["snap", "file"], count: (1, 1)))
+    }
+
+    func testAWriteUpThatNeverWritesLeavesTheNotesAsTheResult() async throws {
+        let task = "handback\(UUID().uuidString.prefix(6)) orders"
+        let model = FakeModel { n in
+            n == 1 ? "THINK: one\nDO: note Shop A ¥5\nDO: progress 1/1 orders" : "THINK: hmm\nDO: tap 500 500"
+        }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        try agent.start(task)
+        await agent.waitUntilStopped()
+        let folder = try XCTUnwrap(agent.runFolder)
+        let dir = MemoryFiles.root.appendingPathComponent(folder)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertTrue(agent.handedBack)
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "done")
+        let readme = try String(contentsOf: dir.appendingPathComponent("README.md"), encoding: .utf8)
+        XCTAssertTrue(readme.contains("Shop A ¥5"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("notes.md").path))
     }
 
     // MARK: - the model keeps its own plan
@@ -526,6 +577,19 @@ import XCTest
 
 // MARK: - fakes
 
+/// A reply cut at its ceiling is asked once more with a larger one (2026-11-19: 1000 cut every README write).
+@MainActor final class CutReplyTests: XCTestCase {
+    func testACutReplyIsAskedOnceMoreWithMoreTokens() async {
+        let model = FakeModel { n in n == 1 ? "1. go" : "THINK: x\nDO: done ok" }
+        model.cutBelow = AgentLoop.cutRetryTokens
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: model, trace: nil)
+        await agent.run()
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "done")
+        XCTAssertGreaterThanOrEqual(AgentLoop.maxTokens["actor"] ?? 0, 8000)
+        XCTAssertEqual(model.budgets.filter { $0 == AgentLoop.cutRetryTokens }.count, model.budgets.count / 2)  // one retry per ask, no loop
+    }
+}
+
 @MainActor final class FakeModel: ChatModel {
     let model = "fake"
     private(set) var prompts: [String] = []
@@ -533,14 +597,18 @@ import XCTest
     private let reply: (Int) -> String
     var tree: Data?  // the free line's handsy.tree on every reply
     var error: Error?  // thrown instead of a reply
+    var cutBelow = 0  // replies asked with fewer max tokens end "length" (cut)
+    private(set) var budgets: [Int] = []
 
     init(_ reply: @escaping (Int) -> String) { self.reply = reply }
 
     func chat(system: String, text: String, image: Data?, maxTokens: Int, temperature: Double) async throws -> ChatResult {
         prompts.append(text)
         images.append(image)
+        budgets.append(maxTokens)
         if let error { throw error }
         var result = ChatResult(text: reply(prompts.count), firstToken: nil, total: 0)
+        if maxTokens < cutBelow { result.finishReason = "length" }
         result.tree = tree
         return result
     }
@@ -553,6 +621,96 @@ import XCTest
     var capturedAt = 0.0
     var aspect = 0.46
     var stale = false
+    var geometry: ScreenGeometry?  // nil: an iPhone
+    var behind = false
+}
+
+/// iPad: the model's frame coordinates become screen coordinates, a rotation drops a look, and an action whose frame
+/// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
+@MainActor final class IPadAgentTests: XCTestCase {
+    func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let actor = FakeModel { _ in "THINK: target\nDO: tap 500 450" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.taps.first?.x ?? 0, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(phone.taps.first?.y ?? 0, 0.3, accuracy: 1e-9)
+    }
+
+    func testLetterboxPointIsRejectedInsteadOfClampedToTheScreenEdge() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let actor = FakeModel { _ in "THINK: black bar\nDO: tap 500 10" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        do {
+            _ = try await agent.step()
+            XCTFail("a point on the black bar must be refused")
+        } catch {}
+        XCTAssertTrue(phone.taps.isEmpty)
+    }
+
+    func testGeometryChangeDuringTheModelReplyDiscardsItsCoordinates() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let portrait = ScreenGeometry(screenAspect: 0.5, frameAspect: 0.5, orientation: 1)
+        let landscape = ScreenGeometry(screenAspect: 2, frameAspect: 2, orientation: 3)
+        screen.geometry = portrait
+        let actor = FakeModel { call in
+            if call == 1 {
+                screen.geometry = landscape
+                return "THINK: stale\nDO: tap 900 900"
+            }
+            return "THINK: fresh\nDO: tap 100 200"
+        }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(actor.prompts.count, 2, "looked again after the rotation")
+        XCTAssertEqual(phone.taps, [CGPoint(x: 0.1, y: 0.2)])
+    }
+
+    func testRotationAtTheActionGateCannotRunTheOldReply() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.geometry = ScreenGeometry(screenAspect: 0.5, frameAspect: 0.5, orientation: 1)
+        let actor = FakeModel { _ in "THINK: stale\nDO: tap 500 500" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
+        var gates = 0
+        agent.gate = {
+            gates += 1
+            if gates == 2 { screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 2, orientation: 3) }
+        }
+        do {
+            _ = try await agent.step()
+            XCTFail("the old look must be invalidated")
+        } catch {}
+        XCTAssertTrue(phone.taps.isEmpty)
+    }
+
+    func testNoFrameAfterTheActionIsUnknownNotUnchanged() async throws {
+        let screen = FakeScreen()
+        screen.behind = true
+        let model = FakeModel { n in n == 1 ? "THINK: open it\nDO: tap 500 500" : "THINK: wait\nDO: wait" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(agent.steps.last?["stale"], .bool(true))
+        XCTAssertNil(agent.steps.last?["changed"])
+        screen.behind = false
+        _ = try await agent.step()
+        let second = try XCTUnwrap(model.prompts.last)
+        XCTAssertTrue(second.contains("-> no new screen image yet (effect unknown)"))
+        XCTAssertFalse(second.contains("did NOT change"))
+        XCTAssertTrue(second.contains(AgentLoop.staleNote) && second.hasSuffix(AgentLoop.replyFormat), "the note, then the reply format last")
+        XCTAssertFalse(model.prompts[0].contains("Note: no new screen image"), "the first look follows no action")
+        XCTAssertFalse(second.contains("\"stale\""), "the flag itself stays out of the history")
+    }
+
+    func testHomeAndBackMasksFollowTheLetterbox() {
+        let geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
+        let home = pointerPath(["action": .str("home")], geometry: geometry)
+        XCTAssertEqual(home[0].y, geometry.contentRect.maxY - 0.005 * geometry.contentRect.height, accuracy: 1e-9)
+        XCTAssertEqual(pointerPath(["action": .str("home")]), [CGPoint(x: 0.5, y: 0.995), CGPoint(x: 0.5, y: 0.6)])
+        XCTAssertEqual(pointerPath(["action": .str("tap"), "x": .int(100), "y": .int(200)], geometry: geometry),
+                       [CGPoint(x: 0.1, y: 0.2)], "model coordinates are frame coordinates already")
+    }
 }
 
 @MainActor final class FakeDevice: HIDDevice {

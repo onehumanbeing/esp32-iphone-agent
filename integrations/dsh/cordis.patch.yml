@@ -15,6 +15,6 @@
         toolCallTimeoutMs: 120000
         # Keep dsh usable when the board is unplugged; the tools report the error instead.
         failOnStartupError: false
-    # Registers the handsy skill (see-act loop, safety rules).
+    # Registers the manina skill (see-act loop, safety rules).
     - id: esp32agent-skill
       name: dsh-esp32agent

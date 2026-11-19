@@ -39,8 +39,8 @@ extension AppModel {
     func handle(_ request: AgentRequest) async -> String {
         DebugLog.write("intent: \(request)")
         switch request {
-        case .runTask(let task):
-            return await runFromIntent(task, intent: nil)
+        case .runTask(let task, let unattended):
+            return await runFromIntent(task, intent: nil, unattended: unattended)
         case .runSaved(let id):
             let saved = id.flatMap { intents.item($0) } ?? intents.item(widgetSnapshot?.lastIntent) ?? intents.items.first
             guard let saved else { return String(localized: "There are no saved intents yet.") }
@@ -64,7 +64,7 @@ extension AppModel {
     }
 
     /// Checks what a run needs before starting it from outside the app (no screen to fix things on).
-    private func runFromIntent(_ task: String, intent: SavedTask?) async -> String {
+    private func runFromIntent(_ task: String, intent: SavedTask?, unattended: Bool = false) async -> String {
         let task = task.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !task.isEmpty else { return String(localized: "The task is empty.") }
         if agent.running {  // Henry 2026-11-13: words said while a run goes join it
@@ -78,7 +78,7 @@ extension AppModel {
                 return String(localized: "The board or Screen Mirroring isn't ready. Connect the board and start Screen Mirroring.")
             }
         }
-        await run(task, intent: intent)
+        await run(task, intent: intent, unattended: unattended)
         publishWidget()
         if agent.running { return String(localized: "Started: \(task)") }
         return String(localized: "Could not start: \(log.last?.text ?? "")")

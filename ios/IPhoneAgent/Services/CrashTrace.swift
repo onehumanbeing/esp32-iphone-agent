@@ -2,16 +2,16 @@ import Darwin
 import Foundation
 import MachO
 
-/// On a fatal signal, appends the raw call stack to Documents/crash-trace.txt, then lets the crash go on (the
+/// On a fatal signal, appends the raw call stack to Documents/logs/crash-trace.txt, then lets the crash go on (the
 /// system report and MetricKit still get it). iOS stops writing reports after a few crashes a day; this file
 /// is the stack for a crash loop (2026-10-19). Symbolicate with ios/scripts/symbolicate_crash.py.
 enum CrashTrace {
     nonisolated(unsafe) private static var fd: Int32 = -1
 
-    static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("crash-trace.txt")
+    static let url = FilesLayout.logs.appendingPathComponent("crash-trace.txt")
 
     static func install() {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         fd = open(url.path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
         guard fd >= 0 else { return }
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"

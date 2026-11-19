@@ -138,7 +138,7 @@ struct RunHandsyTaskIntent: AppIntent {
         guard AIConsent.granted(AppModel.shared.settings.baseURL) else {
             return .result(dialog: "Open \(AppName.current) and allow sending screenshots and your task to this model, then ask again.")
         }
-        let line = await AgentRequests.handle?(.runTask(request.sentence)) ?? AgentRequests.unavailable
+        let line = await AgentRequests.handle?(.runTask(request.sentence, unattended: false)) ?? AgentRequests.unavailable
         return .result(dialog: "\(line)")
     }
 }

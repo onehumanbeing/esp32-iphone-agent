@@ -65,7 +65,7 @@ struct UITree {
         }
         let (lines, ocrSeconds) = await read
         let (pass, preSeconds) = await early
-        guard let pass else { return nil }
+        guard let pass, !Task.isCancelled else { return nil }  // a newer frame took over (FramePrep)
         if cached == nil { cache?.store(jpeg, lines) }
         let t = Date()
         var tree = build(pass, lines)

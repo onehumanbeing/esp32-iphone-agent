@@ -13,9 +13,11 @@
 #include "../hid_bridge/src/cli/cli_proto.h"
 #include "../hid_bridge/src/hid/arbiter.h"
 #include "../hid_bridge/src/hid/pace.h"
+#include "../hid_bridge/src/hid/type_budget.h"
 #include "../hid_bridge/src/log/logring.h"
 #include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
 #include "../hid_bridge/src/airplay/ap_internal.h"
+#include "../hid_bridge/src/net/lan_lock.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -522,7 +524,99 @@ static void test_heard(void) {
   CHECK(strlen(r.text[(r.next + HEARD_LINES - 1) % HEARD_LINES]) == HEARD_TEXT - 1);
 }
 
+static void test_type_budget(void) {
+  CHECK(type_before_char(0, 0, 1) == TYPE_GO);
+  CHECK(type_before_char(15, 100, 0) == TYPE_GO);             // not a check point yet
+  CHECK(type_before_char(16, 100, 0) == TYPE_STOP_ASLEEP);    // USB re-checked every 16
+  CHECK(type_before_char(16, 100, 1) == TYPE_GO);
+  CHECK(type_before_char(3, TYPE_BUDGET_MS, 1) == TYPE_STOP_BUDGET);
+  CHECK(type_before_char(32, TYPE_BUDGET_MS + 1, 0) == TYPE_STOP_ASLEEP);  // asleep wins at a check point
+  CHECK(type_before_char(17, TYPE_BUDGET_MS, 0) == TYPE_STOP_BUDGET);
+  char out[64];
+  CHECK(type_reply(out, sizeof out, 48, 48, TYPE_GO) > 0 && !strcmp(out, "ok"));
+  CHECK(type_reply(out, sizeof out, 12, 48, TYPE_STOP_BUDGET) > 0 && !strcmp(out, "err typed 12 of 48: budget"));
+  CHECK(type_reply(out, sizeof out, 16, 80, TYPE_STOP_ASLEEP) > 0 && !strcmp(out, "err typed 16 of 80: asleep"));
+  // a 500-byte command cannot be one watchdog window: the budget stops it first
+  int typed = 0;
+  for (int i = 0; i < 500; i++) {
+    uint32_t elapsed = (uint32_t)i * 20;  // slower than 8 s / 500
+    type_stop_t stop = type_before_char(i, elapsed, 1);
+    if (stop != TYPE_GO) {
+      CHECK(stop == TYPE_STOP_BUDGET && typed == i && elapsed >= TYPE_BUDGET_MS);
+      break;
+    }
+    typed++;
+  }
+  CHECK(typed > 0 && typed < 500);
+}
+
+// The LAN lock (src/net/lan_lock.h). The vectors are shared with the app's LanAuthTests (openssl, 2026-11-17).
+static void test_lan_lock(void) {
+  char mac[LAN_MAC_HEX + 1];
+  lan_mac("Jefe", "what do ya want for nothing?", mac);  // RFC 4231 test case 2
+  CHECK(!strcmp(mac, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"));
+  const char *tok = "00112233445566778899aabbccddeeff", *nonce = "0f0e0d0c0b0a09080706050403020100";
+  CHECK(lan_mac_ok(tok, "video 0f0e0d0c0b0a09080706050403020100",
+                   "df20947056845d461c448d63b048d4ba21b3d9bf15ca7fda2be7177c74184655"));
+  CHECK(lan_mac_ok(tok, "video 0f0e0d0c0b0a09080706050403020100",
+                   "DF20947056845D461C448D63B048D4BA21B3D9BF15CA7FDA2BE7177C74184655"));
+  CHECK(!lan_mac_ok(tok, "video 0f0e0d0c0b0a09080706050403020101",
+                    "df20947056845d461c448d63b048d4ba21b3d9bf15ca7fda2be7177c74184655"));
+  CHECK(!lan_mac_ok(tok, "video x", "df20"));
+  CHECK(!lan_mac_ok(tok, "video x", NULL));
+  CHECK(lan_mac_ok(tok, "ota 0f0e0d0c0b0a09080706050403020100 1234 "
+                        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                   "37fa45d2f82c619a4cef6dd88ac0978791255d6ca3acad4f54acc49442b6e3a2"));
+
+  // one keystream across records: split anywhere, the same bytes as one piece
+  const char *plain = "LAN video test: one stream, two records.";  // fixed vector: change it only with want
+  static const uint8_t want[] = {0xb0, 0x37, 0xda, 0x61, 0x12, 0xe1, 0xe9, 0x44, 0xaa, 0x5f, 0xd0, 0xa4, 0xde, 0xec,
+                                 0xca, 0xf1, 0xf0, 0x11, 0x60, 0xc0, 0x1d, 0xa9, 0x43, 0xa1, 0xd4, 0xcd, 0x0e, 0x90,
+                                 0x79, 0x46, 0xef, 0x38, 0x4e, 0xfb, 0xd4, 0x18, 0x3b, 0x60, 0xb9, 0x3d};
+  size_t n = strlen(plain);
+  CHECK(n == sizeof want);
+  uint8_t buf[64];
+  memcpy(buf, plain, n);
+  lan_ctr c = {0};
+  lan_ctr_crypt(&c, buf, n);  // not started: nothing
+  CHECK(!memcmp(buf, plain, n));
+  lan_ctr_start(&c, tok, nonce);
+  lan_ctr_crypt(&c, buf, 7);
+  lan_ctr_crypt(&c, buf + 7, 0);
+  lan_ctr_crypt(&c, buf + 7, n - 7);
+  CHECK(!memcmp(buf, want, n));
+  lan_ctr_start(&c, tok, nonce);  // a new session starts the stream over
+  lan_ctr_crypt(&c, buf, n);
+  CHECK(!memcmp(buf, plain, n));
+  lan_ctr_stop(&c);
+
+  char nh[LAN_NONCE_HEX + 1];
+  const uint8_t r[16] = {0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
+  lan_nonce(nh, r);
+  CHECK(!strcmp(nh, nonce));
+
+  uint32_t phone, other, ip;
+  char back[16];
+  CHECK(lan_parse_ip("192.168.1.23", &phone) && lan_parse_ip("192.168.1.24", &other));
+  lan_format_ip(phone, back);
+  CHECK(!strcmp(back, "192.168.1.23"));
+  const uint8_t *bytes = (const uint8_t *)&phone;  // network order, as lwIP keeps sin_addr
+  CHECK(bytes[0] == 192 && bytes[3] == 23);
+  CHECK(!lan_parse_ip("192.168.1", &ip) && !lan_parse_ip("192.168.1.256", &ip) && !lan_parse_ip("1.2.3.4x", &ip));
+
+  // hotspot: everyone; station without an owner: everyone; station with one: only the owner
+  lan_set_station(false);
+  lan_set_owner(phone);
+  CHECK(!lan_locked() && lan_peer_ok(other));
+  lan_set_station(true);
+  CHECK(lan_locked() && lan_peer_ok(phone) && !lan_peer_ok(other));
+  lan_set_owner(0);
+  CHECK(!lan_locked() && lan_peer_ok(other));
+  lan_set_station(false);
+}
+
 int main(void) {
+  test_lan_lock();
   test_heard();
   test_audio_packets();
   test_audio_gate();
@@ -536,6 +630,7 @@ int main(void) {
   test_cli_proto();
   test_arbiter();
   test_pace();
+  test_type_budget();
   printf(fails ? "%d FAILED\n" : "all tests passed\n", fails);
   return fails != 0;
 }

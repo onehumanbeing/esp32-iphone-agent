@@ -1,14 +1,14 @@
 #!/bin/sh
-# Installs esp32agent from the release list (https://handsy.tech/cli/versions.json), else from GitHub Releases:
+# Installs esp32agent from the release list (https://manina.ai/cli/versions.json), else from GitHub Releases:
 #   curl -fsSL https://raw.githubusercontent.com/onehumanbeing/esp32-iphone-agent/main/cli/install/install.sh | sh
 # Env: ESP32AGENT_VERSION=0.1.0 (default: latest), ESP32AGENT_BIN_DIR (default ~/.local/bin),
-#      ESP32AGENT_VERSIONS_URL (default https://handsy.tech/cli/versions.json),
+#      ESP32AGENT_VERSIONS_URL (default https://manina.ai/cli/versions.json),
 #      ESP32AGENT_ARCHIVE=/path/esp32agent_<os>_<arch>.tar.gz to install a local build (checksums.txt next to it,
 #      or ESP32AGENT_CHECKSUMS=/path), ESP32AGENT_FFMPEG=yes|no to answer the ffmpeg question without a prompt.
 set -eu
 
 REPO=onehumanbeing/esp32-iphone-agent
-VERSIONS_URL=${ESP32AGENT_VERSIONS_URL:-https://handsy.tech/cli/versions.json}
+VERSIONS_URL=${ESP32AGENT_VERSIONS_URL:-https://manina.ai/cli/versions.json}
 BIN_DIR=${ESP32AGENT_BIN_DIR:-$HOME/.local/bin}
 
 say() { printf '%s\n' "$*"; }

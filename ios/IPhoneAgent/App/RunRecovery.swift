@@ -8,8 +8,10 @@ extension AppModel {
     func wireRecovery() {
         agent.link = { [unowned self] in
             Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
+                          net: board.status?.net,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true)
+                          stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
+                          usb: phoneUSB, locked: phoneLocked)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -32,8 +34,10 @@ extension AppModel {
             return
         }
         let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
+                                 net: board.status?.net,
                                  frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
-                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true)
+                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
+                                 usb: phoneUSB, locked: phoneLocked)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -64,7 +68,7 @@ extension AppModel {
         if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
-        if stage.ask { notifier.post(kind(stage.part), title: title(stage.part), body: stage.line, run: runID) }
+        if stage.ask { notifier.post(kind(stage.part), title: title(stage), body: stage.line, run: runID) }
     }
 
     /// Live again: the board may have rebooted (stream off, button state unknown) and the screen moved on.
@@ -78,19 +82,24 @@ extension AppModel {
                     phase: .running, status: .looking)
     }
 
+    /// The board's USB state as a sign that the iPhone is locked; a wireless-HID board has no USB link to it.
+    private var phoneUSB: String? { board.status?.isWirelessHID == true ? nil : board.status?.usb }
+
     private func kind(_ part: Recovery.Part) -> Notifier.Kind {
         switch part {
         case .board, .pointer: return .board
+        case .locked: return .locked
         case .hotspot: return .wifi
         case .mirroring, .frames: return .mirroring
         }
     }
 
-    private func title(_ part: Recovery.Part) -> String {
-        switch part {
+    private func title(_ stage: Recovery.Stage) -> String {
+        switch stage.part {
         case .pointer: return String(localized: "Pair the Bluetooth pointer")
         case .board: return String(localized: "Board disconnected")
-        case .hotspot: return String(localized: "iPhone left the board's Wi-Fi")
+        case .locked: return String(localized: "Unlock iPhone to continue")
+        case .hotspot: return stage.lan ? String(localized: "Board left the Wi-Fi") : String(localized: "iPhone left the board's Wi-Fi")
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")
         case .frames: return String(localized: "Waiting for a screen image")
         }

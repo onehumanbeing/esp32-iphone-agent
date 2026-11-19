@@ -15,11 +15,11 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center">
   <a href="https://testflight.apple.com/join/1xQHgJcA"><b>Try on TestFlight</b></a> ·
-  <a href="https://handsy.tech/install?ref=github"><b>Flash the board</b></a> ·
+  <a href="https://manina.ai/install?ref=github"><b>Flash the board</b></a> ·
   <a href="#not-a-developer-start-here">Not a developer?</a> ·
   <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Watch the demo</a> ·
-  <a href="https://handsy.tech/docs?ref=github">Docs</a> ·
-  <a href="https://handsy.tech/docs/changelog?ref=github">Changelog</a>
+  <a href="https://manina.ai/docs?ref=github">Docs</a> ·
+  <a href="https://manina.ai/docs/changelog?ref=github">Changelog</a>
 </p>
 
 <p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
@@ -29,7 +29,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
   <sub>A real iPhone doing a Duolingo lesson by itself, sped up 8×. Nobody touches the screen.</sub>
 </p>
 
-<p align="center"><a href="https://handsy.tech?ref=github"><img src="docs/images/hero.png" alt="Handsy: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: let AI use your iPhone. No jailbreak, no computer, just a $7 board." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -40,24 +40,24 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><b>Featured on</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>Follow along: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demo</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demo</a> · <a href="https://handsy.tech?ref=github">handsy.tech</a></sub></p>
+<p align="center"><sub>Follow along: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demo</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demo</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><b>Building on this project?</b> Keep the <a href="LICENSE">LICENSE</a> and credit <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b> in your README and posts. See <a href="NOTICE">NOTICE</a>.</p>
 
-<p align="center">Don't want to flash a board yourself? A ready-to-plug Handsy device is coming. <a href="https://handsy.tech/hardware">Join the waitlist</a>.</p>
+<p align="center">Don't want to flash a board yourself? A ready-to-plug Manina AI device is coming. <a href="https://manina.ai/hardware">Join the waitlist</a>.</p>
 
 ## What's new
 
 <p align="center"><img src="docs/images/highlights.png" alt="New in 1.0.2 and 1.0.3: it hears the phone, a free Jev line, long tasks with step-by-step replay" width="100%"></p>
 
 - **It hears the phone.** The board forwards AirPlay audio and the iPhone turns it into words, so listening
-  exercises and voice prompts work. [How it works](https://handsy.tech/docs/listen?ref=github).
+  exercises and voice prompts work. [How it works](https://manina.ai/docs/listen?ref=github).
 - **Free Jev line.** Jev takes the plain steps in a fraction of a second and leaves the rest to the large model;
   the agent loop is rebuilt around one model call per step.
 - **Long tasks.** No 40-step limit; any stopped run can continue. Every run can be replayed step by step on the phone.
 
 Get it on [TestFlight](https://testflight.apple.com/join/1xQHgJcA) (App Store listing in review). Needs board firmware
-v0.2.4. [Full changelog](https://handsy.tech/docs/changelog?ref=github).
+v0.2.4. [Full changelog](https://manina.ai/docs/changelog?ref=github).
 
 ## Why a board
 
@@ -79,12 +79,12 @@ cellular data while it runs because the board's hotspot takes the Wi-Fi.
 
 ### Not a developer? Start here
 
-1. **Get the board.** A Seeed XIAO ESP32S3, about $7: [what to buy](https://handsy.tech/docs/hardware?ref=github).
-2. **Flash it in Chrome or Edge.** No tools to install: [handsy.tech/install](https://handsy.tech/install?ref=github).
+1. **Get the board.** A Seeed XIAO ESP32S3, about $7: [what to buy](https://manina.ai/docs/hardware?ref=github).
+2. **Flash it in Chrome or Edge.** No tools to install: [manina.ai/install](https://manina.ai/install?ref=github).
 3. **Install the app and follow its four setup steps.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
-   [setup guide with pictures](https://handsy.tech/esp32-iphone-agent-setup?ref=github).
+   [setup guide with pictures](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
-Stuck? See [troubleshooting](https://handsy.tech/troubleshooting?ref=github) or mail [support@handsy.tech](mailto:support@handsy.tech).
+Stuck? See [troubleshooting](https://manina.ai/troubleshooting?ref=github) or mail [support@manina.ai](mailto:support@manina.ai).
 
 > [!NOTE]
 > **Free line busy or failing?** The free model line is shared and can be busy or return errors (HTTP 503) for a
@@ -93,7 +93,7 @@ Stuck? See [troubleshooting](https://handsy.tech/troubleshooting?ref=github) or 
 
 ## How it works
 
-New to the idea? Start with [AI control for iPhone](https://handsy.tech/ai-control-iphone), then [how Handsy works](https://handsy.tech/how-it-works).
+New to the idea? Start with [AI control for iPhone](https://manina.ai/ai-control-iphone), then [how Manina AI works](https://manina.ai/how-it-works).
 
 ```
 iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──Wi-Fi TCP :7201──▶ ESP32 Agent app (same iPhone)
@@ -104,7 +104,9 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
 - **Eyes — AirPlay to the board.** The board opens its own Wi-Fi hotspot and appears in the phone's Screen Mirroring
   list as *ESP32 Agent*. It keeps the H.264 stream (no decoding on the board) and forwards it to the app over Wi-Fi
   (TCP, port 7201). BLE carries commands and status. The phone keeps using cellular data for the model while it is
-  on the board's hotspot.
+  on the board's hotspot. Or switch the board to your home Wi-Fi (onboarding and Settings › Board, stored on the
+  board): phone and board share the router, and no cellular data is needed. The board is 2.4 GHz-only, and routers
+  with client isolation or blocked mDNS hide it from Screen Mirroring; the hotspot always works.
 - **Hands — USB HID.** The board is a standard USB mouse and keyboard. With AssistiveTouch on, the mouse moves an
   on-screen pointer, so a click is a tap and a drag is a swipe.
 - **Brain — the app.** The app decodes the stream, sends screenshots to any OpenAI-compatible vision model, and runs
@@ -128,8 +130,8 @@ The first version (v0.1.0) ran on a Mac/Linux computer with UxPlay and a Python 
 
 ## Hardware
 
-Supported boards and setup details: [hardware guide](https://handsy.tech/docs/hardware).
-Picking a board, cables and adapters, or stuck during setup: [setup guide](https://handsy.tech/esp32-iphone-agent-setup).
+Supported boards and setup details: [hardware guide](https://manina.ai/docs/hardware).
+Picking a board, cables and adapters, or stuck during setup: [setup guide](https://manina.ai/esp32-iphone-agent-setup).
 
 For wireless input built from source, see [Bluetooth mouse and keyboard](docs/bluetooth-hid.md). For the Zectrix Note 4 power, battery and flash layout, see the [Note 4 board guide](docs/note4-bluetooth.md).
 
@@ -137,7 +139,7 @@ For wireless input built from source, see [Bluetooth mouse and keyboard](docs/bl
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
 | **USB-C cable** | Short USB-C to USB-C, e.g. [Anker 60W, 1 ft, 2-pack](https://amzn.to/4yvNyvi)\*. |
-| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot). USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
+| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images: a cloud API or your own server. |
 | **Mac with Xcode** | Only to flash the board and build the app once. Not needed at run time. With the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app, Xcode is not needed for the app. |
 
@@ -159,7 +161,7 @@ hardware/flash.sh            # optional: [serial port] [--debug]
 
 Always build with `flash.sh`: it applies the BLE buffer sizes in `hardware/hid_bridge/nimble_cfg.h`.
 
-No Mac or toolchain? [Install the firmware from Chrome or Edge](https://handsy.tech/install) over USB instead.
+No Mac or toolchain? [Install the firmware from Chrome or Edge](https://manina.ai/install) over USB instead.
 
 ### 2. Install the app
 
@@ -195,12 +197,12 @@ or come back to the app. Siri, Shortcuts, widgets and Control Center can run sav
 ## Use from a coding agent
 
 The `esp32agent` CLI (npm, `npx -y esp32agent mcp`) is an MCP server, so a coding agent on your computer can see
-and drive the iPhone through the board (board firmware v0.2.2 or later); see [iPhone as an MCP server](https://handsy.tech/iphone-mcp). This repository is also a plugin with that
-MCP server and an agent skill ([skills/handsy/SKILL.md](skills/handsy/SKILL.md)). In Claude Code ([walkthrough](https://handsy.tech/claude-code-iphone)):
+and drive the iPhone through the board (board firmware v0.2.2 or later); see [iPhone as an MCP server](https://manina.ai/iphone-mcp). This repository is also a plugin with that
+MCP server and an agent skill ([skills/manina/SKILL.md](skills/manina/SKILL.md)). In Claude Code ([walkthrough](https://manina.ai/claude-code-iphone)):
 
 ```bash
 /plugin marketplace add onehumanbeing/esp32-iphone-agent
-/plugin install esp32agent@handsy
+/plugin install esp32agent@manina
 ```
 
 Or add only the MCP server:
@@ -231,7 +233,7 @@ dsh plugin --profile web add dsh-esp32agent
 
 The CLI talks to the board from your computer over Bluetooth, or over your Wi-Fi once both are on it (`esp32agent net join`),
 so it works without the iPhone app or TestFlight.
-Commands and options are in the [CLI reference](https://handsy.tech/docs/cli) and [cli/README.md](cli/README.md).
+Commands and options are in the [CLI reference](https://manina.ai/docs/cli) and [cli/README.md](cli/README.md).
 
 ## Model and prompts
 
@@ -280,7 +282,8 @@ uploads the app's text log to a server you run.
 ## Roadmap
 
 - [x] Drop the computer: the board mirrors and clicks, the app on the phone thinks
-- [ ] Landscape apps (coordinates and calibration assume portrait)
+- [x] iPad, portrait and landscape (calibrated per orientation; the shared prompts plus its own rules in `prompts/devices/ipad.md`)
+- [ ] iPhone landscape apps (coordinates and calibration assume portrait)
 - [x] Chinese text input (typed as pinyin through the board's keyboard; ctrl+space switches English and pinyin)
 - [ ] Faster steps: several actions per model call, pointer checks only when needed
 - [ ] A curated list of models that work best with this setup, shown inside the iOS app ([suggested by @asharthinks](https://x.com/asharthinks/status/2110740775030125019))
@@ -292,12 +295,13 @@ uploads the app's text log to a server you run.
 - The screen is mirrored at 480×1040, up to 5 fps; each step takes a few seconds, most of it the model.
 - iOS does not mirror some screens (passcode entry, Apple Pay, DRM video); the agent cannot see them. Mirroring stops
   when the phone locks.
-- While the agent runs, the phone's Wi-Fi is the board's hotspot (no internet over it); the model is reached over
-  cellular data.
+- While the agent runs on the board's hotspot, the phone's Wi-Fi is that hotspot (no internet over it); the model is
+  reached over cellular data. On a home Wi-Fi (LAN mode) the internet goes over that network.
 - Chinese is typed as pinyin through the board's keyboard (ctrl+space switches English and pinyin). The clipboard is
-  not used for this; emoji are dropped. Landscape apps are not supported yet.
+  not used for this; emoji are dropped. iPhone landscape apps are not supported yet; on iPad, each orientation is calibrated once (the app runs it before
+  the first run in that orientation) and this app itself runs full screen, not in Split View or Stage Manager.
 
-If something doesn't work (no *ESP32 Agent* in Screen Mirroring, the board not connecting), see [troubleshooting](https://handsy.tech/troubleshooting).
+If something doesn't work (no *ESP32 Agent* in Screen Mirroring, the board not connecting), see [troubleshooting](https://manina.ai/troubleshooting).
 
 ## Responsible use
 
@@ -314,7 +318,7 @@ The latest code is on `main`; [`release-1.0`](https://github.com/onehumanbeing/e
 
 ## Contact
 
-Questions or feedback: [support@handsy.tech](mailto:support@handsy.tech) · Website: [handsy.tech](https://handsy.tech)
+Questions or feedback: [support@manina.ai](mailto:support@manina.ai) · Website: [manina.ai](https://manina.ai)
 
 ## Related projects
 

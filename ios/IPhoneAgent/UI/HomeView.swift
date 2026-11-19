@@ -91,13 +91,18 @@ struct HomeView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { recordSheet = true } label: {
-                        Image(systemName: recorder.recording ? "record.circle.fill" : "record.circle")
-                            .foregroundStyle(recorder.recording ? Color.red : Color.primary)
-                            .symbolEffect(.pulse, options: .repeating, isActive: recorder.recording)
+                        // The circle alone was not read as "record" (Henry, 2026-11-15): a caption under it says so.
+                        VStack(spacing: 1) {
+                            Image(systemName: recorder.recording ? "record.circle.fill" : "record.circle")
+                                .symbolEffect(.pulse, options: .repeating, isActive: recorder.recording)
+                            Text(recorder.recording ? "Recording" : "Record").font(.caption2.weight(.medium))
+                        }
+                        .foregroundStyle(recorder.recording ? Color.red : Color.primary)
                     }
-                    .accessibilityLabel(Text("New intent"))
+                    .accessibilityHint(Text("New intent"))
                     .disabled(recorder.busy)
                 }
+                .plainBackground()
             }
             .sheet(isPresented: $recordSheet, onDismiss: finishSourceSelection) {
                 RecordSheet(app: app, recorder: recorder, board: board, agent: agent, runs: app.runs, settings: settings,
@@ -110,6 +115,7 @@ struct HomeView: View {
             .sheet(isPresented: $renaming) { RenameSheet(settings: settings) }
             .sheet(isPresented: $exportingIntents) { IntentExportSheet(app: app, intents: intents.items) }
             .modifier(FirmwareGate(app: app, updater: app.firmware, board: board, agent: agent, recorder: recorder))
+            .modifier(AppUpdateGate())
             .fileImporter(isPresented: $importingIntents, allowedContentTypes: [.esp32Intent, .json]) { result in
                 if case .success(let url) = result { app.importIntents(url) }
             }
@@ -188,6 +194,7 @@ struct HomeView: View {
     private var hero: some View {
         VStack(spacing: Space.m) {
             FirmwareBanner(updater: app.firmware)
+            AppUpdateBanner(firmware: app.firmware)
             PokeableFace(mood: editing ? .listening : app.mood, look: lookAt, busy: app.agent.running,
                          onInteract: { Task { await app.refreshHomeStatus() } })
                 .frame(width: 128, height: 143)
@@ -426,7 +433,7 @@ struct HomeView: View {
         if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
         if let status = board.status, status.board != nil, status.inputState == nil { return ("Waiting for the mouse…", .act) }
         if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
-        if !app.pointer.calibrated { return ("Calibrate the pointer", .act) }
+        if !app.calibrator.hasValidCalibration { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil
     }

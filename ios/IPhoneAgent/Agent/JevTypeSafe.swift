@@ -1,7 +1,7 @@
 import Foundation
 
 /// Jev on your own TypeSafe key: the app asks TypeSafe's systemone itself, with the same request and the same
-/// decision as Handsy's Jev server (handsy-trial-gateway worker/jev/src/step.ts; keep the two in step).
+/// decision as Manina AI's Jev server (handsy-trial-gateway worker/jev/src/step.ts; keep the two in step).
 @MainActor final class TypeSafeJev: JevStepping {
     static let defaultBaseURL = "https://api.typesafe.ai/v1"
     static let defaultModel = "jev-latest"
@@ -42,6 +42,10 @@ import Foundation
                 continue
             }
             if code == 429 { return JevAnswer(reason: "rate_limited") }
+            // refusals on the user's side: the run tells them (JevAnswer.userSideMessage)
+            if code == 451 { return JevAnswer(reason: "region_blocked") }
+            if code == 401 || code == 403 { return JevAnswer(reason: "key_invalid") }
+            if code == 402 { return JevAnswer(reason: "no_credit") }
             guard (200..<300).contains(code) else { throw LLMError(message: "Jev: TypeSafe HTTP \(code)", status: code) }
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
             return JevRules.reply(steps: steps, response: json, history: input.history, accept: JevConfig.threshold)
@@ -57,7 +61,7 @@ enum JevRules {
     static let accept = 0.7  // the server's minimum for every operation but TAP (TAP: the user's setting)
 
     static let rules = """
-        Advance the user's goal on this iPhone screen using one supported operation.
+        Advance the user's goal on this \(DeviceKind.name) screen using one supported operation.
         The screen was parsed from a screenshot: elements are OCR text lines, detected icons/images/controls,
         filled shapes (buttons, fields, cards) and layout groups (rows, cells, empty areas), with their position.
         Icons have no names; an icon's label is the text next to it when there is one.
@@ -230,7 +234,7 @@ enum JevRules {
     }
 }
 
-/// Where Jev runs: Handsy's server (default), or TypeSafe on the user's own key (Settings › Jev).
+/// Where Jev runs: Manina AI's server (default), or TypeSafe on the user's own key (Settings › Jev).
 enum JevConfig {
     static let ownKey = "jev.ownKey"   // UserDefaults: use the user's TypeSafe key
     static let modelKey = "jev.model"  // UserDefaults: the TypeSafe model, default jev-latest
@@ -239,7 +243,7 @@ enum JevConfig {
     static let thresholdRange = 0.5...0.9
     /// Shown under the slider: the range where Jev's taps were measured right most of the time.
     static let suggestedRange = 0.55...0.65
-    /// The user's setting. On Handsy's server it can only raise the server's own per-operation minimum.
+    /// The user's setting. On Manina AI's server it can only raise the server's own per-operation minimum.
     static var threshold: Double {
         let v = UserDefaults.standard.object(forKey: thresholdKey) as? Double ?? defaultThreshold
         return min(thresholdRange.upperBound, max(thresholdRange.lowerBound, v))
@@ -248,7 +252,7 @@ enum JevConfig {
 
     static var apiKey: String { Keychain.get(keychainAccount) ?? "" }
     static var model: String { UserDefaults.standard.string(forKey: modelKey) ?? TypeSafeJev.defaultModel }
-    /// On, with a key: steps go to TypeSafe directly, not to Handsy.
+    /// On, with a key: steps go to TypeSafe directly, not to Manina AI.
     static var ownActive: Bool { UserDefaults.standard.bool(forKey: ownKey) && !apiKey.isEmpty }
 
     @MainActor static func client() -> JevStepping {

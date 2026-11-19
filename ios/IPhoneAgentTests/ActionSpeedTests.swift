@@ -6,8 +6,16 @@ import XCTest
 /// The action phase's waits (2026-11-11): what a step spends between the model's reply and the first gesture, settles
 /// on screens that keep moving, the pointer's second reading, a far landing, and the Home key's check.
 @MainActor final class ActionSpeedTests: XCTestCase {
+    /// These tests check the iPhone's moves; the iPad's own tests set DeviceKind.isPad themselves (CI runs both).
+    private static var wasPad = false
+    override func setUp() {
+        super.setUp()
+        Self.wasPad = DeviceKind.isPad
+        DeviceKind.isPad = false
+    }
     override func tearDown() {
         StepWaits.reset()
+        DeviceKind.isPad = Self.wasPad
         super.tearDown()
     }
 
@@ -113,6 +121,27 @@ import XCTest
         var single = Recalibration()  // one reading only (not past maxMiss): as before
         XCTAssertFalse(single.measured(target, CGPoint(x: 0.2, y: 0.26), pixels: pixels))
         XCTAssertTrue(single.pending)
+    }
+
+    /// Far the same way twice soon after a calibration: calibrate again after a few taps, not 15.
+    func testFarTheSameWayTwiceCalibratesSoonAfterTheLast() {
+        let pixels = CGSize(width: 1000, height: 2000), target = CGPoint(x: 0.2, y: 0.2)
+        var r = Recalibration()
+        r.measured(target, CGPoint(x: 0.2, y: 0.3), pixels: pixels)
+        XCTAssertTrue(r.tap())  // calibrated at tap 1
+        for _ in 0..<Recalibration.retryAfter { _ = r.tap() }
+        r.measured(target, CGPoint(x: 0.5, y: 0.6), pixels: pixels)
+        XCTAssertFalse(r.pending, "one far landing soon after: not yet")
+        r.measured(target, CGPoint(x: 0.45, y: 0.55), pixels: pixels)
+        XCTAssertTrue(r.pending, "the same way again: calibrate")
+
+        var other = Recalibration()
+        other.measured(target, CGPoint(x: 0.2, y: 0.3), pixels: pixels)
+        _ = other.tap()
+        for _ in 0..<Recalibration.retryAfter { _ = other.tap() }
+        other.measured(target, CGPoint(x: 0.5, y: 0.6), pixels: pixels)
+        other.measured(target, CGPoint(x: 0.05, y: 0.02), pixels: pixels)
+        XCTAssertFalse(other.pending, "off the other way: a stray reading, wait as before")
     }
 
     /// The far reading is confirmed from the same wiggle's move back (one wiggle, not two); the next tap starts from

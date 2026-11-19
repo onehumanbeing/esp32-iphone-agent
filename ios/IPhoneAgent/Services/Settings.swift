@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Network
 import NetworkExtension
@@ -61,6 +62,10 @@ import UIKit
     @Published var learnFromRuns: Bool { didSet { defaults.set(learnFromRuns, forKey: "learnFromRuns") } }
     /// Henry 2026-11-13: the island waits between runs with intents and New Task (LiveActivityController.standby).
     @Published var standbyIsland: Bool { didSet { defaults.set(standbyIsland, forKey: "standbyIsland") } }
+    /// Keep going when nobody answers, and recover a dropped link instead of ending the run. Off by default.
+    @Published var unattendedMode: Bool { didSet { defaults.set(unattendedMode, forKey: "unattendedMode") } }
+    /// Start the next model look while the screen is still settling. Off by default; cancelled if the screen moves.
+    @Published var speculativeLook: Bool { didSet { defaults.set(speculativeLook, forKey: "speculativeLook") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 
     /// info: where build-time presets are read from (the app's Info.plist; tests pass none).
@@ -84,9 +89,15 @@ import UIKit
         restoreKeyboardAfterRun = defaults.object(forKey: "restoreKeyboardAfterRun") as? Bool ?? true
         learnFromRuns = defaults.object(forKey: "learnFromRuns") as? Bool ?? true
         standbyIsland = defaults.bool(forKey: "standbyIsland")
+        unattendedMode = defaults.bool(forKey: "unattendedMode")
+        speculativeLook = defaults.bool(forKey: "speculativeLook")
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         provider = defaults.string(forKey: "modelProvider").flatMap(ModelProvider.init(rawValue:))
             ?? ModelProvider.infer(baseURL: baseURL, model: model)
+        if provider == .handsyTrial, Trial.available, baseURL != Trial.baseURL {  // the free line moved host (handsy.tech ->
+            baseURL = Trial.baseURL                                               // manina.ai): consent checks use where calls go
+            defaults.set(baseURL, forKey: "baseURL")
+        }
         customEndpoints = Self.loadCustom(defaults)
         activeCustomID = defaults.string(forKey: "customEndpointID")
         DebugLog.redact([apiKey])  // never in debug.log
@@ -227,7 +238,7 @@ import UIKit
     }
 
     private func restore(_ p: [String: String]) {
-        let url = p["baseURL"] ?? baseURL
+        let url = provider == .handsyTrial && Trial.available ? Trial.baseURL : p["baseURL"] ?? baseURL  // a saved free line follows this build's host
         let changedEndpoint = url != baseURL
         baseURL = url
         if changedEndpoint { apiKey = url.isEmpty ? "" : keychain.get("llm-endpoint-" + url) ?? "" }
@@ -355,14 +366,16 @@ import UIKit
         let tree = Self.treeHeaders(role, provider)
         // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
         let step = { role == "actor" ? StepReport.shared.take() : [:] }
+        // free line: the record reader's calls run beside the actor's on the same lease (gateway: one reader slot)
+        let reader: [String: String] = role == "reader" ? ["X-Handsy-Role": "reader"] : [:]
         let headers: (() throws -> [String: String])? = freeLine
             ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
-                .merging(step()) { a, _ in a } } : nil
+                .merging(step()) { a, _ in a }.merging(reader) { a, _ in a } } : nil
         return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 
-    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Handsy key (paid
+    /// The model that reads a recording (DemoAnalysis). Free line: Opus 5.5 on the gateway, with a Manina AI key (paid
     /// per call) or where the server allows it (owner phones); else nil. Own endpoint: the Planner model, else the shared one.
     func recordingClient() async throws -> LLMClient? {
         guard provider == .handsyTrial else { return try await client("planner") }
@@ -391,7 +404,7 @@ import UIKit
     var jevOn: Bool { Trial.available && Deciders.load(freeLine: provider == .handsyTrial, defaults: defaults).isOn(.jev) }
 
     func jevActor(around actor: ChatModel) -> JevDeciderModel? {
-        let freeLine = provider == .handsyTrial  // the free line asks Handsy's Jev itself, unless Jev has its own key
+        let freeLine = provider == .handsyTrial  // the free line asks Manina AI's Jev itself, unless Jev has its own key
         guard Trial.available, !freeLine || JevConfig.ownActive, !JevConsent.needed(freeLine: freeLine) else { return nil }
         let deciders = Deciders.load(freeLine: freeLine, defaults: defaults)
         guard deciders.mode != .modelOnly else { return nil }
@@ -439,8 +452,7 @@ enum Keychain {
 /// Joins the board's SoftAP with the credentials read over BLE (never shown or logged).
 enum Hotspot {
     static func join(_ net: NetConfig) async throws {
-        guard let ssid = net.ssid, let pass = net.pass else { throw DeviceError(message: "board sent no hotspot credentials") }
-        let config = NEHotspotConfiguration(ssid: ssid, passphrase: pass, isWEP: false)
+        let config = try configuration(net)
         config.joinOnce = false
         do {
             try await NEHotspotConfigurationManager.shared.apply(config)
@@ -448,6 +460,18 @@ enum Hotspot {
                     && e.code == NEHotspotConfigurationError.alreadyAssociated.rawValue {
             return
         }
+    }
+
+    /// The board's hotspot always has a password. A home network (LAN mode, mode "sta") may have none: then it is
+    /// joined as an open network (a passphrase of "" is invalid and failed the join, 2026-11-10).
+    static func configuration(_ net: NetConfig) throws -> NEHotspotConfiguration {
+        guard let ssid = net.ssid, !ssid.isEmpty else { throw DeviceError(message: "board sent no hotspot credentials") }
+        let pass = net.pass ?? ""
+        if pass.isEmpty {
+            guard net.mode == "sta" else { throw DeviceError(message: "board sent no hotspot credentials") }
+            return NEHotspotConfiguration(ssid: ssid)
+        }
+        return NEHotspotConfiguration(ssid: ssid, passphrase: pass, isWEP: false)
     }
 
     /// For the debug log: domain, code, the NEHotspotConfigurationError name and the message.
@@ -463,6 +487,30 @@ enum Hotspot {
 
     static func userDenied(_ e: NSError) -> Bool {
         e.domain == NEHotspotConfigurationErrorDomain && e.code == NEHotspotConfigurationError.userDenied.rawValue
+    }
+
+    /// This iPhone shares its internet (Personal Hotspot on, a device joined): iOS gives no API for the switch, but
+    /// the shared network is a bridge interface on 172.20.10.x. While it is on, the iPhone can't join the board's Wi-Fi.
+    /// Not seen with the hotspot on and nothing joined yet (no bridge then); the page's general hint covers that.
+    static var sharing: Bool { sharing(interfaces()) }
+
+    static func sharing(_ interfaces: [(name: String, ipv4: String)]) -> Bool {
+        interfaces.contains { $0.name.hasPrefix("bridge") && $0.ipv4.hasPrefix("172.20.10.") }
+    }
+
+    /// IPv4 addresses by interface name.
+    private static func interfaces() -> [(name: String, ipv4: String)] {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return [] }
+        defer { freeifaddrs(head) }
+        var out: [(name: String, ipv4: String)] = []
+        for p in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            guard let sa = p.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            guard getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 else { continue }
+            out.append((String(cString: p.pointee.ifa_name), String(cString: host)))
+        }
+        return out
     }
 
     /// This app's page in Settings: the only public link. iOS 18+ has no link to the Wi-Fi page at all.
@@ -508,13 +556,15 @@ struct CustomEndpoint: Identifiable, Equatable {
 /// can switch: Settings › Developer › Tree source, `-tree-source device|server`, `iphoneagent://tree?source=device`.
 enum TreeSource: String, CaseIterable {
     case server, device
-    static let key = "treeSource"
-    static var fallback: TreeSource { .server }
+    static let key = "treeSource.v2"  // v2 (2026-11-18): a Server picked before the on-device default does not stick
+    /// The phone builds the tree (2026-11-18: Spark's trees reach HK over a home uplink; in one 40-minute run 49
+    /// came back after the 10 s cut-off and the rest 8-29 s late, so the model got none and guessed taps).
+    static var fallback: TreeSource { .device }
     static var current: TreeSource {
         #if DEBUG
         TreeSource(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? fallback
         #else
-        .server
+        fallback
         #endif
     }
     static func set(_ source: TreeSource) { UserDefaults.standard.set(source.rawValue, forKey: key) }

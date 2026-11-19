@@ -10,6 +10,14 @@ struct Checkpoints {
     /// Sent actions since the last checkpoint that were all swipes or scrolls: the run is circling.
     static let circleRounds = 4
     static let scrolls: Set<String> = ["swipe", "scroll"]
+    /// Sent actions since the last checkpoint after which the planner reviews the run anyway (Henry 2026-11-17: the
+    /// stronger model should look over a long run as it goes; a run opened the same order twice and waited three
+    /// times for words that were below the fold, with no checkpoint after the first round).
+    static let reviewEvery = 10
+    static let reviewNote = "Review (the stronger model looks over the run every few steps): compare the notebook and "
+        + "recent actions with the goal. Say in THINK what is done, what was repeated or did not work, and the "
+        + "shortest way to finish; fix the PLAN if needed, then give the next action. When the same open-item, read, "
+        + "go-back round was done twice on a list, give each \"ANCHOR\" read \"WHAT\" for the rest instead.\n\n"
 
     /// steps.count at the last checkpoint; nil = none yet this run (the first round is one).
     var lastAt: Int?
@@ -24,8 +32,9 @@ struct Checkpoints {
         guard let lastAt else { return "first round" }
         if let asked { return asked }
         let since = steps.dropFirst(min(lastAt, steps.count))
-        if since.contains(where: { $0["action"]?.str == "plan" }) { return nil }
         let sent = since.filter { Actions.gestures.contains($0["action"]?.str ?? "") }
+        if sent.count >= Self.reviewEvery { return "review" }  // a new plan does not hold the review off
+        if since.contains(where: { $0["action"]?.str == "plan" }) { return nil }
         guard sent.count >= Self.circleRounds else { return nil }
         return sent.suffix(Self.circleRounds).allSatisfy({ Self.scrolls.contains($0["action"]?.str ?? "") }) ? "circling" : nil
     }
@@ -45,7 +54,8 @@ extension AgentLoop {
             checkpoints.used(at: steps.count)
             DebugLog.write("checkpoint (\(reason)): asking \(planner.model)")
             do {
-                let reply = try await ask("actor", planner, actorPrompt, prompt, temperature: temperature)
+                let asked = reason == "review" ? Checkpoints.reviewNote + prompt : prompt
+                let reply = try await ask("actor", planner, actorPrompt, asked, temperature: temperature)
                 checkpoints.answered = true
                 return reply
             } catch let e where !(e is CancellationError) && !Task.isCancelled {
@@ -59,6 +69,11 @@ extension AgentLoop {
     /// Its reply stands, whether it confirms done (often with a fuller answer) or goes on. nil = keep the actor's.
     func confirmDone(_ acts: [JObject], _ prompt: String) async throws -> (String, Double, Data?)? {
         guard let planner = checkpointModel, acts.contains(where: { $0["action"]?.str == "done" }) else { return nil }
+        if Self.doneIsShown(notebook.count, wrote: resultWritten) {
+            // 2026-11-18: progress 3/3, README written, and the check still took 19 s to say done
+            DebugLog.write("checkpoint (done check): skipped, progress \(notebook.progress) reached and the result written")
+            return nil
+        }
         checkpoints.used(at: steps.count)
         DebugLog.write("checkpoint (done check): asking \(planner.model)")
         do {
@@ -69,5 +84,11 @@ extension AgentLoop {
             DebugLog.write("checkpoint: \(planner.model) failed (\(e.localizedDescription)); the actor's done stands")
             return nil
         }
+    }
+
+    /// Done needs no second look when the progress count is reached and the run wrote its result file.
+    nonisolated static func doneIsShown(_ count: (done: Int, total: Int?)?, wrote: Bool) -> Bool {
+        guard wrote, let count, let total = count.total, total > 0 else { return false }
+        return count.done >= total
     }
 }

@@ -35,17 +35,38 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, 1)
     }
 
-    func testChineseNameIsTypedAsIsTheTyperCommitsIt() async throws {
+    /// A Chinese name goes in as its pinyin letters first: no input method.
+    func testChineseNameIsTypedAsPinyinLettersFirst() async throws {
         var sent: [String] = []
-        let result = try await opener([home, spotlight, app], lines: ["时钟", "时钟"]) { sent.append($0) }.open("时钟")
+        let result = try await opener([home, spotlight, app], lines: ["shizhong", "时钟"], homeLines: []) { sent.append($0) }.open("时钟")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type 时钟", "key enter"])
+        XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type shizhong", "key enter"])
+    }
+
+    /// The letters list nothing: the name itself, through the pinyin keyboard, after Home.
+    func testChineseNameItselfWhenThePinyinListsNothing() async throws {
+        var sent: [String] = [], typed = ""
+        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, app]
+        let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
+                               type: { typed = $0; sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : typed == "时钟" ? ["时钟", "时钟"] : [typed] },
+                               same: { $0 == $1 }, pause: { _ in }, language: "zh")
+        let result = try await opener.open("时钟")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type shizhong", "type 时钟"])
+    }
+
+    func testOnlyAChineseNameGetsItsLettersFirst() {
+        XCTAssertEqual(AppOpener.queries("微信", pasting: false), ["weixin", "微信"])
+        XCTAssertEqual(AppOpener.queries("WeChat", pasting: false), ["WeChat"])
+        XCTAssertEqual(AppOpener.queries("微信", pasting: true), ["微信"])
     }
 
     /// A name Spotlight does not list goes back to the model; code never types other names (2026-11-13).
     func testANameSpotlightDoesNotKnowGoesBackToTheModel() async throws {
         var sent: [String] = [], typed = ""
-        var queue = [home, spotlight, spotlight, spotlight]  // 闹钟: two more looks, still not listed
+        var queue = [home, spotlight, spotlight, spotlight, home, spotlight, spotlight, spotlight]  // 闹钟, letters then itself: never listed
         let opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") },
                                type: { typed = $0; sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
@@ -53,7 +74,7 @@ import XCTest
                                same: { $0 == $1 }, pause: { _ in }, language: "zh")
         let result = try await opener.open("闹钟")
         XCTAssertEqual(result, .notFound)
-        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type 闹钟"])
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type naozhong", "type 闹钟"], "the same name, never another")
         XCTAssertFalse(sent.contains("key enter"))
     }
 
@@ -79,6 +100,36 @@ import XCTest
         let result = try await opener(frames) { sent.append($0) }.open("Notes")
         XCTAssertEqual(result, .notOpened)
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, AppOpener.tries)
+    }
+
+    /// Return did nothing and the results still list the app (Wiki #1007 N1): the listed name is tapped, the search
+    /// field (the same text) first when it is on top; opened once Spotlight is gone.
+    func testReturnThatDidNothingTapsTheListedName() async throws {
+        for (field, taps) in [(false, 1), (true, 2)] {
+            var queue: [Data?] = field ? [home, spotlight, spotlight, spotlight, app] : [home, spotlight, spotlight, app]
+            var tapped: [CGPoint] = []
+            var opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                                   read: { [home, app] in $0 == home ? [] : $0 == app ? ["Shopping list"] : ["Notes", "Notes"] },
+                                   same: { $0 == $1 }, pause: { _ in })
+            let rows: [(text: String, box: [Int])] = field
+                ? [("Notes", [100, 200, 300, 240]), ("Notes", [100, 600, 300, 640]), ("Notes from Mike", [100, 900, 500, 940])]
+                : [("Notes", [100, 600, 300, 640]), ("Notes from Mike", [100, 900, 500, 940])]
+            opener.readBoxes = { _ in (rows, CGSize(width: 1000, height: 2000)) }
+            opener.tapAt = { tapped.append($0) }
+            let result = try await opener.open("Notes")
+            XCTAssertEqual(result, .opened)
+            XCTAssertEqual(tapped.count, taps)
+            XCTAssertEqual(Double(tapped.last!.y), 0.31, accuracy: 0.001, "the result row, never the line that only contains the name")
+        }
+    }
+
+    func testResultSpotsAreTheAppsNameOnly() {
+        let size = CGSize(width: 1000, height: 2000)
+        let spots = AppOpener.resultSpots([("微信", [0, 20, 100, 60]),  // status bar height: no
+                                           ("WeChat Pay", [0, 300, 200, 340]), ("Wec…", [0, 500, 100, 540]), ("微信", [0, 800, 100, 840])],
+                                          labels: ["WeChat", "微信"], size: size)
+        XCTAssertEqual(spots.map { Double($0.y) }, [0.26, 0.41])
+        XCTAssertTrue(AppOpener.resultSpots([("WeChat", [0, 0, 1, 1])], labels: ["WeChat"], size: .zero).isEmpty)
     }
 
     func testSpotlightThatNeverCameUpIsTriedAgainWithoutReturn() async throws {
@@ -154,8 +205,6 @@ import XCTest
 
     /// cmd+space brought nothing up (2026-11-13): the next try taps the Home Screen's Search button instead.
     func testSearchButtonWhenCmdSpaceBringsNothingUp() async throws {
-        AppOpener.buttonFirst = false  // a run before this one (this test too) left the Search button first
-        defer { AppOpener.buttonFirst = false }
         var sent: [String] = []
         var queue: [Data?] = [home, home, home, spotlight, app]
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
@@ -167,6 +216,25 @@ import XCTest
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1)
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 1)
+        sent = []
+        queue = [home, spotlight, app]
+        let again = try await opener.open("Notes")
+        XCTAssertEqual(again, .opened)
+        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1, "the next open tries cmd+space first again")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
+    }
+
+    /// Past the budget no new try starts: the model gets not_opened and decides.
+    func testAnOpenStopsTryingAfterItsBudget() async throws {
+        var t = 0.0
+        var queue: [Data?] = [home, home, home, home, home, home]
+        var opener = AppOpener(home: { t += 16 }, key: { _ in }, type: { _ in },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { _ in [] }, same: { $0 == $1 }, pause: { _ in })
+        opener.clock = { t }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .notOpened)
+        XCTAssertEqual(t, 16, "one try only: the second would start past 15 s")
     }
 
     func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {

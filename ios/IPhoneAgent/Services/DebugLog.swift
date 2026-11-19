@@ -1,11 +1,10 @@
 import Foundation
 
-/// A rolling text log in Documents/debug.log (pull it with `devicectl device copy from … appDataContainer`
+/// A rolling text log in Documents/logs/debug.log (pull it with `devicectl device copy from … appDataContainer`
 /// or share it from About › Logs). One timestamped line per event; at 2 MB it rolls to debug.1.log.
 /// Secrets are redacted before writing.
 enum DebugLog {
-    static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("debug.log")
+    static let url = FilesLayout.logs.appendingPathComponent("debug.log")
     private static let old = url.deletingLastPathComponent().appendingPathComponent("debug.1.log")
     private static let limit = 2_000_000
     /// The last lines only, for the harness: copying the whole 2 MB log every 20 s over Wi-Fi, beside mirroring and a
@@ -67,6 +66,9 @@ enum DebugLog {
             live?(stamped)
             let data = Data((stamped + "\n").utf8)
             let fm = FileManager.default
+            if !fm.fileExists(atPath: url.deletingLastPathComponent().path) {
+                try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            }
             if let size = (try? fm.attributesOfItem(atPath: url.path)[.size]) as? Int, size > limit {
                 try? fm.removeItem(at: old)
                 try? fm.moveItem(at: url, to: old)

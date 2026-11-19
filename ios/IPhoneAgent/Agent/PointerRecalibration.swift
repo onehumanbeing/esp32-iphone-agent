@@ -13,6 +13,10 @@ import UIKit
 struct Recalibration {
     /// Device pixels between a target and where the pointer was found that call for a new calibration.
     static let miss = 100.0
+    /// The same as a share of the screen on either side (Pointer.maxMiss): a landing past it is not learned from,
+    /// so it must count here too. 2026-11-16: a steady +65 x (0.065 of the width, ~86 px) was past maxMiss but under
+    /// `miss`, neither learned nor calibrated, and every tap on that phone missed alike.
+    static let fraction = 0.06
     /// Taps after one recalibration before the next may run.
     static let every = 15
     /// A recalibration that failed (pointer not found: a busy screen) is tried again this many taps later, at most
@@ -24,20 +28,32 @@ struct Recalibration {
     private(set) var taps = 0
     private(set) var last: Int?  // `taps` at the last recalibration
     private(set) var rehomed = false  // the last landing was far but confirmed: re-homed instead
+    private var farSide: (right: Bool, below: Bool)?  // which way the last far landing was off its target
+    private(set) var early = false  // the last recalibration came before `every` taps: the next one waits for them
 
     /// The pointer was found at `found` for a move to `target` (screen fractions) on a screen of `pixels`. A miss
-    /// within `every` taps of the last recalibration is left to the usual correction.
+    /// within `every` taps of the last recalibration is left to the usual correction, unless it is the second far
+    /// one in a row off the same way: then the scale is wrong (the tracking speed changed since the calibration),
+    /// every tap until the 15th would miss alike, and `retryAfter` taps are enough. Once: if that one did not help
+    /// (a screen where the pointer can't be read well), the next waits the full `every` taps again.
     /// Returns true when the caller should re-home the pointer instead (a first confirmed far landing).
     @discardableResult
     mutating func measured(_ target: CGPoint, _ found: CGPoint, pixels: CGSize, confirmed: Bool = false) -> Bool {
         let off = hypot((found.x - target.x) * pixels.width, (found.y - target.y) * pixels.height)
-        guard Double(off) > Self.miss else { rehomed = false; return false }
-        guard last.map({ taps - $0 >= Self.every }) ?? true else { return false }
+        let share = max(abs(found.x - target.x), abs(found.y - target.y))
+        guard Double(off) > Self.miss || Double(share) > Self.fraction else { rehomed = false; farSide = nil; return false }
+        let side = (right: found.x > target.x, below: found.y > target.y)
+        let sameWay = farSide.map { $0 == side } ?? false
+        farSide = side
+        let soon = sameWay && !early
+        guard last.map({ taps - $0 >= (soon ? Self.retryAfter : Self.every) }) ?? true else { return false }
+        let isEarly = last.map { taps - $0 < Self.every } ?? false
         if confirmed && !rehomed {
             rehomed = true
             return true
         }
         pending = true
+        early = isEarly
         return false
     }
 
@@ -45,6 +61,11 @@ struct Recalibration {
     mutating func tap() -> Bool {
         taps += 1
         if failures > 0 && failures <= Self.retries && !pending, let last, taps - last >= Self.retryAfter { pending = true }
+        return take()
+    }
+
+    /// A pending recalibration, taken now (mid-aim) rather than before the next tap.
+    mutating func take() -> Bool {
         guard pending else { return false }
         (pending, last, rehomed) = (false, taps, false)
         return true

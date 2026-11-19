@@ -81,6 +81,13 @@ extension AgentLoop {
         DebugLog.write("auto open: the task names \(app)")
         onDoing?(.acting(act))
         let started = now()
+        if openedAtStart == app {  // already there: the scheme opened it before the first frame
+            act["opened"] = .str(OpenResult.opened.rawValue)
+            act["via"] = .str("scheme")
+            act["changed"] = .bool(true)
+            record(seen, act)
+            return
+        }
         if let note = try await perform(act) { act[note.field] = .str(note.value) }
         lastActed = now()
         act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
@@ -206,14 +213,18 @@ extension AgentLoop {
             return true
         }
         record(nil, ["action": .str("help"), "reason": .str(reason)])
-        let choice = await onHelp(reason)
+        let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {
         case .stop:
-            record(nil, ["action": .str("stopped")])
+            record(nil, ["action": .str("stopped"), "by": .str(automatic ? "policy" : "user")])
             return false
+        case .restart:
+            replay.restart()
+            record(nil, ["action": .str("restarted"), "reason": .str("unattended: the script starts again")])
         case .resume: record(nil, ["action": .str("takeover"), "reason": .str("the user did this part by hand: \(reason)")])
-        case .skip: record(nil, ["action": .str("skipped"), "reason": .str("the user skipped: \(reason)")])
+        case .skip: record(nil, ["action": .str("skipped"), "reason": .str(automatic
+            ? "unattended: nobody answered: \(reason)" : "the user skipped: \(reason)")])
         }
         await screen?.settled()
         return true
@@ -243,7 +254,7 @@ extension AgentLoop {
         guard let model = planner ?? actor else { throw LLMError(message: "no model") }
         let prompt = "Is this true on the current screen: \(condition)?" + (notebook.isEmpty ? "" : "\n\n" + notebook.summary())
             + "\nReply YES or NO, then one short reason."
-        let (reply, seconds, frame) = try await ask("judge", model, "You check an iPhone screenshot against a condition.", prompt)
+        let (reply, seconds, frame) = try await ask("judge", model, "You check an \(DeviceKind.name) screenshot against a condition.", prompt)
         let yes = reply.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().hasPrefix("YES")
         record(frame, ["action": .str("check"), "reason": .str("\(condition) → \(yes ? "yes" : "no")"), "think_s": .num(seconds)])
         return yes

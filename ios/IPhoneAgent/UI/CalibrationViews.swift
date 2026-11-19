@@ -9,9 +9,9 @@ struct CalibrationText: View {
         Group {
             if calibrator.busy {
                 Text("Calibrating…")
-            } else if let q = pointer.quality, pointer.calibrated {
+            } else if let q = pointer.quality, calibrator.hasValidCalibration {
                 Text(verbatim: Self.percent(q))
-            } else if pointer.calibrated {
+            } else if calibrator.hasValidCalibration {
                 Text("Calibrated")
             } else {
                 Text("Not calibrated")

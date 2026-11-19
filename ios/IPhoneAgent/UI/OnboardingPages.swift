@@ -140,13 +140,13 @@ struct DemoOffer: View {
 }
 
 struct FirmwareLinks: View {
-    static let install = URL(string: "https://handsy.tech/install")!
+    static let install = URL(string: "https://manina.ai/install")!
 
     /// One line, so both links stay above the bottom button on every iPhone.
     var body: some View {
         HStack(spacing: Space.m) {
             Text("New board?").foregroundStyle(.secondary)
-            Link(destination: Self.install) { Label { Text(verbatim: "handsy.tech/install") } icon: { Image(systemName: "desktopcomputer") } }
+            Link(destination: Self.install) { Label { Text(verbatim: "manina.ai/install") } icon: { Image(systemName: "desktopcomputer") } }
             Link(destination: AboutView.repo) {
                 Label { Text(verbatim: "GitHub") } icon: {
                     Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
@@ -167,24 +167,96 @@ private struct TightLabel: LabelStyle {
     }
 }
 
-/// 2 · Let it see the screen: join the board's Wi-Fi (one tap, the system asks), then Screen Mirroring.
-/// The page's one action is the bottom button (OnboardingView); manual join shows only if one-tap fails.
+/// 2 · Let it see the screen: join the board's Wi-Fi (one tap, the system asks), or point the board at the
+/// home Wi-Fi (LAN mode), then Screen Mirroring. The page's one action is the bottom button (OnboardingView);
+/// manual join shows only if one-tap fails. Devices without cellular get LAN mode only.
 struct SeePage: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
     @Binding var onWiFi: Bool
+    @Binding var lanChoice: Bool
+    @Binding var lanSSID: String
+    @Binding var lanPass: String
+    @Binding var lanRemember: Bool
     @State private var copied = false
+    @State private var sharing = Hotspot.sharing  // this iPhone is a Personal Hotspot right now
     @Environment(\.scenePhase) private var scenePhase
 
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
-    private var joined: Bool { app.onBoardHotspot(manual: onWiFi) }
-    private var failure: String? { if case .failed(let why) = app.join { return why } else { return nil } }
+    /// On the network of the chosen mode: a board still in the other mode doesn't count (it switches first).
+    private var joined: Bool { lanChoice == app.lanMode && app.onBoardHotspot(manual: onWiFi) }
+    private var failure: String? {
+        if case .failed(let why) = lanChoice ? app.lanJoin : .idle { return why }
+        if !lanChoice, case .failed(let why) = app.join { return why }
+        return nil
+    }
 
     var body: some View {
         VStack(spacing: Space.xl) {
-            PageHeader(mood: streaming ? .success : (app.join.busy || joined) ? .listening : failure != nil ? .failure : .idle,
+            PageHeader(mood: streaming ? .success : (app.join.busy || app.lanJoin.busy || joined) ? .listening : failure != nil ? .failure : .idle,
                        title: "Let Me See the Screen",
-                       message: "Screen Mirroring goes to the board over its own Wi-Fi.")
+                       message: lanChoice
+                           ? "Screen Mirroring goes to the board over your Wi-Fi network."
+                           : "Screen Mirroring goes to the board over its own Wi-Fi.")
+            if DeviceCaps.hasCellular {
+                Picker("Network", selection: $lanChoice) {
+                    Text("Board's Hotspot").tag(false)
+                    Text("Home Wi-Fi").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            } else {
+                Label("This device has no cellular data, so the board shares your Wi-Fi instead of opening its own hotspot.",
+                      systemImage: "wifi")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if lanChoice { lan } else { hotspot }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: joined)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.join)
+        .task {  // join once by itself, then keep checking every 2 s while on this step
+            if !joined, !lanChoice { app.startJoin(auto: true) }
+            while !Task.isCancelled && !streaming {
+                await app.refreshHotspot()
+                sharing = Hotspot.sharing
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { sharing = Hotspot.sharing; Task { await app.refreshHotspot() } }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.manualHotspot?.ssid)
+    }
+
+    /// LAN mode: the board joins the home Wi-Fi; the phone stays on whatever network it has.
+    private var lan: some View {
+        VStack(spacing: Space.xl) {
+            LanForm(app: app, ssid: $lanSSID, pass: $lanPass, remember: $lanRemember)
+            Panel {
+                CheckRow(title: "Board on your Wi-Fi", done: joined, active: !joined,
+                         waiting: app.lanJoin.busy && !joined,
+                         detail: app.lanJoin.busy ? "This takes up to a minute — the board restarts its Wi-Fi." : nil)
+                Divider().padding(.vertical, Space.s)
+                CheckRow(title: "Start Screen Mirroring", done: streaming, active: joined && !streaming)
+            }
+            if joined && !streaming {
+                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                MirroringRestartHint(app: app)
+                MiniPhoneDemo(kind: .controlCenter)
+                HStack(spacing: Space.s) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for Screen Mirroring…")
+                }
+                .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Hotspot mode: the phone joins the board's own Wi-Fi; the internet keeps working over cellular.
+    private var hotspot: some View {
+        VStack(spacing: Space.xl) {
             Panel {
                 CheckRow(title: "Join the board's Wi-Fi", done: joined, active: !joined, waiting: app.join.busy && !joined,
                          detail: joined ? nil : app.join == .verifying ? "Checking the connection…"
@@ -194,6 +266,12 @@ struct SeePage: View {
             }
             if !joined {
                 if let net = app.manualHotspot, let ssid = net.ssid, failure != nil { manual(ssid: ssid, pass: net.pass) }
+                if sharing {  // seen, not guessed: say it plainly, above the general hints
+                    Label("This iPhone's Personal Hotspot is on. Turn it off in Settings › Personal Hotspot, then join the board's Wi-Fi.",
+                          systemImage: "personalhotspot")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 VStack(alignment: .leading, spacing: Space.s) {
                     Label("Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi.",
                           systemImage: "personalhotspot")
@@ -205,6 +283,7 @@ struct SeePage: View {
                 Text("Now swipe down from the top-right corner and tap **Screen Mirroring → \(BoardName.current)**.")
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                MirroringRestartHint(app: app)
                 MiniPhoneDemo(kind: .controlCenter)
                 VStack(spacing: Space.s) {
                     HStack(spacing: Space.s) {
@@ -216,17 +295,6 @@ struct SeePage: View {
                 .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: joined)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.join)
-        .task {  // join once by itself, then keep checking every 2 s while on this step
-            if !joined { app.startJoin(auto: true) }
-            while !Task.isCancelled && !streaming {
-                await app.refreshHotspot()
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await app.refreshHotspot() } } }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.manualHotspot?.ssid)
     }
 
     /// One-tap join failed: the network and its password, to join in Settings › Wi-Fi.
@@ -267,9 +335,11 @@ struct ActPage: View {
     private var mouse: Bool { MockMode.on || board.status?.inputReady == true }
     private var mirroring: Bool { MockMode.on || board.status?.ap == "streaming" }
 
+    private var calibrated: Bool { calibrator.hasValidCalibration }  // iPad: in this orientation
+
     var body: some View {
         VStack(spacing: Space.xl) {
-            PageHeader(mood: pointer.calibrated ? .success : calibrator.busy ? .acting : .idle,
+            PageHeader(mood: calibrated ? .success : calibrator.busy ? .acting : .idle,
                        title: "Let Me Use the Pointer",
                        message: board.status?.isWirelessHID == true
                            ? "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid."
@@ -279,17 +349,17 @@ struct ActPage: View {
                 Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName). Then select the paired device and set Button 2 to Home.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            if !pointer.calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
+            if !calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
             Panel {
                 CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)
                 Divider().padding(.vertical, Space.s)
                 CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
                 Divider().padding(.vertical, Space.s)
-                CheckRow(title: "Pointer calibrated", done: pointer.calibrated, active: mouse && mirroring && !pointer.calibrated,
+                CheckRow(title: "Pointer calibrated", done: calibrated, active: mouse && mirroring && !calibrated,
                          waiting: calibrator.busy,
                          detail: pointer.quality.map { "Accuracy \(CalibrationText.percent($0))" })
             }
-            if !pointer.calibrated {
+            if !calibrated {
                 Label("Recommended: calibrate before first use.", systemImage: "scope")
                     .font(.footnote.weight(.semibold)).foregroundStyle(Color.accentColor)
                 Text("Tip: in AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off.")

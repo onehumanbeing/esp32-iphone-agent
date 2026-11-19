@@ -11,12 +11,22 @@
         }
       }
     },
-    "A Handsy key starts with hsk_" : {
+    "A network without a password: anyone nearby can join it. The board lets only this device mirror to it and encrypts the screen it sends here, but its own hotspot is safer." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy key 以 hsk_ 开头"
+            "value" : "这是没有密码的网络：附近任何人都能加入。板子只允许这台设备投屏，并加密发到这里的屏幕画面，但板子自己的热点更安全。"
+          }
+        }
+      }
+    },
+    "A Manina AI key starts with hsk_" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manina AI key 以 hsk_ 开头"
           }
         }
       }
@@ -51,12 +61,92 @@
         }
       }
     },
-    "Already have a Handsy key?" : {
+    "Add to Intents (%lld)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已经有 Handsy key？"
+            "value" : "添加 %lld 个意图"
+          }
+        }
+      }
+    },
+    "Add Anyway" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然添加"
+          }
+        }
+      }
+    },
+    "Add a folder or a note, or import a file, from the ⋯ menu." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以用 ⋯ 菜单新建文件夹或笔记，或导入文件。"
+          }
+        }
+      }
+    },
+    "Add to Intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加到我的意图"
+          }
+        }
+      }
+    },
+    "Adding them again makes a second copy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再添加会多出一份。"
+          }
+        }
+      }
+    },
+    "Adds a copy to the Agent tab. This file stays where it is." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在助手页添加一份副本，这个文件保留在原处。"
+          }
+        }
+      }
+    },
+    "All Runs (%lld)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部运行（%lld）"
+          }
+        }
+      }
+    },
+    "Already have a Manina AI key?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已经有 Manina AI key？"
+          }
+        }
+      }
+    },
+    "Already in your intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在我的意图中"
           }
         }
       }
@@ -161,6 +251,26 @@
         }
       }
     },
+    "Can't edit this file" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法编辑这个文件"
+          }
+        }
+      }
+    },
+    "Change this recording in a chat. Nothing is kept until you accept the review." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在对话里修改这段录制。确认修改前不会保存任何内容。"
+          }
+        }
+      }
+    },
     "Connected. Try this first: %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -181,12 +291,52 @@
         }
       }
     },
+    "Couldn't do that" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成"
+          }
+        }
+      }
+    },
+    "Couldn't export this folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导出此文件夹"
+          }
+        }
+      }
+    },
     "Demo Data Is On" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "演示数据已打开"
+          }
+        }
+      }
+    },
+    "Deselect All" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全不选"
+          }
+        }
+      }
+    },
+    "Edit plan with AI" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 AI 编辑计划"
           }
         }
       }
@@ -201,12 +351,32 @@
         }
       }
     },
+    "Export Folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出文件夹"
+          }
+        }
+      }
+    },
     "Export Tools…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出工具…"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
           }
         }
       }
@@ -221,27 +391,57 @@
         }
       }
     },
-    "Handsy Free gives a few runs per phone. A Handsy plan runs without waiting and reads recordings; your own API key works too." : {
+    "Folder" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy Free 每台手机有几次免费运行。Handsy 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
+            "value" : "文件夹"
           }
         }
       }
     },
-    "Handsy Free gives a few runs per phone. A plan runs without waiting and reads your recordings." : {
+    "From This Run" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy Free 每台手机有几次免费运行。套餐无需排队，还能分析你的录制。"
+            "value" : "来自这次运行"
           }
         }
       }
     },
-    "Handsy Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
+    "From: %@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Manina AI Free gives a few runs per phone. A Manina AI plan runs without waiting and reads recordings; your own API key works too." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manina AI Free 每台手机有几次免费运行。Manina AI 套餐无需排队，还能分析录制；也可以用你自己的 API key。"
+          }
+        }
+      }
+    },
+    "Manina AI Free gives a few runs per phone. A plan runs without waiting and reads your recordings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manina AI Free 每台手机有几次免费运行。套餐无需排队，还能分析你的录制。"
+          }
+        }
+      }
+    },
+    "Manina AI Free keeps its record of each run under this ID. The mail asks us to delete them; nothing else is attached." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -251,7 +451,7 @@
         }
       }
     },
-    "Handsy Free records" : {
+    "Manina AI Free records" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -261,7 +461,7 @@
         }
       }
     },
-    "Handsy Free, operated by Holomix, Inc. (%@)" : {
+    "Manina AI Free, operated by Holomix, Inc. (%@)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -271,52 +471,52 @@
         }
       }
     },
-    "Handsy Plan" : {
+    "Manina AI Plan" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐"
+            "value" : "Manina AI 套餐"
           }
         }
       }
     },
-    "Handsy Plan · Active" : {
+    "Manina AI Plan · Active" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐 · 已启用"
+            "value" : "Manina AI 套餐 · 已启用"
           }
         }
       }
     },
-    "Handsy Plan · Paused" : {
+    "Manina AI Plan · Paused" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 套餐 · 已暂停"
+            "value" : "Manina AI 套餐 · 已暂停"
           }
         }
       }
     },
-    "Handsy key" : {
+    "Manina AI key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 密钥"
+            "value" : "Manina AI 密钥"
           }
         }
       }
     },
-    "Handsy key (optional)" : {
+    "Manina AI key (optional)" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Handsy 密钥（可选）"
+            "value" : "Manina AI 密钥（可选）"
           }
         }
       }
@@ -331,12 +531,22 @@
         }
       }
     },
-    "I Have a Handsy Key" : {
+    "I Have a Manina AI Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "我有 Handsy key"
+            "value" : "我有 Manina AI key"
+          }
+        }
+      }
+    },
+    "Image not on this iPhone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片不在这台 iPhone 上"
           }
         }
       }
@@ -361,6 +571,16 @@
         }
       }
     },
+    "Intent · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意图 · %@"
+          }
+        }
+      }
+    },
     "Intents learn from runs" : {
       "localizations" : {
         "zh-Hans" : {
@@ -381,6 +601,16 @@
         }
       }
     },
+    "Joining \"%@\" was declined. Join it in Settings › Wi-Fi, or try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入“%@”被拒绝。请在“设置 › 无线局域网”中加入，或重试。"
+          }
+        }
+      }
+    },
     "Key ending in %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -391,12 +621,52 @@
         }
       }
     },
-    "Needs a Handsy key" : {
+    "Mails this folder to %@. Logs can mention your tasks; you see the mail before it is sent." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要 Handsy key"
+            "value" : "把这个文件夹通过邮件发到 %@。日志里可能提到你的任务，发送前你可以先看邮件内容。"
+          }
+        }
+      }
+    },
+    "May already be in your intents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能已经在我的意图里"
+          }
+        }
+      }
+    },
+    "Needs a Manina AI key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Manina AI key"
+          }
+        }
+      }
+    },
+    "New Folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建文件夹"
+          }
+        }
+      }
+    },
+    "New Note" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建笔记"
           }
         }
       }
@@ -407,6 +677,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没有板子？试试演示"
+          }
+        }
+      }
+    },
+    "No intents in this file." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件里没有意图。"
           }
         }
       }
@@ -427,6 +707,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是工具文件。"
+          }
+        }
+      }
+    },
+    "Nothing in this folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件夹是空的"
           }
         }
       }
@@ -461,12 +751,12 @@
         }
       }
     },
-    "Paste the key from your Handsy plan. Runs then use your plan: no waiting in line, and recordings are read." : {
+    "Paste the key from your Manina AI plan. Runs then use your plan: no waiting in line, and recordings are read." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "粘贴你 Handsy 套餐里的 key。之后运行使用你的套餐：不用排队，也能分析录制。"
+            "value" : "粘贴你 Manina AI 套餐里的 key。之后运行使用你的套餐：不用排队，也能分析录制。"
           }
         }
       }
@@ -501,12 +791,32 @@
         }
       }
     },
-    "Recording needs a Handsy key or your own model. Add one in Settings › Model." : {
+    "Recording needs a Manina AI key or your own model. Add one in Settings › Model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "录制需要 Handsy key 或你自己的模型，请在 设置 › 模型 里添加。"
+            "value" : "录制需要 Manina AI key 或你自己的模型，请在 设置 › 模型 里添加。"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名"
+          }
+        }
+      }
+    },
+    "Rename Intent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名"
           }
         }
       }
@@ -541,6 +851,16 @@
         }
       }
     },
+    "Results" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结果"
+          }
+        }
+      }
+    },
     "Runs and recordings use your plan, not the free runs." : {
       "localizations" : {
         "zh-Hans" : {
@@ -567,6 +887,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运行你上次运行的意图。"
+          }
+        }
+      }
+    },
+    "Saved the screen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存截图"
           }
         }
       }
@@ -611,12 +941,32 @@
         }
       }
     },
+    "Select All" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全选"
+          }
+        }
+      }
+    },
     "Send a text message to [who]: [message]" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "给[联系人]发短信：[内容]"
+          }
+        }
+      }
+    },
+    "Sends the debug log, the board's state and log, and crash reports, so a problem can be looked into. No runs, screenshots or API keys." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送调试日志、开发板状态和日志以及崩溃报告，方便排查问题。不包含运行记录、截图和 API key。"
           }
         }
       }
@@ -631,12 +981,12 @@
         }
       }
     },
-    "Set Up Your Handsy Key" : {
+    "Set Up Your Manina AI Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "设置你的 Handsy key"
+            "value" : "设置你的 Manina AI key"
           }
         }
       }
@@ -651,12 +1001,82 @@
         }
       }
     },
-    "Stays in this iPhone's Keychain and is only sent to %@." : {
+    "Some of these may already be in your intents." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存在这台 iPhone 的钥匙串里，只会发送给 %@。"
+            "value" : "其中有的可能已经在我的意图里。"
+          }
+        }
+      }
+    },
+    "The Files tab also lists the app's own data (runs, chats, intent screens) and test tools. Deleting those can break runs and intents." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「文件」页里也会列出 App 自己的数据（运行记录、对话、意图截图）和测试工具。删除它们可能让运行记录和意图无法使用。"
+          }
+        }
+      }
+    },
+    "Show developer files" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示开发者文件"
+          }
+        }
+      }
+    },
+    "Something with that name is already here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这里已经有同名的项目。"
+          }
+        }
+      }
+    },
+    "Stays in this iPhone's Keychain and is only sent to %@." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stays in this iPad's Keychain and is only sent to %@."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Stays in this iPhone's Keychain and is only sent to %@."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "保存在这台 iPad 的钥匙串里，只会发送给 %@。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "保存在这台 iPhone 的钥匙串里，只会发送给 %@。"
+                }
+              }
+            }
           }
         }
       }
@@ -667,6 +1087,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "步骤已从运行 %@ 中学到"
+          }
+        }
+      }
+    },
+    "Swipe left to delete. Touch and hold to rename or share." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向左轻扫可删除，长按可重命名或分享。"
           }
         }
       }
@@ -691,6 +1121,16 @@
         }
       }
     },
+    "That file is outside this app's files." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件不在本 App 的文件里。"
+          }
+        }
+      }
+    },
     "The AI did part of this task itself and the run worked, so that run's steps are now the saved steps." : {
       "localizations" : {
         "zh-Hans" : {
@@ -701,12 +1141,82 @@
         }
       }
     },
-    "The key stays in this iPhone's Keychain. Tap the plan at the top of Settings › Model to change it." : {
+    "The board is on another network now: start Screen Mirroring again. In Control Center tap Screen Mirroring, tap Stop Mirroring if it still shows %@, then pick %@." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "key 保存在这台 iPhone 的钥匙串里。要更换，点 设置 › 模型 顶部的套餐。"
+            "value" : "板子已经换到另一个网络：请重新开始屏幕镜像。在控制中心点“屏幕镜像”，如果仍显示 %@，先点“停止镜像”，再选择 %@。"
+          }
+        }
+      }
+    },
+    "The app needs this one; it can't be renamed or deleted." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 需要用到它，不能重命名或删除。"
+          }
+        }
+      }
+    },
+    "The file is deleted from this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件会从这台 iPhone 上删除。"
+          }
+        }
+      }
+    },
+    "The folder and everything in it are deleted from this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件夹及其中的所有内容会从这台 iPhone 上删除。"
+          }
+        }
+      }
+    },
+    "The key stays in this iPhone's Keychain. Tap the plan at the top of Settings › Model to change it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The key stays in this iPad's Keychain. Tap the plan at the top of Settings › Model to change it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The key stays in this iPhone's Keychain. Tap the plan at the top of Settings › Model to change it."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "key 保存在这台 iPad 的钥匙串里。要更换，点 设置 › 模型 顶部的套餐。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "key 保存在这台 iPhone 的钥匙串里。要更换，点 设置 › 模型 顶部的套餐。"
+                }
+              }
+            }
           }
         }
       }
@@ -731,7 +1241,7 @@
         }
       }
     },
-    "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Handsy Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
+    "The run history on this iPhone is never uploaded. What a run sends while it works goes only to the AI service you allow (and to Jev, when it is on); Manina AI Free keeps its own record of each run. An export is redacted: secrets and IP addresses removed, typed text hidden, the top of every screenshot blacked out." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1031,6 +1541,16 @@
         }
       }
     },
+    "These files stay on this iPhone, in this app. Memory holds what the agent remembers and the results it saves. Use ⋯ to add a folder or note, import a file or export a folder." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些文件只保存在这台 iPhone 的这个 App 里。「记忆」里是 Agent 记住的内容和它保存的结果。用 ⋯ 可以新建文件夹或笔记、导入文件、导出文件夹。"
+          }
+        }
+      }
+    },
     "Tools" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1051,6 +1571,16 @@
         }
       }
     },
+    "Update the board's firmware first (Settings › Board, on the board's own Wi-Fi). Older firmware lets every device on the home network mirror to the board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先更新板子的固件（设置 › 板子，在板子自己的 Wi-Fi 上更新）。旧固件允许家庭网络里的任何设备向板子投屏。"
+          }
+        }
+      }
+    },
     "Use My Own API Key" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1061,12 +1591,12 @@
         }
       }
     },
-    "Use This Handsy Key?" : {
+    "Use This Manina AI Key?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用这个 Handsy key？"
+            "value" : "使用这个 Manina AI key？"
           }
         }
       }
@@ -1081,12 +1611,22 @@
         }
       }
     },
-    "Uses your Handsy key" : {
+    "Use a name without / that doesn't start with a dot." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用你的 Handsy key"
+            "value" : "名称不能包含 /，也不能以点开头。"
+          }
+        }
+      }
+    },
+    "Uses your Manina AI key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的 Manina AI key"
           }
         }
       }
@@ -1261,22 +1801,22 @@
         }
       }
     },
-    "This Handsy key has no balance left. Remove it to use the free runs, or add your own model." : {
+    "This Manina AI key has no balance left. Remove it to use the free runs, or add your own model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个 Handsy 密钥的额度已用完。删除它可改用免费次数，或添加你自己的模型。"
+            "value" : "这个 Manina AI 密钥的额度已用完。删除它可改用免费次数，或添加你自己的模型。"
           }
         }
       }
     },
-    "This Handsy key isn't accepted. Check it in Settings › Model, or remove it to use the free runs." : {
+    "This Manina AI key isn't accepted. Check it in Settings › Model, or remove it to use the free runs." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个 Handsy 密钥无效。请在「设置 › 模型」中检查，或删除它改用免费次数。"
+            "value" : "这个 Manina AI 密钥无效。请在「设置 › 模型」中检查，或删除它改用免费次数。"
           }
         }
       }
@@ -1321,12 +1861,12 @@
         }
       }
     },
-    "With a Handsy key, runs use your plan instead of the free runs." : {
+    "With a Manina AI key, runs use your plan instead of the free runs." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "填入 Handsy 密钥后，任务会使用你的套餐额度，不占用免费次数。"
+            "value" : "填入 Manina AI 密钥后，任务会使用你的套餐额度，不占用免费次数。"
           }
         }
       }
@@ -1711,12 +2251,12 @@
         }
       }
     },
-    "handsy.tech sent this key to the app. Use it only if you just copied it from your own Handsy plan." : {
+    "manina.ai sent this key to the app. Use it only if you just copied it from your own Manina AI plan." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "handsy.tech 把这个 key 发给了 App。只有刚从你自己的 Handsy 套餐里复制的才使用。"
+            "value" : "manina.ai 把这个 key 发给了 App。只有刚从你自己的 Manina AI 套餐里复制的才使用。"
           }
         }
       }
@@ -1863,20 +2403,80 @@
     },
     "The board disconnected. Move it closer to your iPhone, reconnect, then try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board disconnected. Move it closer to your iPad, reconnect, then try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board disconnected. Move it closer to your iPhone, reconnect, then try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子已断开。请移近 iPhone，重新连接后再试。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已断开。请移近 iPad，重新连接后再试。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已断开。请移近 iPhone，重新连接后再试。"
+                }
+              }
+            }
           }
         }
       }
     },
     "The board isn't responding. Move it closer to your iPhone, or swipe up to continue." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't responding. Move it closer to your iPad, or swipe up to continue."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't responding. Move it closer to your iPhone, or swipe up to continue."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子没有响应。请移近 iPhone，或上滑返回主屏幕以继续。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有响应。请移近 iPad，或上滑返回主屏幕以继续。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有响应。请移近 iPhone，或上滑返回主屏幕以继续。"
+                }
+              }
+            }
           }
         }
       }
@@ -1973,10 +2573,40 @@
     },
     "Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Smaller screenshots send the model a copy of the screen of at most about one megapixel (a smaller one as it is), which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Smaller screenshots send the model a 540-pixel-wide copy of the screen, which uploads faster. Pre-warm streams the screen while this app is open, so a run sees the screen sooner."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缩小截图会给模型发送 540 像素宽的屏幕副本，上传更快。预热会在本 App 打开时提前传输屏幕画面，让任务更快看到屏幕。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "缩小截图会给模型发送 最多约一百万像素的屏幕副本（更小的画面原样发送），上传更快。预热会在本 App 打开时提前传输屏幕画面，让任务更快看到屏幕。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "缩小截图会给模型发送 540 像素宽的屏幕副本，上传更快。预热会在本 App 打开时提前传输屏幕画面，让任务更快看到屏幕。"
+                }
+              }
+            }
           }
         }
       }
@@ -2332,10 +2962,40 @@
     },
     "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Any OpenAI-compatible vision model works. The key stays in this iPad's Keychain."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Any OpenAI-compatible vision model works. The key stays in this iPhone's Keychain."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任何兼容 OpenAI 的视觉模型都可以。密钥只保存在这台 iPhone 的钥匙串里。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "任何兼容 OpenAI 的视觉模型都可以。密钥只保存在这台 iPad 的钥匙串里。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "任何兼容 OpenAI 的视觉模型都可以。密钥只保存在这台 iPhone 的钥匙串里。"
+                }
+              }
+            }
           }
         }
       }
@@ -2887,10 +3547,40 @@
     },
     "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPad?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点击没有到达屏幕——辅助触控是否已打开？板子是否插在这台 iPhone 上？"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "点击没有到达屏幕——辅助触控是否已打开？板子是否插在这台 iPad 上？"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "点击没有到达屏幕——辅助触控是否已打开？板子是否插在这台 iPhone 上？"
+                }
+              }
+            }
           }
         }
       }
@@ -3829,10 +4519,40 @@
     },
     "Hi, I'm %@. Tell me what to do on this iPhone." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Hi, I'm %@. Tell me what to do on this iPad."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Hi, I'm %@. Tell me what to do on this iPhone."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你好，我是 %@。告诉我要在这台 iPhone 上做什么。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "你好，我是 %@。告诉我要在这台 iPad 上做什么。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "你好，我是 %@。告诉我要在这台 iPhone 上做什么。"
+                }
+              }
+            }
           }
         }
       }
@@ -4039,10 +4759,40 @@
     },
     "Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Turn off Personal Hotspot first: while it shares this iPad's internet, the iPad can't join the board's Wi-Fi."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Turn off Personal Hotspot first: while it shares this iPhone's internet, the iPhone can't join the board's Wi-Fi."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请先关闭个人热点：iPhone 在共享网络时无法连接板子的 Wi-Fi。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "请先关闭个人热点：iPad 在共享网络时无法连接板子的 Wi-Fi。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "请先关闭个人热点：iPhone 在共享网络时无法连接板子的 Wi-Fi。"
+                }
+              }
+            }
           }
         }
       }
@@ -4169,10 +4919,40 @@
     },
     "Kept on this iPhone" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Kept on this iPad"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Kept on this iPhone"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存在这台 iPhone 上"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "保存在这台 iPad 上"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "保存在这台 iPhone 上"
+                }
+              }
+            }
           }
         }
       }
@@ -5173,6 +5953,16 @@
         }
       }
     },
+    "Record" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制"
+          }
+        }
+      }
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6147,10 +6937,40 @@
     },
     "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tell me a task and I'll do it on this iPad: I see the screen through Screen Mirroring and tap with a USB mouse."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "告诉我一个任务，我会在这台 iPhone 上完成：通过屏幕镜像看屏幕，用 USB 鼠标点击。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "告诉我一个任务，我会在这台 iPad 上完成：通过屏幕镜像看屏幕，用 USB 鼠标点击。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "告诉我一个任务，我会在这台 iPhone 上完成：通过屏幕镜像看屏幕，用 USB 鼠标点击。"
+                }
+              }
+            }
           }
         }
       }
@@ -6287,10 +7107,40 @@
     },
     "The iPhone didn't switch to the board's Wi-Fi. Join by hand with the password below." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPad didn't switch to the board's Wi-Fi. Join by hand with the password below."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPhone didn't switch to the board's Wi-Fi. Join by hand with the password below."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone 没有切换到板子的 Wi-Fi。请用下面的密码手动加入。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPad 没有切换到板子的 Wi-Fi。请用下面的密码手动加入。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPhone 没有切换到板子的 Wi-Fi。请用下面的密码手动加入。"
+                }
+              }
+            }
           }
         }
       }
@@ -6670,10 +7520,40 @@
     },
     "What should I do on this iPhone?" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "What should I do on this iPad?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "What should I do on this iPhone?"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要我在这台 iPhone 上做什么？"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "要我在这台 iPad 上做什么？"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "要我在这台 iPhone 上做什么？"
+                }
+              }
+            }
           }
         }
       }
@@ -6733,10 +7613,40 @@
     },
     "Working on it. Watch the Dynamic Island, or stop me anytime." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Working on it. I'll notify you if I need you, or stop me anytime."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Working on it. Watch the Dynamic Island, or stop me anytime."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在做。看灵动岛，或随时让我停下。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "正在处理。需要你时我会发通知，你也可以随时让我停下。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "正在做。看灵动岛，或随时让我停下。"
+                }
+              }
+            }
           }
         }
       }
@@ -6793,10 +7703,40 @@
     },
     "Your key stays in this iPhone's Keychain and is only sent to this endpoint." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your key stays in this iPad's Keychain and is only sent to this endpoint."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your key stays in this iPhone's Keychain and is only sent to this endpoint."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "密钥仅保存在这台 iPhone 的钥匙串中，只会发送给此端点。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "密钥仅保存在这台 iPad 的钥匙串中，只会发送给此端点。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "密钥仅保存在这台 iPhone 的钥匙串中，只会发送给此端点。"
+                }
+              }
+            }
           }
         }
       }
@@ -6940,20 +7880,80 @@
     },
     "%@ follows your iPhone's language. To change it just for this app, open Settings › %@ › Language." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ follows your iPad's language. To change it just for this app, open Settings › %@ › Language."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ follows your iPhone's language. To change it just for this app, open Settings › %@ › Language."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 跟随 iPhone 的语言。只想改这个 App 的语言，请打开 设置 › %2$@ › 语言。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ 跟随 iPad 的语言。只想改这个 App 的语言，请打开 设置 › %2$@ › 语言。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ 跟随 iPhone 的语言。只想改这个 App 的语言，请打开 设置 › %2$@ › 语言。"
+                }
+              }
+            }
           }
         }
       }
     },
     "%@ is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ is experimental software that controls this iPad on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ is experimental software that controls this iPhone on its own. It can tap the wrong thing, send messages, change settings, buy things or delete data. Watch it while it runs and stop it if anything looks wrong. Screenshots of your screen are sent to the model endpoint you choose. You use it at your own risk; the authors accept no liability for any loss or damage."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 是实验性软件，会自行操作这台 iPhone。它可能点错、发出消息、修改设置、购买东西或删除数据。运行时请看着它，发现不对立即停止。屏幕截图会发送到你选择的模型接口。使用风险由你自行承担；作者不对任何损失负责。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ 是实验性软件，会自行操作这台 iPad。它可能点错、发出消息、修改设置、购买东西或删除数据。运行时请看着它，发现不对立即停止。屏幕截图会发送到你选择的模型接口。使用风险由你自行承担；作者不对任何损失负责。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ 是实验性软件，会自行操作这台 iPhone。它可能点错、发出消息、修改设置、购买东西或删除数据。运行时请看着它，发现不对立即停止。屏幕截图会发送到你选择的模型接口。使用风险由你自行承担；作者不对任何损失负责。"
+                }
+              }
+            }
           }
         }
       }
@@ -7579,10 +8579,40 @@
     },
     "Open source. No data leaves this iPhone except the requests to the model endpoint you set up, and anonymous usage stats if you turn them on." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Open source. No data leaves this iPad except the requests to the model endpoint you set up, and anonymous usage stats if you turn them on."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Open source. No data leaves this iPhone except the requests to the model endpoint you set up, and anonymous usage stats if you turn them on."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开源软件。除了发往你设置的模型接口的请求，以及你开启后的匿名使用统计，没有数据离开这台 iPhone。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "开源软件。除了发往你设置的模型接口的请求，以及你开启后的匿名使用统计，没有数据离开这台 iPad。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "开源软件。除了发往你设置的模型接口的请求，以及你开启后的匿名使用统计，没有数据离开这台 iPhone。"
+                }
+              }
+            }
           }
         }
       }
@@ -7599,10 +8629,40 @@
     },
     "The iPhone left the board's Wi-Fi. Tap Try Again to join it again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPad left the board's Wi-Fi. Tap Try Again to join it again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPhone left the board's Wi-Fi. Tap Try Again to join it again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台 iPhone 已离开开发板的无线局域网。点「重试」重新加入。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPad 已离开开发板的无线局域网。点「重试」重新加入。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPhone 已离开开发板的无线局域网。点「重试」重新加入。"
+                }
+              }
+            }
           }
         }
       }
@@ -8019,10 +9079,40 @@
     },
     "Asks ESP32 Agent to do a task on this iPhone, like \"Open Settings and go to Wi-Fi\"." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Asks ESP32 Agent to do a task on this iPad, like \"Open Settings and go to Wi-Fi\"."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Asks ESP32 Agent to do a task on this iPhone, like \"Open Settings and go to Wi-Fi\"."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "让 ESP32 Agent 在这台 iPhone 上完成一个任务，比如“打开设置并进入无线局域网”。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "让 ESP32 Agent 在这台 iPad 上完成一个任务，比如“打开设置并进入无线局域网”。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "让 ESP32 Agent 在这台 iPhone 上完成一个任务，比如“打开设置并进入无线局域网”。"
+                }
+              }
+            }
           }
         }
       }
@@ -8179,10 +9269,40 @@
     },
     "Open source. No data leaves this iPhone except the requests to the model endpoint you set up." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Open source. No data leaves this iPad except the requests to the model endpoint you set up."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Open source. No data leaves this iPhone except the requests to the model endpoint you set up."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开源软件。除了发往你设置的模型接口的请求，没有数据离开这台 iPhone。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "开源软件。除了发往你设置的模型接口的请求，没有数据离开这台 iPad。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "开源软件。除了发往你设置的模型接口的请求，没有数据离开这台 iPhone。"
+                }
+              }
+            }
           }
         }
       }
@@ -8935,10 +10055,40 @@
     },
     "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board restarted. Waiting for the iPad to rejoin its Wi-Fi…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子重启了，等待 iPhone 重新加入它的 Wi-Fi…"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子重启了，等待 iPad 重新加入它的 Wi-Fi…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子重启了，等待 iPhone 重新加入它的 Wi-Fi…"
+                }
+              }
+            }
           }
         }
       }
@@ -9025,10 +10175,40 @@
     },
     "iPhone left the board's Wi-Fi" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPad left the board's Wi-Fi"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPhone left the board's Wi-Fi"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone 离开了板子的 Wi-Fi"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPad 离开了板子的 Wi-Fi"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPhone 离开了板子的 Wi-Fi"
+                }
+              }
+            }
           }
         }
       }
@@ -9045,10 +10225,40 @@
     },
     "the iPhone did not rejoin the board's Wi-Fi in 5 minutes" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "the iPad did not rejoin the board's Wi-Fi in 5 minutes"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "the iPhone did not rejoin the board's Wi-Fi in 5 minutes"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone 5 分钟内没有重新加入板子的 Wi-Fi"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPad 5 分钟内没有重新加入板子的 Wi-Fi"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPhone 5 分钟内没有重新加入板子的 Wi-Fi"
+                }
+              }
+            }
           }
         }
       }
@@ -9115,10 +10325,40 @@
     },
     "Screenshots are your choice and off by default. If you include them, text on them is pixelated and the status bar is blacked out on your iPhone, and the mail asks our model to blur anything left, like faces and photos, before anyone looks. Typed text, your model key and network names are removed. You see the mail before it is sent." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Screenshots are your choice and off by default. If you include them, text on them is pixelated and the status bar is blacked out on your iPad, and the mail asks our model to blur anything left, like faces and photos, before anyone looks. Typed text, your model key and network names are removed. You see the mail before it is sent."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Screenshots are your choice and off by default. If you include them, text on them is pixelated and the status bar is blacked out on your iPhone, and the mail asks our model to blur anything left, like faces and photos, before anyone looks. Typed text, your model key and network names are removed. You see the mail before it is sent."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图由你决定是否附带，默认不带。附带时，会先在你的 iPhone 上给截图里的文字打马赛克、涂黑状态栏；邮件里还会要求我们的模型在任何人查看前，把剩下的人脸、照片等也打码。输入的文字、模型密钥和网络名称都会去掉。发送前你能看到邮件内容。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "截图由你决定是否附带，默认不带。附带时，会先在你的 iPad 上给截图里的文字打马赛克、涂黑状态栏；邮件里还会要求我们的模型在任何人查看前，把剩下的人脸、照片等也打码。输入的文字、模型密钥和网络名称都会去掉。发送前你能看到邮件内容。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "截图由你决定是否附带，默认不带。附带时，会先在你的 iPhone 上给截图里的文字打马赛克、涂黑状态栏；邮件里还会要求我们的模型在任何人查看前，把剩下的人脸、照片等也打码。输入的文字、模型密钥和网络名称都会去掉。发送前你能看到邮件内容。"
+                }
+              }
+            }
           }
         }
       }
@@ -9135,10 +10375,40 @@
     },
     "Attached: an intent shared from %@. Screenshots were included only if I chose to, blurred on my iPhone. Use it only to improve intents in %@, not for anything else." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Attached: an intent shared from %@. Screenshots were included only if I chose to, blurred on my iPad. Use it only to improve intents in %@, not for anything else."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Attached: an intent shared from %@. Screenshots were included only if I chose to, blurred on my iPhone. Use it only to improve intents in %@, not for anything else."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "附件是从 %1$@ 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPhone 上打码。仅可用于改进 %2$@ 的意图，不得用于其他用途。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "附件是从 %1$@ 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPad 上打码。仅可用于改进 %2$@ 的意图，不得用于其他用途。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "附件是从 %1$@ 分享的一个意图。只有我选择时才会附带截图，且已在我的 iPhone 上打码。仅可用于改进 %2$@ 的意图，不得用于其他用途。"
+                }
+              }
+            }
           }
         }
       }
@@ -9185,10 +10455,40 @@
     },
     "Can't reach the board over Wi-Fi. Put the iPhone on the board's Wi-Fi (or the network the board joined) and try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Can't reach the board over Wi-Fi. Put the iPad on the board's Wi-Fi (or the network the board joined) and try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Can't reach the board over Wi-Fi. Put the iPhone on the board's Wi-Fi (or the network the board joined) and try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法通过 Wi-Fi 连接板子。请让 iPhone 连上板子的 Wi-Fi（或板子加入的那个网络）后重试。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "无法通过 Wi-Fi 连接板子。请让 iPad 连上板子的 Wi-Fi（或板子加入的那个网络）后重试。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "无法通过 Wi-Fi 连接板子。请让 iPhone 连上板子的 Wi-Fi（或板子加入的那个网络）后重试。"
+                }
+              }
+            }
           }
         }
       }
@@ -9655,10 +10955,40 @@
     },
     "App version, iOS version and iPhone model" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "App version, iOS version and iPad model"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "App version, iOS version and iPhone model"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App 版本、iOS 版本和 iPhone 型号"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "App 版本、iOS 版本和 iPad 型号"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "App 版本、iOS 版本和 iPhone 型号"
+                }
+              }
+            }
           }
         }
       }
@@ -9755,10 +11085,40 @@
     },
     "You've used the free runs on this iPhone. Add your own model to keep going." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used the free runs on this iPad. Add your own model to keep going."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used the free runs on this iPhone. Add your own model to keep going."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台 iPhone 的免费次数已用完。添加你自己的模型即可继续使用。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPad 的免费次数已用完。添加你自己的模型即可继续使用。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPhone 的免费次数已用完。添加你自己的模型即可继续使用。"
+                }
+              }
+            }
           }
         }
       }
@@ -9835,20 +11195,80 @@
     },
     "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board has power, but it isn't plugged into this iPad. Plug it into this iPad's USB-C port and try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子有电，但没有插在这台 iPhone 上。请把它插到这台 iPhone 的 USB-C 口上再试。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子有电，但没有插在这台 iPad 上。请把它插到这台 iPad 的 USB-C 口上再试。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子有电，但没有插在这台 iPhone 上。请把它插到这台 iPhone 的 USB-C 口上再试。"
+                }
+              }
+            }
           }
         }
       }
     },
     "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't controlling this iPad. Plug it into this iPad's USB-C port and try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't controlling this iPhone. Plug it into this iPhone's USB-C port and try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子没有在控制这台 iPhone。请把它插到这台 iPhone 的 USB-C 口上再试。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有在控制这台 iPad。请把它插到这台 iPad 的 USB-C 口上再试。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有在控制这台 iPhone。请把它插到这台 iPhone 的 USB-C 口上再试。"
+                }
+              }
+            }
           }
         }
       }
@@ -9933,12 +11353,12 @@
         }
       }
     },
-    "Holomix, Inc. (Handsy) and its provider TypeSafe" : {
+    "Holomix, Inc. (Manina AI) and its provider TypeSafe" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Holomix, Inc.（Handsy）及其服务商 TypeSafe"
+            "value" : "Holomix, Inc.（Manina AI）及其服务商 TypeSafe"
           }
         }
       }
@@ -10083,22 +11503,22 @@
         }
       }
     },
-    "Steps go straight from this iPhone to TypeSafe on your key; Handsy gets nothing. The key stays in this iPhone's Keychain." : {
+    "Steps go straight from this iPhone to TypeSafe on your key; Manina AI gets nothing. The key stays in this iPhone's Keychain." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Handsy 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
+            "value" : "每一步由这台 iPhone 直接用你的密钥发给 TypeSafe，Manina AI 收不到任何数据。密钥只保存在这台 iPhone 的钥匙串里。"
           }
         }
       }
     },
-    "Steps go to Jev on Handsy's server, free of charge." : {
+    "Steps go to Jev on Manina AI's server, free of charge." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每一步发给 Handsy 服务器上的 Jev，免费。"
+            "value" : "每一步发给 Manina AI 服务器上的 Jev，免费。"
           }
         }
       }
@@ -10133,57 +11553,7 @@
         }
       }
     },
-    "Each run on Handsy Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Handsy" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Handsy"
-          }
-        }
-      }
-    },
-    "Handsy Free privacy notice" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路隐私说明"
-          }
-        }
-      }
-    },
-    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Handsy Free. To have records deleted, write to support@handsy.tech. You can withdraw this anytime in Settings › Privacy." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@handsy.tech。你可以随时在“设置 › 隐私”中撤回同意。"
-          }
-        }
-      }
-    },
-    "Handsy Free is busy right now — lots of people are using it. Please try again in a moment." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路繁忙，使用的人比较多，请稍后再试。"
-          }
-        }
-      }
-    },
-    "Handsy Free isn't available on this phone right now. Use your own model instead." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台手机目前无法使用免费线路，请改用你自己的模型。"
-          }
-        }
-      }
-    },
-    "Handsy Free needs the App Store version on a real iPhone." : {
+    "Manina AI Free needs the App Store version on a real iPhone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10193,7 +11563,57 @@
         }
       }
     },
-    "Handsy Free only runs tasks. Use your own model for tests and intent analysis." : {
+    "Each run on Manina AI Free (task, screenshots, replies, timing) is saved privately to fix problems and improve Manina AI" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路上的每次运行（任务、截图、模型回复、耗时）都会私下保存，用于排查问题和改进 Manina AI"
+          }
+        }
+      }
+    },
+    "Manina AI Free privacy notice" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路隐私说明"
+          }
+        }
+      }
+    },
+    "Screenshots may show anything on your screen and are not blurred, so avoid private tasks on Manina AI Free. To have records deleted, write to support@manina.ai. You can withdraw this anytime in Settings › Privacy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图可能包含屏幕上的任何内容，且不会打码，请不要在免费线路上执行涉及隐私的任务。如需删除记录，请写信至 support@manina.ai。你可以随时在“设置 › 隐私”中撤回同意。"
+          }
+        }
+      }
+    },
+    "Manina AI Free is busy right now — lots of people are using it. Please try again in a moment." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路繁忙，使用的人比较多，请稍后再试。"
+          }
+        }
+      }
+    },
+    "Manina AI Free isn't available on this phone right now. Use your own model instead." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台手机目前无法使用免费线路，请改用你自己的模型。"
+          }
+        }
+      }
+    },
+    "Manina AI Free only runs tasks. Use your own model for tests and intent analysis." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10203,7 +11623,7 @@
         }
       }
     },
-    "Handsy Free is busy — waiting in line…" : {
+    "Manina AI Free is busy — waiting in line…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10213,7 +11633,7 @@
         }
       }
     },
-    "Only the Large Language Model decides. On Handsy Free it stays on." : {
+    "Only the Large Language Model decides. On Manina AI Free it stays on." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10225,10 +11645,40 @@
     },
     "Nothing leaves this iPhone until you agree." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nothing leaves this iPad until you agree."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nothing leaves this iPhone until you agree."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在你同意之前，任何数据都不会离开这台 iPhone。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "在你同意之前，任何数据都不会离开这台 iPad。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "在你同意之前，任何数据都不会离开这台 iPhone。"
+                }
+              }
+            }
           }
         }
       }
@@ -10345,10 +11795,40 @@
     },
     "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPad."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "While the screen is mirrored, the agent also hears sound from the phone, such as a video or a call. Speech in English and the second language is turned into text on this iPhone."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。英语和第二语言的语音只在这台 iPhone 上转成文字。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。英语和第二语言的语音只在这台 iPad 上转成文字。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "投屏时，Agent 也能听到手机里的声音，比如视频或通话。英语和第二语言的语音只在这台 iPhone 上转成文字。"
+                }
+              }
+            }
           }
         }
       }
@@ -10455,10 +11935,40 @@
     },
     "Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPhone transcribes it. Needs Listen to phone audio on." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPad transcribes it. Needs Listen to phone audio on."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Says the phrase twice through Screen Mirroring; the board sends the sound back and this iPhone transcribes it. Needs Listen to phone audio on."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通过屏幕镜像把短句播放两遍，板子把声音传回来，由这台 iPhone 转成文字。需要先打开「收听手机声音」。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "通过屏幕镜像把短句播放两遍，板子把声音传回来，由这台 iPad 转成文字。需要先打开「收听手机声音」。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "通过屏幕镜像把短句播放两遍，板子把声音传回来，由这台 iPhone 转成文字。需要先打开「收听手机声音」。"
+                }
+              }
+            }
           }
         }
       }
@@ -10485,10 +11995,40 @@
     },
     "Your iPhone's model (e.g. iPhone18,2), to adapt to its screen" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your iPad's model (e.g. iPad16,3), to adapt to its screen"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Your iPhone's model (e.g. iPhone18,2), to adapt to its screen"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你的 iPhone 型号（例如 iPhone18,2），用于适配屏幕"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "你的 iPad 型号（例如 iPad16,3），用于适配屏幕"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "你的 iPhone 型号（例如 iPhone18,2），用于适配屏幕"
+                }
+              }
+            }
           }
         }
       }
@@ -10499,6 +12039,466 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "测试点击落点离目标太远，这次校准没有保存。请在 辅助触控 › 指针设备 中把跟踪速度调到中间并关闭指针动画，然后再试一次。"
+          }
+        }
+      }
+    },
+    "Board left the Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板离开了 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Board on your Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板已连上你的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Board's Hotspot" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板热点"
+          }
+        }
+      }
+    },
+    "Board's Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Change Wi-Fi Network…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换 Wi-Fi 网络…"
+          }
+        }
+      }
+    },
+    "Check Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Checking This Device…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查本设备…"
+          }
+        }
+      }
+    },
+    "Connect the Board to This Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让开发板连接这个 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Home Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家里的 Wi-Fi"
+          }
+        }
+      }
+    },
+    "Home Wi-Fi (LAN)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家里的 Wi-Fi（局域网）"
+          }
+        }
+      }
+    },
+    "Local Network permission" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地网络权限"
+          }
+        }
+      }
+    },
+    "Local Network permission is off, so the screen comes over slow BLE. Allow it in Settings › ESP32 Agent › Local Network." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地网络权限已关闭，画面只能走较慢的蓝牙。请在 设置 › ESP32 Agent › 本地网络 里允许。"
+          }
+        }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        }
+      }
+    },
+    "Password (empty if none)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码（没有就留空）"
+          }
+        }
+      }
+    },
+    "Remember this network's password" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住这个网络的密码"
+          }
+        }
+      }
+    },
+    "Same network, but the board doesn't show up in Screen Mirroring: the router may isolate devices from each other or block mDNS (common on office and hotel networks). The board's own hotspot always works — switch in Settings › Board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在同一个网络，但「屏幕镜像」里找不到开发板：路由器可能隔离了设备之间的访问，或拦截了 mDNS（办公室和酒店网络很常见）。开发板自己的热点总能用，可在 设置 › 开发板 里切换。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring goes to the board over your Wi-Fi network." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像通过你的 Wi-Fi 网络传给开发板。"
+          }
+        }
+      }
+    },
+    "Switch Back to the Board's Hotspot" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切回开发板热点"
+          }
+        }
+      }
+    },
+    "The Board Is Joining the Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板正在连接 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "The board and this device share your Wi-Fi network. If the board stops showing up in Screen Mirroring, the router may isolate devices from each other or block mDNS — switch back to the board's hotspot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板和本设备共用你的 Wi-Fi 网络。如果「屏幕镜像」里找不到开发板了，可能是路由器隔离了设备或拦截了 mDNS，请切回开发板热点。"
+          }
+        }
+      }
+    },
+    "The board couldn't join \"%@\". Check the password, and that this network has a 2.4 GHz band." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没能连上“%@”。请检查密码，并确认这个网络有 2.4 GHz 频段。"
+          }
+        }
+      }
+    },
+    "The board disconnected. Reconnect it and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了。请重新连接后再试。"
+          }
+        }
+      }
+    },
+    "The board is not on the Wi-Fi. Check the network and password in Settings › Board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没有连上 Wi-Fi。请在 设置 › 开发板 里检查网络和密码。"
+          }
+        }
+      }
+    },
+    "The board is off the Wi-Fi. Check the network in ESP32 Agent › Settings › Board; the run goes on when it is back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了 Wi-Fi。请在 ESP32 Agent › 设置 › 开发板 里检查网络，连上后任务会继续。"
+          }
+        }
+      }
+    },
+    "The board is off the Wi-Fi. Check the network in Settings › Board" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板断开了 Wi-Fi。请在 设置 › 开发板 里检查网络"
+          }
+        }
+      }
+    },
+    "The board is on \"%@\" now. Join \"%@\" on this device, or a network on the same router." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板现在在“%@”上。请让本设备加入“%@”，或同一路由器下的其他网络。"
+          }
+        }
+      }
+    },
+    "The board only supports 2.4 GHz Wi-Fi. If the router's 2.4 GHz and 5 GHz bands share one name, that name works. If they differ, enter the 2.4 GHz one — this device can stay on 5 GHz." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板只支持 2.4 GHz Wi-Fi。如果路由器的 2.4 GHz 和 5 GHz 用同一个名称，填这个名称即可；如果名称不同，请填 2.4 GHz 的那个，本设备可以继续连 5 GHz。"
+          }
+        }
+      }
+    },
+    "The board restarted or lost the Wi-Fi. Waiting for it to rejoin…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板重启了或断开了 Wi-Fi，正在等它重新连上…"
+          }
+        }
+      }
+    },
+    "The mirrored image is stale: a busy 2.4 GHz band or router rate limiting can starve it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜像画面没有更新：2.4 GHz 频段拥挤或路由器限速都可能让画面卡住。"
+          }
+        }
+      }
+    },
+    "The update goes over Wi-Fi. Join the network the board is on (Settings › Board), then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新通过 Wi-Fi 进行。请加入开发板所在的网络（设置 › 开发板），然后再试。"
+          }
+        }
+      }
+    },
+    "This device and the board are on different networks; Screen Mirroring won't find the board." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备和开发板不在同一个网络，「屏幕镜像」找不到开发板。"
+          }
+        }
+      }
+    },
+    "This device has no cellular data, so the board shares your Wi-Fi instead of opening its own hotspot." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备没有蜂窝数据，所以开发板会连接你的 Wi-Fi，而不是开自己的热点。"
+          }
+        }
+      }
+    },
+    "This device on it" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本设备已连上"
+          }
+        }
+      }
+    },
+    "This takes up to a minute — the board restarts its Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多需要一分钟，开发板会重启它的 Wi-Fi。"
+          }
+        }
+      }
+    },
+    "Trouble finding the board later? The router may isolate devices from each other or block mDNS (common on office and hotel networks). The board's own hotspot always works." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "之后找不到开发板？路由器可能隔离了设备之间的访问，或拦截了 mDNS（办公室和酒店网络很常见）。开发板自己的热点总能用。"
+          }
+        }
+      }
+    },
+    "Use a Home Wi-Fi Network Instead…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用家里的 Wi-Fi 网络…"
+          }
+        }
+      }
+    },
+    "Video channel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频通道"
+          }
+        }
+      }
+    },
+    "Waiting for the board to rejoin the Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等开发板重新连上 Wi-Fi…"
+          }
+        }
+      }
+    },
+    "Wi-Fi name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi 名称"
+          }
+        }
+      }
+    },
+    "Wi-Fi…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi…"
+          }
+        }
+      }
+    },
+    "the board did not rejoin the Wi-Fi in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板 5 分钟内没有重新连上 Wi-Fi"
+          }
+        }
+      }
+    },
+    "LAN" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "局域网"
+          }
+        }
+      }
+    },
+    "The screen rotated during calibration. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校准时屏幕旋转了。请再试一次。"
+          }
+        }
+      }
+    },
+    "The screen rotated since the pointer was calibrated. Calibrate it again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校准指针后屏幕旋转过。请重新校准。"
+          }
+        }
+      }
+    },
+    "The iPad was rotated since the pointer was calibrated. Stop, calibrate it in this orientation, and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校准指针后 iPad 旋转过。请停止任务，在当前方向下重新校准后再试。"
+          }
+        }
+      }
+    },
+    "Frames" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
           }
         }
       }
@@ -10523,12 +12523,12 @@
         }
       }
     },
-    "Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Handsy's server may ask for more on some kinds of steps." : {
+    "Jev takes a step only when it is at least this sure; otherwise the Large Language Model decides. Lower is faster, higher is more careful. Manina AI's server may ask for more on some kinds of steps." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jev 只在把握不低于这个值时才自己走这一步，否则交给大语言模型。调低更快，调高更稳。Handsy 服务器对某些类型的步骤可能要求更高。"
+            "value" : "Jev 只在把握不低于这个值时才自己走这一步，否则交给大语言模型。调低更快，调高更稳。Manina AI 服务器对某些类型的步骤可能要求更高。"
           }
         }
       }
@@ -10543,32 +12543,82 @@
         }
       }
     },
-    "Handsy Free is busy right now, so this run was paused. Tap Continue in a moment to pick up where it left off." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费线路繁忙，这次运行已暂停。稍后点「继续」接着跑。"
-          }
-        }
-      }
-    },
     "The board is connected, but the iPhone isn't taking its pointer. Check that AssistiveTouch is on (Settings › Accessibility › Touch › AssistiveTouch), that the board is plugged into this iPhone, then unplug and replug it." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board is connected, but the iPad isn't taking its pointer. Check that AssistiveTouch is on (Settings › Accessibility › Touch › AssistiveTouch), that the board is plugged into this iPad, then unplug and replug it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board is connected, but the iPhone isn't taking its pointer. Check that AssistiveTouch is on (Settings › Accessibility › Touch › AssistiveTouch), that the board is plugged into this iPhone, then unplug and replug it."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子已连接，但 iPhone 没有接收它的指针。请确认辅助触控已打开（设置 › 辅助功能 › 触控 › 辅助触控），板子插在这台 iPhone 上，然后拔下再重新插上。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已连接，但 iPad 没有接收它的指针。请确认辅助触控已打开（设置 › 辅助功能 › 触控 › 辅助触控），板子插在这台 iPad 上，然后拔下再重新插上。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已连接，但 iPhone 没有接收它的指针。请确认辅助触控已打开（设置 › 辅助功能 › 触控 › 辅助触控），板子插在这台 iPhone 上，然后拔下再重新插上。"
+                }
+              }
+            }
           }
         }
       }
     },
     "My taps aren't reaching the iPhone" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "My taps aren't reaching the iPad"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "My taps aren't reaching the iPhone"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的点击没有到达 iPhone"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "我的点击没有到达 iPad"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "我的点击没有到达 iPhone"
+                }
+              }
+            }
           }
         }
       }
@@ -10585,25 +12635,85 @@
     },
     "The iPhone screen or the board stopped responding. Check that the board has power and Screen Mirroring is on, then start again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPad screen or the board stopped responding. Check that the board has power and Screen Mirroring is on, then start again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The iPhone screen or the board stopped responding. Check that the board has power and Screen Mirroring is on, then start again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone 屏幕或板子没有响应。请确认板子已通电、屏幕镜像已打开，然后重新开始。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPad 屏幕或板子没有响应。请确认板子已通电、屏幕镜像已打开，然后重新开始。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "iPhone 屏幕或板子没有响应。请确认板子已通电、屏幕镜像已打开，然后重新开始。"
+                }
+              }
+            }
           }
         }
       }
     },
     "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used today's free runs on this iPad. Try again tomorrow, or add your own model."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You've used today's free runs on this iPhone. Try again tomorrow, or add your own model."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今天这台 iPhone 的免费次数已用完，请明天再试，或添加你自己的模型。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "今天这台 iPad 的免费次数已用完，请明天再试，或添加你自己的模型。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "今天这台 iPhone 的免费次数已用完，请明天再试，或添加你自己的模型。"
+                }
+              }
+            }
           }
         }
       }
     },
-    "Handsy Free needs a few seconds between runs. Try again in a moment." : {
+    "Manina AI Free needs a few seconds between runs. Try again in a moment." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10625,10 +12735,40 @@
     },
     "The same action keeps leaving the screen as it was. Check that the pointer shows on the iPhone (AssistiveTouch on, the board connected)." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The same action keeps leaving the screen as it was. Check that the pointer shows on the iPad (AssistiveTouch on, the board connected)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The same action keeps leaving the screen as it was. Check that the pointer shows on the iPhone (AssistiveTouch on, the board connected)."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同一个操作一直没有让屏幕变化。请确认 iPhone 上能看到指针（辅助触控已打开，板子已连接）。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "同一个操作一直没有让屏幕变化。请确认 iPad 上能看到指针（辅助触控已打开，板子已连接）。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "同一个操作一直没有让屏幕变化。请确认 iPhone 上能看到指针（辅助触控已打开，板子已连接）。"
+                }
+              }
+            }
           }
         }
       }
@@ -10685,10 +12825,40 @@
     },
     "For debugging your own iPhone: when both are set, the app checks this server about every 30 seconds while it is open or a run is going and, when asked, uploads the end of its text debug log, with keys and tokens removed. Never screenshots. Leave empty to turn it off." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "For debugging your own iPad: when both are set, the app checks this server about every 30 seconds while it is open or a run is going and, when asked, uploads the end of its text debug log, with keys and tokens removed. Never screenshots. Leave empty to turn it off."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "For debugging your own iPhone: when both are set, the app checks this server about every 30 seconds while it is open or a run is going and, when asked, uploads the end of its text debug log, with keys and tokens removed. Never screenshots. Leave empty to turn it off."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用于调试你自己的 iPhone：两项都填写后，App 在打开或运行任务时约每 30 秒询问一次该服务器，收到请求时上传文本调试日志的末尾部分，其中的密钥和令牌会被移除。绝不上传截图。留空即关闭。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "用于调试你自己的 iPad：两项都填写后，App 在打开或运行任务时约每 30 秒询问一次该服务器，收到请求时上传文本调试日志的末尾部分，其中的密钥和令牌会被移除。绝不上传截图。留空即关闭。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "用于调试你自己的 iPhone：两项都填写后，App 在打开或运行任务时约每 30 秒询问一次该服务器，收到请求时上传文本调试日志的末尾部分，其中的密钥和令牌会被移除。绝不上传截图。留空即关闭。"
+                }
+              }
+            }
           }
         }
       }
@@ -11325,30 +13495,530 @@
     },
     "The board's USB is asleep. Unlock this iPhone, then try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board's USB is asleep. Unlock this iPad, then try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board's USB is asleep. Unlock this iPhone, then try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子的 USB 处于休眠。请先解锁这台 iPhone，再试一次。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子的 USB 处于休眠。请先解锁这台 iPad，再试一次。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子的 USB 处于休眠。请先解锁这台 iPhone，再试一次。"
+                }
+              }
+            }
           }
         }
       }
     },
     "The board is plugged in by USB, but this iPhone isn't getting its input. Plug it straight into this iPhone (not a computer, hub or charger), tap Allow if iPhone asks about the accessory, then try again." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board is plugged in by USB, but this iPad isn't getting its input. Plug it straight into this iPad (not a computer, hub or charger), tap Allow if iPad asks about the accessory, then try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board is plugged in by USB, but this iPhone isn't getting its input. Plug it straight into this iPhone (not a computer, hub or charger), tap Allow if iPhone asks about the accessory, then try again."
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子已经插上 USB，但这台 iPhone 没有收到它的操作。请把它直接插到这台 iPhone 上（不要插电脑、扩展坞或充电器）；如果 iPhone 询问是否允许配件连接，点「允许」，然后再试一次。"
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已经插上 USB，但这台 iPad 没有收到它的操作。请把它直接插到这台 iPad 上（不要插电脑、扩展坞或充电器）；如果 iPad 询问是否允许配件连接，点「允许」，然后再试一次。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子已经插上 USB，但这台 iPhone 没有收到它的操作。请把它直接插到这台 iPhone 上（不要插电脑、扩展坞或充电器）；如果 iPhone 询问是否允许配件连接，点「允许」，然后再试一次。"
+                }
+              }
+            }
           }
         }
       }
     },
     "This iPhone isn't getting the board's input. Plug the board straight into this iPhone's USB-C port and tap Allow if iPhone asks about the accessory. I'll go on when it works." : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This iPad isn't getting the board's input. Plug the board straight into this iPad's USB-C port and tap Allow if iPad asks about the accessory. I'll go on when it works."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This iPhone isn't getting the board's input. Plug the board straight into this iPhone's USB-C port and tap Allow if iPhone asks about the accessory. I'll go on when it works."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPad 没有收到板子的操作。请把板子直接插到这台 iPad 的 USB-C 口；如果 iPad 询问是否允许配件连接，点「允许」。连上后我会自动继续。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "这台 iPhone 没有收到板子的操作。请把板子直接插到这台 iPhone 的 USB-C 口；如果 iPhone 询问是否允许配件连接，点「允许」。连上后我会自动继续。"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Jev isn't available in your region, so your model takes every step of this run." : {
+      "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这台 iPhone 没有收到板子的操作。请把板子直接插到这台 iPhone 的 USB-C 口；如果 iPhone 询问是否允许配件连接，点「允许」。连上后我会自动继续。"
+            "value" : "Jev 在你所在的地区不可用，本次运行的每一步都由你的模型完成。"
+          }
+        }
+      }
+    },
+    "TypeSafe refused your Jev key. Check it in Settings; your model takes every step of this run." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TypeSafe 拒绝了你的 Jev key，请在设置里检查；本次运行的每一步都由你的模型完成。"
+          }
+        }
+      }
+    },
+    "Your TypeSafe account is out of credit, so your model takes every step of this run." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 TypeSafe 账户余额不足，本次运行的每一步都由你的模型完成。"
+          }
+        }
+      }
+    },
+    "This iPhone's Personal Hotspot is on. Turn it off in Settings › Personal Hotspot, then join the board's Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 正在开个人热点。请先在「设置 › 个人热点」里关掉，再连接板子的 Wi-Fi。"
+          }
+        }
+      }
+    },
+    "Guide" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指南"
+          }
+        }
+      }
+    },
+    "Reading the guide for %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在读取%@的指南"
+          }
+        }
+      }
+    },
+    "Reading a guide…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在读取指南…"
+          }
+        }
+      }
+    },
+    "Manina AI's AI service is busy or didn't answer, so this run was paused. Tap Continue in a moment to pick up where it left off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manina AI 的 AI 服务繁忙或没有响应，这次运行已暂停。稍后点「继续」接着跑。"
+          }
+        }
+      }
+    },
+    "Collected “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收集“%@”"
+          }
+        }
+      }
+    },
+    "Looked for “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查找“%@”"
+          }
+        }
+      }
+    },
+    "Short reasons" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简短理由"
+          }
+        }
+      }
+    },
+    "Short reasons has the model explain each step in one short sentence, so steps come back sooner." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启「简短理由」后，模型每一步只用一句话说明，步骤返回更快。"
+          }
+        }
+      }
+    },
+    "Latest Run" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近一次运行"
+          }
+        }
+      }
+    },
+    "Delete Folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除文件夹"
+          }
+        }
+      }
+    },
+    "Update %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 %@"
+          }
+        }
+      }
+    },
+    "Version %@ is on the App Store. Updating keeps the app and the board firmware in step; older versions may not work with new boards." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store 上已有 %@ 版。更新后 App 和板子固件保持一致；旧版本可能无法配合新板子使用。"
+          }
+        }
+      }
+    },
+    "New board firmware needs the latest app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的板子固件需要最新版 App"
+          }
+        }
+      }
+    },
+    "A new version of the app is out" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 有新版本了"
+          }
+        }
+      }
+    },
+    "Writing up…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整理结果…"
+          }
+        }
+      }
+    },
+    "Got everything. Writing the result; the phone is yours" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收集完，正在整理结果，手机可以用了"
+          }
+        }
+      }
+    },
+    "Write" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整理"
+          }
+        }
+      }
+    },
+    "Saved Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存方案"
+          }
+        }
+      }
+    },
+    "Forget Saved Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除已存方案"
+          }
+        }
+      }
+    },
+    "Runs start from this plan while the instruction is unchanged, without waiting for a new one. It is dropped when you edit the instruction, a run with it fails, or after 7 days." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令没改时，每次运行直接从这份方案开始，不用等新方案。改了指令、用它的运行失败，或满 7 天后会自动清除。"
+          }
+        }
+      }
+    },
+    "Plans" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方案"
+          }
+        }
+      }
+    },
+    "Saved %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存于%@"
+          }
+        }
+      }
+    },
+    "Its intent is gone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对应的意图已删除"
+          }
+        }
+      }
+    },
+    "The next run starts from this plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次运行从这份方案开始"
+          }
+        }
+      }
+    },
+    "The instruction changed: not used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令已改，不再使用"
+          }
+        }
+      }
+    },
+    "Older than 7 days: not used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超过 7 天，不再使用"
+          }
+        }
+      }
+    },
+    "You edited this plan, so the app keeps it as it is. It ends when the intent's instruction changes or you delete this file." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份方案你改过，App 会原样保留。意图的指令改了，或你删掉这个文件，它才失效。"
+          }
+        }
+      }
+    },
+    "The app wrote this plan from a run that worked. Edit it to keep your version; delete it to plan afresh." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份方案来自一次成功的运行。编辑后会保留你的版本；删掉则下次重新规划。"
+          }
+        }
+      }
+    },
+    "Your edited plan: runs start from it until the instruction changes. It is in Files › Plans." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你改过的方案：指令不变就一直从它开始运行。在「文件 › 方案」里。"
+          }
+        }
+      }
+    },
+    "Runs start from this plan while the instruction is unchanged, without waiting for a new one. It is dropped when you edit the instruction, a run with it fails, or after 7 days. Edit it in Files › Plans." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令不变时，运行直接从这份方案开始，不用等新方案。改了指令、用它的运行失败或过了 7 天就会清除。可在「文件 › 方案」里编辑。"
+          }
+        }
+      }
+    },
+    "Couldn't save" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存"
+          }
+        }
+      }
+    },
+    "This free run reached its time limit, so it was paused. Tap Continue to pick up where it left off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次免费运行到了时长上限，已暂停。点「继续」从停下的地方接着做。"
+          }
+        }
+      }
+    },
+    "No screen image for this step" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一步没有截图"
+          }
+        }
+      }
+    },
+    "No matches" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的结果"
+          }
+        }
+      }
+    },
+    "%lld matches" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个结果"
+          }
+        }
+      }
+    },
+    "Search names and notes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索文件名和内容"
+          }
+        }
+      }
+    },
+    "Couldn't reach Manina AI Free. Check the internet connection and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连不上 Manina AI Free。请检查网络后再试。"
           }
         }
       }
@@ -11433,12 +14103,12 @@
         }
       }
     },
-    "The Bluetooth pointer did not reconnect in 5 minutes." : {
+    "the Bluetooth pointer did not reconnect in 5 minutes" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "蓝牙指针在五分钟内未能重新连接。"
+            "value" : "蓝牙指针在五分钟内未能重新连接"
           }
         }
       }

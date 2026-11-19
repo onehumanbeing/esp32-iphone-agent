@@ -39,6 +39,12 @@ extension AgentLoop {
         try Task.checkCancellation()
         DebugLog.write("link check: \(unchanged) rounds changed nothing; "
                        + (failure.map { $0 == .board ? "the board did not answer" : "no fresh frame arrived" } ?? "board and frames fine"))
-        if failure != nil { throw BlindError(reason: LinkCheck.reason) }
+        guard failure != nil else { return }
+        guard policy.unattended else { throw BlindError(reason: LinkCheck.reason) }
+        // A dead link ends an attended run. Unattended goes through the same recovery as a drop,
+        // and gives up only when that wait (policy.recoveryLimit) runs out.
+        DebugLog.write("link check: unattended; recovering instead of ending the run")
+        acceptedLookLinks = nil
+        _ = try await waitForScreen(forceRestore: true, deadline: now() + policy.recoveryLimit)
     }
 }

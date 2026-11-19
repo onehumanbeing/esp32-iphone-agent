@@ -67,9 +67,9 @@ import UIKit
             error = String(localized: "Connect the board, start Screen Mirroring, and set up a model first.")
             return false
         }
-        // Henry 2026-11-12: Handsy Free does not read recordings; a Handsy key (paid) or one's own model does.
+        // Henry 2026-11-12: Manina AI Free does not read recordings; a Manina AI key (paid) or one's own model does.
         if !MockMode.on, app.settings.provider == .handsyTrial, !Trial.shared.canRecord {
-            error = String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model.")
+            error = String(localized: "Recording needs a Manina AI key or your own model. Add one in Settings › Model.")
             return false
         }
         let dir = app.traces.root.appendingPathComponent(TraceStore.folderName())
@@ -116,7 +116,7 @@ import UIKit
             try await countDown()
             // Henry 2026-11-12: waiting for each screen to settle (up to 4 s) missed the screens of a person going at
             // a normal pace. Now every streamed frame (≤5 fps) is looked at, nothing waits: a screen that stays
-            // `still` seconds is kept, if it differs from the last kept one. Handsy's own screens are not kept.
+            // `still` seconds is kept, if it differs from the last kept one. Manina AI's own screens are not kept.
             var kept: Data?, seen: Data?, seenAt = -1.0
             var candidate: Data?, candidateSince = 0.0
             var staleSince = now()
@@ -511,7 +511,7 @@ extension AppModel {
     /// The recording reader (Settings.recordingClient); none: the free line on a phone the server doesn't allow.
     func recordingModel() async throws -> LLMClient {
         guard let model = try await settings.recordingClient() else {
-            throw DeviceError(message: String(localized: "Recording needs a Handsy key or your own model. Add one in Settings › Model."))
+            throw DeviceError(message: String(localized: "Recording needs a Manina AI key or your own model. Add one in Settings › Model."))
         }
         return model
     }

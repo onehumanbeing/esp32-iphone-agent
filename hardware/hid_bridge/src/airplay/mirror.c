@@ -336,7 +336,15 @@ static void mirror_task(void *arg) {
     if (m.afd[1] >= 0 && FD_ISSET(m.afd[1], &rf)) recv(m.afd[1], scratch, sizeof scratch, 0);  // sync, resends
     if (m.sfd < 0) {
       if (!FD_ISSET(m.lfd, &rf)) continue;
-      m.sfd = accept(m.lfd, NULL, NULL);
+      struct sockaddr_in peer;
+      socklen_t pl = sizeof peer;
+      m.sfd = accept(m.lfd, (struct sockaddr *)&peer, &pl);
+      if (m.sfd >= 0 && ap_cfg.allow_peer && !ap_cfg.allow_peer(peer.sin_addr.s_addr)) {
+        ap_log("mirror: data connection from %s refused (not this board's phone)", inet_ntoa(peer.sin_addr));
+        close(m.sfd);
+        m.sfd = -1;
+        continue;
+      }
       got = 0, need = 128, in_payload = false;
       m.got_codec = false;
       m.logged_no_video = false;

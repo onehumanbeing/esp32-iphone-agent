@@ -1,4 +1,4 @@
-# Shared by the harness scripts: the test iPhone and the app's Documents/debug.log, over harness/live.py when the app
+# Shared by the harness scripts: the test iPhone and the app's Documents/logs/debug.log, over harness/live.py when the app
 # is connected to it (no devicectl), else over devicectl (Wi-Fi).
 DEVICE=${HARNESS_IPHONE:?set HARNESS_IPHONE to the test iPhone (xcrun devicectl list devices)}
 # the Debug build's bundle id (yours, from ios/Config/Local.xcconfig): $HARNESS_BUNDLE, else the last harness/app.sh build
@@ -22,18 +22,23 @@ dc() {
 LIVE=${HARNESS_LIVE:-/tmp/harness-live}
 live() { [[ -e $LIVE/connected && -z ${NO_LIVE:-} ]]; }
 
+# copy_log <name> <dest>: Documents/logs/<name> (Documents/<name> for an app from before 2026-11-16).
+copy_log() {
+  dc device copy from "${ON[@]}" --source "Documents/logs/$1" --destination "$2" >/dev/null 2>&1 \
+    || dc device copy from "${ON[@]}" --source "Documents/$1" --destination "$2" >/dev/null 2>&1
+}
+
 # pull_log <dest>: the app's recent log lines (live, else debug.recent.log, else debug.log for an older app).
 pull_log() {
   if live; then tail -c 256000 "$LIVE/debug.log" >"$1"; return; fi
-  dc device copy from "${ON[@]}" --source Documents/debug.recent.log --destination "$1" >/dev/null 2>&1 \
-    || dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$1" >/dev/null 2>&1
+  copy_log debug.recent.log "$1" || copy_log debug.log "$1"
 }
 
 # log_lines: how many lines debug.log has now (0 if there is none yet).
 log_lines() {
   if live; then wc -l <"$LIVE/debug.log" | tr -d ' '; return; fi
   local f; f=$(mktemp -u /tmp/harness-log.XXXXXX)
-  dc device copy from "${ON[@]}" --source Documents/debug.log --destination "$f" >/dev/null 2>&1 || { echo 0; return; }
+  copy_log debug.log "$f" || { echo 0; return; }
   wc -l <"$f" | tr -d ' '; rm -f "$f"
 }
 
@@ -59,7 +64,7 @@ follow() {
   echo "no result in $4 s (harness/logs.sh shows the log)"; return 1
 }
 
-# launch <app args…>: hand the app these arguments through Documents/harness-inbox/ (the Debug
+# launch <app args…>: hand the app these arguments through Documents/developer/harness-inbox/ (the Debug
 # app reads it every second) and bring it up; prints the log line count from before. Launch arguments alone get
 # lost: iOS often restores the app for Bluetooth first, and devicectl's launch then only brings it to the front.
 launch() {
@@ -71,7 +76,7 @@ launch() {
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" ${extra[@]+"${extra[@]}"} >"$f"
   from=$(date -u -v-2S +%Y-%m-%dT%H:%M:%S)  # follow from here; the phone's clock may run a little behind
   if live; then mv "$f" "$LIVE/outbox/$name"; else
-    dc device copy to "${ON[@]}" --source "$f" --destination "Documents/harness-inbox/$name" >/dev/null
+    dc device copy to "${ON[@]}" --source "$f" --destination "Documents/developer/harness-inbox/$name" >/dev/null
     rm -f "$f"
   fi
   [[ -n ${NO_LAUNCH:-} ]] || dc device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
