@@ -244,6 +244,18 @@ import XCTest
         XCTAssertFalse(LLMClient.trialUsedUp("daily quota"))
     }
 
+    func testAContentFilterRefusalSaysWhyOnEveryLine() {
+        for body in [#"{"error": {"code": "sensitive_words_detected", "message": "..."}}"#,
+                     #"{"error": {"code": "data_inspection_failed"}}"#, "finish_reason content_filter"] {
+            XCTAssertTrue(LLMError.contentFiltered(body), body)
+        }
+        XCTAssertFalse(LLMError.contentFiltered(#"{"status": "busy", "reason": "all_slots_in_use"}"#))
+        let free = LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "content_filtered"}"#)
+        XCTAssertEqual(free?.message, LLMError.contentRefused, "not read as busy: Continue on the same page would fail again")
+        XCTAssertEqual(free?.kind, "content_filter")
+        XCTAssertTrue(LLMError.serverFailed("api.example.com", 500, "boom").contains("api.example.com"))
+    }
+
     func testLineSideFailuresReadAsBusy() {
         let busy = LLMError.lineBusy
         for (status, body) in [(503, #"{"status": "busy", "reason": "spark_overheat"}"#),

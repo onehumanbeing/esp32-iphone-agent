@@ -20,3 +20,9 @@ another project:
    should credit this project too.
 
 See NOTICE for details.
+
+## Errors the app can't fix
+
+When a failure can't be handled in code (an AI service's 5xx, its content filter, an outage, a used-up quota),
+surface it: pause or stop the run and tell the user the likely cause and what to do next, in their language.
+Never retry it in a loop, swallow it, or report it as something else (a content-filter refusal is not "busy").

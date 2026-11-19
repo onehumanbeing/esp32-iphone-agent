@@ -10083,6 +10083,26 @@
         }
       }
     },
+    "The AI service %@ failed (HTTP %lld), usually a passing problem on its side. Tap Continue in a moment. If it fails again on the same screen, the service may be refusing what is on it. Its reply: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务 %1$@ 出错（HTTP %2$lld），通常是对方临时故障。稍后点「继续」。如果在同一个画面反复出错，可能是服务拒绝处理画面上的内容。对方返回：%3$@"
+          }
+        }
+      }
+    },
+    "The AI service refused this screen, most likely because its content filter blocks words on it (news headlines and trending lists often trigger it). The run was paused. Leave this page, then tap Continue, or use another AI service." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务拒绝处理这个画面，多半是页面上有被它内容审核屏蔽的词（新闻标题、热搜榜常会触发）。这次运行已暂停。先离开这个页面，再点「继续」，或换一个 AI 服务。"
+          }
+        }
+      }
+    },
     "The board restarted. Waiting for the iPhone to rejoin its Wi-Fi…" : {
       "localizations" : {
         "en" : {
