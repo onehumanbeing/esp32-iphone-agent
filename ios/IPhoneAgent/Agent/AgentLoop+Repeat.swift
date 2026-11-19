@@ -174,7 +174,8 @@ enum DoneGuard {
 
     static let reason = "Not done yet: nothing this run did has changed the screen, so what it shows was already "
         + "there when the run started (an earlier run counts for nothing here). Do the goal now; give done only if "
-        + "this screen itself answers it."
+        + "this screen itself answers it. When the goal is a question this screen or your answer already settles, "
+        + "give the same done again: a second done is taken."
 }
 
 /// A send right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters, not the
