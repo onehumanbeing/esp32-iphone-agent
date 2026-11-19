@@ -62,7 +62,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Runs")
                 } footer: {
-                    Text("Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
+                    Text("Ask me first: the agent always stops and asks you in a notification before a step that can't be undone, such as deleting for good, approving a request, a phone call or accepting terms. It also asks before paying, and with the widest choice before sending a message. Every run keeps a low-frame-rate video of the mirrored screen for the review.")
                 }
                 Section {
                     Toggle(isOn: $settings.restoreKeyboardAfterRun) {

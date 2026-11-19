@@ -721,6 +721,16 @@
         }
       }
     },
+    "Only what can't be undone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在无法撤销时"
+          }
+        }
+      }
+    },
     "Open %@ and allow sending screenshots and your task to this model, then ask again." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1371,12 +1381,12 @@
         }
       }
     },
-    "Payments only" : {
+    "Payments and what can't be undone" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只在付款时"
+            "value" : "付款和无法撤销的操作"
           }
         }
       }
@@ -1931,12 +1941,12 @@
         }
       }
     },
-    "Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
+    "Ask me first: the agent always stops and asks you in a notification before a step that can't be undone, such as deleting for good, approving a request, a phone call or accepting terms. It also asks before paying, and with the widest choice before sending a message. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先问我：agent 会在付款前停下来，用通知问你（只在付款时）；也可以设为在发送消息、删除或修改账户设置前也问你。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
+            "value" : "先问我：遇到无法撤销的操作，比如永久删除、审批、通话或接受协议，agent 一定会停下来用通知问你；付款前也会问；选最宽的一档，发送消息前也会问。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
           }
         }
       }

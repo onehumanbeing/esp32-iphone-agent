@@ -8,6 +8,10 @@ final class PayGuardTests: XCTestCase {
         XCTAssertEqual(PayGuard.kind("Place Order"), .money)
         XCTAssertEqual(PayGuard.kind("删除"), .irreversible)
         XCTAssertEqual(PayGuard.kind("确认删除"), .irreversible)
+        XCTAssertEqual(PayGuard.kind("Delete From This iPhone"), .irreversible)
+        XCTAssertEqual(PayGuard.kind("同意"), .irreversible)
+        XCTAssertEqual(PayGuard.kind("卸载应用"), .irreversible)
+        XCTAssertEqual(PayGuard.kind("挂断"), .irreversible)
     }
 
     func testLabelsThatOnlyMentionIt() {
@@ -20,7 +24,8 @@ final class PayGuardTests: XCTestCase {
     func testWhoIsAsked() {
         let none: [JObject] = []
         XCTAssertTrue(PayGuard.asks(.money, mode: .payments, steps: none, label: "立即支付"))
-        XCTAssertFalse(PayGuard.asks(.irreversible, mode: .payments, steps: none, label: "删除"))
+        XCTAssertTrue(PayGuard.asks(.irreversible, mode: .payments, steps: none, label: "删除"))
+        XCTAssertTrue(PayGuard.asks(.irreversible, mode: .never, steps: none, label: "删除"), "never lets a delete go")
         XCTAssertTrue(PayGuard.asks(.irreversible, mode: .risky, steps: none, label: "删除"))
         XCTAssertFalse(PayGuard.asks(.money, mode: .never, steps: none, label: "立即支付"))
         let yes: [JObject] = [["action": .str("confirmed"), "reason": .str("the user said yes")]]

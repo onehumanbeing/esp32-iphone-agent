@@ -104,16 +104,18 @@ import XCTest
         var restored = 0
         var state = Recovery.Link(connected: true, sta: 1, ap: "idle", frameAt: 0)
         agent.link = { state }
-        agent.onRecover = { stages.append($0) }
+        agent.onRecover = { stage in
+            stages.append(stage)
+            // the screen comes back once the run has paused for it: on the event, not after a guessed delay
+            // (CI 2026-11-19: settling after the move outlasted a fixed 0.8 s, the look never saw the loss)
+            guard stage != nil else { return }
+            state = Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now())
+            screen.live = true
+        }
         agent.restore = { restored += 1 }
         agent.onStep = {  // the link drops right after the first move
             guard agent.steps.last?["action"] == .str("home") else { return }
             screen.live = false
-            Task {
-                try? await Task.sleep(nanoseconds: 800_000_000)  // longer than settling after the move
-                state = Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now())
-                screen.live = true
-            }
         }
         await agent.run()
         XCTAssertEqual(agent.steps.map { $0["action"]?.str }, ["home", "reconnected", "done"])

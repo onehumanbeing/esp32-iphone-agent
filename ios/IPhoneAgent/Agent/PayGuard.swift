@@ -1,9 +1,9 @@
 import Foundation
 
 /// The code's own check before a tap that pays or cannot be undone, when the model tapped it without `confirm`
-/// first. The label under the tap decides: 立即支付 / 提交订单 / Pay now ask in every mode but Never; 删除 / 注销 /
-/// Delete account ask in the "Payments, sending, deleting" mode. Nothing is sent; the user is asked as if the
-/// model had confirmed, and the model sees the answer (confirmed / skipped) before it taps again.
+/// first. The label under the tap decides: 立即支付 / 提交订单 / Pay now ask in every mode but "Only what can't be
+/// undone"; 删除 / 卸载 / 同意 / 挂断 / Delete account ask in every mode. Nothing is sent; the user is asked as if
+/// the model had confirmed, and the model sees the answer (confirmed / skipped) before it taps again.
 enum PayGuard {
     enum Kind { case money, irreversible }
 
@@ -11,7 +11,9 @@ enum PayGuard {
                         "支付", "付款", "pay now", "place order", "buy now", "confirm payment", "complete purchase",
                         "confirm and pay", "pay"]
     static let irreversible = ["彻底删除", "永久删除", "确认删除", "删除", "注销账号", "注销", "清空", "delete account",
-                               "delete", "erase", "remove"]
+                               "delete", "erase", "remove", "delete from this iphone", "delete app", "offload app",
+                               "卸载应用", "卸载", "同意", "批准", "驳回", "approve", "reject", "接听", "挂断",
+                               "decline", "end call"]
     static let recent = 6  // a money confirm covers the taps of the next few steps, not the rest of the run
 
     /// What the label under a tap commits to; only a short label (a button), not a sentence that mentions it.
@@ -34,10 +36,7 @@ enum PayGuard {
     /// Whether the code asks: by the mode, and not when the user already said yes (a payment: in the last few
     /// steps; a delete: once in the run covers a bulk delete) or no to this very label.
     static func asks(_ kind: Kind, mode: AskMode, steps: [JObject], label: String) -> Bool {
-        switch (kind, mode) {
-        case (_, .never), (.irreversible, .payments): return false
-        default: break
-        }
+        if kind == .money, mode == .never { return false }
         let window = kind == .money ? Array(steps.suffix(recent)) : steps
         if window.contains(where: { $0["action"]?.str == "confirmed" }) { return false }
         return !steps.suffix(recent).contains { $0["action"]?.str == "skipped" && ($0["reason"]?.str ?? "").contains(label) }
@@ -54,7 +53,6 @@ extension AgentLoop {
     func payGuardReason(_ act: JObject, on shot: Data?) async -> String? {
         guard act["action"]?.str == "tap", let x = act["x"]?.int, let y = act["y"]?.int, let shot else { return nil }
         let mode = askMode ?? .current
-        guard mode != .never else { return nil }
         let lines = await lookLines(for: shot)
         guard let label = IntentLearner.label(at: x, y, in: lines), let kind = PayGuard.kind(label),
               PayGuard.asks(kind, mode: mode, steps: steps, label: label) else { return nil }

@@ -53,9 +53,27 @@ import XCTest
         XCTAssertTrue(AskMode.payments.asks("pay 9.99 for the order"))
         XCTAssertTrue(AskMode.payments.asks("确认支付 12 元"))
         XCTAssertFalse(AskMode.payments.asks("send the message to Anna"))
-        XCTAssertFalse(AskMode.payments.asks("delete the laptop photo"))  // "tip" inside a word does not count
-        XCTAssertTrue(AskMode.risky.asks("delete the photo"))
+        XCTAssertFalse(AskMode.payments.asks("send the laptop photo"))  // "tip" inside a word does not count
+        XCTAssertTrue(AskMode.risky.asks("send the photo"))
         XCTAssertFalse(AskMode.never.asks("pay 9.99"))
+    }
+
+    /// A step that cannot be undone is the user's to decide in every mode.
+    func testWhatCannotBeUndoneWaitsInEveryMode() {
+        for mode in AskMode.allCases {
+            XCTAssertTrue(mode.asks("delete empty Recently Deleted, 12 photos"), "\(mode)")
+            XCTAssertTrue(mode.asks("approve the travel claim of 120 yuan"), "\(mode)")
+            XCTAssertTrue(mode.asks("call answer the incoming call"), "\(mode)")
+            XCTAssertTrue(mode.asks("consent accept the game's privacy terms"), "\(mode)")
+            XCTAssertTrue(mode.asks("清空最近删除的照片"), "\(mode): no kind, but it reads as one")
+            XCTAssertTrue(mode.asks("在钉钉里同意这条报销"), "\(mode)")
+        }
+        XCTAssertEqual(AskMode.kind("delete: the note"), .delete)
+        XCTAssertEqual(AskMode.kind("Pay 9.99"), .pay)
+        XCTAssertNil(AskMode.kind("tap the blue button"))
+        XCTAssertFalse(AskMode.payments.asks("send the message to Anna"))
+        XCTAssertTrue(AskMode.payments.asks("pay 9.99"))
+        XCTAssertFalse(AskMode.never.asks("send the message to Anna"))
     }
 
     func testStopFromAConfirmEndsTheRun() async {

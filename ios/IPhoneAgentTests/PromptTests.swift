@@ -15,7 +15,7 @@ final class PromptTests: XCTestCase {
     func testActionsTheParserKnowsAreDocumented() {
         for device in [Prompts.Device.phone, .pad] {
             for verb in ["tap X Y", "swipe X1", "path X1", "circle X Y R", "type TEXT", "key COMBO", "home | back | wait",
-                         "PLAN:", "done ANSWER", "fail REASON", "open APP", "confirm REASON", "read WHAT"] {
+                         "PLAN:", "done ANSWER", "fail REASON", "open APP", "confirm KIND REASON", "read WHAT"] {
                 XCTAssertTrue(Prompts.actor(for: device).contains(verb), "\(device): \(verb)")
             }
         }

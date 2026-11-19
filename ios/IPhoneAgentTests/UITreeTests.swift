@@ -71,6 +71,7 @@ import XCTest
         let actor = FakeModel { _ in "THINK: the button\nDO: tap #1" }
         let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
         agent.screenTree = true
+        agent.treeWait = 10  // the CI simulator's OCR can take over the 1.2 s a look waits on a phone (2026-11-19)
         let planned = try await agent.nextActions()
         let prompt = try XCTUnwrap(actor.prompts.first)
         XCTAssertTrue(prompt.contains("Screen elements (id, role, label, center x y in 0-1000):\n#1 "), prompt)
@@ -135,6 +136,7 @@ import XCTest
         let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)
         agent.screenTree = true
         agent.compactTree = true
+        agent.treeWait = 10  // as above: the CI simulator's OCR can outlast a phone's 1.2 s (2026-11-19)
         let planned = try await agent.nextActions()
         let prompt = try XCTUnwrap(actor.prompts.first)
         let made = await UITree.build(jpeg: ModelImage.forModel(Self.screen()))
