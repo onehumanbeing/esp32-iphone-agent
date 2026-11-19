@@ -247,7 +247,15 @@ String typeText(const String &s) {
       type_reply(reply, sizeof reply, typed, total, stop);
       return String(reply);
     }
-    keyboard.write((uint8_t)s[i]);
+#ifdef HID_TRANSPORT_BLE
+    if (!keyboard.write((uint8_t)s[i])) {  // the report did not go out; the rest would not either
+      char reply[64];
+      type_reply(reply, sizeof reply, typed, total, TYPE_STOP_ASLEEP);
+      return String(reply);
+    }
+#else
+    keyboard.write((uint8_t)s[i]);  // 0 for a byte with no key: skipped, as before
+#endif
     esp_task_wdt_reset();
     typed++;
   }
@@ -268,11 +276,16 @@ const char *const APP_BUSY = "err busy: the app is using the board";
 String drive(const String &line, char who) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(0, sp);
+#ifdef HID_TRANSPORT_BLE
+  // Queued for a phone that has since dropped or re-subscribed the pointer: its coordinates are stale.
+  if (ble_cmd_stale() && cmd != "ping" && cmd != "pace") return "err Bluetooth HID session changed";
+#endif
   String reply = run(line);
 #ifdef HID_TRANSPORT_BLE
   if (!ble_hid_command_ok()) {
     holdUntil = 0;  // Recovery releases all inputs on the next poll.
-    reply = "err Bluetooth HID report failed";
+    // A `type` that stopped part-way says how far it got, so the app types only the rest.
+    if (!reply.startsWith("err typed ")) reply = "err Bluetooth HID report failed";
   }
 #endif
   arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");

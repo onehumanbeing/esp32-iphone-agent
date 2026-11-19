@@ -38,5 +38,6 @@ void ble_cli_push_cmd(const char *line, size_t n);
 
 #ifdef HID_TRANSPORT_BLE
 bool ble_hid_trusted(int handle);
+bool ble_cmd_stale();  // the last popped command was queued before the phone's HID session changed
 void ble_hid_subscribe(uint16_t handle, bool subscribed);
 #endif

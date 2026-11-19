@@ -152,10 +152,11 @@ void BleHidKeyboard::releaseAll() { memset(keys, 0, sizeof keys); send(1, keys, 
 size_t BleHidKeyboard::write(uint8_t value) {
   if (value >= 128) { failed = true; return 0; }
   press(value);
+  if (failed) return 0;  // the key-down never reached the phone: not typed
   delay(8);
-  releaseAll();
+  releaseAll();  // if only this fails, the character is in; ble_hid_poll releases the key
   delay(8);
-  return failed ? 0 : 1;
+  return 1;
 }
 
 void BleHidConsumer::press(uint16_t usage) {

@@ -580,12 +580,18 @@ void ble_push_cmd(char origin, const char *line, size_t n) {
 }
 
 static uint32_t replyRecv, replyQueued, replyRan;  // set by the loop for the reply it is about to queue
+#ifdef HID_TRANSPORT_BLE
+static bool popStale;  // the last popped command was queued for an earlier HID session (loop task only)
+bool ble_cmd_stale() { return popStale; }
+#endif
 
 bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv) {
   Command cmd;
   if (xQueueReceive(cmdQueue, &cmd, pdMS_TO_TICKS(wait_ms)) != pdTRUE) return false;
 #ifdef HID_TRANSPORT_BLE
-  if (!ble_hid_command_begin(cmd.hidSession)) return false;
+  // Still run it and answer: only HID input refuses a stale session (drive()), so status, netinfo and CLI
+  // commands queued while the phone (re)subscribed are not dropped without a reply.
+  popStale = !ble_hid_command_begin(cmd.hidSession);
 #endif
   origin = cmd.origin;
   if (recv) *recv = cmd.recv;
