@@ -13,6 +13,8 @@ extern const char firmware_target[16]
     =
 #ifdef ZECTRIX_NOTE4
     "ESPA:note4-ble";
+#elif defined(HID_DUAL)
+    "ESPA:dual-8m";  // no release channel takes it yet
 #elif defined(HID_TRANSPORT_BLE)
     "ESPA:ble-8m";
 #else

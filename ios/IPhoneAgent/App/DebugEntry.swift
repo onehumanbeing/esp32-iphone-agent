@@ -388,7 +388,15 @@ extension AppModel {
     private func harnessHID(_ commands: String) {
         Task { [weak self] in
             guard let self else { return }
-            guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            // `hidmode` (a --dual-hid board) needs only the link: in BLE mode before the pointer pairs, the input
+            // is never ready, and this is how it goes back to USB.
+            if commands.hasPrefix("hidmode") {
+                let deadline = now() + 30
+                while !board.connected && now() < deadline { try? await Task.sleep(nanoseconds: 500_000_000) }
+                guard board.connected else { return say("harness hid: board not ready in 30 s") }
+            } else {
+                guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            }
             var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String

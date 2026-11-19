@@ -245,12 +245,66 @@ struct DeveloperView: View {
     }
 }
 
+extension BoardSettingsView {
+    /// A board that carries both inputs (--dual-hid): USB or Bluetooth mouse and keyboard. Switching restarts it.
+    @ViewBuilder func inputSection(_ mode: String) -> some View {
+        Section {
+            Picker("Input", selection: Binding(get: { inputSwitch ?? mode }, set: { if $0 != mode { inputAsk = $0 } })) {
+                Text("USB").tag("usb")
+                Text("Bluetooth").tag("ble")
+            }
+            .disabled(inputSwitch != nil || !board.connected)
+            if inputSwitch != nil {
+                HStack { Text("Restarting the board…"); Spacer(); ProgressView() }
+            }
+            if let inputError { Text(inputError).font(.footnote).foregroundStyle(.red) }
+        } header: {
+            Text("Input")
+        } footer: {
+            Text(mode == "ble"
+                 ? "The board is a Bluetooth mouse and keyboard: pair it once in Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices. Its USB-C port only powers it."
+                 : "The board is this \(DeviceKind.name)'s USB mouse and keyboard: plug it into its USB-C port.")
+        }
+        .confirmationDialog(inputAsk == "ble" ? "Use Bluetooth for the mouse?" : "Use USB for the mouse?",
+                            isPresented: Binding(get: { inputAsk != nil }, set: { if !$0 { inputAsk = nil } }),
+                            titleVisibility: .visible) {
+            Button("Switch") { if let target = inputAsk { switchInput(to: target) } }
+            Button("Cancel", role: .cancel) { inputAsk = nil }
+        } message: {
+            Text("The board restarts and reconnects in a few seconds. Start Screen Mirroring again afterwards.")
+        }
+        .onChange(of: board.status?.hidm) { _, now in
+            if let target = inputSwitch, now == target { inputSwitch = nil }
+        }
+    }
+
+    private func switchInput(to target: String) {
+        inputAsk = nil
+        inputError = nil
+        inputSwitch = target
+        DebugLog.write("board input: switching to \(target)")
+        Task {
+            do {
+                _ = try await board.commands.send("hidmode \(target)")
+                try? await Task.sleep(nanoseconds: 45_000_000_000)  // restarts in ~5 s; give up waiting after 45
+                if inputSwitch == target { inputSwitch = nil }
+            } catch {
+                inputSwitch = nil
+                inputError = String(localized: "The board did not switch: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
 /// Settings › Model: base URL and key (placeholders only), Test Connection, and an Advanced disclosure with
 /// the model override (empty = first model from GET {base}/models), per-role models and request tweaks.
 struct BoardSettingsView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
     @State private var lanSheet = false
+    @State private var inputAsk: String?       // usb | ble, waiting for the confirmation
+    @State private var inputSwitch: String?    // usb | ble, sent; the board restarts into it
+    @State private var inputError: String?
 
     var body: some View {
         List {
@@ -269,6 +323,7 @@ struct BoardSettingsView: View {
                     ValueRow(title: "Mirroring", value: s.ap ?? "–")
                 }
             }
+            if let mode = board.status?.hidm, board.connected || inputSwitch != nil { inputSection(mode) }
             if board.pairedID == nil || !board.connected {
                 Section {
                     ForEach(board.found.filter { $0.id != board.pairedID }) { f in

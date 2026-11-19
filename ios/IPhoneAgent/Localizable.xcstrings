@@ -14162,6 +14162,96 @@
           }
         }
       }
+    },
+    "Input" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入方式"
+          }
+        }
+      }
+    },
+    "Restarting the board…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板正在重启…"
+          }
+        }
+      }
+    },
+    "The board is a Bluetooth mouse and keyboard: pair it once in Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices. Its USB-C port only powers it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板作为蓝牙鼠标和键盘：请在“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”中配对一次。它的 USB-C 口只用来供电。"
+          }
+        }
+      }
+    },
+    "The board is this %@'s USB mouse and keyboard: plug it into its USB-C port." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板作为这台%@的 USB 鼠标和键盘：请把它插到 USB-C 口。"
+          }
+        }
+      }
+    },
+    "Use Bluetooth for the mouse?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用蓝牙连接鼠标？"
+          }
+        }
+      }
+    },
+    "Use USB for the mouse?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用 USB 连接鼠标？"
+          }
+        }
+      }
+    },
+    "Switch" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换"
+          }
+        }
+      }
+    },
+    "The board restarts and reconnects in a few seconds. Start Screen Mirroring again afterwards." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板会重启，几秒后重新连接。之后请重新开启屏幕镜像。"
+          }
+        }
+      }
+    },
+    "The board did not switch: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没有切换成功：%@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

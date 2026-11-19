@@ -312,6 +312,18 @@ import XCTest
         XCTAssertNil(BoardReply.parse("ok"))
     }
 
+    /// A --dual-hid board reports its input (hidm); a compact status without it keeps the last one.
+    func testDualHIDBoardReportsItsInputMode() throws {
+        let ble = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"ble","hid":"ok","usb":"ok"}"#.utf8)))
+        XCTAssertEqual(ble.hidm, "ble")
+        XCTAssertTrue(ble.isWirelessHID)
+        XCTAssertEqual(ble.merged(with: BoardStatus(up: 5)).hidm, "ble")
+        let usb = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"usb","usb":"ok"}"#.utf8)))
+        XCTAssertFalse(usb.isWirelessHID, "USB mode sends no hid field")
+        XCTAssertEqual(usb.inputState, "ok")
+        XCTAssertNil(try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8))).hidm, "single-mode firmware")
+    }
+
     func testAnotherDevicesMirroringIsNotThisDevicesScreen() throws {
         let iPhone = try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPhone15,4","usb":"ok"}"#.utf8)))
         XCTAssertEqual(iPhone.seen(by: "iPad15,3").ap, "other", "the iPad must not take the iPhone's screen")

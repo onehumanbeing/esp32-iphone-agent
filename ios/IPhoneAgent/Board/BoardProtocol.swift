@@ -32,6 +32,7 @@ struct BoardStatus: Codable, Equatable {
     var usb: String?   // ok | asleep | off
     var board: String? // Board model; absent on stock USB firmware.
     var hid: String?   // BLE HID on this connection: ok once paired and subscribed.
+    var hidm: String?  // usb | ble: the input this --dual-hid board uses now, switched with `hidmode`; nil: fixed
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
@@ -71,7 +72,7 @@ struct BoardStatus: Codable, Equatable {
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
-        m.board = n.board ?? board; m.hid = n.hid ?? hid
+        m.board = n.board ?? board; m.hid = n.hid ?? hid; m.hidm = n.hidm ?? hidm
         m.fw = n.fw ?? fw
         m.tchunk = n.tchunk ?? tchunk
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram

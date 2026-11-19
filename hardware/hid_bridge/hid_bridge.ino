@@ -36,8 +36,12 @@
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
 #include "board_support.h"
+#include "hid_mode.h"
 #ifdef HID_TRANSPORT_BLE
 #include "ble_hid.h"
+#endif
+#ifdef HID_DUAL
+#include "hid_dual.h"
 #endif
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
@@ -51,20 +55,15 @@ const int HOME_REPORTS = 25;  // per axis
 
 const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the board instead of staying offline
 
-#ifdef HID_TRANSPORT_BLE
+#if defined(HID_DUAL)
+DualMouse mouse;  // USB or BLE, by this boot's mode (hid_dual.h)
+DualKeyboard keyboard;
+DualConsumer consumer;
+#elif defined(HID_TRANSPORT_BLE)
 BleHidMouse mouse;
 BleHidKeyboard keyboard;
 BleHidConsumer consumer;
-// Homing over BLE: iPadOS opens Notification Center when the pointer keeps pushing up at the top edge with an app
-// in front. BLE takes a report about every 14 ms whatever the gap, so the USB build's 25 reports up (~50 ms at
-// 2 ms) became ~350 ms and opened it every time (iPad Air M3, 2026-11-20, in the app during calibration). Measured
-// there: 5 reports up reach the top from the bottom edge (landscape), 18 from near the top did not open it, 25 did.
-// 10 leaves room for portrait, which is ~1.45x taller. The gap stays short; the link sets the pace.
-const int HOME_REPORT_MS = 4;
-const int HOME_UP_REPORTS = 10;
 #else
-const int HOME_REPORT_MS = 2;
-const int HOME_UP_REPORTS = HOME_REPORTS;
 #if ABS_POINTER
 AbsMouse mouse;  // flash.sh --abs: same calls as USBHIDMouse, plus `abs`
 #else
@@ -74,6 +73,14 @@ USBHIDKeyboard keyboard;
 USBHIDConsumerControl consumer;
 #endif
 const uint16_t AC_HOME = 0x0223;  // HID consumer page: AC Home
+// Homing over BLE: iPadOS opens Notification Center when the pointer keeps pushing up at the top edge with an app
+// in front. BLE takes a report about every 14 ms whatever the gap, so the USB build's 25 reports up (~50 ms at
+// 2 ms) became ~350 ms and opened it every time (iPad Air M3, 2026-11-20, in the app during calibration). Measured
+// there: 5 reports up reach the top from the bottom edge (landscape), 18 from near the top did not open it, 25 did.
+// 10 leaves room for portrait; the app tunes it per iPad (`home MS UP`). The gap stays short; the link sets the pace.
+static int homeReportMs() { return hid_ble() ? 4 : 2; }
+static int homeUpReports() { return hid_ble() ? 10 : HOME_REPORTS; }
+static uint32_t restartAt;  // `hidmode`: restart once the reply is out (0: none)
 static String receiverName = BOARD_NAME_TEXT;
 
 void movePaced(long dx, long dy, int step = STEP) {
@@ -159,10 +166,9 @@ String run(const String &line) {
 #endif
   if (cmd == "pace") return "ok " + String(PACE_VERSION);  // how moves are paced: the app recalibrates on a change
 #ifdef HID_TRANSPORT_BLE
-  if (!ble_hid_ready()) return "err Bluetooth HID not paired";
-#else
-  if (!usbReady()) return "err phone usb asleep (unlock the phone)";
+  if (hid_ble() && !ble_hid_ready()) return "err Bluetooth HID not paired";
 #endif
+  if (!hid_ble() && !usbReady()) return "err phone usb asleep (unlock the phone)";
   if (cmd == "reset") {
     if (arg.length()) return "err usage: reset";
     // Release held inputs in place so the user keeps the current page and text.
@@ -176,7 +182,7 @@ String run(const String &line) {
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
     // `home [MS [UP]]`: another report interval (1-30 ms) or number of reports up. The app tunes UP per iPad
     // (Pointer.homeUp); UP 0 goes to the left edge only, and the app then moves up the measured way.
-    long gap = HOME_REPORT_MS, up = HOME_UP_REPORTS;
+    long gap = homeReportMs(), up = homeUpReports();
     if (arg.length() && (sscanf(arg.c_str(), "%ld %ld", &gap, &up) < 1 || gap < 1 || gap > 30 || up < 0 || up > 60))
       return "err usage: home [MS 1-30 [UP 0-60]]";
     for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(gap); }
@@ -223,15 +229,12 @@ String run(const String &line) {
   if (cmd == "type") return typeText(arg);
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") {
-#ifdef HID_TRANSPORT_BLE
     // iOS ignores AC Home over Bluetooth (consumer reports do arrive: volume up shows), and Button 2 goes Home
     // only after the user maps it in AssistiveTouch, which needs a button the board does not have
     // (iPhone 15, 2026-11-19). The error sends the app to the swipe up from the home bar.
-    return "err no Home key over Bluetooth HID: swipe up from the home bar";
-#else
+    if (hid_ble()) return "err no Home key over Bluetooth HID: swipe up from the home bar";
     consumer.press(AC_HOME); delay(40); consumer.release();
     return "ok";
-#endif
   }
   return "err unknown command";
 }
@@ -249,10 +252,10 @@ String typeText(const String &s) {
     int usb = 1;
     if (i > 0 && (i % TYPE_USB_EVERY) == 0) {
 #ifdef HID_TRANSPORT_BLE
-      usb = ble_hid_ready() ? 1 : 0;  // no USB link to the phone on this board: the wireless HID is the input
-#else
-      usb = usbReady() ? 1 : 0;
+      if (hid_ble()) usb = ble_hid_ready() ? 1 : 0;  // no USB link to the phone: the wireless HID is the input
+      else
 #endif
+        usb = usbReady() ? 1 : 0;
       esp_task_wdt_reset();
     }
     type_stop_t stop = type_before_char(i, (uint32_t)(millis() - started), usb);
@@ -261,15 +264,11 @@ String typeText(const String &s) {
       type_reply(reply, sizeof reply, typed, total, stop);
       return String(reply);
     }
-#ifdef HID_TRANSPORT_BLE
-    if (!keyboard.write((uint8_t)s[i])) {  // the report did not go out; the rest would not either
+    if (!keyboard.write((uint8_t)s[i]) && hid_ble()) {  // BLE: the report did not go out; the rest would not either
       char reply[64];
       type_reply(reply, sizeof reply, typed, total, TYPE_STOP_ASLEEP);
       return String(reply);
-    }
-#else
-    keyboard.write((uint8_t)s[i]);  // 0 for a byte with no key: skipped, as before
-#endif
+    }  // USB: 0 is a byte with no key, skipped as before
     esp_task_wdt_reset();
     typed++;
   }
@@ -292,11 +291,11 @@ String drive(const String &line, char who) {
   String cmd = sp < 0 ? line : line.substring(0, sp);
 #ifdef HID_TRANSPORT_BLE
   // Queued for a phone that has since dropped or re-subscribed the pointer: its coordinates are stale.
-  if (ble_cmd_stale() && cmd != "ping" && cmd != "pace") return "err Bluetooth HID session changed";
+  if (hid_ble() && ble_cmd_stale() && cmd != "ping" && cmd != "pace") return "err Bluetooth HID session changed";
 #endif
   String reply = run(line);
 #ifdef HID_TRANSPORT_BLE
-  if (!ble_hid_command_ok()) {
+  if (hid_ble() && !ble_hid_command_ok()) {
     holdUntil = 0;  // Recovery releases all inputs on the next poll.
     // A `type` that stopped part-way says how far it got, so the app types only the rest.
     if (!reply.startsWith("err typed ")) reply = "err Bluetooth HID report failed";
@@ -393,7 +392,7 @@ String board(const String &line, const String &id, char who) {
   }
   // The CLI must not change what the app relies on: the mirroring format, the radio, the pairing.
   if (who == FROM_CLI && (cmd == "app" || cmd == "log" || cmd == "unpair" || cmd == "res" || cmd == "fps" ||
-                          cmd == "txpower" || cmd == "coex"))
+                          cmd == "txpower" || cmd == "coex" || cmd == "hidmode"))
     return "err not available from the CLI";
   if (cmd == "net" && who == FROM_CLI) {  // the board's Wi-Fi for the CLI's link (docs/cli-protocol.md, "Wi-Fi link")
     if (arg.length()) {
@@ -474,6 +473,15 @@ String board(const String &line, const String &id, char who) {
     lan_format_ip(lan_owner(), ip);
     return String("ok ") + (lan_owner() ? ip : "none") + (lan_locked() ? " locked" : "");
   }
+#ifdef HID_DUAL
+  if (cmd == "hidmode") {  // `hidmode` shows it; `hidmode usb|ble` saves it and restarts the board
+    if (!arg.length()) return String("ok ") + (hid_ble() ? "ble" : "usb");
+    if (arg != "usb" && arg != "ble") return "err usage: hidmode [usb|ble]";
+    if (!hid_mode_save(arg == "ble")) return "err could not save the mode";
+    restartAt = (millis() + 500) | 1;  // after the reply has gone out (BLE and serial)
+    return "ok " + arg + ", restarting";
+  }
+#endif
   if (cmd == "unpair") {
     ble_reply(id + " ok");  // answer before the link goes down
     ble_unpair();
@@ -515,7 +523,13 @@ String statusJson(bool full, char who) {
   snprintf(s + len - 1, sizeof s - len + 1, "%s,\"src\":\"%s\"}", board_status_fields(), airplay_source());
   len = strlen(s);
 #ifdef HID_TRANSPORT_BLE
-  snprintf(s + len - 1, sizeof s - len + 1, ",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
+  if (hid_ble()) {  // the app tells a wireless-HID board by this field
+    snprintf(s + len - 1, sizeof s - len + 1, ",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
+    len = strlen(s);
+  }
+#endif
+#ifdef HID_DUAL
+  snprintf(s + len - 1, sizeof s - len + 1, ",\"hidm\":\"%s\"}", hid_ble() ? "ble" : "usb");
   len = strlen(s);
 #endif
   snprintf(s + len - 1, sizeof s - len + 1, ",\"owner\":\"%s\"}", owner);
@@ -535,7 +549,7 @@ String statusJson(bool full, char who) {
            FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], airplay_source(), v.frozen, owner,
            lan_locked(), board_status_fields());
 #ifdef HID_TRANSPORT_BLE
-  snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
+  if (hid_ble()) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
 #endif
   if (who == FROM_CLI)
     snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\"", app, net_ip().c_str());
@@ -609,14 +623,20 @@ void startAirplay() {
 
 void setup() {
   board_begin();
+#ifdef HID_DUAL
+  hid_mode_load();  // before any HID starts: USB or BLE for this boot
+#endif
   Serial.begin(115200);
-  board_log("firmware target: %s", firmware_target);
+  board_log("firmware target: %s, input %s", firmware_target, hid_ble() ? "BLE HID" : "USB HID");
 #if OTA_CRASH_TEST  // flash.sh --crash-test: an image that never comes up, to check the rollback after an update
   delay(3000);
   abort();
 #endif
 #if DEBUG_SERIAL
   for (int i = 0; i < 30 && !Serial; i++) delay(100);  // give a serial monitor 3 s to catch the boot lines
+#endif
+#ifdef HID_DUAL
+  hid_dual_begin();  // starts the USB HID devices; routes input to USB or BLE by this boot's mode
 #endif
   mouse.begin();
   keyboard.begin();
@@ -651,11 +671,18 @@ void loop() {
   static bool linked = false, cliLinked = false;
   esp_task_wdt_reset();
 #ifdef HID_TRANSPORT_BLE
-  const auto session = ble_hid_session();
-  if (holdSession != session) holdUntil = 0;
-  ble_hid_command_begin(session);
-  ble_hid_poll(holdUntil != 0);
+  if (hid_ble()) {
+    const auto session = ble_hid_session();
+    if (holdSession != session) holdUntil = 0;
+    ble_hid_command_begin(session);
+    ble_hid_poll(holdUntil != 0);
+  }
 #endif
+  if (restartAt && (int32_t)(millis() - restartAt) >= 0) {
+    board_log("hidmode: restarting into the new input mode");
+    delay(100);
+    ESP.restart();
+  }
   net_poll();
   bool cli = cli_slot() >= 0;
   // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.

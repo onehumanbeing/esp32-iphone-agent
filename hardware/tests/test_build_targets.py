@@ -41,6 +41,17 @@ with tempfile.TemporaryDirectory() as directory:
             refused = subprocess.run([str(flash), *flags, "--build-only"], capture_output=True,
                                      env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})
             assert refused.returncode != 0 and b"--abs requires USB HID" in refused.stderr and not refused.stdout
+    env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]}
+    # --dual-hid: one standard 8 MB image with both transports; flashed like the USB build, never mixed
+    dual = subprocess.run(["bash", str(flash), "--dual-hid", "--build-only"], env=env, capture_output=True,
+                          text=True, check=True)
+    args = dual.stdout.splitlines()
+    assert "-DHID_DUAL=1" in dual.stdout and "-DHID_TRANSPORT_BLE=1" in dual.stdout
+    assert "FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB" in args[2]
+    assert args[args.index("--output-dir") + 1] == "build/dual-hid"
+    for other in ("--ble-hid", "--note4", "--abs"):
+        refused = subprocess.run(["bash", str(flash), "--dual-hid", other, "--build-only"], env=env, capture_output=True)
+        assert refused.returncode != 0 and b"--dual-hid is its own target" in refused.stderr and not refused.stdout
     for args in [["--note4"], ["--ble-hid"], ["--note-4", "--build-only"]]:
         refused = subprocess.run(["bash", str(flash), *args], capture_output=True,
                                  env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})
@@ -56,7 +67,7 @@ assert not is_usb_app(image)
 image[80] = ord("a")
 image[288:304] = b"ESPA:usb-8m".ljust(16, b"\0")
 assert is_usb_app(image)
-for target in (b"ESPA:ble-8m", b"ESPA:note4-ble", b"ESPA:unknown", b"ESPA:"):
+for target in (b"ESPA:ble-8m", b"ESPA:note4-ble", b"ESPA:dual-8m", b"ESPA:unknown", b"ESPA:"):
     image[288:304] = target.ljust(16, b"\0")
     assert not is_usb_app(image)
 assert not is_usb_app(image[:300])
@@ -77,3 +88,8 @@ if "--built-images" in sys.argv:
                 assert data[288:304] == target.ljust(16, b"\0"), path
             assert is_usb_app(data) == (directory == "" and suffix == "bin"), path
     print("Target marker and USB OTA checks passed for all nine images across three targets")
+    dual = hardware / "build/dual-hid/hid_bridge.ino.bin"
+    if dual.exists():  # flash.sh --dual-hid --build-only
+        data = dual.read_bytes()
+        assert data[288:304] == b"ESPA:dual-8m".ljust(16, b"\0") and not is_usb_app(data), dual
+        print("Dual-HID image carries its own marker and is refused by the USB OTA channel")

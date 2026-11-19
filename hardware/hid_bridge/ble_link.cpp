@@ -9,6 +9,7 @@
 // blocks free, and never sends while a reply or status is waiting.
 #include "ble_link.h"
 #include "ble_hid.h"
+#include "hid_mode.h"
 #include <atomic>
 #include <utility>
 #include <esp_heap_caps.h>
@@ -127,10 +128,9 @@ static bool encrypted(int h) {
 
 static bool appLink(int handle) {
 #ifdef HID_TRANSPORT_BLE
-  return ble_hid_allows(handle);
-#else
-  return encrypted(handle);
+  if (hid_ble()) return ble_hid_allows(handle);
 #endif
+  return encrypted(handle);
 }
 
 static int slotOf(int h) {
@@ -243,9 +243,17 @@ class ServerCb : public NimBLEServerCallbacks {
       }
       known[knownCount++] = a;
     }
+#ifdef HID_DUAL
+    // First boot in a new input mode: the HID service at the end of the table came or went. Tell the bonded
+    // phone to read the table again (the app's own services keep their handles: they come first).
+    if (hid_mode_changed()) {
+      board_log("ble: conn %u: input mode changed, service-changed indication", ci.getConnHandle());
+      server->sendServiceChangedIndication();
+    }
+#endif
 #ifdef HID_TRANSPORT_BLE
     // A restored subscription can arrive before encryption. Bind the trusted phone only after both.
-    int slot = slotFor(ci.getConnHandle());
+    int slot = hid_ble() ? slotFor(ci.getConnHandle()) : -1;
     if (slot >= 0) {
       trustedPhone[slot] = ci.getConnHandle();
       ble_hid_claim(ci.getConnHandle(), hidSubscribed[slot]);
@@ -261,7 +269,7 @@ class CharCb : public NimBLECharacteristicCallbacks {
     String v(raw.c_str(), raw.length());
     if (!ci.isEncrypted()) return;
 #ifdef HID_TRANSPORT_BLE
-    if (!ble_hid_allows(ci.getConnHandle())) return;
+    if (hid_ble() && !ble_hid_allows(ci.getConnHandle())) return;
 #endif
     if (c == netChar) { net_request(v); return; }
     v.trim();
@@ -270,7 +278,7 @@ class CharCb : public NimBLECharacteristicCallbacks {
   }
   void onRead(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
 #ifdef HID_TRANSPORT_BLE
-    if (!ble_hid_allows(ci.getConnHandle())) {
+    if (hid_ble() && !ble_hid_allows(ci.getConnHandle())) {
       c->setValue("{}");
       return;
     }
@@ -455,7 +463,7 @@ static void advertise() {
     if (want != ADV_NONE && NimBLEDevice::setOwnAddrType(want == ADV_CLI ? BLE_OWN_ADDR_RANDOM : BLE_OWN_ADDR_PUBLIC) &&
         adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) &&
 #ifdef HID_TRANSPORT_BLE
-        adv->setScanResponseData(want == ADV_CLI ? cliScan : appScan) &&
+        (!hid_ble() || adv->setScanResponseData(want == ADV_CLI ? cliScan : appScan)) &&
 #endif
         adv->start())
       advNow = want;
@@ -468,20 +476,26 @@ static void setUpAdvertising(const std::string &name) {
   appAdv.setCompleteServices(NimBLEUUID(UUID("0000")));
 #ifdef HID_TRANSPORT_BLE
   // Advertise HID on the stable app identity; keep the CLI on its own random address.
-  appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x1812)));
-  appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x180f)));
-  appAdv.setAppearance(0x03c2);
+  // USB mode (--dual-hid) shows no HID at all: a phone that pairs a Bluetooth keyboard hides its own.
+  if (hid_ble()) {
+    appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x1812)));
+    appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x180f)));
+    appAdv.setAppearance(0x03c2);
+  }
 #endif
   cliAdv.setCompleteServices(NimBLEUUID(UUID("0010")));
 #ifdef HID_TRANSPORT_BLE
-  // iOS lists devices by name; keep the board's four-digit suffix for CLI selection.
-  appScan.setName(name);
-  cliScan.setName("CLI " + name);
-#else
-  NimBLEAdvertisementData scan;
-  scan.setName(name);
-  NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+  if (hid_ble()) {
+    // iOS lists devices by name; keep the board's four-digit suffix for CLI selection.
+    appScan.setName(name);
+    cliScan.setName("CLI " + name);
+  } else
 #endif
+  {
+    NimBLEAdvertisementData scan;
+    scan.setName(name);
+    NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+  }
   uint8_t a[6];
   esp_fill_random(a, sizeof a);
   a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
@@ -539,7 +553,7 @@ void ble_begin(const String &name) {
   netChar->setCallbacks(&charCb);
   for (auto *c : chars) c->setCallbacks(&charCb);
 #ifdef HID_TRANSPORT_BLE
-  ble_hid_begin(server);
+  if (hid_ble()) ble_hid_begin(server);  // last, so the app's own services keep their handles in either mode
 #endif
   server->start();
 
