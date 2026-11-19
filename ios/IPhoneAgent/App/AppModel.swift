@@ -167,6 +167,11 @@ import UIKit
         board.log = say
         board.commands.log = say
         pointer.log = say
+        // iPad over Bluetooth: how far home pushes up, as calibration has tuned it for this model and orientation
+        pointer.homeUp = { [weak self] in
+            guard let self, DeviceKind.isPad, self.board.status?.isWirelessHID == true else { return nil }
+            return HomeTuning.value(landscape: DeviceScreen.size.width > DeviceScreen.size.height)
+        }
         pointer.screenAspect = { DeviceScreen.aspect }
         pointer.currentGeometry = { [weak self] in self?.feed.geometry }  // nil on iPhone
         if DeviceKind.isPad {  // turned: the orientation's own calibration, if it has one

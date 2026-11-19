@@ -686,6 +686,50 @@ import XCTest
         XCTAssertEqual(device.sent, ["release", "home"])
     }
 
+    /// iPad over Bluetooth (HomeTuning): blind homes push up the tuned count; with a known position the pointer goes
+    /// to the left edge only and up the measured way, so it pushes at the top edge only briefly. Probes stay blind.
+    func testBluetoothIPadHomesWithTheTunedCountOrTheMeasuredWay() async throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = true
+        defer { DeviceKind.isPad = wasPad }
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.homeUp = { 7 }
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
+        try await pointer.reset()  // position unknown: blind, stepping off the top edge first
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home 4 7"])
+        try await pointer.point(0.75, 0.5)
+        device.sent = []
+        try await pointer.reset()  // known (300, 400): left edge, then up 400 + a 4% margin of 800
+        XCTAssertEqual(Array(device.sent.prefix(2)), ["release", "home 4 0"])
+        XCTAssertEqual(device.sent.count, 3)
+        XCTAssertTrue(device.sent[2].hasPrefix("move 0 -432"), device.sent[2])
+        device.sent = []
+        try await pointer.probe(150, 350)  // calibration needs the real corner, known position or not
+        XCTAssertEqual(device.sent, ["move 0 150", "home 4 7", "move 0 350", "move 150 0"])
+        pointer.homeUp = { nil }  // a USB board on the iPad: as before
+        device.sent = []
+        try await pointer.reset()
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home"])
+    }
+
+    func testHomeTuningGoesDownAfterAPanelAndUpWhenShortWithinBounds() {
+        let defaults = UserDefaults(suiteName: "HomeTuningTests-\(UUID().uuidString)")!
+        XCTAssertEqual(HomeTuning.value(landscape: true, defaults: defaults), HomeTuning.start)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 25), 17)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 10), 7)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 5), HomeTuning.least)
+        XCTAssertNil(HomeTuning.next(after: .panel, from: HomeTuning.least))
+        XCTAssertEqual(HomeTuning.next(after: .short(0.03), from: 10), 13)
+        XCTAssertNil(HomeTuning.next(after: .short(0.03), from: HomeTuning.most))
+        HomeTuning.store(13, landscape: true, defaults: defaults)
+        XCTAssertEqual(HomeTuning.value(landscape: true, defaults: defaults), 13)
+        XCTAssertEqual(HomeTuning.value(landscape: false, defaults: defaults), HomeTuning.start, "each orientation its own")
+        XCTAssertNotEqual(HomeTuning.key(landscape: true, model: "iPad15,3"), HomeTuning.key(landscape: true, model: "iPad16,1"))
+    }
+
     func testIPadPointerMovesOneAxisAtATimeExceptMidDrag() async throws {
         let wasPad = DeviceKind.isPad
         DeviceKind.isPad = true

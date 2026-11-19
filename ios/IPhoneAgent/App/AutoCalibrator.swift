@@ -138,8 +138,8 @@ import UIKit
         var noTaps = false
         if boardOpen {
             do {
-                var result = try await touchCalibrate(full: true)
-                if shaky(result), await waitForYoungBoard() { result = try await touchCalibrate(full: true) }
+                var result = try await tunedTouchCalibrate()
+                if shaky(result), await waitForYoungBoard() { result = try await tunedTouchCalibrate() }
                 switch result {
                 case .done(let error): return finished(error)
                 case .noTaps: noTaps = true
@@ -179,6 +179,44 @@ import UIKit
         progress = nil
         try? await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
         return !Task.isCancelled
+    }
+
+    /// Touch calibration. iPad over Bluetooth: a homing that brought down a system panel or stopped short of the top
+    /// changes how far home pushes up (HomeTuning, kept per model and orientation) and calibration starts again,
+    /// three times at most.
+    private func tunedTouchCalibrate() async throws -> TouchResult {
+        for attempt in 0... {
+            do {
+                return try await touchCalibrate(full: true)
+            } catch let miss as HomeTuning.Miss {
+                let landscape = DeviceScreen.size.width > DeviceScreen.size.height
+                let n = HomeTuning.value(landscape: landscape)
+                let what: String
+                switch miss {
+                case .panel: what = "brought down a system panel"
+                case .short(let below): what = String(format: "stopped %.1f%% below the top", below * 100)
+                }
+                if miss == .panel { await closePanel() }
+                guard attempt < 3, let next = HomeTuning.next(after: miss, from: n) else {
+                    app.say("calibration: home pushing up \(n) reports \(what); no other count to try")
+                    return .failed("homing \(what)")
+                }
+                HomeTuning.store(next, landscape: landscape)
+                app.say("calibration: home pushing up \(n) reports \(what); trying \(next)")
+            }
+        }
+        return .failed("homing")
+    }
+
+    /// Notification Center (or Control Center) covers the app: swipe up from the bottom edge, as a finger would.
+    private func closePanel() async {
+        let device = app.board.commands
+        _ = try? await device.send("move 0 2000 40")  // to the bottom edge, where the pointer stops
+        _ = try? await device.send("move 500 0 40")
+        _ = try? await device.send("flick 0 -1200 20")
+        app.pointer.forgetPosition()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        app.say(DeviceScreen.foreground ? "calibration: the panel is closed" : "calibration: a panel still covers the app")
     }
 
     /// The fallback: find the pointer in the mirrored video.

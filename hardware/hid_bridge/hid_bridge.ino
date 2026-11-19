@@ -174,10 +174,11 @@ String run(const String &line) {
   }
   if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
-    // `home [MS [UP]]`: another report interval (1-30 ms) or number of reports up, to try on a device
+    // `home [MS [UP]]`: another report interval (1-30 ms) or number of reports up. The app tunes UP per iPad
+    // (Pointer.homeUp); UP 0 goes to the left edge only, and the app then moves up the measured way.
     long gap = HOME_REPORT_MS, up = HOME_UP_REPORTS;
-    if (arg.length() && (sscanf(arg.c_str(), "%ld %ld", &gap, &up) < 1 || gap < 1 || gap > 30 || up < 1 || up > 60))
-      return "err usage: home [MS 1-30 [UP 1-60]]";
+    if (arg.length() && (sscanf(arg.c_str(), "%ld %ld", &gap, &up) < 1 || gap < 1 || gap > 30 || up < 0 || up > 60))
+      return "err usage: home [MS 1-30 [UP 0-60]]";
     for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(gap); }
     for (int i = 0; i < up; i++) { mouse.move(0, -127); delay(gap); }
     return "ok";

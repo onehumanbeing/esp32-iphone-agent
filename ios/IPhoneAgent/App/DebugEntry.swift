@@ -395,6 +395,10 @@ extension AppModel {
                 if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
                     try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
                     reply = "ok"
+                } else if command == "homeup" || command.hasPrefix("homeup ") {  // HomeTuning for this orientation
+                    let landscape = DeviceScreen.size.width > DeviceScreen.size.height
+                    if let n = Int(command.dropFirst(7)) { HomeTuning.store(n, landscape: landscape) }
+                    reply = "home pushes up \(HomeTuning.value(landscape: landscape)) (\(landscape ? "landscape" : "portrait"))"
                 } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
