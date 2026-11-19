@@ -126,7 +126,7 @@ struct DiagnosticsView: View {
     }
 
     private func export() {
-        do { shareURL = try TraceStore.zip(app.traces.root) } catch { app.say("export: \(error.localizedDescription)") }
+        do { shareURL = try TraceStore.zipForSharing(app.traces.root) } catch { app.say("export: \(error.localizedDescription)") }
     }
 
     private func row(_ k: LocalizedStringKey, _ v: String) -> some View { ValueRow(title: k, value: v) }
