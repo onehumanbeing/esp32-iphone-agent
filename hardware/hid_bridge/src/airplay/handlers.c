@@ -195,6 +195,11 @@ static void setup_session(ap_conn *c, bp_reader *r, int top, bp_writer *w, int r
   bp_get_string(r, bp_dict_get(r, top, "model"), model, sizeof model);
   bp_get_string(r, bp_dict_get(r, top, "name"), name, sizeof name);
   ap_log("setup: session from %s (%s), timing port %u", name, model, (unsigned)port);
+  // Kept for the status (`src`), so an app can tell its own device's mirroring from another's on the same board.
+  size_t k = 0;
+  for (const char *p = model; *p && k < sizeof c->model - 1; p++)
+    if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == ',') c->model[k++] = *p;
+  c->model[k] = 0;
   bp_w_set(w, root, "timingPort", bp_w_uint(w, AP_TIMING_PORT));
   bp_w_set(w, root, "eventPort", bp_w_uint(w, 0));
 }

@@ -312,6 +312,26 @@ import XCTest
         XCTAssertNil(BoardReply.parse("ok"))
     }
 
+    func testAnotherDevicesMirroringIsNotThisDevicesScreen() throws {
+        let iPhone = try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPhone15,4","usb":"ok"}"#.utf8)))
+        XCTAssertEqual(iPhone.seen(by: "iPad15,3").ap, "other", "the iPad must not take the iPhone's screen")
+        XCTAssertEqual(iPhone.seen(by: "iPhone15,4").ap, "streaming")
+        var connecting = iPhone
+        connecting.ap = "connected"
+        XCTAssertEqual(connecting.seen(by: "iPad15,3").ap, "other")
+        var none = iPhone
+        none.ap = "idle"; none.src = ""
+        XCTAssertEqual(none.seen(by: "iPad15,3").ap, "idle")
+        var unknown = iPhone
+        unknown.src = ""  // before SETUP names the sender
+        XCTAssertEqual(unknown.seen(by: "iPad15,3").ap, "streaming")
+        unknown.src = nil  // older firmware
+        XCTAssertEqual(unknown.seen(by: "iPad15,3").ap, "streaming")
+        // the iPhone stops, the iPad starts: the next status names the iPad
+        let merged = iPhone.merged(with: try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPad15,3"}"#.utf8))))
+        XCTAssertEqual(merged.seen(by: "iPad15,3").ap, "streaming")
+    }
+
     func testWirelessPairingIsSeparateFromTheControlConnection() throws {
         let board = BoardLink(mock: true)
         let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"esp32s3","usb":"ok","hid":"off","ap":"streaming"}"#.utf8)))

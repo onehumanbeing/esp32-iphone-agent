@@ -55,7 +55,10 @@ const int WATCHDOG_MS = 8000;  // a hung loop (e.g. blocked USB) reboots the boa
 BleHidMouse mouse;
 BleHidKeyboard keyboard;
 BleHidConsumer consumer;
-const int HOME_REPORT_MS = 15;  // Space homing reports to match the BLE connection interval.
+// Homing reports as fast as the link takes them, as on USB. 15 ms (one per BLE connection interval) made `home`
+// push against the top edge for ~375 ms, and iPadOS opened Notification Center (iPad Air M3, 2026-11-19); the
+// USB build's 2 ms pushes for ~50 ms and never did. A full notify buffer waits in the HID send (ble_hid.cpp).
+const int HOME_REPORT_MS = 4;
 #else
 const int HOME_REPORT_MS = 2;
 #if ABS_POINTER
@@ -167,8 +170,11 @@ String run(const String &line) {
   }
   if (cmd == "home") {  // slam the pointer into the top-left corner: left first, then up along the left edge,
     // so it never rides the top edge from the right (that opened Control Center, 2026-11-06)
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(HOME_REPORT_MS); }
-    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(HOME_REPORT_MS); }
+    // `home MS`: another report interval (1-30 ms), to try one on a device without a new build
+    const long gap = arg.length() ? a : HOME_REPORT_MS;
+    if (gap < 1 || gap > 30) return "err usage: home [MS 1-30]";
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(-127, 0); delay(gap); }
+    for (int i = 0; i < HOME_REPORTS; i++) { mouse.move(0, -127); delay(gap); }
     return "ok";
   }
   if (cmd == "move") { movePaced(a, b, constrain(c, 1, 40)); return "ok"; }  // c: speed per report (calibration)
@@ -500,7 +506,7 @@ String statusJson(bool full, char who) {
   }
   const char *owner = arb_owner_name(arb_owner(app, cli_slot() >= 0));
   size_t len = strlen(s);
-  snprintf(s + len - 1, sizeof s - len + 1, "%s}", board_status_fields());
+  snprintf(s + len - 1, sizeof s - len + 1, "%s,\"src\":\"%s\"}", board_status_fields(), airplay_source());
   len = strlen(s);
 #ifdef HID_TRANSPORT_BLE
   snprintf(s + len - 1, sizeof s - len + 1, ",\"hid\":\"%s\"}", ble_hid_ready() ? "ok" : "off");
@@ -519,9 +525,9 @@ String statusJson(bool full, char who) {
   }
   if (full && strlen(s) < sizeof s - 1) return s;
   // On small MTUs, keep control and reconnect fields first; include diagnostics only if they fit.
-  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"fz\":%d,\"owner\":\"%s\",\"own\":%d%s",
-           FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], v.frozen, owner, lan_locked(),
-           board_status_fields());
+  snprintf(s, sizeof s, "{\"fw\":\"%s\",\"tchunk\":1," ABS_FIELD "\"up\":%lu,\"usb\":\"%s\",\"net\":\"%s\",\"ap\":\"%s\",\"src\":\"%s\",\"fz\":%d,\"owner\":\"%s\",\"own\":%d%s",
+           FW_VERSION, millis(), usbState(), net_mode(), apStates[airplay_state()], airplay_source(), v.frozen, owner,
+           lan_locked(), board_status_fields());
 #ifdef HID_TRANSPORT_BLE
   snprintf(s + strlen(s), sizeof s - strlen(s), ",\"hid\":\"%s\"", ble_hid_ready() ? "ok" : "off");
 #endif

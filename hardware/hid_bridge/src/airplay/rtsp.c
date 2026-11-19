@@ -56,6 +56,11 @@ int airplay_state(void) {
   return AIRPLAY_IDLE;
 }
 
+const char *airplay_source(void) {
+  const ap_conn *c = ap_mirror_owner;
+  return c ? c->model : "";
+}
+
 static bool send_all(int fd, const void *p, size_t n) {
   const uint8_t *b = p;
   while (n) {

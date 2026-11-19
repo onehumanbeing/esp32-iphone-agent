@@ -35,7 +35,8 @@ struct BoardStatus: Codable, Equatable {
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
-    var ap: String?    // idle | connected | streaming
+    var ap: String?    // idle | connected | streaming; "other" here when another device mirrors (seen(by:))
+    var src: String?   // the mirroring sender's hardware model ("iPad15,3"), "" when none; nil: older firmware
     var w: Int?, h: Int?
     var kbps: Double?, fps: Double?, idr: Int?, gop: Int?
     var vage: Int?     // ms since the board's last frame from AirPlay (firmware 0.2.1+)
@@ -56,6 +57,16 @@ struct BoardStatus: Codable, Equatable {
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
+    /// The status as this device sees it: another device's mirroring (an iPhone still mirroring while the iPad
+    /// connects, 2026-11-19) is not this one's screen, so it reads "other", never "streaming". An unknown sender
+    /// (older firmware, or before SETUP) counts as this device, as before.
+    func seen(by model: String) -> BoardStatus {
+        guard let src, !src.isEmpty, src != model, let ap, ap != "idle" else { return self }
+        var s = self
+        s.ap = "other"
+        return s
+    }
+
     /// A small MTU makes the board notify a reduced object (up, usb, net, ap, ble.mtu); a `status` read returns
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
@@ -66,6 +77,7 @@ struct BoardStatus: Codable, Equatable {
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
+        m.src = n.src ?? src
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
         m.gop = n.gop ?? gop; m.vage = n.vage ?? vage; m.ovf = n.ovf ?? ovf; m.fz = n.fz ?? fz
         let a = ble ?? BLE(), b = n.ble ?? BLE()

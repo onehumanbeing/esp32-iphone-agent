@@ -336,7 +336,7 @@ import Foundation
     }
 
     func updateStatus(_ s: BoardStatus) {
-        let merged = currentStatus?.merged(with: s) ?? s
+        let merged = (currentStatus?.merged(with: s) ?? s).seen(by: DeviceInfo.model)
         if status?.isWirelessHID == true && status?.inputReady == true && merged.needsWirelessPointer {
             commands.inputLinkLost()
         }
