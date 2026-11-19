@@ -76,7 +76,14 @@ struct CalibrationBoard: View {
                     .controlSize(.small).buttonBorderShape(.capsule).padding(.top, Space.xs)
                 case .needsTap:
                     Text("Tap exactly where the pointer is").font(.subheadline.weight(.semibold))
-                    Text("It's the grey dot, near the top left.").font(.footnote).foregroundStyle(.secondary)
+                    Group {
+                        if calibrator.manualRetry {
+                            Text("It was on the edge of the screen, so it moved less this time. Tap the grey dot again.")
+                        } else {
+                            Text("It's the grey dot, usually near the top left.")
+                        }
+                    }
+                    .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 default:
                     Group {
                         if let p = calibrator.progress {

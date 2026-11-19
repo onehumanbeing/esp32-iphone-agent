@@ -149,6 +149,7 @@
 		6CDEB83B98075E73AEA52F13 /* ShareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA04712864CA08DA02B08369 /* ShareTests.swift */; };
 		6F512EE7C8474BE077416F46 /* MemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D53A3E75E88C119A79A2754 /* MemoryStore.swift */; };
 		701D5C439005CD2721678A34 /* RepeatGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1510EBCE43891B8A1A72A4 /* RepeatGuardTests.swift */; };
+		DA686D4B8FF55BF3FB9E2F34 /* ManualCalibrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1634024FD8D5EBF774C4483C /* ManualCalibrationTests.swift */; };
 		701DB1C5BDCDD4E8B1216F2C /* LinkCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */; };
 		707C51291452C1B68068CAD7 /* UITreeCV.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC828B72EC4D19C789358D07 /* UITreeCV.swift */; };
 		72E72D656EFE51EB73F94A5C /* PrivacyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C498727CAF51C5A955A8A10 /* PrivacyViews.swift */; };
@@ -617,6 +618,7 @@
 		9924DF8869348C0458073E8B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		99381FBF82EA7EB76556866E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		9A1510EBCE43891B8A1A72A4 /* RepeatGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatGuardTests.swift; sourceTree = "<group>"; };
+		1634024FD8D5EBF774C4483C /* ManualCalibrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualCalibrationTests.swift; sourceTree = "<group>"; };
 		9E49E4897714D436F985C230 /* UITreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITreeTests.swift; sourceTree = "<group>"; };
 		9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessLink.swift; sourceTree = "<group>"; };
 		9FE7BB3B9372105D2D898461 /* DeviceKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceKind.swift; sourceTree = "<group>"; };
@@ -950,6 +952,7 @@
 				CF617B736D526076BF940A68 /* TouchCheckTests.swift */,
 				0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */,
 				9A1510EBCE43891B8A1A72A4 /* RepeatGuardTests.swift */,
+				1634024FD8D5EBF774C4483C /* ManualCalibrationTests.swift */,
 				5D1A7E0C2B9F4E61A3C80D12 /* ActionSpeedTests.swift */,
 				E4B0E258DD4494C631F0E77A /* TrialTests.swift */,
 				A9389E6F46CC4B27BCA766BB /* RemoteLogTests.swift */,
@@ -1524,6 +1527,7 @@
 				2D5F3E3546B0DF18896126D2 /* TouchCheckTests.swift in Sources */,
 				01525448B3D1AD4DFB9CDCE1 /* NoProgressTests.swift in Sources */,
 				701D5C439005CD2721678A34 /* RepeatGuardTests.swift in Sources */,
+				DA686D4B8FF55BF3FB9E2F34 /* ManualCalibrationTests.swift in Sources */,
 				5D1A7E0C2B9F4E61A3C80D11 /* ActionSpeedTests.swift in Sources */,
 				E45965E6B985C29D7DDC83BB /* TrialTests.swift in Sources */,
 				C77A7CC8411D4428B27359E2 /* RemoteLogTests.swift in Sources */,

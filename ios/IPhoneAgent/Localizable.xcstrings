@@ -4817,12 +4817,32 @@
         }
       }
     },
-    "It's the grey dot, near the top left." : {
+    "It was on the edge of the screen, so it moved less this time. Tap the grey dot again." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "就是左上方附近的灰色圆点。"
+            "value" : "刚才它在屏幕边上，这次移动得少一些。请再点一下灰色圆点。"
+          }
+        }
+      }
+    },
+    "It's the grey dot, usually near the top left." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就是那个灰色圆点，通常在左上方附近。"
+          }
+        }
+      }
+    },
+    "The pointer runs to the edge of the screen. In Settings › Accessibility › Touch › AssistiveTouch, set Tracking Speed to the middle, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指针跑到了屏幕边上。请在 设置 › 辅助功能 › 触控 › 辅助触控 里把跟踪速度调到中间，然后再试一次。"
           }
         }
       }

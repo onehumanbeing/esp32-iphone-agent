@@ -39,6 +39,8 @@ import UIKit
     @Published private(set) var boardOpen = false
     /// The small success toast ("Pointer calibrated ±0.6%").
     @Published var toast = false
+    /// Manual calibration: the user's last tap was on the screen edge, the pointer is now parked closer to the corner.
+    @Published var manualRetry = false
     unowned let app: AppModel
     var link = -1  // board link the pointer was last calibrated on
     private var hide: Task<Void, Never>?
@@ -208,8 +210,9 @@ import UIKit
         String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
     }
 
-    func finished(_ error: Double) {
-        guard error <= Self.rejectAbove else {
+    /// error: the check's miss, nil when no check could be made (the calibration is kept, unchecked).
+    func finished(_ error: Double?) {
+        if let error, error > Self.rejectAbove {
             app.say(String(format: "calibration: check off by ±%.1f%%, not kept", error * 100))
             return failed(Self.rejectedText)
         }
@@ -219,8 +222,13 @@ import UIKit
         progress = nil
         problem = nil
         phase = .done
-        Analytics.capture("calibration_done", ["error_pct": (error * 1000).rounded() / 10])
-        app.say(String(format: "calibration: ±%.1f%%", error * 100))
+        if let error {
+            Analytics.capture("calibration_done", ["error_pct": (error * 1000).rounded() / 10])
+            app.say(String(format: "calibration: ±%.1f%%", error * 100))
+        } else {
+            Analytics.capture("calibration_done", ["unchecked": true])
+            app.say("calibration: kept, not checked")
+        }
         closeBoard()
         toast = true
         hide?.cancel()
@@ -254,32 +262,113 @@ import UIKit
 
     // MARK: - manual, on the board
 
-    /// "Tap the pointer yourself": park the pointer at a known spot, then the next tap on the board is where it is.
+    /// Mouse units the pointer is parked from home for the user's tap, smaller each time it ran to an edge.
+    /// A high Tracking Speed carries 200 units past the screen (2026-11-19, iPhone 15 Pro Max: the pointer sat on the
+    /// right edge, the tap there was kept as the calibration and every run's taps went wide; Wiki #1177).
+    static let manualMoves = [200, 100, 50]
+    /// A tap this close to the right or bottom edge is a pointer stuck there, not where the move took it.
+    static let manualEdge = 0.94
+
+    /// "Tap the pointer yourself": park the pointer at a known spot, the user taps it, then the board clicks once
+    /// further out and the app catches that click: two points fit both the scale and where home really is
+    /// (the corner isn't (0, 0)). A check click with the agent's own move then decides whether it is kept.
     func startManual() {
         guard boardOpen else { return }
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         problem = nil
+        manualRetry = false
         phase = .needsTap
+        if previous == nil { previous = app.pointer.snapshot() }  // a wrong result puts this back
         current?.cancel()
         current = Task {
             let geometry = app.feed.geometry  // nil on iPhone
-            do {
-                try await app.pointer.parkForManualCalibration()
-            } catch {
-                return failed(error.localizedDescription)
-            }
-            let since = now()
-            while !Task.isCancelled && phase == .needsTap {
-                if let p = await app.probe.tap(since: since, timeout: 1) {
-                    if let geometry, !geometry.matches(app.feed.geometry) {
-                        return failed(String(localized: "The screen rotated during calibration. Try again."))
-                    }
-                    app.say(String(format: "calibration: tapped the pointer at (%.3f, %.3f)", p.x, p.y))
-                    app.pointer.finishCalibration(x: p.x, y: p.y)
-                    return finished(app.pointer.quality ?? 0.01)
+            for move in Self.manualMoves {
+                do {
+                    try await app.pointer.parkForManualCalibration(move: move)
+                } catch {
+                    return failed(error.localizedDescription)
                 }
+                let since = now()
+                var tap: CGPoint?
+                while !Task.isCancelled && phase == .needsTap && tap == nil {
+                    tap = await app.probe.tap(since: since, timeout: 1)
+                }
+                guard let p = tap else { return }  // cancelled
+                if let geometry, !geometry.matches(app.feed.geometry) {
+                    return failed(String(localized: "The screen rotated during calibration. Try again."))
+                }
+                app.say(String(format: "calibration: tapped the pointer at (%.3f, %.3f), %d units from home", p.x, p.y, move))
+                if Self.onEdge(p) {
+                    app.say("calibration: that is the screen edge; parking the pointer closer to the corner")
+                    manualRetry = true
+                    continue
+                }
+                return await finishManual(move: move, at: p)
             }
+            failed(Self.tooFastText)
         }
+    }
+
+    /// Debug (harness `manualcal`): open the board and go straight to "Tap the pointer yourself".
+    func debugManual() {
+        if !boardOpen { openBoard() }
+        startManual()
+    }
+
+    /// The user's point, then the board's own two clicks (a second point and the check).
+    private func finishManual(move: Int, at p: CGPoint) async {
+        phase = .verifying
+        let pointer = app.pointer, device = app.board.commands
+        do {
+            let (ux, uy) = Self.manualSecondStop(move: move, at: p)
+            try await pointer.probe(ux, uy)
+            var sent = now()
+            try await device.send("click")
+            guard let q = await app.probe.tap(since: sent, timeout: Self.tapTimeout) else {
+                _ = try? await device.send("key esc")  // it may have opened the AssistiveTouch menu
+                // clicks don't reach the screen: the user's point alone, as before, unchecked
+                app.say("calibration: the board's click didn't arrive; keeping the one-point calibration, unchecked")
+                pointer.finishCalibration(x: p.x, y: p.y, move: move)
+                return finished(nil)
+            }
+            app.say(String(format: "calibration: board click %d %d landed (%.3f, %.3f)", ux, uy, q.x, q.y))
+            let samples: [(ux: Double, uy: Double, fx: Double, fy: Double)] = [
+                (Double(move), Double(move), Double(p.x), Double(p.y)), (Double(ux), Double(uy), Double(q.x), Double(q.y))]
+            guard let (lx, ly) = Self.manualLines(samples) else { return failed(Self.tooFastText) }
+            pointer.applyProbe(x: lx, y: ly, samples: samples)
+
+            try await pointer.point(Self.check.x, Self.check.y)
+            sent = now()
+            try await device.send("click")
+            guard let c = await app.probe.tap(since: sent, timeout: Self.tapTimeout) else { return finished(nil) }
+            let error = max(abs(c.x - Self.check.x), abs(c.y - Self.check.y))
+            app.say(String(format: "calibration: manual check at (%.2f, %.2f) landed (%.3f, %.3f), ±%.1f%%",
+                           Self.check.x, Self.check.y, c.x, c.y, error * 100))
+            pointer.setQuality(error)
+            finished(error)
+        } catch {
+            if !Task.isCancelled { failed(error.localizedDescription) }
+        }
+    }
+
+    /// The tap is the pointer stuck on the right or bottom edge, not where the move took it.
+    static func onEdge(_ p: CGPoint) -> Bool { max(p.x, p.y) > manualEdge }
+
+    /// The board's own click after the user's tap: about the middle of the screen by that tap (home taken as the corner).
+    static func manualSecondStop(move: Int, at p: CGPoint) -> (Int, Int) {
+        (Int((Double(move) * 0.5 / p.x).rounded()), Int((Double(move) * 0.5 / p.y).rounded()))
+    }
+
+    /// Per-axis lines (landed = a · units + b) through the user's tap and the board's click; nil when the click
+    /// landed on an edge or didn't move further out.
+    static func manualLines(_ s: [(ux: Double, uy: Double, fx: Double, fy: Double)]) -> (ProbeFit.Line, ProbeFit.Line)? {
+        guard s.allSatisfy({ ProbeFit.usable($0.fx) && ProbeFit.usable($0.fy) }),
+              let x = ProbeFit.line(s.map { ($0.ux, $0.fx) }), let y = ProbeFit.line(s.map { ($0.uy, $0.fy) }) else { return nil }
+        return (x, y)
+    }
+
+    static var tooFastText: String {
+        String(localized: "The pointer runs to the edge of the screen. In Settings › Accessibility › Touch › AssistiveTouch, set Tracking Speed to the middle, then try again.")
     }
 
     private func mockRun() async {

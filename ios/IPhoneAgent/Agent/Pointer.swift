@@ -267,11 +267,12 @@ import UIKit
         return geometry.contains(framePoint: p) ? geometry.screenPoint(fromFrame: p) : nil
     }
 
-    /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
-    func finishCalibration(x: Double, y: Double) {
+    /// x, y: where the pointer ended up `move` units from home (one point, picked by the user). Assumes home is at
+    /// (0, 0); the manual calibration fits the offset too when the board's own check click arrives.
+    func finishCalibration(x: Double, y: Double, move: Int = Pointer.calibrationMove) {
         (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
         geometry = currentGeometry()
-        guard let s = Span(w: Double(Self.calibrationMove) / x, h: Double(Self.calibrationMove) / y) else {
+        guard let s = Span(w: Double(move) / x, h: Double(move) / y) else {
             log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
             return
         }
@@ -674,12 +675,12 @@ import UIKit
         (pos, moves) = ((0, 0), 0)
     }
 
-    /// Manual calibration: from home to (calibrationMove, calibrationMove), where the user then taps the pointer.
-    func parkForManualCalibration() async throws {
+    /// Manual calibration: from home to (move, move), where the user then taps the pointer.
+    func parkForManualCalibration(move: Int = Pointer.calibrationMove) async throws {
         try await reset()
-        guard Self.iPadPointer else { return _ = try await device.send("move \(Self.calibrationMove) \(Self.calibrationMove)") }
+        guard Self.iPadPointer else { return _ = try await device.send("move \(move) \(move)") }
         pos = nil
-        try await travel(Self.calibrationMove, Self.calibrationMove, paced: false)
+        try await travel(move, move, paced: false)
     }
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.

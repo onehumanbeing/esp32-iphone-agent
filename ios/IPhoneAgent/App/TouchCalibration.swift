@@ -9,6 +9,7 @@ extension AutoCalibrator {
     enum TouchResult { case done(Double), noTaps, failed(String) }
 
     static let roughStops = [150, 350]
+    static let shortestStop = 30  // stage 1 halves its stops down to this while taps land on the screen edge
     static let targets: [(Double, Double)] = [(0.25, 0.25), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0.75, 0.75)]
     static let check = (x: 0.5, y: 0.62)
     static let tapTimeout = 3.0
@@ -91,13 +92,23 @@ extension AutoCalibrator {
             return (x, y)
         }
 
-        // stage 1: rough, on the diagonal
+        // stage 1: rough, on the diagonal. A tap on the right or bottom edge is the pointer stuck there (a high
+        // Tracking Speed carries 350 units past the screen: Wiki #1177): the stops are halved and tried again.
         phase = .probeA
-        for u in Self.roughStops {
-            let p = try await click(u, u)
-            if p == nil && hits == 0 { return .noTaps }
-            if p == nil { _ = try? await device.send("key esc") }  // no fit yet to place the spot or an empty click
-            record(u, u, p)
+        var stops = Self.roughStops
+        while true {
+            samples.removeAll()
+            for u in stops {
+                let p = try await click(u, u)
+                if p == nil && hits == 0 { return .noTaps }
+                if p == nil { _ = try? await device.send("key esc") }  // no fit yet to place the spot or an empty click
+                record(u, u, p)
+            }
+            guard samples.contains(where: { Self.onEdge(CGPoint(x: $0.fx, y: $0.fy)) }), stops[0] / 2 >= Self.shortestStop
+            else { break }
+            stops = stops.map { $0 / 2 }
+            total += stops.count
+            app.say("probe: a tap landed on the screen edge; again with stops \(stops)")
         }
         guard let rough = lines() else { return .failed("probe taps stuck at the screen edge") }
 
