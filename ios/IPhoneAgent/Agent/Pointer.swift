@@ -138,6 +138,8 @@ import UIKit
 
     /// The board is an absolute mouse (flash.sh --abs): X/Y are screen fractions, so no homing, calibration or aiming.
     @Published var absolute = false
+    /// A Bluetooth HID board: iOS ignores its Home key, so Home is the swipe up from the home bar.
+    var swipeHome = false
     static let absoluteSpan = Span(w: Int(32767), h: Int(32767))
     /// Per report for a flick (home, back): ~0.1 s for the whole stroke. The board's default glide is for lists.
     static let flickStep = 2000

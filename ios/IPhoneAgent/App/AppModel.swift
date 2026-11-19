@@ -238,6 +238,7 @@ import UIKit
             let started = s.ap == "streaming" && self?.feed.mirroring == false
             self?.feed.mirroring = s.ap == "streaming"
             self?.pointer.absolute = s.abs == 1
+            self?.pointer.swipeHome = s.isWirelessHID
             let frozen = s.fz == 1
             if frozen != self?.feed.frozen {
                 DebugLog.write(frozen ? "video: the board's GOP is full (overflows \(s.ovf ?? 0)); frozen until a keyframe"
@@ -277,6 +278,7 @@ import UIKit
         board.onLinkDown = { [weak self] in
             self?.pointer.boardPace = nil; self?.pointer.flickInOne = nil
             self?.pointer.absolute = false  // the board may come back with other firmware
+            self?.pointer.swipeHome = false
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)

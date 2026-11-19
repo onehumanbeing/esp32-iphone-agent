@@ -346,7 +346,7 @@ struct ActPage: View {
                            : "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed.")
             if board.status?.isWirelessHID == true {
                 let deviceName = board.name.isEmpty ? String(localized: "the board connected in this app") : board.name
-                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName). Then select the paired device and set Button 2 to Home.")
+                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName).")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if !calibrated { MiniPhoneDemo(kind: .assistiveTouch) }

@@ -212,12 +212,14 @@ String run(const String &line) {
   if (cmd == "key") return pressCombo(arg) ? "ok" : "err unknown key";
   if (cmd == "homescreen") {
 #ifdef HID_TRANSPORT_BLE
-    // AssistiveTouch maps Button 2 to Home.
-    mouse.press(MOUSE_RIGHT); delay(60); mouse.release(MOUSE_RIGHT);
+    // iOS ignores AC Home over Bluetooth (consumer reports do arrive: volume up shows), and Button 2 goes Home
+    // only after the user maps it in AssistiveTouch, which needs a button the board does not have
+    // (iPhone 15, 2026-11-19). The error sends the app to the swipe up from the home bar.
+    return "err no Home key over Bluetooth HID: swipe up from the home bar";
 #else
     consumer.press(AC_HOME); delay(40); consumer.release();
-#endif
     return "ok";
+#endif
   }
   return "err unknown command";
 }

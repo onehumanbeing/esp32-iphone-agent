@@ -745,6 +745,19 @@ import XCTest
         XCTAssertEqual(Array(device.sent.suffix(3)), ["press", "abs 16384 4915 2000", "release"])  // a flick, not a glide
     }
 
+    /// iOS ignores a Home key over Bluetooth HID (2026-11-19): a wireless board goes Home with the flick only.
+    func testWirelessPointerGoesHomeWithAFlickNotTheHomeKey() async throws {
+        let device = FakeDevice()
+        let pointer = pointer(device)
+        pointer.mockCalibrated(quality: 0.005)  // a relative pointer flicks only once calibrated
+        pointer.swipeHome = true
+        try await pointer.goHome()
+        try await pointer.homeKey()
+        XCTAssertFalse(device.sent.contains("homescreen"))
+        XCTAssertFalse(device.sent.contains("key cmd+h"))
+        XCTAssertEqual(device.sent.filter { $0.hasPrefix("flick 0 -") }.count, 2, "each goes Home with the flick up from the home bar")
+    }
+
     /// A board flashed back to the relative mouse answers `abs` with an error: the pointer stops sending it.
     @MainActor private final class RelativeBoard: HIDDevice {
         var links = 1

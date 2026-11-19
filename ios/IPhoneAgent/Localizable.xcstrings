@@ -14053,12 +14053,12 @@
         }
       }
     },
-    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@. Then select the paired device and set Button 2 to Home." : {
+    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。然后选择已配对的设备，将“按钮 2”设为“主屏幕”。"
+            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。"
           }
         }
       }
