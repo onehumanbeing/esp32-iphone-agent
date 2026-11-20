@@ -305,6 +305,16 @@ import XCTest
         }
     }
 
+    /// The re-pair steps: only after a wait, never while connected or pairing, and not while boards are listed to pick.
+    func testBoardRepairHintWaitsAndHidesWhileConnected() {
+        XCTAssertFalse(BoardRepairHint.shows(stuck: false, connected: false, linking: false, paired: true, found: false), "not at once")
+        XCTAssertTrue(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: true, found: true), "remembered board won't connect")
+        XCTAssertTrue(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: false, found: false), "scan found nothing")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: false, found: true), "pick a found board")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: false, linking: true, paired: true, found: true), "iOS is asking to pair")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: true, linking: false, paired: true, found: true))
+    }
+
     func testReplyParsing() {
         XCTAssertEqual(BoardReply.parse("12 ok"), BoardReply(id: 12, ok: true, text: ""))
         XCTAssertEqual(BoardReply.parse("3 ok 812\n"), BoardReply(id: 3, ok: true, text: "812"))

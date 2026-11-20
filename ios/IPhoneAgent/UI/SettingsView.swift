@@ -305,6 +305,7 @@ struct BoardSettingsView: View {
     @State private var inputAsk: String?       // usb | ble, waiting for the confirmation
     @State private var inputSwitch: String?    // usb | ble, sent; the board restarts into it
     @State private var inputError: String?
+    @State private var stuck = false  // not connected for a while: BoardRepairHint
 
     var body: some View {
         List {
@@ -339,6 +340,7 @@ struct BoardSettingsView: View {
                         }
                     }
                     .disabled(board.scanning)
+                    BoardRepairHint(board: board, stuck: stuck)
                 } header: {
                     Text("Nearby")
                 }
@@ -400,6 +402,7 @@ struct BoardSettingsView: View {
         .navigationTitle("Board")
         .navigationBarTitleDisplayMode(.inline)
         .task { await app.refreshHotspot() }
+        .task(id: board.connected) { stuck = false; stuck = await BoardRepairHint.wait(connected: board.connected) }
     }
 }
 

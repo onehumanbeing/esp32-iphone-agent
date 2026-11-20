@@ -231,6 +231,16 @@
         }
       }
     },
+    "Board not showing up?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到板子？"
+          }
+        }
+      }
+    },
     "Call [who] and talk about [topic]" : {
       "localizations" : {
         "zh-Hans" : {
@@ -401,6 +411,16 @@
         }
       }
     },
+    "Forget this board in the app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 App 中忘记这块板子"
+          }
+        }
+      }
+    },
     "From This Run" : {
       "localizations" : {
         "zh-Hans" : {
@@ -417,6 +437,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "来自：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "In Settings › Bluetooth, forget %@ if it is listed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置 › 蓝牙”中，如果列出了 %@，将其忽略。"
           }
         }
       }
@@ -747,6 +777,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 App 并校准指针。"
+          }
+        }
+      }
+    },
+    "Pair within 3 minutes: after power-on the board accepts a new phone for 3 minutes only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 分钟内完成配对：板子通电后只在 3 分钟内接受新手机。"
           }
         }
       }
@@ -1577,6 +1617,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销：改回之前的步骤"
+          }
+        }
+      }
+    },
+    "Unplug the board and plug it back in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拔下板子再重新插上。"
           }
         }
       }

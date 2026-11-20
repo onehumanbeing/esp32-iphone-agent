@@ -43,6 +43,7 @@ enum Disclaimer {
 /// 1 · Connect the board: Bluetooth permission, scan, pair (automatically when only one board is found).
 struct ConnectPage: View {
     @ObservedObject var board: BoardLink
+    @State private var stuck = false
 
     var body: some View {
         VStack(spacing: Space.xl) {
@@ -71,6 +72,7 @@ struct ConnectPage: View {
         .onAppear { board.scan(); autoPair() }
         .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
         .onChange(of: board.found) { autoPair() }
+        .task(id: board.connected) { stuck = false; stuck = await BoardRepairHint.wait(connected: board.connected) }
     }
 
     /// Only one board nearby: pair it without asking.
@@ -117,7 +119,47 @@ struct ConnectPage: View {
             if !board.lastError.isEmpty {
                 Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning).lineLimit(2)
             }
+        }        BoardRepairHint(board: board, stuck: stuck).padding(.top, Space.s)
+    }
+}
+
+/// The board isn't found, or the remembered one won't connect: how to pair it again from the start. The board takes a
+/// new phone only in the 3 minutes after power-on (ble_link.cpp PAIR_WINDOW_MS). Shown once it has been stuck a while.
+struct BoardRepairHint: View {
+    @ObservedObject var board: BoardLink
+    let stuck: Bool
+
+    static func shows(stuck: Bool, connected: Bool, linking: Bool, paired: Bool, found: Bool) -> Bool {
+        stuck && !connected && !linking && (paired || !found)
+    }
+
+    /// Waits ~10 s while the board stays disconnected (run it as `.task(id: board.connected)`).
+    static func wait(connected: Bool) async -> Bool {
+        guard !connected, (try? await Task.sleep(for: .seconds(10))) != nil else { return false }
+        return true
+    }
+
+    var body: some View {
+        if Self.shows(stuck: stuck, connected: board.connected, linking: board.linking,
+                      paired: board.pairedID != nil, found: !board.found.isEmpty) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text("Board not showing up?").font(.subheadline.weight(.semibold))
+                let first = board.pairedID != nil ? 1 : 0
+                if first == 1 {
+                    Button(action: board.retryDiscovery) { step(1, "Forget this board in the app") }
+                        .buttonStyle(.borderless)  // in a List row: only the button, not the whole row
+                }
+                step(first + 1, "In Settings › Bluetooth, forget \(BoardName.current) if it is listed.")
+                step(first + 2, "Unplug the board and plug it back in.")
+                step(first + 3, "Pair within 3 minutes: after power-on the board accepts a new phone for 3 minutes only.")
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func step(_ n: Int, _ text: LocalizedStringKey) -> some View {
+        Label { Text(text) } icon: { Image(systemName: "\(n).circle") }
     }
 }
 
