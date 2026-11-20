@@ -211,6 +211,7 @@ extension AppModel {
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
             step = .leaveApp
             var openedAtStart: String?
+            if !resume { carryClipboard(task, inFront: !startedAway) }  // still in front: before the app is left
             if !resume || agent.guides.isEmpty { AppGuides.shared.prefetch() }  // answered while the app opens and the first frame comes
             if let schemeApp, await openByScheme(schemeApp) {
                 openedAtStart = schemeApp

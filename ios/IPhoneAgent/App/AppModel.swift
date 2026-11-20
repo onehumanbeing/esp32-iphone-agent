@@ -324,6 +324,7 @@ import UIKit
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
         pointer.clipboard = agent.onWrite
+        agent.clipboardCount = { UIPasteboard.general.changeCount }
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         live.standbyPicks = { [weak self] in self?.standbyPicks }
         AgentControl.verdict = { [weak self] run, correct in self?.runVerdict(run, correct: correct) }

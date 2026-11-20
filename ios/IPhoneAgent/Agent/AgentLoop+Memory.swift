@@ -200,8 +200,9 @@ extension AgentLoop {
     /// way `write` does it. The hop leaves the target app; when this run knows which app that is, it opens it again,
     /// keys cmd+v and reads the text back (nil: pasted and seen). Otherwise, or when the text is not seen, the actor
     /// is told to paste it itself, as before (2026-11-17: 5 runs stopped at a Japanese or Korean `type`).
-    /// Also the rest of a Chinese `type` whose word the pinyin keyboard did not offer (`not`: that stop's note).
-    func pasteInstead(_ text: String, not: String = "nothing typed: the board cannot type this script") async throws -> String? {
+    /// A Chinese `type` never comes here (no hop mid-run: AgentLoop.pasteCarried).
+    func pasteInstead(_ text: String) async throws -> String? {
+        let not = "nothing typed: the board cannot type this script"
         guard let onWrite else { return "\(not), and the clipboard is not available here" }
         guard try await onWrite(text) else { return "\(not), and the text could not be put on the clipboard" }
         let held = "\(not), so \"\(text)\" is on the clipboard instead: "
