@@ -2,7 +2,7 @@
 
 [English](README.md) · 简体中文
 
-命令行工具和 MCP 服务器，让电脑（以及电脑上的编程 Agent：Claude Code、Codex）通过 ESP32 Agent 板子看到并操作 iPhone。板子插在 iPhone 上，充当它的 USB 鼠标和键盘，并接收它的 AirPlay 屏幕镜像；电脑通过蓝牙连接板子，两者在同一个网络时改走 Wi-Fi，可以和 iOS App 并用。命令和 JSON 输出格式沿用 [mobilecli](https://github.com/mobile-next/mobilecli)。
+命令行工具和 MCP 服务器，让电脑（以及电脑上的编程 Agent：Claude Code、Codex）通过 ESP32 Agent 板子看到并操作 iPhone。板子充当 iPhone 的鼠标和键盘（插在 iPhone 上走 USB；或在蓝牙模式下作为它的蓝牙鼠标和键盘，任意 USB 供电即可），并接收它的 AirPlay 屏幕镜像；电脑通过蓝牙连接板子，两者在同一个网络时改走 Wi-Fi，可以和 iOS App 并用。命令和 JSON 输出格式沿用 [mobilecli](https://github.com/mobile-next/mobilecli)。
 
 ## 安装
 
@@ -15,7 +15,7 @@ npm：`npm install -g esp32agent`。安装脚本读取 `https://manina.ai/cli/ve
 
 ## 配对
 
-1. 把板子插到 iPhone 上，三分钟内运行 `esp32agent pair`。
+1. 给板子通电（USB 模式：插到 iPhone 上），通电后三分钟内运行 `esp32agent pair`。蓝牙模式下，在同一个三分钟内在 iPhone 上配对板子（设置 > 辅助功能 > 触控 > 辅助触控 > 设备 > 蓝牙设备）。
 2. 在 iPhone 上：控制中心 > 屏幕镜像 > ESP32 Agent。
 3. 这时 `esp32agent screenshot` 应该会保存一张手机屏幕的 PNG。
 
