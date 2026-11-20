@@ -56,6 +56,8 @@ import UIKit
     @Published var help: String?
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
     var recoverySince = Date()
+    var mirrorHint = MirrorHint()
+    @Published var mirrorHintShown = false  // Home: restart mirroring after a long Bluetooth-mode session
     @Published var takingOver = false
     @Published var paused = false  // Pause on the Dynamic Island: the run holds before its next look
     @Published var startingAgent = false
@@ -258,6 +260,7 @@ import UIKit
             #endif
             if let up = s.up { self?.feed.boardClock(ms: up) }
             self?.metrics.status(s)
+            self?.updateMirrorHint(s)
             self?.logStatus(s)
             self?.matchMirrorDisplay(s)
             if s.inputState == nil || s.needsWirelessPointer || s.needsUSBHost { self?.beginLinkRecoveryDisplay() }

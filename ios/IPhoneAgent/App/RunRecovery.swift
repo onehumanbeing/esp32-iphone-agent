@@ -65,6 +65,7 @@ extension AppModel {
             DebugLog.write("recover: board rebooted \(up / 1000) s ago (reset: \(board.status?.rst ?? "?"))")
         }
         DebugLog.write("recover: \(stage.logLine)")
+        if stage.part == .frames && stage.ask { updateMirrorHint(staleNow: true) }  // "reconnect mirroring"
         if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
@@ -104,5 +105,61 @@ extension AppModel {
         case .mirroring: return String(localized: "Start Screen Mirroring to continue")
         case .frames: return String(localized: "Waiting for a screen image")
         }
+    }
+}
+
+/// Bluetooth-HID boards: Screen Mirroring goes stale on long use (2026-11-20: the board's GOP full, frames frozen,
+/// the agent tapped from stale frames; stopping and restarting mirroring fixed it). A tip on Home, never a gate:
+/// once mirroring has streamed for `longSession`, or right after frozen video (the board's `fz`, or a run's
+/// recovery asking to reconnect mirroring). × hides it until mirroring restarts; "Don't show again" is kept.
+struct MirrorHint: Equatable {
+    static let longSession = 30.0 * 60  // continuous mirroring before the tip comes up by itself
+    static let neverKey = "mirrorHintNever"
+
+    enum Trigger: String { case stale, long }
+
+    private(set) var since: Double?  // this mirroring session's start
+    private(set) var staleSeen = false
+    private(set) var dismissed = false
+
+    /// The board's heartbeat: mirroring stopped resets everything (a restart is what the tip asks for).
+    mutating func status(streaming: Bool, frozen: Bool, at t: Double) {
+        guard streaming else { self = MirrorHint(); return }
+        if since == nil { since = t }
+        if frozen { staleSeen = true }
+    }
+
+    mutating func stale() { staleSeen = true }
+    mutating func dismiss() { dismissed = true }
+
+    /// Why it shows now, nil when it doesn't.
+    func trigger(ble: Bool, never: Bool, at t: Double) -> Trigger? {
+        guard ble, !never, !dismissed, let since else { return nil }
+        if staleSeen { return .stale }
+        return t - since >= Self.longSession ? .long : nil
+    }
+}
+
+extension AppModel {
+    /// From the 1 s board status and from run recovery; publishes only on a change.
+    func updateMirrorHint(_ s: BoardStatus? = nil, staleNow: Bool = false) {
+        if let s { mirrorHint.status(streaming: s.ap == "streaming", frozen: s.fz == 1, at: now()) }
+        if staleNow { mirrorHint.stale() }
+        let ble = board.status.map { $0.isWirelessHID || $0.hidm == "ble" } ?? false
+        let trigger = mirrorHint.trigger(ble: ble, never: UserDefaults.standard.bool(forKey: MirrorHint.neverKey), at: now())
+        guard (trigger != nil) != mirrorHintShown else { return }
+        mirrorHintShown = trigger != nil
+        if let trigger {
+            DebugLog.write("mirror hint: shown (\(trigger.rawValue))")
+            Analytics.capture("mirror_hint_shown", ["trigger": trigger.rawValue])
+        }
+    }
+
+    /// ×: hidden until mirroring restarts. `forever`: never again on this install.
+    func dismissMirrorHint(forever: Bool) {
+        mirrorHint.dismiss()
+        if forever { UserDefaults.standard.set(true, forKey: MirrorHint.neverKey) }
+        Analytics.capture(forever ? "mirror_hint_never" : "mirror_hint_dismissed")
+        updateMirrorHint()
     }
 }

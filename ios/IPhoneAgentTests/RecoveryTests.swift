@@ -350,4 +350,38 @@ import XCTest
         XCTAssertEqual(url?.scheme, "mailto")
         XCTAssertTrue(url?.absoluteString.contains("0a1b2c3d-0000-4000-8000-000000000001") == true)
     }
+
+    func testMirrorHintShowsInBluetoothModeAfterALongSessionUntilDismissed() {
+        let long = MirrorHint.longSession
+        var h = MirrorHint()
+        h.status(streaming: true, frozen: false, at: 100)
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + long - 1), "not long enough yet")
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 100 + long), .long)
+        XCTAssertNil(h.trigger(ble: false, never: false, at: 100 + long), "USB mode: no tip")
+        XCTAssertNil(h.trigger(ble: true, never: true, at: 100 + long), "don't show again")
+        h.status(streaming: true, frozen: false, at: 100 + long)  // later heartbeats keep the session's start
+        h.dismiss()
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + 2 * long), "× hides it for this session")
+        h.status(streaming: false, frozen: false, at: 100 + 2 * long)  // mirroring restarted
+        h.status(streaming: true, frozen: false, at: 100 + 2 * long + 5)
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + 2 * long + 10), "a fresh session starts over")
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 100 + 3 * long + 5), .long)
+    }
+
+    func testMirrorHintShowsAtOnceAfterFrozenVideo() {
+        var h = MirrorHint()
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 0), "no mirroring, no tip")
+        h.status(streaming: true, frozen: false, at: 10)
+        h.status(streaming: true, frozen: true, at: 11)  // the board's GOP filled up
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 12), .stale)
+        h.status(streaming: true, frozen: false, at: 13)
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 14), .stale, "stays until mirroring restarts")
+        var r = MirrorHint()
+        r.status(streaming: true, frozen: false, at: 10)
+        r.stale()  // a run's recovery asked to reconnect mirroring
+        XCTAssertEqual(r.trigger(ble: true, never: false, at: 11), .stale)
+        XCTAssertNil(r.trigger(ble: false, never: false, at: 11))
+        r.status(streaming: false, frozen: false, at: 12)
+        XCTAssertNil(r.trigger(ble: true, never: false, at: 12))
+    }
 }

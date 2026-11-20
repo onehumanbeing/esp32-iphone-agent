@@ -146,3 +146,37 @@ struct RecoveryPanel: View {
         }
     }
 }
+
+/// Above the face on Home in Bluetooth mode after a long mirroring session or frozen video (MirrorHint): a tip,
+/// not a warning; × hides it until mirroring restarts, "Don't show again" for good.
+struct MirrorHintBanner: View {
+    @ObservedObject var app: AppModel
+    let busy: Bool  // a run starting or going: the tip waits
+
+    var body: some View {
+        if app.mirrorHintShown && !busy {
+            HStack(alignment: .top, spacing: Space.s) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Label("Bluetooth mode: if runs get stuck after a long session, stop and restart Screen Mirroring.",
+                          systemImage: "rectangle.on.rectangle")
+                    Button("Don't Show Again") { app.dismissMirrorHint(forever: true) }
+                        .font(.footnote.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button { app.dismissMirrorHint(forever: false) } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.bold)).frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Close"))
+            }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Palette.accent)
+            .buttonStyle(.plain)
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s)
+            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, Space.l)
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
+}

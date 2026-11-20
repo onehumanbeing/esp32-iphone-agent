@@ -195,6 +195,7 @@ struct HomeView: View {
         VStack(spacing: Space.m) {
             FirmwareBanner(updater: app.firmware)
             AppUpdateBanner(firmware: app.firmware)
+            MirrorHintBanner(app: app, busy: agent.running || app.startingAgent)
             PokeableFace(mood: editing ? .listening : app.mood, look: lookAt, busy: app.agent.running,
                          onInteract: { Task { await app.refreshHomeStatus() } })
                 .frame(width: 128, height: 143)
