@@ -354,10 +354,14 @@ import UIKit
     struct Leftover: Codable, Equatable { var lease: String?; var leaseToken: String?; var keyRun: String? }
     nonisolated static let leftoverAccount = "trial-held-run"
     static var leftover: Leftover? {
-        get { Keychain.get(leftoverAccount).flatMap { try? JSONDecoder().decode(Leftover.self, from: Data($0.utf8)) } }
-        set { Keychain.set(newValue.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "",
-                           for: leftoverAccount) }
+        get { Keychain.get(leftoverAccount).flatMap { try? JSONDecoder().decode(Leftover.self, from: Data($0.utf8)) } ?? leftoverHere }
+        set {
+            leftoverHere = newValue  // this process's copy, where the keychain can't be written (an unsigned test host in CI)
+            Keychain.set(newValue.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "",
+                         for: leftoverAccount)
+        }
     }
+    private static var leftoverHere: Leftover?
 
     /// At launch (and when a claim is refused as busy): give back what the previous process still held. `send`
     /// gives back a lease: nil when done, else the error (tests stub it). A dropped connection keeps the record
