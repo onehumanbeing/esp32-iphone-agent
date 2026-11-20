@@ -17,6 +17,8 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
 
     var onFrame: ((Frame) -> Void)?
     var onError: ((String) -> Void)?
+    /// iOS dropped the session and the cached GOP was decoded again (on the main thread; for the `vdiag` line).
+    var onSessionLost: (() -> Void)?
     var quality: Double = 0.75
     let queue = DispatchQueue(label: "video.decode")
 
@@ -76,7 +78,10 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         resetSession()
         if gop.last?.data == unit.data, gop.first?.idr == true, replay() {
             let n = gop.count
-            DispatchQueue.main.async { DebugLog.write("decoder: session lost (\(status)); decoded the GOP again (\(n) units)") }
+            DispatchQueue.main.async { [weak self] in
+                DebugLog.write("decoder: session lost (\(status)); decoded the GOP again (\(n) units)")
+                self?.onSessionLost?()
+            }
             return
         }
         onError?("decode failed \(status)" + (status == kVTInvalidSessionErr ? " (session lost, e.g. in background)" : ""))

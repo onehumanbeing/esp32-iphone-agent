@@ -17,6 +17,7 @@ static unsigned lastGeneration;
 static bool failed, releasePending;
 static uint8_t mouseButtons, keys[8];
 static uint32_t batteryAt, lastReportAt;
+static volatile uint32_t reportsSent, reportsFailed, reportsWaited, reportMaxMs;  // ble_hid_diag
 
 static void resetReports() {
   uint8_t zero[8] = {};
@@ -95,13 +96,25 @@ static void send(int input, const void *data, size_t size) {
   int handle = BleHidTarget::peer(lastGeneration);
   uint32_t start = millis();
   for (;;) {
-    if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) { failed = releasePending = true; return; }
+    if (handle < 0 || target.session() != lastGeneration || !ble_hid_ready()) {
+      failed = releasePending = true;
+      reportsFailed++;
+      return;
+    }
     // As in the video path, retry only when the host runs out of buffers.
     os_mbuf *packet = ble_hs_mbuf_from_flat(data, size);
     int rc = packet ? ble_gatts_notify_custom(handle, inputs[input]->getHandle(), packet) : BLE_HS_ENOMEM;
-    if (rc == 0) { lastReportAt = millis(); return; }
+    if (rc == 0) {
+      lastReportAt = millis();
+      uint32_t took = lastReportAt - start;
+      reportsSent++;
+      if (took) reportsWaited++;
+      if (took > reportMaxMs) reportMaxMs = took;
+      return;
+    }
     if (rc != BLE_HS_ENOMEM || millis() - start >= 100) {
       failed = releasePending = true;
+      reportsFailed++;
 #if DEBUG_SERIAL
       Serial.printf("BLE HID report failed: rc=%d\n", rc);
 #endif
@@ -109,6 +122,14 @@ static void send(int input, const void *data, size_t size) {
     }
     vTaskDelay(1);
   }
+}
+
+void ble_hid_diag(uint32_t *sent, uint32_t *failedReports, uint32_t *waited, uint32_t *maxMs) {
+  *sent = reportsSent;
+  *failedReports = reportsFailed;
+  *waited = reportsWaited;
+  *maxMs = reportMaxMs;
+  reportMaxMs = 0;
 }
 
 void ble_hid_poll(bool timedHold) {

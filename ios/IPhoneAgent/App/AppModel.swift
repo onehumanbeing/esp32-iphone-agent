@@ -414,6 +414,10 @@ import UIKit
             LocalNetworkPermission.askIfNeeded()
         }
         if metrics.suspensions > before { DebugLog.write(String(format: "app: resumed after %.0f s suspended", gap)) }
+        if let line = feed.diag.tick(at: now(), active: agent.running, hid: board.status?.hidTransport ?? "-",
+                                     via: wifiVideo.active ? "wifi" : "ble", frozen: feed.frozen) {
+            DebugLog.write(line)
+        }
         if agent.running, now() - lastStreamLog >= 10 {
             lastStreamLog = now()
             let s = board.status

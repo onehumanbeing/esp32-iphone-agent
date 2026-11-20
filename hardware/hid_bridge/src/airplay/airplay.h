@@ -57,6 +57,8 @@ void airplay_readvertise(void);
 // Display advertised in /info from the next mirroring session on.
 void airplay_set_display(uint16_t width, uint16_t height, uint8_t max_fps);
 airplay_audio_stats airplay_audio(void);
+// Mirror data connections accepted since boot: one per mirroring session, more if the sender reconnected.
+uint32_t airplay_data_conns(void);
 
 #ifdef __cplusplus
 }

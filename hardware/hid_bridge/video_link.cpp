@@ -60,6 +60,9 @@ static uint32_t winStart, winBytes, winFrames, lastIdr;
 static volatile uint32_t lastAu;
 static volatile uint32_t statKbps, statIdrMs, statAt;
 static volatile float statFps;
+// For the `diag` lines (video_diag): the sink's counts, and AirPlay's (mirror task).
+static VideoDiag diag;
+static volatile uint32_t dAus, dBytes, dIdrs, dMaxGap, frozeAt;
 
 static int sideOf(char who) { return who == FROM_CLI; }
 
@@ -104,12 +107,20 @@ static bool sendAu(Sink &s, const uint8_t *p, size_t n, uint8_t flags, uint32_t 
   // lands after newer Wi-Fi ones reads as a ~65535 gap there (2026-11-06, fw 0.2.3). Log every switch.
   static int8_t appLink = -1;  // -1 unknown, 0 BLE, 1 Wi-Fi
   if (s.who == FROM_APP && appLink != (int8_t)wifi) {
-    if (appLink >= 0) board_log("video: app link %s -> %s at seq %u", appLink ? "wifi" : "ble", wifi ? "wifi" : "ble", seq);
+    if (appLink >= 0) {
+      diag.flips++;
+      board_log("video: app link %s -> %s at seq %u (%s)", appLink ? "wifi" : "ble", wifi ? "wifi" : "ble", seq,
+                wifi ? "wifi session up" : wv_why());
+    }
     appLink = wifi;
   }
   for (size_t len; (len = vchunk_next(&c, chunk, room, seq)) > 0;) {
     bool ok = videoSend(s, wifi, chunk, len);
     seq++;
+    if (s.who == FROM_APP) {
+      (wifi ? diag.wifiChunks : diag.bleChunks)++;
+      if (!ok) (wifi ? diag.wifiFails : diag.bleFails)++;
+    }
     if (!ok) return false;
   }
   return true;
@@ -265,8 +276,26 @@ static void streamStep(Sink &s) {
   // last resend is still going: a GOP can be MBs (the next IDR may be minutes away), and restarting it at every
   // request (the app asks every 2 s) kept the air full, so mirroring and BLE starved (2026-10-20 03:00 log).
   bool resyncAsked = s.who == FROM_APP && wv_take_resync();
-  uint32_t resumeTs;
-  bool resume = wifi && resyncAsked && wv_take_resume(&resumeTs) && resumeAt(s, resumeTs);
+  uint32_t resumeTs = 0;
+  bool resumeAsked = wifi && resyncAsked && wv_take_resume(&resumeTs);
+  bool resume = resumeAsked && resumeAt(s, resumeTs);
+  if (resyncAsked) {
+    diag.resyncs++;
+    if (resume) diag.resumes++;
+    else if (resumeAsked) diag.resumeMisses++;
+    // Past a full GOP a restart from its IDR sends nothing (snapshot): the app's screen stays as it is until the
+    // next IDR. Logged so a freeze shows how it began; at most every 10 s, with the count.
+    static uint32_t deadAt, dead;
+    if (!resume && !s.catchingUp && frozenNow()) {
+      dead++;
+      if (!deadAt || millis() - deadAt >= 10000) {
+        board_log("video: app asked for the IDR (%s) but the GOP is full: no video until the next IDR (x%lu)",
+                  resumeAsked ? "its resume point is gone" : "no resume point", (unsigned long)dead);
+        deadAt = millis() | 1;
+        dead = 0;
+      }
+    }
+  }
   // A new transport goes on in place: the app's one assembler takes both links, a new app session asks for the IDR
   // itself (`hello`), and chunks lost on the old link end in a resume (`hello … at`). Resending the GOP at every
   // Wi-Fi/BLE flip replayed minutes of old screens into the decoder, 18 times in 11 min (2026-11-06).
@@ -342,6 +371,10 @@ void video_on_config(const uint8_t *sps_pps, size_t len) {
 
 void video_on_au(const uint8_t *au, size_t len, bool idr) {
   uint32_t now = millis();
+  if (lastAu && now - lastAu > dMaxGap) dMaxGap = now - lastAu;
+  dAus++;
+  dBytes += len;
+  if (idr) dIdrs++;
   lastAu = now;
   winBytes += len;
   winFrames++;
@@ -360,6 +393,9 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   bool wasFrozen = gop.frozen, wasLive = tailLive;
   gop_push(&gop, au, len, idr, now);
   bool froze = gop.frozen && !wasFrozen;
+  uint32_t frozeFor = idr && wasFrozen && frozeAt ? now - frozeAt : 0;
+  if (froze) frozeAt = now;
+  if (idr && wasFrozen) frozeAt = 0;
   if (idr && wasFrozen) {  // a new GOP: the tail of the old one is not to be sent after it
     // It was (0.2.5 and before): a stream on the tail sent the new IDR, then the old tail's P-frames once more, and
     // the app's decoder failed on every frame until mirroring restarted (an iPad turned after its GOP filled).
@@ -394,6 +430,7 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   xSemaphoreGive(lock);
   if (froze) board_log("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
                            (unsigned long)kb);
+  if (frozeFor) board_log("video: an IDR ended the full GOP after %lu s", (unsigned long)(frozeFor / 1000));
   if (tailBroke) tailBreaks++;
   if (tailBroke) board_log("video: a stream fell behind the tail; frozen until the next IDR");
   if (sink.task) xTaskNotifyGive(sink.task);
@@ -433,4 +470,26 @@ String video_debug() {
            (unsigned long)tailBreaks);
   xSemaphoreGive(lock);
   return b;
+}
+
+VideoDiag video_diag() {
+  uint32_t now = millis(), last = lastAu, gap = last ? now - last : 0;
+  VideoDiag d = diag;  // the video task's counts: a torn read only blurs one window
+  d.aus = dAus;
+  d.bytes = dBytes;
+  d.idrs = dIdrs;
+  d.maxGapMs = dMaxGap > gap ? dMaxGap : gap;
+  dMaxGap = 0;
+  d.sinceIdrMs = lastIdr ? now - lastIdr : 0;
+  d.tailBreaks = tailBreaks;
+  xSemaphoreTake(lock, portMAX_DELAY);
+  d.gopAus = gop.n;
+  d.gopKb = gop.used / 1024;
+  d.overflows = gop.overflows;
+  d.frozen = gop.frozen && !(tailLive && sink.who == FROM_APP && sink.onTail);
+  d.frozenMs = gop.frozen && frozeAt ? now - frozeAt : 0;
+  d.following = sink.followGen == gop.gen;
+  d.lastWhy = lastWhy;
+  xSemaphoreGive(lock);
+  return d;
 }

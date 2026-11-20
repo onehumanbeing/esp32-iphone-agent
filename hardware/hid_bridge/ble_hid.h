@@ -12,6 +12,9 @@ bool ble_hid_allows(int handle);
 void ble_hid_claim(uint16_t handle, bool subscribed);
 bool ble_hid_command_begin(uint32_t session);
 bool ble_hid_command_ok();
+// For the `diag` lines: reports sent, failed and sent only after waiting for host buffers, since boot; the longest a
+// sent report waited (ms) since the last call.
+void ble_hid_diag(uint32_t *sent, uint32_t *failed, uint32_t *waited, uint32_t *max_ms);
 
 // Match the USB HID interface used by the command handler.
 class BleHidMouse {

@@ -87,6 +87,7 @@ static bool hidSubscribed[MAX_PEERS];  // Only accessed by NimBLE subscription, 
 static uint32_t winStart, winBytes;  // touched by the video task only
 static volatile uint32_t kbps;
 static std::atomic<uint32_t> drops, replyDrops;
+static std::atomic<uint32_t> videoNotifies, videoBytes, notifyWaits, maxNotifyWait;  // ble_diag
 static volatile uint32_t lastCmdMs;  // last `cmd` write: replies are expected, keep video's share small
 static volatile uint32_t appSeenMs;  // last command from the app that drives the phone
 // An app that only pings (every 2 s, in the background too) and logs is idle and lets the CLI in; its next real
@@ -340,7 +341,14 @@ static bool notifyOne(int slot, int ch, const uint8_t *p, size_t n, uint32_t sta
     if (!(video && (ctrlPending > 0 || !ctrlRoom(n))) && os_msys_num_free() >= need) {
       os_mbuf *om = ble_hs_mbuf_from_flat(p, n);
       int rc = om ? ble_gatts_notify_custom(h, chars[ch]->getHandle(), om) : BLE_HS_ENOMEM;  // om consumed
-      if (rc == 0) return true;
+      if (rc == 0) {
+        uint32_t waited = millis() - start;
+        if (waited) {
+          notifyWaits++;
+          if (waited > maxNotifyWait) maxNotifyWait = waited;
+        }
+        return true;
+      }
       if (rc != BLE_HS_ENOMEM) {
         BLE_LOG("notify ch %d conn %d failed rc=%d\n", ch, h, rc);
         return false;
@@ -662,6 +670,8 @@ bool ble_video_send(const uint8_t *p, size_t n) {
     drops++;
     return false;
   }
+  videoNotifies++;
+  videoBytes += n;
   uint32_t now = millis();
   winBytes += n;
   if (now - winStart >= 1000) {
@@ -692,6 +702,24 @@ uint8_t ble_phy() {
   int h = peers[0] >= 0 ? peers[0] : peers[1];
   if (h >= 0) ble_gap_read_le_phy(h, &tx, &rx);
   return tx == BLE_GAP_LE_PHY_2M ? 2 : 1;
+}
+
+BleDiag ble_diag() {
+  return {videoNotifies, videoBytes, notifyWaits, maxNotifyWait.exchange(0)};
+}
+
+bool ble_app_conn(uint16_t *interval, uint16_t *latency, uint16_t *timeout) {
+  for (int i = 0; i < MAX_PEERS; i++) {
+    int h = peers[i];
+    ble_gap_conn_desc d;
+    if (appLink(h) && ble_gap_conn_find(h, &d) == 0) {
+      *interval = d.conn_itvl;
+      *latency = d.conn_latency;
+      *timeout = d.supervision_timeout;
+      return true;
+    }
+  }
+  return false;
 }
 
 void ble_unpair() {
