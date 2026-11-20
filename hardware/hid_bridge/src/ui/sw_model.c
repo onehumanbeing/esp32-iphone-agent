@@ -208,6 +208,11 @@ int sw_parse(const char *arg, sw_ui *u) {
       *(key[0] == 'x' ? &u->look_x : &u->look_y) = f;
     } else if (!strcmp(key, "k")) {
       ok = picks(&r, u);
+    } else if (!strcmp(key, "h")) {
+      int w = word(&r);
+      int32_t v = 0;
+      ok = w >= 0 || num(&r, &v);
+      u->confirm = w == 1 || v != 0;
     } else if (!strcmp(key, "v")) {
       int w = word(&r);
       int32_t v = 0;
@@ -290,7 +295,7 @@ int sw_apply(sw_ctl *c, const sw_ui *u, bool off, uint32_t now) {
     c->sel = -1;
     c->confirm = false;
     c->done = false;
-    if (c->ui.phase == SW_HELP && !(was && was_phase == SW_HELP)) buzz = SW_BUZZ_HELP;
+    if (c->ui.phase == SW_HELP && !(was && was_phase == SW_HELP)) buzz = SW_BUZZ_HELP, c->help_at = c->help_buzz_at = now;
   } else {
     c->shaking = false;
   }
@@ -303,6 +308,7 @@ static bool say(char *out, size_t n, const char *line) {
 }
 
 static bool yellow(sw_ctl *c, bool running, uint32_t now, char *out, size_t n) {
+  if (running && c->ui.phase == SW_HELP) return say(out, n, "continue");  // help or confirm: yellow goes on
   if (running) return say(out, n, c->ui.phase == SW_PAUSED ? "unpause" : "pause");
   if (!c->ui.npicks) return false;
   c->sel_at = now;
@@ -388,7 +394,9 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
     case SW_IN_BLUE_UP: {
       bool was = c->blue_down && !c->blue_fired && !c->blue_ignore;
       c->blue_down = false;
-      return was && !after(now, c->blue_at, SW_HOME_MS) && say(out, n, "home");
+      if (!was || after(now, c->blue_at, SW_HOME_MS)) return false;
+      if (running && c->ui.phase == SW_HELP) return say(out, n, c->ui.confirm ? "skip" : "stop");  // blue answers no
+      return say(out, n, "home");
     }
     case SW_IN_TAP:
       if (running && c->ui.phase == SW_HELP) return say(out, n, "continue");
@@ -481,6 +489,14 @@ int sw_picks_line(sw_ctl *c, const char *arg) {
   memcpy(c->ui.picks, u.picks, sizeof u.picks);
   if (c->sel >= c->ui.npicks) c->sel = -1, c->confirm = false;
   return u.npicks;
+}
+
+int sw_buzz_due(sw_ctl *c, uint32_t now) {
+  if (!sw_running(c, now) || c->ui.phase != SW_HELP) return SW_BUZZ_NONE;
+  uint32_t gap = after(now, c->help_at, SW_HELP_FAST_MS) ? SW_HELP_SLOW_MS : SW_HELP_REPEAT_MS;
+  if (!after(now, c->help_buzz_at, gap)) return SW_BUZZ_NONE;
+  c->help_buzz_at = now;
+  return SW_BUZZ_HELP;
 }
 
 void sw_answer(sw_ctl *c) {

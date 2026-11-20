@@ -119,10 +119,15 @@ them ignores them):
 | `btn run <i>` | yellow button in idle: the 1st press selects a pick (a tap moves to the next), the 2nd asks "确认发送？", the 3rd sends; 3 s without a press cancels. `i` is 0-based into the last `k` |
 | `btn home` | blue button, released within 0.5 s |
 | `btn stop` | blue button held 2 s (a ring counts down, an earlier release cancels), or a shake while a task runs (1 s warning; any button cancels) |
-| `btn continue` | tap on the screen while `p` is `help` |
+| `btn continue` | tap on the screen, or yellow, while `p` is `help` |
+| `btn skip` | blue released within 0.5 s during a confirm (`h` 1) |
 | `btn takeover` | swipe up while a task runs |
 
-Vibration: one 400 ms buzz on entering `help`, two short on success, three short on failure.
+Vibration: a 400 ms buzz on entering `help`, again every 3 s for a minute and every 15 s after that until the
+help is answered (the screen stays amber); two short on success, three short on failure.
+
+Help: `h` 1 in the `ui` line marks a confirm (pay, delete): "OK to go on?". Yellow (or a tap) sends `btn continue`;
+blue, released within 0.5 s, sends `btn skip` for a confirm and `btn stop` for other help; swipe up `btn takeover`.
 
 Language: the board's own words (status page, hints, voice states) are English by default or Chinese; the status
 page's last row shows it, and a tap on that row or yellow while the page is open switches it (kept in NVS; flashing

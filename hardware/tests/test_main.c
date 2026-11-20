@@ -887,6 +887,40 @@ static void test_sw_answer(void) {
   CHECK(!c.answer && sw_screen(&c, 700) == SW_SCR_RUN);
 }
 
+// Help and confirm: the buzz again every 3 s for a minute, then every 15 s, until answered; yellow goes on, blue
+// stops (help) or skips the step (confirm).
+static void test_sw_help(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(sw_buzz_due(&c, 5000) == SW_BUZZ_NONE);
+  CHECK(sw_parse("{\"p\":\"help\",\"h\":1,\"v\":1}", &u) == SW_PARSE_UI && u.confirm);
+  CHECK(sw_apply(&c, &u, false, 1000) == SW_BUZZ_HELP);
+  CHECK(sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS - 1) == SW_BUZZ_NONE && sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS) == SW_BUZZ_HELP);
+  CHECK(sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS + 1) == SW_BUZZ_NONE);
+  uint32_t t = 1000 + SW_HELP_FAST_MS + 1000;
+  for (uint32_t at = 7000; at < t; at += 1000) sw_apply(&c, &u, false, at), sw_buzz_due(&c, at);  // the lines keep coming
+  CHECK(sw_buzz_due(&c, t + SW_HELP_REPEAT_MS) == SW_BUZZ_NONE);
+  sw_apply(&c, &u, false, t + 10000);
+  CHECK(sw_buzz_due(&c, t + SW_HELP_SLOW_MS) == SW_BUZZ_HELP);
+  sw_apply(&c, &u, false, t + 16000);
+  sw_input(&c, SW_IN_BLUE_DOWN, t + 16000, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_UP, t + 16100, out, sizeof out) && !strcmp(out, "btn skip"));
+  sw_input(&c, SW_IN_YELLOW_DOWN, t + 16200, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_YELLOW_UP, t + 16300, out, sizeof out) && !strcmp(out, "btn continue"));
+  sw_parse("{\"p\":\"help\"}", &u);
+  sw_apply(&c, &u, false, t + 16400);
+  sw_input(&c, SW_IN_BLUE_DOWN, t + 16500, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_UP, t + 16600, out, sizeof out) && !strcmp(out, "btn stop"));
+  CHECK(sw_input(&c, SW_IN_YELLOW, t + 16700, out, sizeof out) && !strcmp(out, "btn continue"));
+  sw_parse("{\"p\":\"running\"}", &u);
+  sw_apply(&c, &u, false, t + 17000);
+  CHECK(sw_buzz_due(&c, t + 40000) == SW_BUZZ_NONE);  // answered: quiet
+}
+
 static void test_sw_text(void) {
   for (int l = 0; l < SW_LANGS; l++)
     for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
@@ -1053,6 +1087,7 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_help();
   test_sw_answer();
   test_sw_picks();
   test_sw_voice();

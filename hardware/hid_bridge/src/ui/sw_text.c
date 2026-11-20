@@ -18,6 +18,8 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_ERR_NONE] = "Didn't catch that", [SWT_ERR_DENIED] = "Allow Speech Recognition in the app",
         [SWT_ERR_UNAVAILABLE] = "Speech recognition isn't available", [SWT_ERR_START] = "The task didn't start",
         [SWT_ERR_TIMEOUT] = "No answer from the app", [SWT_ERR_OTHER] = "Something went wrong",
+        [SWT_CONFIRM_STEP] = "OK to go on?", [SWT_HELP_KEYS] = "Yellow: go on - Blue: stop",
+        [SWT_CONFIRM_KEYS] = "Yellow: go on - Blue: skip", [SWT_TAKEOVER_HINT] = "Swipe up to take over",
     },
     [SW_ZH] = {
         [SWT_BATTERY] = "电量 ", [SWT_BATTERY_NONE] = "电量 --",
@@ -35,6 +37,8 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_ERR_NONE] = "没听清", [SWT_ERR_DENIED] = "请在 App 里允许语音识别",
         [SWT_ERR_UNAVAILABLE] = "这台手机不能识别这种语言", [SWT_ERR_START] = "任务没能开始",
         [SWT_ERR_TIMEOUT] = "App 没有回应", [SWT_ERR_OTHER] = "出错了",
+        [SWT_CONFIRM_STEP] = "可以继续吗？", [SWT_HELP_KEYS] = "黄色继续 · 蓝色停止",
+        [SWT_CONFIRM_KEYS] = "黄色继续 · 蓝色跳过", [SWT_TAKEOVER_HINT] = "上滑自己接手",
     },
 };
 

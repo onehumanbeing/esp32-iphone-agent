@@ -404,11 +404,12 @@ static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       break;
     case SW_SCR_HELP:
       canvas->setTextColor(TFT_BLACK);
-      fontFor(T(SWT_HELP), 2);
-      canvas->drawString(T(SWT_HELP), CX, 82);
-      face(pose, CX, CY - 25, TFT_BLACK, false);
-      line(u.text, CY + 115, TFT_BLACK);
-      line(T(SWT_HELP_HINT), H - 68, TFT_BLACK, 1, 300);
+      fontFor(T(u.confirm ? SWT_CONFIRM_STEP : SWT_HELP), 2);
+      canvas->drawString(T(u.confirm ? SWT_CONFIRM_STEP : SWT_HELP), CX, 82);
+      face(pose, CX, CY - 35, TFT_BLACK, false);
+      line(u.text, CY + 95, TFT_BLACK);
+      line(T(u.confirm ? SWT_CONFIRM_KEYS : SWT_HELP_KEYS), H - 88, TFT_BLACK, 1, 320);
+      line(T(SWT_TAKEOVER_HINT), H - 52, scaled(TFT_BLACK, 1), 1, 260);
       break;
     case SW_SCR_OK: case SW_SCR_FAIL: {
       bool ok = v.screen == SW_SCR_OK;
@@ -597,6 +598,7 @@ static void uiTask(void *) {
     }
     if (statusUntil && (running || c.voice != SW_V_NONE || (int32_t)(now - statusUntil) >= 0)) statusUntil = 0;
     if (sw_tick(&c, now, out, sizeof out)) send(out);
+    buzzStart(buzz, sw_buzz_due(&c, now), now);  // help: again and again until answered
     // the mic: on from yellow's press (voice_rec.h), sent once the hold is a recording, off at release or blue
     if (warming && now - warmAt >= 1200) voice_release(), warming = false;
     bool mic = sw_mic(&c);

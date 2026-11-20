@@ -23,6 +23,7 @@ typedef struct {
   char clock[6];                     // the phone's local time "HH:MM" when the line was sent ("": not sent)
   float look_x, look_y;              // where the eyes look, -1...1 (the island's lookX / lookY)
   bool voice;                        // `v` 1: the app takes voice (hold yellow to talk)
+  bool confirm;                      // `h` 1: the help is a confirm (pay, delete): blue skips the step
   bool has_picks;                    // `k` was in this line (else the last picks stay)
   uint8_t npicks;
   char picks[SW_PICKS][SW_PICK_MAX + 1];
@@ -54,6 +55,9 @@ enum {
   SW_RING_MS = 300,        // the stop ring shows from here on
   SW_SHAKE_MS = 1000,      // "shake to stop?" shows this long before `btn stop`
   SW_SHAKE_GAP_MS = 2000,  // one shake per this
+  SW_HELP_REPEAT_MS = 3000,  // help: the buzz again this often, until answered (Henry 2026-11-21: strong alert)
+  SW_HELP_FAST_MS = 60000,   // ... for this long, then every SW_HELP_SLOW_MS (a forgotten watch still nags, gentler)
+  SW_HELP_SLOW_MS = 15000,
   SW_HOLD_MS = 350,        // yellow held this long: recording (the mic is on from the press, so no word is lost)
   SW_VOICE_WAIT_MS = 20000,  // released and no `voice` answer this long: "no answer from the app"
   SW_VOICE_KEEP_MS = 60000,  // the heard text waits this long for yellow or blue, then it is dropped
@@ -76,6 +80,7 @@ typedef struct {
   uint32_t blue_at;
   bool shaking, shook;
   uint32_t shake_at;
+  uint32_t help_at, help_buzz_at;  // help began, last buzzed
   bool y_down, y_voice;  // yellow is down; it went down with an app that takes voice
   uint32_t y_at;
   uint8_t voice, voice_err;  // sw_voice, sw_voice_err
@@ -99,7 +104,8 @@ int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop
 int sw_picks_line(sw_ctl *c, const char *arg);         // `picks ["name", ...]`: the quick intents; -1 bad, else count
 bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now);  // `voice heard <text>` | `voice fail <code>`
 bool sw_mic(const sw_ctl *c);
-void sw_answer(sw_ctl *c);                            // an `answer` came: it shows from its first page                         // the mic should be on: yellow down for voice, or recording
+void sw_answer(sw_ctl *c);
+int sw_buzz_due(sw_ctl *c, uint32_t now);             // the help's repeated buzz (an sw_buzz), from sw_tick's caller                            // an `answer` came: it shows from its first page                         // the mic should be on: yellow down for voice, or recording
 
 #ifdef __cplusplus
 }
