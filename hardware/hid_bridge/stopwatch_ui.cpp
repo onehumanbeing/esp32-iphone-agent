@@ -1,5 +1,6 @@
 #ifdef M5_STOPWATCH
 #include "stopwatch_ui.h"
+#include "version.h"
 #include <M5Unified.h>
 #include <atomic>
 #include "src/ui/sw_model.h"
@@ -148,8 +149,11 @@ static void eye(int x, int y, int w, int h, uint16_t c) { canvas->fillSmoothRoun
 static void happyEye(int x, int y, uint16_t c) { canvas->fillArc(x, y + 14, 26, 38, 180, 360, c); }
 
 // Two rounded eyes, like the app's character, per mood. Blinks every 4 s.
+static int lookX, lookY;  // the eyes follow a dragged finger (the app's PokeableFace)
 static void face(int mood, uint32_t now, int y) {
   const int dx = 62;
+  const int CX = ::CX + lookX;
+  y += lookY;
   const uint16_t c = TFT_WHITE;
   bool blink = now % 4000 < 150;
   switch (mood) {
@@ -203,28 +207,56 @@ static bool clockText(char *out) {  // "HH:MM" from the RTC, if it has been set
   return true;
 }
 
-static void idle(const sw_ctl &c, const char *clock) {
-  canvas->setTextColor(TFT_WHITE);
-  font(&fonts::Font7, 1.6f);
-  canvas->drawString(clock, CX, 140);
+// The default page: the app's character (two eyes, blinking), the time above, battery and Bluetooth below; with
+// intents to pick, the one selected sits under the eyes (Henry 2026-11-20: the idle page is the character).
+// Pokes while idle, as the app's PokeableFace: tap happy, double tap wink, 3 quick taps dizzy, long press content
+// (petting), drag: the eyes follow the finger. A run gets none (a tap there is the run's: continue on help).
+static int pokeMood = -1;
+static uint32_t pokeUntil, tapTimes[3];
+static void poke(int mood, uint32_t now, uint32_t ms) { pokeMood = mood, pokeUntil = now + ms; }
+static void pokeTap(uint32_t now) {
+  tapTimes[0] = tapTimes[1], tapTimes[1] = tapTimes[2], tapTimes[2] = now;
+  if (tapTimes[0] && now - tapTimes[0] < 1200) { tapTimes[0] = tapTimes[1] = tapTimes[2] = 0; return poke(SW_DIZZY, now, 1300); }
+  if (tapTimes[1] && now - tapTimes[1] < 350) return poke(SW_WINK, now, 800);
+  poke(SW_SUCCESS, now, 700);
+}
+
+static void idle(const sw_ctl &c, const char *clock, uint32_t now) {
+  canvas->setTextColor(C_GREY);
+  font(&fonts::Font4);
+  canvas->drawString(clock, CX, 70);
+  face(pokeMood >= 0 ? pokeMood : appLinked ? SW_CONTENT : SW_SLEEPING, now, CY - 30);  // the app: idle with a board, asleep without
   font(&fonts::efontCN_24);
+  if (c.ui.npicks) {
+    canvas->fillSmoothRoundRect(CX - 150, CY + 70, 300, 44, 22, TFT_WHITE);
+    canvas->setTextColor(TFT_BLACK);
+    canvas->drawString(fit(c.ui.picks[c.sel], 270), CX, CY + 92);
+  }
   char line[32];
   uint8_t level = battery;
+  snprintf(line, sizeof line, level ? "%u%%" : "--", level);
+  canvas->setTextColor(C_GREY);
+  canvas->drawString(line, CX - 40, H - 80);
+  canvas->fillSmoothCircle(CX + 30, H - 80, 7, hidLinked ? C_GREEN : C_GREY);
+  canvas->drawString("BT", CX + 62, H - 80);
+}
+
+// Blue held while no run is on: the board's status for a few seconds (battery, Bluetooth, app, firmware).
+static const int SW_SCR_STATUS = 100;
+static const uint32_t STATUS_HOLD_MS = 800, STATUS_SHOW_MS = 5000;
+static void statusPage(const char *clock) {
+  canvas->setTextColor(TFT_WHITE);
+  font(&fonts::Font4);
+  canvas->drawString(clock, CX, 80);
+  font(&fonts::efontCN_24);
+  char line[40];
+  uint8_t level = battery;
   snprintf(line, sizeof line, level ? "电量 %u%%" : "电量 --", level);
-  canvas->drawString(line, CX - 50, 232);
-  canvas->fillSmoothCircle(CX + 50, 232, 8, hidLinked ? C_GREEN : C_GREY);
-  canvas->drawString("蓝牙", CX + 90, 232);
-  if (!c.ui.npicks) {
-    canvas->setTextColor(C_GREY);
-    canvas->drawString("待命", CX, 320);
-    return;
-  }
-  for (int i = 0; i < c.ui.npicks; i++) {
-    int y = 296 + i * 44;
-    bool on = i == c.sel;
-    if (on) canvas->fillSmoothRoundRect(CX - 150, y - 20, 300, 40, 20, TFT_WHITE);
-    canvas->setTextColor(on ? TFT_BLACK : TFT_LIGHTGREY);
-    canvas->drawString(fit(c.ui.picks[i], 270), CX, y);
+  const char *rows[] = {line, hidLinked ? "蓝牙 已连接手机" : "蓝牙 未连接", appLinked ? "App 已连接" : "App 未连接",
+                        "固件 " FW_VERSION};
+  for (int i = 0; i < 4; i++) {
+    canvas->setTextColor(i == 1 ? (hidLinked ? C_GREEN : C_GREY) : i == 2 ? (appLinked ? C_GREEN : C_GREY) : TFT_WHITE);
+    canvas->drawString(rows[i], CX, 160 + i * 50);
   }
 }
 
@@ -234,7 +266,7 @@ static void draw(const sw_ctl &c, int screen, uint32_t now, const char *clock) {
   font(&fonts::efontCN_24);
   switch (screen) {
     case SW_SCR_RUN:
-      ring(sw_progress(&c.ui) < 0 ? 0 : sw_progress(&c.ui), C_RING, 218, 230);
+      ring(sw_progress(&c.ui) < 0 ? 0 : sw_progress(&c.ui), C_GREEN, 218, 230);
       face(c.ui.mood, now, CY - 30);
       canvas->setTextColor(TFT_WHITE);
       canvas->drawString(fit(c.ui.text, 330), CX, 360);
@@ -280,10 +312,13 @@ static void draw(const sw_ctl &c, int screen, uint32_t now, const char *clock) {
       font(&fonts::efontCN_24);
       canvas->drawString("按任意键取消", CX, CY + 50);
       break;
+    case SW_SCR_STATUS:
+      statusPage(clock);
+      break;
     default:
-      idle(c, clock);
+      idle(c, clock, now);
   }
-  int hold = sw_hold(&c, now);
+  int hold = sw_running(&c, now) ? sw_hold(&c, now) : -1;  // no stop ring with nothing to stop
   if (hold >= 0) {  // blue held: the stop countdown over whatever is on screen
     ring(hold, C_RED, 200, 230);
     canvas->setTextColor(TFT_WHITE);
@@ -315,9 +350,10 @@ static void uiTask(void *) {
   View last;
   memset(&last, 0xff, sizeof last);
   bool wasApp = false;
-  uint32_t batteryAt = millis(), clockAt = 0;
+  uint32_t batteryAt = millis(), clockAt = 0, statusUntil = 0;
   char clock[6] = "--:--";
   char out[BTN_LINE];
+  float shakeX, shakeY, shakeZ;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(FRAME_MS));
     uint32_t now = millis();
@@ -336,6 +372,19 @@ static void uiTask(void *) {
     if (M5.BtnA.wasPressed() && sw_input(&c, SW_IN_YELLOW, now, out, sizeof out)) send(out);
     if (M5.BtnB.wasPressed() && sw_input(&c, SW_IN_BLUE_DOWN, now, out, sizeof out)) send(out);
     if (M5.BtnB.wasReleased() && sw_input(&c, SW_IN_BLUE_UP, now, out, sizeof out)) send(out);
+    bool resting = !sw_running(&c, now) && !(c.sel >= 0 && c.ui.npicks);
+    lookX = lookY = 0;
+    for (int i = 0; resting && i < M5.Touch.getCount(); i++) {
+      auto &t = M5.Touch.getDetail(i);
+      if (t.isPressed() && (t.isDragging() || t.isHolding())) {
+        if (t.isDragging()) lookX = constrain((t.x - CX) / 6, -30, 30), lookY = constrain((t.y - CY) / 8, -24, 24);
+        poke(t.isDragging() ? SW_IDLE : SW_CONTENT, now, 400);
+      }
+      if (t.wasClicked()) pokeTap(now);
+    }
+    if (pokeMood >= 0 && (int32_t)(now - pokeUntil) >= 0) pokeMood = -1;
+    if (resting && M5.Imu.getAccel(&shakeX, &shakeY, &shakeZ) && shakeX * shakeX + shakeY * shakeY + shakeZ * shakeZ > SHAKE_G * SHAKE_G)
+      poke(SW_DIZZY, now, 1300);
     for (int i = 0; i < M5.Touch.getCount(); i++) {
       auto &t = M5.Touch.getDetail(i);
       if (t.wasClicked() && sw_input(&c, SW_IN_TAP, now, out, sizeof out)) send(out);
@@ -347,6 +396,12 @@ static void uiTask(void *) {
     float ax, ay, az;
     if (M5.Imu.getAccel(&ax, &ay, &az) && ax * ax + ay * ay + az * az > SHAKE_G * SHAKE_G)
       sw_input(&c, SW_IN_SHAKE, now, out, sizeof out);
+    bool running = sw_running(&c, now);
+    if (!running && M5.BtnB.isPressed() && M5.BtnB.pressedFor(STATUS_HOLD_MS)) {
+      statusUntil = now + STATUS_SHOW_MS;
+      c.blue_ignore = true;  // this hold is for the status page: no `home`, no `stop`
+    }
+    if (statusUntil && (running || M5.BtnA.wasPressed() || (int32_t)(now - statusUntil) >= 0)) statusUntil = 0;
     if (sw_tick(&c, now, out, sizeof out)) send(out);
     buzzRun(buzz, now);
     if (now - batteryAt >= 10000) {
@@ -358,10 +413,11 @@ static void uiTask(void *) {
     // draw when something on screen changed
     View v;
     memset(&v, 0, sizeof v);
-    v.screen = sw_screen(&c, now);
+    v.screen = statusUntil ? SW_SCR_STATUS : sw_screen(&c, now);
     v.hold = sw_hold(&c, now) / 20;
     v.sel = c.sel;
-    v.frame = v.screen == SW_SCR_RUN ? (c.ui.mood == SW_THINKING ? now / 400 % 3 : now % 4000 < 150) : 0;
+    v.frame = v.screen == SW_SCR_RUN ? (c.ui.mood == SW_THINKING ? now / 400 % 3 : now % 4000 < 150)
+              : v.screen == SW_SCR_IDLE ? (now % 4000 < 150) + 2 * (pokeMood + 1) + 64 * (lookX + 40) + 8192 * (lookY + 40) : 0;
     v.battery = battery;
     v.hid = hidLinked;
     memcpy(v.clock, clock, sizeof v.clock);
