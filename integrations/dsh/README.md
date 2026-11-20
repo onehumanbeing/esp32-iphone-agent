@@ -21,12 +21,14 @@ Based on [ESP32 iPhone Agent](https://github.com/onehumanbeing/esp32-iphone-agen
 ## Quick start
 
 1. **Get a board.** Seeed Studio XIAO ESP32S3 (standard 8 MB flash / 8 MB PSRAM) with its antenna, and a short
-   USB-C data cable (Lightning iPhones: a Lightning to USB Camera Adapter):
+   USB-C data cable (Lightning iPhones XS to 14: Bluetooth mode, the board on any USB power, no cable to the phone):
    [hardware guide](https://manina.ai/docs/hardware).
 2. **Flash the firmware** from your browser (Chrome or Edge, board on USB):
    [manina.ai/install?build=testflight](https://manina.ai/install?build=testflight). Firmware v0.2.3 or
    later (v0.2.2 works over Bluetooth only).
-3. **Pair the computer** within 3 minutes of plugging the board into the iPhone (needs Node.js 18+ and `ffmpeg`):
+3. **Pair the computer** within 3 minutes of powering the board up (USB mode: plugging it into the iPhone; needs
+   Node.js 18+ and `ffmpeg`). In Bluetooth mode, pair the board on the iPhone in the same window
+   (Settings → Accessibility → Touch → AssistiveTouch → Devices → Bluetooth Devices):
 
    ```sh
    npx -y esp32agent pair
