@@ -419,6 +419,7 @@ extension AppModel {
         videoDir = nil
         help = nil
         board.commands.uiConfirm = false
+        board.commands.uiWarn = nil
         takingOver = false
         recovering = nil
         notifier.clearHelp()

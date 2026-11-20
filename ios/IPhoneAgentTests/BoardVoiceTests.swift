@@ -70,6 +70,17 @@ import XCTest
         XCTAssertTrue(try XCTUnwrap(StopWatchUI.command(.show(state), elapsed: 95)).0.contains(#""e":95"#))
     }
 
+    func testALostLinkTheUserFixesGoesToTheBoard() throws {
+        var state = StopWatchUI.idle
+        state.phase = .running
+        XCTAssertTrue(try XCTUnwrap(StopWatchUI.command(.show(state), warn: "mirror")).0.contains(#""w":"mirror""#))
+        XCTAssertFalse(try XCTUnwrap(StopWatchUI.command(.show(state))).0.contains(#""w""#))
+        XCTAssertEqual(StopWatchUI.warning(.frames), "mirror")
+        XCTAssertEqual(StopWatchUI.warning(.locked), "locked")
+        XCTAssertEqual(StopWatchUI.warning(.pointer), "hid")
+        XCTAssertNil(StopWatchUI.warning(.hotspot))
+    }
+
     func testTheUILineSaysTheAppTakesVoice() throws {
         let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle)))
         XCTAssertTrue(line.contains(#""v":1"#), line)

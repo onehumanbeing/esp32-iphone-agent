@@ -90,6 +90,10 @@ extension BoardTransport {
     var uiConfirm = false {
         didSet { if uiConfirm != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
     }
+    /// What the user has to fix for the run to go on (StopWatchUI.warning): the StopWatch buzzes and says it.
+    var uiWarn: String? {
+        didSet { if uiWarn != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
+    }
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
 
@@ -268,7 +272,8 @@ extension BoardTransport {
         let prefix = "\(nextID) "
         let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
         let elapsed = runTimes.map { Int(max(0, ($0.end ?? clock()).timeIntervalSince($0.start))) }
-        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed)
+        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed,
+                                                               warn: uiWarn)
         else { return uiWanted = nil }
         guard body != uiSent else { return uiWanted = nil }
         let t = now()
@@ -435,6 +440,17 @@ enum StopWatchUI {
         var v = 1
         var h: Int?  // 1: the help is a confirm
         var e: Int?  // seconds since the run began; at the finish, its length
+        var w: String?  // a lost link the user has to fix: mirror, locked, hid
+    }
+
+    /// A paused run's lost link, for the StopWatch's alert (`w`): only what the user can fix from the watch's words.
+    static func warning(_ part: Recovery.Part) -> String? {
+        switch part {
+        case .mirroring, .frames: return "mirror"
+        case .locked: return "locked"
+        case .pointer: return "hid"
+        case .board, .cable, .hotspot: return nil
+        }
     }
 
     /// What the character says, as the expanded island: its words while the run goes, the line otherwise (help, done).
@@ -450,7 +466,7 @@ enum StopWatchUI {
     /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
     /// Too long: the text gets shorter, then goes, then the picks go.
     static func command(_ want: Want, max: Int = maxLine, at time: Date = Date(), confirm: Bool = false,
-                        elapsed: Int? = nil) -> (String, [UUID]?)? {
+                        elapsed: Int? = nil, warn: String? = nil) -> (String, [UUID]?)? {
         guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
         let picks = state.picks.map { Array($0.prefix(maxPicks)) }
         var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
@@ -458,7 +474,7 @@ enum StopWatchUI {
                         d: state.done, n: state.total, f: state.finished,
                         k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY),
                         h: confirm && state.phase == .help ? 1 : nil,
-                        e: state.phase == .standby && !state.finished ? nil : elapsed)
+                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn)
         while true {
             if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
             if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }
