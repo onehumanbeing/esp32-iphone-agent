@@ -80,6 +80,42 @@ Send priority: replies and status are queued and always go out before further vi
 a P-frame more than 800 ms old is skipped and the stream resumes at the next IDR (a slow link degrades to
 IDR-only instead of building latency).
 
+## StopWatch screen (M5Stack StopWatch, experimental)
+`hardware/flash.sh --stopwatch --build-only` builds BLE HID for the M5Stack StopWatch (round 466×466 screen, two
+buttons, touch, vibration, IMU). Its status carries `"board":"stopwatch","ui":1`; the app talks to the screen only
+on such a board. Without an app that does (an older one), it is a plain Bluetooth mouse and keyboard with an idle screen.
+
+App → board: `ui <json>` (answers `ok`; `err usage: …` when it is not a JSON object) or `ui off` (the app is gone: idle).
+Every line is the whole state, except `k`, which stays until the app sends another. Unknown keys and values are ignored.
+
+| Key | Value |
+|---|---|
+| `m` | mood: `sleeping`, `idle`, `listening`, `thinking`, `acting`, `success`, `failure`, `dizzy`, `content`, `wink` |
+| `p` | phase: `running`, `help`, `countdown`, `recording`, `paused`, `resuming`, `standby` |
+| `s`, `l` | step and step limit (the progress ring when `d`/`n` are missing) |
+| `d`, `n` | optional done and total (the progress ring) |
+| `t` | the current line, UTF-8, up to 80 bytes (cut at a character) |
+| `f` | `true`: the task finished (`m` `failure`: failed) |
+| `k` | standby picks: up to 3 intent names of up to 24 bytes |
+
+No `ui` line for 10 s, `p` `standby`, or the app's link dropping shows the idle screen (clock if the RTC is set,
+battery, Bluetooth HID link, the picks). A finished task shows a check or a cross for 5 s, then idle. `ui` lines do
+not count as the app using the board (the CLI is not kept out by them).
+
+Board → app: unprompted reply lines `btn <verb> [arg]`, like the `app` relay (no request id; an app that does not know
+them ignores them):
+
+| Line | When |
+|---|---|
+| `btn pause` / `btn unpause` | yellow button while a task runs (`unpause` when `p` is `paused`) |
+| `btn run <i>` | yellow button in idle: the 1st press selects a pick (a tap moves to the next), the 2nd asks "确认发送？", the 3rd sends; 3 s without a press cancels. `i` is 0-based into the last `k` |
+| `btn home` | blue button, released within 0.5 s |
+| `btn stop` | blue button held 2 s (a ring counts down, an earlier release cancels), or a shake while a task runs (1 s warning; any button cancels) |
+| `btn continue` | tap on the screen while `p` is `help` |
+| `btn takeover` | swipe up while a task runs |
+
+Vibration: one 400 ms buzz on entering `help`, two short on success, three short on failure.
+
 ## video
 Each notify: `[seq u16 LE][flags u8][payload]`, payload up to MTU-3-3 bytes.
 flags: bit0 START of access unit, bit1 END of access unit, bit2 IDR, bit3 CONFIG (payload is SPS+PPS),

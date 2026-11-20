@@ -98,7 +98,11 @@ static bool appWorks(const String &line) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(sp + 1);
   return cmd != "ping" && !cmd.startsWith("log ") && cmd != "move 1 0" && cmd != "move -1 0" &&
-         !cmd.startsWith("hear");  // sharing what it heard with the CLI doesn't take the phone from it
+         !cmd.startsWith("hear")  // sharing what it heard with the CLI doesn't take the phone from it
+#ifdef M5_STOPWATCH
+         && !cmd.startsWith("ui ")  // nor what the screen shows
+#endif
+      ;
 }
 
 #if DEBUG_SERIAL

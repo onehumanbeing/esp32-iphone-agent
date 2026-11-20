@@ -15,10 +15,12 @@ with tempfile.TemporaryDirectory() as directory:
     cli.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
     cli.chmod(0o755)
     for options in ([], ["--abs"], ["--ble-hid"], ["--note4"], ["--debug", "--note4"], ["--name", "Lab1", "--ble-hid"],
-                    ["--ble-hid", "--note4"], ["--note4", "--ble-hid"]):
+                    ["--ble-hid", "--note4"], ["--note4", "--ble-hid"], ["--stopwatch"], ["--ble-hid", "--stopwatch"],
+                    ["--debug", "--stopwatch"]):
         note4 = "--note4" in options
-        ble = note4 or "--ble-hid" in options
-        size = "16M" if note4 else "8M"
+        stopwatch = "--stopwatch" in options
+        ble = note4 or stopwatch or "--ble-hid" in options
+        size = "16M" if note4 or stopwatch else "8M"
         result = subprocess.run(
             ["bash", str(flash), *options, "--build-only"],
             env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]},
@@ -31,12 +33,14 @@ with tempfile.TemporaryDirectory() as directory:
         assert arguments[2].startswith("esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,")
         assert "-include " in result.stdout and "nimble_cfg.h" in result.stdout
         assert ("-DZECTRIX_NOTE4=1" in result.stdout) == ("--note4" in options)
+        assert ("-DM5_STOPWATCH=1" in result.stdout) == stopwatch
         assert ("-DHID_TRANSPORT_BLE=1" in result.stdout) == ble
         assert ("-DBOARD_NAME=Lab1" in result.stdout) == ("--name" in options)
         assert ("-DABS_POINTER=1" in result.stdout) == ("--abs" in options)
         assert ("-DDEBUG_SERIAL=1" in result.stdout) == ("--debug" in options)
-        assert arguments[arguments.index("--output-dir") + 1] == ("build/note4" if note4 else "build/ble-hid" if ble else "build")
-    for target in ("--ble-hid", "--note4"):
+        output = "build/note4" if note4 else "build/stopwatch" if stopwatch else "build/ble-hid" if ble else "build"
+        assert arguments[arguments.index("--output-dir") + 1] == output
+    for target in ("--ble-hid", "--note4", "--stopwatch"):
         for flags in (["--abs", target], [target, "--abs"]):
             refused = subprocess.run([str(flash), *flags, "--build-only"], capture_output=True,
                                      env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})
@@ -49,10 +53,13 @@ with tempfile.TemporaryDirectory() as directory:
     assert "-DHID_DUAL=1" in dual.stdout and "-DHID_TRANSPORT_BLE=1" in dual.stdout
     assert "FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB" in args[2]
     assert args[args.index("--output-dir") + 1] == "build/dual-hid"
-    for other in ("--ble-hid", "--note4", "--abs"):
+    for other in ("--ble-hid", "--note4", "--stopwatch", "--abs"):
         refused = subprocess.run(["bash", str(flash), "--dual-hid", other, "--build-only"], env=env, capture_output=True)
         assert refused.returncode != 0 and b"--dual-hid is its own target" in refused.stderr and not refused.stdout
-    for args in [["--note4"], ["--ble-hid"], ["--note-4", "--build-only"]]:
+    for flags in (["--note4", "--stopwatch"], ["--stopwatch", "--note4"]):
+        refused = subprocess.run(["bash", str(flash), *flags, "--build-only"], env=env, capture_output=True)
+        assert refused.returncode != 0 and b"different boards" in refused.stderr and not refused.stdout
+    for args in [["--note4"], ["--ble-hid"], ["--stopwatch"], ["--stopwatch", "/dev/cu.usbmodem1"], ["--note-4", "--build-only"]]:
         refused = subprocess.run(["bash", str(flash), *args], capture_output=True,
                                  env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"]})
         assert refused.returncode != 0 and b"compile" not in refused.stdout and b"upload" not in refused.stdout
@@ -67,7 +74,7 @@ assert not is_usb_app(image)
 image[80] = ord("a")
 image[288:304] = b"ESPA:usb-8m".ljust(16, b"\0")
 assert is_usb_app(image)
-for target in (b"ESPA:ble-8m", b"ESPA:note4-ble", b"ESPA:dual-8m", b"ESPA:unknown", b"ESPA:"):
+for target in (b"ESPA:ble-8m", b"ESPA:note4-ble", b"ESPA:dual-8m", b"ESPA:stopwatch", b"ESPA:unknown", b"ESPA:"):
     image[288:304] = target.ljust(16, b"\0")
     assert not is_usb_app(image)
 assert not is_usb_app(image[:300])
@@ -93,3 +100,8 @@ if "--built-images" in sys.argv:
         data = dual.read_bytes()
         assert data[288:304] == b"ESPA:dual-8m".ljust(16, b"\0") and not is_usb_app(data), dual
         print("Dual-HID image carries its own marker and is refused by the USB OTA channel")
+    stopwatch = hardware / "build/stopwatch/hid_bridge.ino.bin"
+    if stopwatch.exists():  # flash.sh --stopwatch --build-only
+        data = stopwatch.read_bytes()
+        assert data[288:304] == b"ESPA:stopwatch".ljust(16, b"\0") and not is_usb_app(data), stopwatch
+        print("StopWatch image carries its own marker and is refused by the USB OTA channel")

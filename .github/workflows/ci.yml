@@ -114,12 +114,14 @@ jobs:
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli lib install "NimBLE-Arduino@2.5.1"
+          arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"  # --stopwatch; 0.3.0 changed the rotation
       - name: Build
         run: |
           hardware/flash.sh --build-only
           hardware/flash.sh --ble-hid --build-only
           hardware/flash.sh --note4 --build-only
           hardware/flash.sh --dual-hid --build-only
+          hardware/flash.sh --stopwatch --build-only
           python3 hardware/tests/test_build_targets.py --built-images
       - name: Build (absolute mouse)
         run: hardware/flash.sh --abs --build-only

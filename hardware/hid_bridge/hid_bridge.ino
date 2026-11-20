@@ -43,6 +43,9 @@
 #ifdef HID_DUAL
 #include "hid_dual.h"
 #endif
+#ifdef M5_STOPWATCH
+#include "stopwatch_ui.h"
+#endif
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
 const int ABS_STEP = 245;      // of 32767, per STEP_MS while dragging with `abs`: the relative mouse's speed
@@ -402,6 +405,10 @@ String board(const String &line, const String &id, char who) {
     }
     return "ok " + net_json(false);
   }
+#ifdef M5_STOPWATCH
+  if (cmd == "ui" && who == FROM_APP)  // the screen (stopwatch_ui.h); unknown keys are ignored
+    return stopwatch_ui_line(arg.c_str()) ? "ok" : "err usage: ui {json} | ui off";
+#endif
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
@@ -661,6 +668,9 @@ void setup() {
   ble_begin(String(BOARD_NAME_TEXT " ") + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
+#ifdef M5_STOPWATCH
+  stopwatch_ui_start();
+#endif
   board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
@@ -684,6 +694,14 @@ void loop() {
     ESP.restart();
   }
   net_poll();
+#ifdef M5_STOPWATCH
+  // The screen's buttons, as unprompted reply lines like the `app` relay; the app ignores what it doesn't know.
+  stopwatch_ui_link(ble_hid_ready(), ble_app_connected());
+  for (char b[32]; stopwatch_ui_next(b, sizeof b);) {
+    ble_reply(b);
+    Serial.println(b);
+  }
+#endif
   bool cli = cli_slot() >= 0;
   // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.
   bool app = ble_app_connected(), appActive = ble_app_active();

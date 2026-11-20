@@ -4,6 +4,9 @@
 #include <driver/gpio.h>
 #include "note4_battery.h"
 #endif
+#ifdef M5_STOPWATCH
+#include "stopwatch_ui.h"
+#endif
 
 // ESP-IDF places this marker after the 256-byte app descriptor so OTA can check the target before writing.
 extern const char firmware_target[16]
@@ -11,7 +14,9 @@ extern const char firmware_target[16]
     __attribute__((section(".rodata_custom_desc"), used))
 #endif
     =
-#ifdef ZECTRIX_NOTE4
+#ifdef M5_STOPWATCH
+    "ESPA:stopwatch";
+#elif defined(ZECTRIX_NOTE4)
     "ESPA:note4-ble";
 #elif defined(HID_DUAL)
     "ESPA:dual-8m";  // no release channel takes it yet
@@ -22,6 +27,9 @@ extern const char firmware_target[16]
 #endif
 
 void board_begin() {
+#ifdef M5_STOPWATCH
+  stopwatch_begin();  // M5Unified: power rails, display, touch, IMU and vibration (stopwatch_ui.h)
+#endif
 #ifdef ZECTRIX_NOTE4
   // Latch battery power before disabling idle peripherals to avoid noise and wasted power.
   gpio_hold_dis(GPIO_NUM_17);
@@ -41,7 +49,9 @@ void board_begin() {
 }
 
 uint8_t board_battery_percent() {
-#ifdef ZECTRIX_NOTE4
+#ifdef M5_STOPWATCH
+  return stopwatch_battery();
+#elif defined(ZECTRIX_NOTE4)
   uint32_t total = 0;
   for (int i = 0; i < 10; i++) total += 2 * analogReadMilliVolts(4);
   return note4_battery_percent(total / 10);
@@ -52,7 +62,9 @@ uint8_t board_battery_percent() {
 }
 
 const char *board_status_fields() {
-#ifdef ZECTRIX_NOTE4
+#ifdef M5_STOPWATCH
+  return ",\"board\":\"stopwatch\",\"ui\":1";  // ui: it takes `ui <json>` and sends `btn` lines
+#elif defined(ZECTRIX_NOTE4)
   return ",\"board\":\"note4\"";
 #else
   return "";
@@ -60,7 +72,7 @@ const char *board_status_fields() {
 }
 
 bool board_supports_usb_release() {
-#if defined(ZECTRIX_NOTE4) || defined(HID_TRANSPORT_BLE)
+#if defined(ZECTRIX_NOTE4) || defined(M5_STOPWATCH) || defined(HID_TRANSPORT_BLE)
   return false;
 #else
   return true;

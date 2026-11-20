@@ -160,6 +160,8 @@ hardware/flash.sh            # optional: [serial port] [--debug]
 ```
 
 Always build with `flash.sh`: it applies the BLE buffer sizes in `hardware/hid_bridge/nimble_cfg.h`.
+The experimental M5Stack StopWatch target (`hardware/flash.sh --stopwatch --build-only`) also needs
+`arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`.
 
 No Mac or toolchain? [Install the firmware from Chrome or Edge](https://manina.ai/install) over USB instead.
 
@@ -338,6 +340,7 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 
 [UxPlay](https://github.com/FDH2/UxPlay) (the AirPlay receiver the firmware's is ported from) ·
 [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) ·
+[M5Unified](https://github.com/m5stack/M5Unified) and [M5GFX](https://github.com/m5stack/M5GFX) (StopWatch target) ·
 [Arduino ESP32 core](https://github.com/espressif/arduino-esp32) and [TinyUSB](https://github.com/hathach/tinyusb)
 
 ## License
