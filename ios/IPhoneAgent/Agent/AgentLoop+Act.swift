@@ -32,7 +32,7 @@ extension AgentLoop {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
             + " (the search is still on screen): open it by the name this \(DeviceKind.name) shows, in its language"
-        case .notOpened?: out += "; \(app) did not open (Return on its top hit did nothing):"
+        case .notOpened?: out += "; \(app) did not open (Spotlight stayed up after tapping its row and Return):"
             + " if Spotlight still lists it, tap its icon there"
         case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
             + " tap back (top left) or its tabs to reach the page you need"
