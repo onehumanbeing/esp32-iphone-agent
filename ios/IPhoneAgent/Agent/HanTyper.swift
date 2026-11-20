@@ -64,13 +64,20 @@ enum TypeStop {
 
 /// Chinese text through the pinyin keyboard, read back: the board types ASCII only, so Chinese goes in as
 /// toneless pinyin and the keyboard's candidates turn it into characters. A whole sentence's first candidate is
-/// often not the sentence (wrong words, or pinyin left uncommitted in the field), so the text goes in short words
-/// (≤ 4 characters): the word's pinyin, then the candidate that reads as the word (space for the first, its digit
-/// otherwise), checked on the next look. A word not among the candidates is retried in pairs of characters (3 or
-/// 4 of them), then character by character. Bounded: a piece is typed once more after one ctrl+space, and split
-/// at most twice (characters are never split again); anything that does not check out is cleared (only the uncommitted pinyin, never text
-/// already in the field) and the typing stops with a note for the model. When the field then holds exactly what was
-/// typed, the stop says what is left (`Stop.rest`), and the agent pastes that instead (AgentLoop.pasteInstead).
+/// often not the sentence, so the text goes in short words (≤ 4 characters), each its pinyin and space (the first
+/// candidate, almost always the word). Reading the screen costs 1–2 s, so it is read once per run of up to four
+/// words (`settle`): the field is checked for them, not the candidate bar (OCR misses its cells often: 2026-11-20,
+/// 中 and 西 "not among the candidates" stopped runs whose first candidates were right). A word the field shows as
+/// another one is deleted with the words after it (backspace × their length: one character per syllable) and those
+/// go in again, the wrong one by halves (pairs of characters for 3 or 4, else characters), each half read from the
+/// candidate bar first: space when it is the first candidate, its digit for a single character further on, the
+/// first candidate unread (checked in the field) when the bar is not read. A word not read back but whose pinyin is
+/// gone is taken as committed (OCR misses characters in the field too). The first word, and the first after
+/// English letters, is read from the bar too: that tells a pinyin keyboard from an English one (letters left in the
+/// field after space), switched once with ctrl+space. Bounded: words are split at most twice (characters are never
+/// split again), a word is retyped once after ctrl+space; anything that does not check out is cleared (only what
+/// this typing put in) and the typing stops with a note for the model (`not typed: "…"`). When the field then holds
+/// exactly what was typed, the stop says what is left (`Stop.rest`).
 @MainActor struct HanTyper {
     struct Seen {
         var words: [(text: String, box: [Int])]
@@ -86,6 +93,9 @@ enum TypeStop {
     /// The screen's words once it settled; nil = no live screen (then the pinyin is committed unchecked).
     var look: () async -> Seen?
     static let segment = 4
+    /// Words committed unread before the field is read back. Each costs about 0.3 s of typing, a read 1–2 s; a
+    /// wrong word costs retyping the words after it, so four keeps a repair short.
+    static let unreadRun = 4
     /// Labels on the keyboard itself, not candidates (the return key turns to 选定 while composing).
     static let keyLabels: Set<String> = ["空格", "选定", "确认", "拼音", "拼", "换行", "发送", "搜索", "前往", "完成"]
 
@@ -105,79 +115,133 @@ enum TypeStop {
 
     /// `type`, with what is left when the rest may be pasted.
     func attempt(_ text: String, checkLetters: Bool = true) async throws -> Stop? {
-        do { return try await typeBody(text, checkLetters: checkLetters) }
+        let start = Date(), looks = Tally()
+        var counted = self
+        counted.look = { looks.n += 1; return await look() }
+        defer {
+            let ms = Int(Date().timeIntervalSince(start) * 1000)
+            DebugLog.write("type: \(text.count) chars in \(ms) ms, \(looks.n) screen reads")
+        }
+        do { return try await counted.typeBody(text, checkLetters: checkLetters) }
         catch let halt as TypeHalted {
             return Stop(note: "typing stopped (\(halt.why)); not typed: \"\(halt.left)\"")
         }
     }
 
-    /// A stopped `type` command, with what this piece and the queue still owe the field.
-    private func stopped(_ halt: TypeHalted, typed: String, piece: Piece, queue: ArraySlice<Piece>) -> Stop {
-        Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(halt.left)\(queue.map(\.text).joined())\"")
+    private final class Tally { var n = 0 }
+
+    /// A piece on the queue. `careful`: read from the candidate bar before it is committed; `firstWrong`: its first
+    /// candidate showed up as another word, so it is only picked when the bar shows it; `toggled`: retyped after
+    /// ctrl+space.
+    private struct Item {
+        var piece: Piece
+        var careful = false, firstWrong = false, toggled = false
     }
 
     private func typeBody(_ text: String, checkLetters: Bool) async throws -> Stop? {
-        var queue = Self.pieces(text)[...]
+        var queue = Self.pieces(text).map { Item(piece: $0) }[...]
         var typed = ""
         let checked = checkLetters || queue.contains {
-            if case .plain(let s) = $0 { !Self.layoutSymbols(in: s).isEmpty } else { true }
+            if case .plain(let s) = $0.piece { !Self.layoutSymbols(in: s).isEmpty } else { true }
         }
         var last = checked ? await look() : nil  // the screen before the next piece
         var lastRow: Set<Int> = []
-        // a committed word, checked on the next look; `left` is what stays in the field if it did not commit (its
-        // pinyin, and the number key that was to pick it)
-        var pending: (word: String, base: String, left: Int)?
-        func remaining(_ piece: Piece) -> String { ([piece] + queue).map(\.text).joined() }
+        var pinyinSeen = false  // the keyboard showed it is pinyin: words may go in without reading the bar
+        // words committed with space and not read back yet (`settle`), the field before them, and what this typing
+        // had put in before them
+        var unread: [String] = [], unreadBase = "", unreadPrior = ""
+        func rest(_ piece: Piece?) -> String { ((piece.map { [$0] } ?? []) + queue.map(\.piece)).map(\.text).joined() }
         /// The failed word's letters are cleared and the field holds `typed`, so the rest may be pasted.
         func stop(_ why: String, _ piece: Piece) -> Stop {
-            Stop(note: "\(why); typed \"\(typed)\", not typed: \"\(remaining(piece))\"", rest: remaining(piece))
+            Stop(note: "\(why); typed \"\(typed)\", not typed: \"\(rest(piece))\"", rest: rest(piece))
         }
-        /// The pending word did not show up (its pinyin still read in the field) and its letters were cleared: it is
-        /// owed too, so the rest starts with it (2026-11-20: 西岸 did not show up and the run stopped there).
-        func notShown(_ piece: Piece?) -> Stop {
-            let word = pending!.word
-            typed.removeLast(word.count)
-            let rest = word + (piece.map(remaining) ?? "")
-            return Stop(note: "\"\(word)\" did not show up in the field after committing it (cleared); typed \"\(typed)\", not typed: \"\(rest)\"",
-                        rest: rest)
+        func halted(_ halt: TypeHalted, _ piece: Piece) -> Stop {
+            Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(halt.left)\(queue.map(\.piece.text).joined())\"")
         }
-        /// The next look: checks the pending word against it and finds the candidate row (relative to `last`).
-        func next() async -> (seen: Seen, row: [Int], ok: Bool)? {
+        /// The next look, with its candidate row (relative to `last`).
+        func next() async -> (seen: Seen, row: [Int])? {
             guard let now = await look() else { return nil }
-            let row = last.map { Self.candidateRow(now, before: $0, ignoring: lastRow) } ?? []
-            var ok = true
-            if let pending {
-                let field = Self.fieldText(now, minus: row)
-                ok = Self.count(pending.word, in: field) > Self.count(pending.word, in: pending.base)
-                // OCR often misses one or two characters in a message box: 我 was there and the typing stopped
-                // anyway, four times in one message (2026-11-13). Its pinyin gone from the box = committed.
-                if !ok, !field.lowercased().contains(Pointer.typeable(pending.word)) {
-                    ok = true
-                    DebugLog.write("type: \"\(pending.word)\" not read back, but its pinyin is gone; taken as committed")
+            return (now, last.map { Self.candidateRow(now, before: $0, ignoring: lastRow) } ?? [])
+        }
+        func moved(_ s: (seen: Seen, row: [Int])) { last = s.seen; lastRow = Set(s.row) }
+        func field(_ s: (seen: Seen, row: [Int])) -> String { Self.fieldText(s.seen, minus: s.row) }
+        func startUnread() {
+            guard unread.isEmpty else { return }
+            unreadBase = last.map { Self.fieldText($0, minus: Array(lastRow)) } ?? ""
+            unreadPrior = typed
+        }
+        /// Reads the unread words back in `now`: a word shown as another one is deleted with the words after it,
+        /// and they go back on the queue (the wrong one by halves). nil = typing goes on.
+        func settle(_ given: (seen: Seen, row: [Int])?) async throws -> Stop? {
+            let words = unread
+            unread = []
+            guard !words.isEmpty, var now = given else { return nil }
+            let pinyin = words.map { Pointer.typeable($0) }.joined().filter { $0.isASCII && $0.isLetter }.lowercased()
+            if let left = Self.pinyinLeft(field(now), base: unreadBase, pinyin: pinyin) {
+                // the first candidate took only part of the pinyin: space commits the rest (one character a syllable)
+                DebugLog.write("type: pinyin \"\(left)\" left after \"\(words.joined())\"; space once more")
+                try await key("space")
+                guard let again = await next() else { return nil }
+                now = again
+                if let still = Self.pinyinLeft(field(now), base: unreadBase, pinyin: pinyin) {
+                    try await erase(still.count)
+                    moved(now)
+                    return Stop(note: "the pinyin \"\(still)\" stayed in the field after \"\(words.joined())\" (those letters cleared, the words before"
+                        + " them unchecked); typed \"\(typed)\", not typed: \"\(rest(nil))\"")
                 }
             }
-            return (now, row, ok)
+            moved(now)
+            let lines = now.seen.words.indices.filter { !now.row.contains($0) }.map { now.seen.words[$0].text.filter { !$0.isWhitespace } }
+            let verdicts = Self.readBack(words, prior: unreadPrior, field: field(now), base: unreadBase, lines: lines)
+            for (word, verdict) in zip(words, verdicts) {
+                switch verdict {
+                case .seen: DebugLog.write("type: \"\(word)\" verified in the field")
+                case .unseen: DebugLog.write("type: \"\(word)\" not read back, but its pinyin is gone; taken as committed")
+                case .wrong(let shown): DebugLog.write("type: \"\(word)\" shows as \"\(shown)\" in the field; repairing")
+                }
+            }
+            guard let j = verdicts.firstIndex(where: { if case .wrong = $0 { true } else { false } }) else { return nil }
+            let gone = words[j...].joined()
+            try await erase(gone.count)
+            typed.removeLast(gone.count)
+            let wrong = words[j]
+            var back = wrong.count > 1 ? Self.halves(wrong).map { Item(piece: .han($0), careful: true) }
+                : [Item(piece: .han(wrong), careful: true, firstWrong: true)]
+            back += words[(j + 1)...].map { Item(piece: .han($0)) }
+            DebugLog.write("type: deleted \"\(gone)\"; \"\(wrong)\" goes in again \(wrong.count > 1 ? "by halves" : "from the bar")")
+            queue.insert(contentsOf: back, at: queue.startIndex)
+            return nil
         }
-        while let piece = queue.popFirst() {
+        while true {
+            // the unread words are read back before a piece that reads the screen itself, every few words, and at the end
+            if !unread.isEmpty {
+                let first = queue.first
+                let readsScreen = first.map { item -> Bool in
+                    guard case .han = item.piece else { return true }
+                    return item.careful || !pinyinSeen
+                } ?? true
+                if readsScreen || unread.count >= Self.unreadRun {
+                    if let stop = try await settle(await next()) { return stop }
+                    continue
+                }
+            }
+            guard let item = queue.popFirst() else { break }
+            let piece = item.piece
             switch piece {
             case .plain(let s):
                 let (strokes, plain) = Accents.plan(s)  // accented letters through Option keys
                 guard !strokes.isEmpty else { continue }
                 do { try await enter(strokes) }
-                catch let halt as TypeHalted { return stopped(halt, typed: typed, piece: piece, queue: queue) }
+                catch let halt as TypeHalted { return halted(halt, piece) }
+                if plain.contains(where: \.isLetter) { pinyinSeen = false }  // may switch to English
                 let letters = checkLetters && plain.contains(where: \.isLetter), symbols = Self.layoutSymbols(in: plain)
                 guard letters || !symbols.isEmpty, let before = last else { typed += s; continue }
                 guard var seen = await next() else { typed += s; continue }
-                if !seen.ok {
-                    try await erase(plain.count + pending!.left)
-                    return notShown(piece)
-                }
-                pending = nil
                 if letters, seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
                     try await erase(plain.count)
                     try await toggle()
                     do { try await enter(strokes) }
-                    catch let halt as TypeHalted { return stopped(halt, typed: typed, piece: piece, queue: queue) }
+                    catch let halt as TypeHalted { return halted(halt, piece) }
                     guard let again = await next() else { typed += s; continue }
                     if again.row.count >= 2 {
                         try await erase(plain.count)
@@ -189,66 +253,98 @@ enum TypeStop {
                 if Self.symbolsWrong(plain, symbols, now: seen.seen, row: seen.row, before: before, beforeRow: lastRow) {
                     return Stop(note: "the symbols \(String(symbols)) came out as other characters: the \(DeviceKind.name)'s hardware keyboard layout"
                         + " is not U.S. (Settings > General > Keyboard > Hardware Keyboard); typed \"\(typed)\" with them"
-                        + " wrong, not typed: \"\(queue.map(\.text).joined())\"")
+                        + " wrong, not typed: \"\(queue.map(\.piece.text).joined())\"")
                 }
-                last = seen.seen; lastRow = Set(seen.row)
+                moved(seen)
             case .han(let word):
                 let pinyin = Pointer.typeable(word)
                 do { try await emit(pinyin) }
                 catch let halt as TypeHalted {
-                    return Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\"")
+                    return Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(rest(piece))\"")
                 }
-                guard last != nil, var seen = await next() else {  // no screen: commit the first candidate blind
+                guard last != nil else {  // no screen: commit the first candidate blind
                     try await key("space")
                     typed += word
                     continue
                 }
-                if !seen.ok {
-                    try await erase(pinyin.count + pending!.left)
-                    return notShown(piece)
-                }
-                pending = nil
-                let base = Self.fieldText(last!, minus: Array(lastRow))
-                if seen.row.isEmpty, Self.count(pinyin, in: Self.fieldText(seen.seen, minus: []).lowercased())
-                    > Self.count(pinyin, in: base.lowercased()) {  // the letters went in as text: English keyboard
-                    try await erase(pinyin.count)
-                    try await toggle()
-                    do { try await emit(pinyin) }
-                    catch let halt as TypeHalted {
-                        return Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\"")
-                    }
-                    guard let again = await next() else { try await key("space"); typed += word; continue }
-                    guard !again.row.isEmpty else {
-                        try await erase(pinyin.count)
-                        return stop("the Chinese (pinyin) keyboard did not come up with ctrl+space (cleared)", piece)
-                    }
-                    seen = again
-                }
-                let words = seen.row.map { seen.seen.words[$0].text }
-                var left = pinyin.count
-                if seen.row.isEmpty {
-                    try await key("space")  // no candidates read: commit the first, checked on the next look
-                } else if let at = Self.choice(word, in: words), at == 0 || word.count == 1 {
-                    if at == 0 { try await key("space") } else { try await send(String(at + 1)); left += 1 }
-                } else {
-                    // not first: halves, each more likely first, before a number key (a number key can go into the
-                    // pinyin instead of picking, and leave the letters in the field)
-                    try await erase(pinyin.count)
-                    guard word.count > 1 else {
-                        return stop("\"\(word)\" is not among the candidates for \(pinyin) (cleared)", piece)
-                    }
-                    queue.insert(contentsOf: Self.halves(word).map(Piece.han), at: queue.startIndex)
-                    last = seen.seen; lastRow = Set(seen.row)
+                guard item.careful || !pinyinSeen else {  // the first candidate, read back with the next few words
+                    startUnread()
+                    try await key("space")
+                    unread.append(word)
+                    typed += word
+                    DebugLog.write("type: \"\(word)\" (\(pinyin)): first candidate, read back later")
                     continue
                 }
+                guard let seen = await next() else { try await key("space"); typed += word; continue }
+                let base = Self.fieldText(last!, minus: Array(lastRow))
+                let words = seen.row.map { seen.seen.words[$0].text }
+                if let at = Self.choice(word, in: words), at == 0 || word.count == 1 {
+                    pinyinSeen = true
+                    if at == 0, item.firstWrong {  // read first in the bar, but it showed up as another word
+                        try await erase(pinyin.count)
+                        moved(seen)
+                        return stop("\"\(word)\" came out as another word from the first candidate for \(pinyin) (cleared)", piece)
+                    }
+                    if at == 0 {
+                        startUnread()
+                        try await key("space")
+                        unread.append(word)
+                        typed += word
+                        moved(seen)
+                        DebugLog.write("type: \"\(word)\" (\(pinyin)): first candidate in the bar")
+                        continue
+                    }
+                    do {  // one character further on: its digit
+                        try await send(String(at + 1))
+                        moved(seen)
+                        // a number key can go into the pinyin instead of picking, and leave the letters in the field
+                        guard let after = await next() else { typed += word; continue }
+                        let now = field(after)
+                        if Self.count(word, in: now) <= Self.count(word, in: base), now.lowercased().contains(pinyin) {
+                            try await erase(pinyin.count + 1)
+                            return stop("\"\(word)\" did not show up in the field after committing it (cleared)", piece)
+                        }
+                        typed += word
+                        moved(after)
+                        DebugLog.write("type: \"\(word)\" (\(pinyin)): candidate \(at + 1) in the bar, verified")
+                        continue
+                    }
+                }
+                if let at = Self.choice(word, in: words), at > 0 {
+                    // not first: halves, each more likely first, before a number key
+                    pinyinSeen = true
+                    try await erase(pinyin.count)
+                    moved(seen)
+                    DebugLog.write("type: \"\(word)\" is candidate \(at + 1) for \(pinyin); by halves")
+                    queue.insert(contentsOf: Self.halves(word).map { Item(piece: .han($0), careful: true) }, at: queue.startIndex)
+                    continue
+                }
+                // not read among the candidates (or no bar read): the first one is almost always the word, so it is
+                // committed and checked in the field; unless it already showed up as another word
+                if item.firstWrong {
+                    try await erase(pinyin.count)
+                    moved(seen)
+                    return stop("\"\(word)\" is not among the candidates for \(pinyin) (cleared)", piece)
+                }
+                try await key("space")
+                guard let after = await next() else { typed += word; continue }
+                if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased()) {
+                    // the letters stayed in the field after space: English keyboard
+                    try await erase(pinyin.count + 1)
+                    if item.toggled { return stop("the Chinese (pinyin) keyboard did not come up with ctrl+space (cleared)", piece) }
+                    try await toggle()
+                    DebugLog.write("type: \"\(word)\" went in as letters; ctrl+space and again")
+                    queue.insert(Item(piece: piece, careful: true, firstWrong: item.firstWrong, toggled: true), at: queue.startIndex)
+                    continue
+                }
+                pinyinSeen = true
+                DebugLog.write("type: \"\(word)\" not read among the candidates for \(pinyin); first candidate committed, checking the field")
+                unreadBase = base
+                unreadPrior = typed
+                unread = [word]
                 typed += word
-                pending = (word, base, left)
-                last = seen.seen; lastRow = Set(seen.row)
+                if let stop = try await settle(after) { return stop }
             }
-        }
-        if pending != nil, let seen = await next(), !seen.ok {
-            try await erase(pending!.left)
-            return notShown(nil)
         }
         return nil
     }
@@ -409,6 +505,55 @@ enum TypeStop {
         let words = text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 }
         guard words.contains(where: { count($0, in: after) > count($0, in: base) }) else { return false }
         return symbols.contains { count(String($0), in: after) <= count(String($0), in: base) }
+    }
+
+    /// How a word committed unread reads in the field.
+    enum ReadBack: Equatable { case seen, unseen, wrong(String) }
+
+    /// The words committed one after another, read back: all of them newly in the field, or word by word; a word
+    /// not read back is `wrong` only when the field shows other Han characters of its length at its place (after
+    /// the text before it, before the text after it or the field's end); else OCR missed it (`unseen`). Stops at
+    /// the first wrong one.
+    static func readBack(_ words: [String], prior: String, field: String, base: String, lines: [String]) -> [ReadBack] {
+        func new(_ s: String) -> Bool { count(s, in: field) > count(s, in: base) }
+        if new(words.joined()) { return words.map { _ in .seen } }
+        var out: [ReadBack] = []
+        for (i, w) in words.enumerated() {
+            if new(w) { out.append(.seen); continue }
+            let before = String((prior + words[..<i].joined()).suffix(2))
+            let after = String(words[(i + 1)...].joined().prefix(2))
+            if let shown = shownInstead(w, before: before, after: after, lines: lines, new: new) {
+                out.append(.wrong(shown))
+                return out
+            }
+            out.append(.unseen)
+        }
+        return out
+    }
+
+    /// Other Han characters of `word`'s length in a line right after `before` (the line's start when empty), followed
+    /// by `after`, the line's end or pinyin being composed; and new there (a suggestion list holds other words).
+    static func shownInstead(_ word: String, before: String, after: String, lines: [String], new: (String) -> Bool) -> String? {
+        let b = Array(before), n = word.count
+        for line in lines {
+            let chars = Array(line)
+            for start in 0...max(0, chars.count - b.count) where before.isEmpty ? start == 0 : Array(chars[start..<min(chars.count, start + b.count)]) == b {
+                let s = start + b.count
+                guard s + n <= chars.count else { continue }
+                let shown = String(chars[s..<s + n]), tail = String(chars[(s + n)...])
+                let ends = tail.isEmpty || (!after.isEmpty && tail.hasPrefix(after)) || tail.first.map { $0.isASCII && $0.isLetter } == true
+                if shown != word, shown.allSatisfy({ isHan(String($0)) }), ends, new(before + shown) { return shown }
+            }
+        }
+        return nil
+    }
+
+    /// Letters of the words' pinyin still in the field after their commits: a newly read run of letters (≥ 2) that
+    /// ends their pinyin (the first candidate took only part of it).
+    static func pinyinLeft(_ field: String, base: String, pinyin: String) -> String? {
+        let low = field.lowercased(), lowBase = base.lowercased()
+        let runs = low.split { !($0.isASCII && $0.isLetter) && $0 != "'" }.map { String($0.filter { $0.isASCII && $0.isLetter }) }
+        return runs.first { $0.count >= 2 && pinyin.hasSuffix($0) && count($0, in: low.filter { $0 != "'" }) > count($0, in: lowBase.filter { $0 != "'" }) }
     }
 
     static func count(_ needle: String, in text: String) -> Int {
