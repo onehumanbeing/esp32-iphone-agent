@@ -119,7 +119,8 @@ struct ConnectPage: View {
             if !board.lastError.isEmpty {
                 Text(verbatim: board.lastError).font(.footnote).foregroundStyle(Palette.warning).lineLimit(2)
             }
-        }        BoardRepairHint(board: board, stuck: stuck).padding(.top, Space.s)
+        }
+        BoardRepairHint(board: board, stuck: stuck).padding(.top, Space.s)
     }
 }
 
