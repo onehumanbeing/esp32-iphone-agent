@@ -138,6 +138,30 @@ import XCTest
                                            liveFrame: Data([1]), storedRun: nil))
     }
 
+    func testDeletingLastRunCardsRunHidesTheCard() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let traces = TraceStore(root: root)
+        for (folder, task) in [("20260101-090000", "Older run"), ("20260101-100000", "Last run")] {
+            traces.open(root.appendingPathComponent(folder))
+            traces.write(kind: "task", ["task": .str(task)])
+        }
+        let id = "20260101-100000"
+        let store = RunStore(traces: traces)
+        store.reload()
+        let card = try XCTUnwrap(RunCardSnapshot.select(running: false, liveTask: "", liveSteps: [], liveFrame: nil,
+                                                       storedRun: store.run(id)))
+        let target = try XCTUnwrap(card.storedRun)
+        XCTAssertEqual(target.id, id)
+
+        try store.delete(target)
+
+        XCTAssertNil(store.run(id))
+        XCTAssertEqual(store.runs.map(\.task), ["Older run"])
+        XCTAssertNil(RunCardSnapshot.select(running: false, liveTask: "", liveSteps: [], liveFrame: nil,
+                                           storedRun: store.run(id)))
+    }
+
     func testActiveRunCardUsesLiveProgressAndOffersNoStoredDeleteTarget() throws {
         let old = Run(id: "old", folder: URL(fileURLWithPath: "/tmp/old"), task: "Old task", date: Date(), steps: [])
         let frame = Data([1, 2, 3])
