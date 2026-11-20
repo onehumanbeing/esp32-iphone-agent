@@ -145,7 +145,29 @@ void net_begin() {
   lan_set_station(mode == "sta");
   lan_set_owner(mode == "sta" ? prefs.getUInt("lan_owner", 0) : 0);
   startWifi();
-  net_coex("balance");
+  bool coexSet = net_coex("balance");
+  wifi_ps_type_t ps = WIFI_PS_NONE;
+  esp_wifi_get_ps(&ps);
+  // Wi-Fi and BLE share one radio: what it is told at boot (esp_coex_preference_set is deprecated in IDF 5 and
+  // may do nothing; the `diag` lines show what the radio share does to the video).
+  board_log("radio: coex %s (%s), coex lib %s, wifi ps %d", net_coex_mode(), coexSet ? "set" : "refused",
+            esp_coex_version_get(), (int)ps);
+}
+
+void net_radio(int *channel, int *rssi) {
+  uint8_t primary = 0;
+  wifi_second_chan_t second;
+  *channel = esp_wifi_get_channel(&primary, &second) == ESP_OK ? primary : 0;
+  *rssi = 0;
+  wifi_mode_t m = WIFI_MODE_NULL;
+  if (esp_wifi_get_mode(&m) != ESP_OK) return;
+  if (m & WIFI_MODE_STA) {
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) *rssi = ap.rssi;
+  } else if (m & WIFI_MODE_AP) {
+    static wifi_sta_list_t list;  // only the status task asks
+    if (esp_wifi_ap_get_sta_list(&list) == ESP_OK && list.num > 0) *rssi = list.sta[0].rssi;
+  }
 }
 
 static const char *coexNames[] = {"wifi", "bt", "balance"};  // esp_coex_prefer_t order

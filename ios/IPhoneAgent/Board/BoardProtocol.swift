@@ -50,6 +50,8 @@ struct BoardStatus: Codable, Equatable {
     var isWirelessHID: Bool { hid != nil }
     /// Mouse and keyboard go over Bluetooth now: a Bluetooth board, or a --dual-hid one switched to it.
     var bleInput: Bool { hidm.map { $0 == "ble" } ?? isWirelessHID }
+    /// The link the mouse and keyboard go over now: "usb" or "ble".
+    var hidTransport: String { hidm ?? (isWirelessHID ? "ble" : "usb") }
     // A named board must report its input capability: its USB port may only supply power.
     var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }

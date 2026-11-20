@@ -35,6 +35,7 @@
 #include "src/net/lan_lock.h"
 #include "src/cli/cli_proto.h"
 #include "logbuf.h"
+#include "diag.h"
 #include "board_support.h"
 #include "hid_mode.h"
 #ifdef HID_TRANSPORT_BLE
@@ -294,6 +295,7 @@ String drive(const String &line, char who) {
   if (hid_ble() && ble_cmd_stale() && cmd != "ping" && cmd != "pace") return "err Bluetooth HID session changed";
 #endif
   String reply = run(line);
+  bool counted = cmd != "ping" && cmd != "pace";  // the app pings every 2 s; neither moves anything
 #ifdef HID_TRANSPORT_BLE
   if (hid_ble() && !ble_hid_command_ok()) {
     holdUntil = 0;  // Recovery releases all inputs on the next poll.
@@ -301,6 +303,7 @@ String drive(const String &line, char who) {
     if (!reply.startsWith("err typed ")) reply = "err Bluetooth HID report failed";
   }
 #endif
+  if (counted) diag_hid_command(reply == "ok");
   arb_after(&arb, who == FROM_CLI ? ARB_CLI : ARB_APP, cmd.c_str(), reply == "ok");
   return reply;
 }
@@ -568,6 +571,7 @@ String statusJson(bool full, char who) {
 void statusTask(void *) {
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
+    diag_tick();
     if (!ble_connected()) continue;
     String s = statusJson(true, FROM_APP);
     if (s.length() > ble_mtu() - 3u) s = statusJson(false, FROM_APP);
