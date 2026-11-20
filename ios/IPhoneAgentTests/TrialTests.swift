@@ -34,6 +34,39 @@ import XCTest
         XCTAssertThrowsError(try trial.headers())
     }
 
+    // MARK: - A lease left by a process killed mid-run (2026-11-20: an app install; the next start read "busy")
+
+    func testALeaseLeftByThePreviousProcessIsReleasedAtLaunch() async {
+        let trial = Trial.shared
+        defer { Trial.leftover = nil }
+        Trial.leftover = Trial.Leftover(lease: "7fa6045a-lease", leaseToken: "lt")
+        var sent: [Trial.Leftover] = []
+        await trial.releaseLeftover { sent.append($0); return URLError(.notConnectedToInternet) }
+        XCTAssertEqual(sent.map(\.lease), ["7fa6045a-lease"])
+        XCTAssertNotNil(Trial.leftover)  // never reached the gateway: kept for the next try
+        await trial.releaseLeftover { sent.append($0); return nil }
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertNil(Trial.leftover)
+        await trial.releaseLeftover { sent.append($0); return nil }
+        XCTAssertEqual(sent.count, 2)  // nothing left: nothing sent
+        Trial.leftover = Trial.Leftover(lease: "x", leaseToken: "lt")
+        await trial.releaseLeftover { _ in TrialError.refused(status: 404, reason: "lease_not_found") }
+        XCTAssertNil(Trial.leftover)  // a refusal is final
+        XCTAssertEqual(RunEnd(reason: .appRestart, stage: .running).json["reason"] as? String, "app_restart")
+    }
+
+    func testTheHeldRunIsOnRecordUntilItIsReleased() async throws {
+        let trial = Trial.shared
+        Trial.leftover = nil
+        trial.setKey("hsk_test_abc")
+        defer { trial.setKey(""); Trial.leftover = nil }
+        try await trial.begin()
+        XCTAssertNotNil(Trial.leftover?.keyRun)
+        XCTAssertEqual(Trial.leftover?.keyRun, trial.runID)
+        trial.end(RunEnd(reason: .userStop, stage: .running))
+        XCTAssertNil(Trial.leftover)
+    }
+
     func testARefusedKeyKeepsItsOwnTextAndIsFinal() {
         let invalid = LLMClient.freeLineError(status: 401, errorText: #"{"status": "refused", "reason": "key_invalid"}"#)
         XCTAssertEqual(invalid?.message, TrialError.keyRefused.localizedDescription)

@@ -108,6 +108,7 @@ import UIKit
             Task { @MainActor in _ = await Trial.shared.refresh() }
         }
         Task {
+            await releaseLeftover()  // before the status check: our own leftover lease would read as busy
             await refresh()
             let settings = app.settings
             if status == .free, settings.provider != .handsyTrial, !settings.isConfigured(settings.provider) {
@@ -167,8 +168,13 @@ import UIKit
     /// Claim the run's lease, waiting in line up to `wait` seconds (onWait: the first time it has to wait).
     func begin(wait: TimeInterval = 600, onWait: (() -> Void)? = nil) async throws {
         end(nil)
-        if keyed { return keyRun = UUID().uuidString.lowercased() }
-        var token = try await enrolledToken(), enrolledAgain = false
+        if keyed {
+            let run = UUID().uuidString.lowercased()
+            keyRun = run
+            Self.leftover = Leftover(keyRun: run)
+            return
+        }
+        var token = try await enrolledToken(), enrolledAgain = false, releasedLeftover = false
         struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
@@ -192,6 +198,9 @@ import UIKit
                 dropped += 1
                 DebugLog.write("trial: lease request did not reach the line (\(error.code.rawValue)); asking again (\(dropped))")
                 try await Task.sleep(nanoseconds: 1_000_000_000)
+            } catch TrialError.busy where !releasedLeftover && Self.leftover?.lease != nil {
+                releasedLeftover = true  // the line may be busy with our own lease from before the app restarted
+                await releaseLeftover()
             } catch TrialError.unenrolled where !enrolledAgain {
                 enrolledAgain = true
                 tokenRefused()
@@ -206,6 +215,7 @@ import UIKit
         }
         app?.homeHint = String(localized: "Preparing the run…")
         lease = (taken.lease_id, taken.lease_token, run)
+        Self.leftover = Leftover(lease: taken.lease_id, leaseToken: taken.lease_token)
         claimedAt = Date()
         leaseLost = false
         lostReason = nil
@@ -291,10 +301,11 @@ import UIKit
         heldEnd = nil
         keepAlive?.cancel()
         keepAlive = nil
-        if let run = keyRun { endKeyRun(run, ended) }
+        if let run = keyRun { endKeyRun(run, ended); Self.leftover = nil }
         keyRun = nil
         guard let lease else { return }
         self.lease = nil
+        Self.leftover = nil
         guard let token else { return }  // refused (401): nothing to release it with, it idles out on the server
         var runEnd = ended ?? RunEnd(reason: .other, stage: .running)
         if leaseLost, runEnd.reason != .done { runEnd.reason = .leaseLost }
@@ -337,6 +348,41 @@ import UIKit
     }
 
     func release(_ hold: Int) { if holding, hold == holds { end(nil) } }
+
+    /// The run's lease (or key run), on record while it is held: a process killed mid-run (2026-11-20: an app
+    /// install) never gave it back, and the next start read "busy" until the gateway's idle timeout.
+    struct Leftover: Codable, Equatable { var lease: String?; var leaseToken: String?; var keyRun: String? }
+    nonisolated static let leftoverAccount = "trial-held-run"
+    static var leftover: Leftover? {
+        get { Keychain.get(leftoverAccount).flatMap { try? JSONDecoder().decode(Leftover.self, from: Data($0.utf8)) } }
+        set { Keychain.set(newValue.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "",
+                           for: leftoverAccount) }
+    }
+
+    /// At launch (and when a claim is refused as busy): give back what the previous process still held. `send`
+    /// gives back a lease: nil when done, else the error (tests stub it). A dropped connection keeps the record
+    /// for the next try; anything else is final (the gateway's idle timeout ends it all the same).
+    func releaseLeftover(send: ((Leftover) async -> Error?)? = nil) async {
+        guard lease == nil, keyRun == nil, let left = Self.leftover else { return }
+        let runEnd = RunEnd(reason: .appRestart, stage: .running)
+        if let run = left.keyRun {
+            Self.leftover = nil
+            DebugLog.write("trial: key run \(run.prefix(8)) left by the previous process; ending it")
+            endKeyRun(run, runEnd)
+        }
+        guard let id = left.lease else { return }
+        let error: Error?
+        if let send { error = await send(left) } else if let token, let leaseToken = left.leaseToken {
+            do {
+                let _: Empty = try await call("DELETE", "/trial/leases/\(id)", token: token, leaseToken: leaseToken,
+                                              body: ["run_end": runEnd.json])
+                error = nil
+            } catch let failure { error = failure }
+        } else { error = TrialError.unenrolled }  // no token to release it with: it idles out on the server
+        if !(error is URLError), Self.leftover == left { Self.leftover = nil }
+        let result = error.map { "err (" + (lastRefusal ?? String(describing: $0)) + ")" } ?? "ok"
+        DebugLog.write("trial: released lease \(id.prefix(8)) left by the previous process → \(result)")
+    }
 
     func headers() throws -> [String: String] {
         if keyed {
@@ -537,6 +583,7 @@ struct RunEnd: Equatable {
              stepLimit = "step_limit", modelFail = "model_fail", modelError = "model_error",
              blindMirroring = "blind_mirroring", boardLost = "board_lost", leaseLost = "lease_lost",
              startFailed = "start_failed", other
+        case appRestart = "app_restart"  // the previous process ended mid-run: given back at the next launch
     }
     enum Stage: String { case startup, running }  // startup: the lease was held but the agent never started
 
