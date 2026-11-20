@@ -11,7 +11,12 @@ extension Pointer {
     /// Returns nil when all went in, else a note for the model (what did not, and what is left).
     @discardableResult
     func type(_ text: String) async throws -> String? {
-        if Scripts.needsPaste(text) { return "nothing typed: the board cannot type this script; \"\(text)\" is left" }
+        try await typeStop(text)?.note
+    }
+
+    /// `type`, with what is left to paste when the pinyin keyboard could not give a word (HanTyper.Stop.rest).
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? {
+        if Scripts.needsPaste(text) { return .init(note: "nothing typed: the board cannot type this script; \"\(text)\" is left") }
         let han = HanTyper.isHan(text)
         let typed = han ? Self.typeable(text) : Accents.plan(text).typed
         if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
@@ -25,9 +30,9 @@ extension Pointer {
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
-        let note = try await typer.type(text, checkLetters: han || layout == .none)
-        if let note { log("type: \(note)") }
-        return note
+        let stop = try await typer.attempt(text, checkLetters: han || layout == .none)
+        if let stop { log("type: \(stop.note)") }
+        return stop
     }
 
     /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain

@@ -746,6 +746,11 @@ import XCTest
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     var typeNote: String?
     func type(_ text: String) async throws -> String? { calls.append("type"); return typeNote }
+    var typeRest: String?  // with typeNote: what the typer says may be pasted (HanTyper.Stop.rest)
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? {
+        calls.append("type")
+        return typeNote.map { HanTyper.Stop(note: $0, rest: typeRest) }
+    }
     func key(_ combo: String) async throws { calls.append("key") }
     var homeAgain: [Bool] = []
     func goHome(again: Bool) async throws { calls.append("home"); homeAgain.append(again) }

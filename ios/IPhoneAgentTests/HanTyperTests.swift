@@ -127,6 +127,36 @@ import XCTest
         XCTAssertTrue(text.contains("龘") && text.contains("typed \"好\""), text)
     }
 
+    /// 2026-11-20: 西岸 not offered for xian, then 西 not read among xi's candidates. What went in stays, the
+    /// letters are cleared, and the stop says what is left to paste.
+    func testAWordTheKeyboardDoesNotOfferLeavesTheRestToPaste() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.only["xian"] = ["先", "西安"]
+        ime.only["xi"] = ["系", "洗"]
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertEqual(ime.field, "上海")
+        XCTAssertEqual(ime.composing, "")
+        XCTAssertEqual(stop?.rest, "西岸艺术中心")
+        XCTAssertTrue(stop?.note.contains("not typed: \"西岸艺术中心\"") == true, stop?.note ?? "nil")
+    }
+
+    func testNothingIsLeftToPasteWhenPinyinWorksAndAWordNotShownIsOwed() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        let ok = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(ok)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        // a commit that did not land: its letters cleared, the word owed with the rest
+        let bei = FakeIME(knowing: "北")
+        bei.only["bei"] = ["被", "北"]
+        let typer = bei.typer()
+        let broken = HanTyper(send: { s in if s == "2" { bei.sent.append("type 2"); bei.composing.append("2") } else { bei.send(s) } },
+                              key: typer.key, toggle: typer.toggle, look: typer.look)
+        let unsure = try await broken.attempt("北")
+        XCTAssertEqual(bei.field, "")
+        XCTAssertEqual(unsure?.rest, "北")
+        XCTAssertTrue(unsure?.note.contains("typed \"\", not typed: \"北\"") == true, unsure?.note ?? "nil")
+    }
+
     func testAnEnglishKeyboardIsSwitchedOnceAndTheWordRetyped() async throws {
         let ime = FakeIME(knowing: "你好")
         ime.pinyin = false
@@ -143,6 +173,9 @@ import XCTest
         XCTAssertEqual(ime.field, "")
         XCTAssertTrue(note?.contains("did not come up") == true, note ?? "nil")
         XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        (ime.pinyin, ime.field) = (false, "")
+        let stuck = try await ime.typer().attempt("你好")
+        XCTAssertEqual(stuck?.rest, "你好", "a keyboard stuck in English leaves the whole text to paste")
     }
 
     func testEnglishLettersLeftComposingOnAPinyinKeyboardAreRetypedInEnglish() async throws {
