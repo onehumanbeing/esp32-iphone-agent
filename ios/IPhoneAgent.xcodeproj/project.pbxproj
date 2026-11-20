@@ -133,6 +133,7 @@
 		607B1520E654F13F1F304F4D /* DeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A9A9D917B2B2FC534E7DBA /* DeviceTests.swift */; };
 		6175C3268A0D1DD8F666FA54 /* IntentShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFD183B70078D3A2A3A4A29 /* IntentShare.swift */; };
 		62D20C5D75CE71EBA0799233 /* LocalScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAA8DFDE53F3D74E87E873A5 /* LocalScriptTests.swift */; };
+		C1A9B0A0C0FFEE0000000004 /* ClipboardCarryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A9B0A0C0FFEE0000000003 /* ClipboardCarryTests.swift */; };
 		63B0CAE819339D8FC103AC8B /* VideoFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9615E8664A5DC600B1B97E0 /* VideoFeed.swift */; };
 		63CB6644E6517C6B12F3E0AB /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1C25AC81D9FBF6073FDD1851 /* Localizable.xcstrings */; };
 		64197F9DE88EDD0A317218E2 /* FieldInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E2285A8EAA92FCE744F5F2 /* FieldInputTests.swift */; };
@@ -265,6 +266,7 @@
 		D4047FA847D62DA5D9FFB3AD /* SendConsentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AC0BB22701C4464A436CC3 /* SendConsentSheet.swift */; };
 		D48CF75915F3D1FFE18ADC3A /* BoardLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33107099A7483949F03FBDB6 /* BoardLink.swift */; };
 		D4B2CD03641F1629516AB29C /* HanTyper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390F8519AC0397F988356EAE /* HanTyper.swift */; };
+		C1A9B0A0C0FFEE0000000002 /* ClipboardCarry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */; };
 		A1FBF102A1FBF102A1FBF102 /* RunPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */; };
 		A1FBF104A1FBF104A1FBF104 /* MirrorHeal.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */; };
 		A1FBF106A1FBF106A1FBF106 /* DeviceHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */; };
@@ -472,6 +474,7 @@
 		383D5864324AF3AAAF904AA6 /* ToolsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsFile.swift; sourceTree = "<group>"; };
 		38FB6FEBD55DCBE8EED6834C /* RunSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSession.swift; sourceTree = "<group>"; };
 		390F8519AC0397F988356EAE /* HanTyper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanTyper.swift; sourceTree = "<group>"; };
+		C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCarry.swift; sourceTree = "<group>"; };
 		A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunPolicy.swift; sourceTree = "<group>"; };
 		A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorHeal.swift; sourceTree = "<group>"; };
 		A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceHealth.swift; sourceTree = "<group>"; };
@@ -685,6 +688,7 @@
 		D99ADF6602527D2D22023167 /* VideoReorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoReorder.swift; sourceTree = "<group>"; };
 		DA2DCFC32B990B166DF9C1C6 /* IPhoneAgent.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = IPhoneAgent.entitlements; sourceTree = "<group>"; };
 		DAA8DFDE53F3D74E87E873A5 /* LocalScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalScriptTests.swift; sourceTree = "<group>"; };
+		C1A9B0A0C0FFEE0000000003 /* ClipboardCarryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCarryTests.swift; sourceTree = "<group>"; };
 		DAEFE87504F77098EF0AEFFC /* ModelConnectionCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelConnectionCheck.swift; sourceTree = "<group>"; };
 		DCDA925D0FFD42810895573C /* LLMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMClient.swift; sourceTree = "<group>"; };
 		DCDFF66F3082E46B88130ABC /* AgentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTests.swift; sourceTree = "<group>"; };
@@ -811,6 +815,7 @@
 				9FE7BB3B9372105D2D898461 /* DeviceKind.swift */,
 				56619FDD370F74692EA476F1 /* FieldClearer.swift */,
 				390F8519AC0397F988356EAE /* HanTyper.swift */,
+				C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */,
 				A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */,
 				A1FBF103A1FBF103A1FBF103 /* MirrorHeal.swift */,
 				A1FBF105A1FBF105A1FBF105 /* DeviceHealth.swift */,
@@ -923,6 +928,7 @@
 				F071F3E4D7B82DE70AE75A81 /* LLMTests.swift */,
 				C4C26A4FCAEEF88E765FD58B /* LocalizationTests.swift */,
 				DAA8DFDE53F3D74E87E873A5 /* LocalScriptTests.swift */,
+				C1A9B0A0C0FFEE0000000003 /* ClipboardCarryTests.swift */,
 				2A44F1AFB66E6208FD9D06E4 /* MemoryTests.swift */,
 				A11E0F11E00000000000000B /* PlanEditTests.swift */,
 				C7F1E5000000000000000009 /* MemoryFilesTests.swift */,
@@ -1498,6 +1504,7 @@
 				48100361D2ECFE7E36F83F9D /* LLMTests.swift in Sources */,
 				042350D6CB7A39009DC39CD2 /* LanTests.swift in Sources */,
 				62D20C5D75CE71EBA0799233 /* LocalScriptTests.swift in Sources */,
+				C1A9B0A0C0FFEE0000000004 /* ClipboardCarryTests.swift in Sources */,
 				69A6EB86B9D492839AE21C7C /* LocalizationTests.swift in Sources */,
 				94FDACB2484FC9BF5EF837C8 /* MemoryTests.swift in Sources */,
 				A11E0F11E00000000000000C /* PlanEditTests.swift in Sources */,
@@ -1643,6 +1650,7 @@
 				3B6ACDC5C9313208B71B3DBF /* FirmwareViews.swift in Sources */,
 				4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */,
 				D4B2CD03641F1629516AB29C /* HanTyper.swift in Sources */,
+				C1A9B0A0C0FFEE0000000002 /* ClipboardCarry.swift in Sources */,
 				A1FBF102A1FBF102A1FBF102 /* RunPolicy.swift in Sources */,
 				A1FBF104A1FBF104A1FBF104 /* MirrorHeal.swift in Sources */,
 				A1FBF106A1FBF106A1FBF106 /* DeviceHealth.swift in Sources */,

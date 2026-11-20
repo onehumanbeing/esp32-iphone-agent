@@ -165,6 +165,9 @@ extension Gestures {
     var limitHit: String?
     /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
     var onWrite: ((String) async throws -> Bool)?
+    /// The text put on the clipboard at the run's start (ClipboardCarry), and the clipboard's changeCount now.
+    var carried: ClipboardCarry?
+    var clipboardCount: (() -> Int)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
     /// The words for the user while help is asked, when the reason is only for the record (errorsReason).

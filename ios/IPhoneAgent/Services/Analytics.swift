@@ -176,6 +176,7 @@ struct TypeStats: Equatable {
         if note.contains("did not open again") { return "reopen" }
         if note.contains("open the target app again") { return "no_app" }
         if note.contains("text is not seen") { return "not_seen" }
+        if note.contains("not pasted") { return "not_pasted" }  // no carried text, the clipboard changed or other text
         return "other"
     }
 

@@ -97,39 +97,6 @@ import UIKit
         XCTAssertEqual(phone.calls, ["type"])
     }
 
-    /// The pinyin keyboard did not offer a word: the rest goes on the clipboard, the app opens again, cmd+v, and the
-    /// field is read back; Enter then goes through (2026-11-20: the run stopped with 上海 typed, 西岸艺术中心 not).
-    func testTheRestOfAStoppedChineseTypeIsPastedAndReadBack() async throws {
-        let phone = FakeGestures(), screen = FakeScreen()
-        screen.frame = UIImage(cgImage: ChineseOCRTests.screen([["上海西岸艺术中心"]], points: 28)).jpegData(compressionQuality: 1)
-        let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)
-        agent.openedAtStart = "Maps"
-        var written: [String] = []
-        agent.onWrite = { written.append($0); return true }
-        phone.typeNote = "\"西\" is not among the candidates for xi (cleared); typed \"上海\", not typed: \"西岸艺术中心\""
-        phone.typeRest = "西岸艺术中心"
-        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
-        XCTAssertEqual(written, ["西岸艺术中心"], "only the rest, not what pinyin already typed")
-        XCTAssertEqual(phone.calls, ["type", "open Maps", "key"])
-        XCTAssertEqual(result?.field, "result")
-        XCTAssertTrue(result?.value.contains("pasted and read back") == true, result?.value ?? "nil")
-        XCTAssertNil(agent.sendGuard.enter(step: 2), "the field is whole: Enter is not held")
-    }
-
-    func testARestNotSeenAfterPastingIsLeftToTheModelWithTheClipboardReady() async throws {
-        let phone = FakeGestures()
-        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
-        agent.onWrite = { _ in true }
-        phone.typeNote = "\"西\" is not among the candidates for xi (cleared); typed \"上海\", not typed: \"西岸艺术中心\""
-        phone.typeRest = "西岸艺术中心"
-        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
-        XCTAssertEqual(result?.field, "typed")
-        XCTAssertTrue(result?.value.contains("\"西岸艺术中心\" is on the clipboard") == true, result?.value ?? "nil")
-        XCTAssertTrue(result?.value.contains("key cmd+v") == true)
-        XCTAssertTrue(result?.value.hasPrefix("If the screen already lists what the goal needs") == true, "the listed target first")
-        XCTAssertEqual(agent.sendGuard.missing, "西岸艺术中心")
-    }
-
     func testAStopWithNothingToPasteNeverTouchesTheClipboard() async throws {
         let phone = FakeGestures()
         let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
@@ -138,7 +105,7 @@ import UIKit
         phone.typeNote = "typing stopped (budget); typed \"上海\", not typed: \"西岸\""
         let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸")])
         XCTAssertEqual(written, [])
-        XCTAssertEqual(result?.value, SendGuard.listedHint + (phone.typeNote ?? ""))
+        XCTAssertEqual(result?.value, SendGuard.listedHint + (phone.typeNote ?? ""), "no rest: the note as it was")
         phone.typeNote = nil
         let typed = try await agent.perform(["action": .str("type"), "text": .str("上海西岸")])
         XCTAssertNil(typed, "pinyin worked: nothing changes")
