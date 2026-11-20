@@ -96,6 +96,7 @@ typedef struct {
   bool have_aes;
   uint8_t eiv[16];     // SETUP eiv: the audio stream's AES-CBC IV
   uint16_t timing_rport;
+  char model[24];      // the sender's hardware model from SETUP, e.g. "iPad15,3" (letters, digits, commas only)
 } ap_conn;
 
 extern ap_conn *ap_mirror_owner;  // connection whose SETUP started the mirror stream

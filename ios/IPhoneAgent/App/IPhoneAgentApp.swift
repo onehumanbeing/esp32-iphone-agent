@@ -93,6 +93,7 @@ struct RootView: View {
         }
         .onChange(of: scene) { old, new in
             DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
+            DeviceScreen.sceneActive = new == .active
             if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground
             #if DEBUG
             if new == .active { DevInbox.run() }

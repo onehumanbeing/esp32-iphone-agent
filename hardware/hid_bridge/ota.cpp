@@ -1,6 +1,7 @@
 #include "ota.h"
 #include <Update.h>
 #include <esp_ota_ops.h>
+#include "ota_image.h"
 #include "lwip/sockets.h"
 #include "wifi_video.h"
 #include "logbuf.h"
@@ -72,6 +73,7 @@ static void session(int c) {
     if (wv_token() != tok) return fail(c, "wrong token");
     if (strlen(md5) != 32) return fail(c, "bad md5");
   }
+  if (size < USB_APP_PREFIX_SIZE) return fail(c, "short image");
   if (!Update.begin(size, U_FLASH)) return fail(c, Update.errorString());
   if (!signedImage) Update.setMD5(md5);
   static mbedtls_sha256_context hash;
@@ -81,7 +83,20 @@ static void session(int c) {
   reply(c, "ok\n");
   board_log("ota: receiving %lu bytes", size);
   static uint8_t buf[4096];
-  for (size_t got = 0; got < size;) {
+  // Check the chip, flash layout and input transport before writing to the OTA slot.
+  uint8_t header[USB_APP_PREFIX_SIZE];
+  size_t got = 0;
+  while (got < sizeof header) {
+    int n = recv(c, header + got, sizeof header - got, 0);
+    if (n <= 0) { busy = false; return fail(c, "connection lost"); }
+    got += n;
+  }
+  if (!usb_ota_app(header, got)) { busy = false; return fail(c, "wrong board image"); }
+  if (Update.write(header, sizeof header) != sizeof header) {
+    busy = false; return fail(c, Update.errorString());
+  }
+  if (signedImage) mbedtls_sha256_update(&hash, header, sizeof header);
+  while (got < size) {
     int n = recv(c, buf, size - got < sizeof buf ? size - got : sizeof buf, 0);
     if (n <= 0) { busy = false; return fail(c, "connection lost"); }
     if (Update.write(buf, n) != (size_t)n) { busy = false; return fail(c, Update.errorString()); }

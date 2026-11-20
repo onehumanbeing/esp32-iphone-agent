@@ -108,6 +108,9 @@ struct ScreenGeometry: Codable, Equatable {
     static var scale: CGFloat { scene?.screen.scale ?? 3 }
     static var aspect: Double { size.height > 0 ? size.width / size.height : 9 / 19.5 }
     static var foreground: Bool { UIApplication.shared.applicationState == .active }
+    /// The app's scene phase is active (set by IPhoneAgentApp). Notification Center pulled over the app on iPad makes
+    /// it inactive while `foreground` (and a scan of the connected scenes) still read active (iPad Air M3, 2026-11-20).
+    static var sceneActive = true
     /// The Dynamic Island's touch area in 0-1000 screen units; nil on an iPhone without one.
     static var island: CGRect? {
         guard let window = scene?.windows.first else { return nil }

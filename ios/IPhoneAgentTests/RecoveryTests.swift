@@ -18,6 +18,25 @@ import XCTest
         XCTAssertEqual(r.next(link(frameAt: 141), at: 141), .live)
     }
 
+    func testAUSBBoardUnpluggedFromThisIPhoneWaitsThenAsksToPlugItIn() {
+        var usbOff = link(frameAt: 200)
+        usbOff.usb = "off"  // powered elsewhere; mirroring still streams
+        XCTAssertTrue(usbOff.inputGone)
+        var r = Recovery(at: 100)
+        XCTAssertEqual(r.next(usbOff, at: 100), .wait(.init(part: .cable, ask: false)))
+        XCTAssertEqual(r.next(usbOff, at: 110), .wait(.init(part: .cable, ask: true)))
+        XCTAssertEqual(Recovery.Stage(part: .cable, ask: true).status.minimal, "USB")
+        var asleep = usbOff
+        asleep.usb = "asleep"
+        XCTAssertEqual(r.next(asleep, at: 111), .wait(.init(part: .locked, ask: false)), "asleep still means locked")
+        usbOff.usb = "ok"
+        XCTAssertEqual(r.next(usbOff, at: 112), .live)
+        var wireless = link()
+        wireless.usb = nil  // a wireless-HID board: its USB says nothing about this iPhone
+        XCTAssertFalse(wireless.inputGone)
+        XCTAssertTrue(Recovery.matches(Recovery.reason(.cable), .cable))
+    }
+
     func testAsksOnlyAfterEachPartsQuietTime() {
         var r = Recovery(at: 0)
         XCTAssertEqual(r.next(link(sta: 0), at: 0), .wait(.init(part: .hotspot, ask: false)))

@@ -54,7 +54,7 @@ struct OnboardingView: View {
             let from = page
             Task {
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                if page == from { advance() }
+                if page == from && (from != .act || pageDone) { advance() }
             }
         }
     }
@@ -122,12 +122,12 @@ struct OnboardingView: View {
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
 
     /// The page's goal is reached (drives auto-advance).
-    private var pageDone: Bool {
+    var pageDone: Bool {
         switch page {
         case .welcome: return false
         case .connect: return board.connected
         case .see: return streaming
-        case .act: return calibrator.hasValidCalibration && !calibrator.busy
+        case .act: return calibrator.hasValidCalibration && !calibrator.busy && !board.needsWirelessPointer
         case .brain: return app.modelOK == true
         }
     }
@@ -164,6 +164,9 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
+            if board.needsWirelessPointer {
+                return board.connected ? "Pair the Bluetooth pointer" : "Waiting for the mouse…"
+            }
             if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
@@ -173,12 +176,12 @@ struct OnboardingView: View {
         }
     }
 
-    private var primaryEnabled: Bool {
+    var primaryEnabled: Bool {
         switch page {
         case .welcome: return true
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
-        case .act: return !calibrator.busy && (calibrator.hasValidCalibration || actReady)
+        case .act: return calibrator.hasValidCalibration ? pageDone : !calibrator.busy && actReady
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }
@@ -217,7 +220,7 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: accepted)
+        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true)
         case .connect: ConnectPage(board: board)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
                            lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)

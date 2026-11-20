@@ -179,7 +179,7 @@ extension AppModel {
     /// One line: board, mirroring, calibration, model and run.
     var statusSummary: String {
         let s = board.status
-        let boardText = board.connected ? "connected usb \(s?.usb ?? "-") ap \(s?.ap ?? "-") sta \(s?.sta.map(String.init) ?? "-")"
+        let boardText = board.connected ? "connected input \(s?.inputState ?? "-") ap \(s?.ap ?? "-") sta \(s?.sta.map(String.init) ?? "-")"
             : "not connected"
         let mirror = feed.live ? String(format: "live %.2f", feed.aspect) : "off"
         let cal = pointer.absolute ? "absolute" : pointer.span.map { "\($0.w)x\($0.h) " + (pointer.quality.map { String(format: "±%.1f%%", $0 * 100) } ?? "?") }
@@ -392,13 +392,25 @@ extension AppModel {
     private func harnessHID(_ commands: String) {
         Task { [weak self] in
             guard let self else { return }
-            guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            // `hidmode` (a --dual-hid board) needs only the link: in BLE mode before the pointer pairs, the input
+            // is never ready, and this is how it goes back to USB.
+            if commands.hasPrefix("hidmode") {
+                let deadline = now() + 30
+                while !board.connected && now() < deadline { try? await Task.sleep(nanoseconds: 500_000_000) }
+                guard board.connected else { return say("harness hid: board not ready in 30 s") }
+            } else {
+                guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            }
             var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String
                 if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
                     try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
                     reply = "ok"
+                } else if command == "homeup" || command.hasPrefix("homeup ") {  // HomeTuning for this orientation
+                    let landscape = DeviceScreen.size.width > DeviceScreen.size.height
+                    if let n = Int(command.dropFirst(7)) { HomeTuning.store(n, landscape: landscape) }
+                    reply = "home pushes up \(HomeTuning.value(landscape: landscape)) (\(landscape ? "landscape" : "portrait"))"
                 } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
@@ -440,7 +452,7 @@ extension AppModel {
         let deadline = now() + timeout
         while now() < deadline {
             let s = board.status
-            if board.connected && s?.usb == "ok" && (!mirroring || s?.ap == "streaming") { return true }
+            if board.connected && s?.inputReady == true && (!mirroring || s?.ap == "streaming") { return true }
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return false

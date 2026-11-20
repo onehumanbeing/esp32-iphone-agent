@@ -167,6 +167,11 @@ import UIKit
         board.log = say
         board.commands.log = say
         pointer.log = say
+        // iPad over Bluetooth: how far home pushes up, as calibration has tuned it for this model and orientation
+        pointer.homeUp = { [weak self] in
+            guard let self, DeviceKind.isPad, self.board.status?.isWirelessHID == true else { return nil }
+            return HomeTuning.value(landscape: DeviceScreen.size.width > DeviceScreen.size.height)
+        }
         pointer.screenAspect = { DeviceScreen.aspect }
         pointer.currentGeometry = { [weak self] in self?.feed.geometry }  // nil on iPhone
         if DeviceKind.isPad {  // turned: the orientation's own calibration, if it has one
@@ -238,6 +243,7 @@ import UIKit
             let started = s.ap == "streaming" && self?.feed.mirroring == false
             self?.feed.mirroring = s.ap == "streaming"
             self?.pointer.absolute = s.abs == 1
+            self?.pointer.swipeHome = s.isWirelessHID
             let frozen = s.fz == 1
             if frozen != self?.feed.frozen {
                 DebugLog.write(frozen ? "video: the board's GOP is full (overflows \(s.ovf ?? 0)); frozen until a keyframe"
@@ -254,7 +260,8 @@ import UIKit
             self?.metrics.status(s)
             self?.logStatus(s)
             self?.matchMirrorDisplay(s)
-            self?.refreshLinkRecoveryDisplay()
+            if s.inputState == nil || s.needsWirelessPointer || s.needsUSBHost { self?.beginLinkRecoveryDisplay() }
+            else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in
             guard let self else { return }
@@ -276,6 +283,7 @@ import UIKit
         board.onLinkDown = { [weak self] in
             self?.pointer.boardPace = nil; self?.pointer.flickInOne = nil
             self?.pointer.absolute = false  // the board may come back with other firmware
+            self?.pointer.swipeHome = false
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)
@@ -481,7 +489,7 @@ import UIKit
     /// The run paused for the board (line) or goes on (nil).
     /// Board status changes go to the debug log (not every identical notify).
     private func logStatus(_ s: BoardStatus) {
-        let line = "board status: ap \(s.ap ?? "-") usb \(s.usb ?? "-") sta \(s.sta.map(String.init) ?? "-")"
+        let line = "board status: ap \(s.ap ?? "-")\(s.ap == "other" ? " (\(s.src ?? "?"))" : "") input \(s.inputState ?? "-") sta \(s.sta.map(String.init) ?? "-")"
             + " screen \(s.w.map(String.init) ?? "-")x\(s.h.map(String.init) ?? "-") rst \(s.rst ?? "-")"
         guard line != lastStatus else { return }
         let wasOnBoardWiFi = lastStatus.contains(" sta ") && !lastStatus.contains(" sta 0") && !lastStatus.contains(" sta -")

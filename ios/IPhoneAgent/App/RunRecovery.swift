@@ -7,10 +7,11 @@ extension AppModel {
 
     func wireRecovery() {
         agent.link = { [unowned self] in
-            Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+            Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                           net: board.status?.net,
                           frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen || feed.undecodable, usb: board.status?.usb, locked: phoneLocked)
+                          stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
+                          usb: phoneUSB, locked: phoneLocked)
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
@@ -32,10 +33,11 @@ extension AppModel {
             linkRecoveryDisplay = nil
             return
         }
-        let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+        let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                                  net: board.status?.net,
                                  frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
-                                 stalled: feed.frozen || feed.undecodable, usb: board.status?.usb, locked: phoneLocked)
+                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
+                                 usb: phoneUSB, locked: phoneLocked)
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -80,9 +82,12 @@ extension AppModel {
                     phase: .running, status: .looking)
     }
 
+    /// The board's USB state as a sign that the iPhone is locked; a wireless-HID board has no USB link to it.
+    private var phoneUSB: String? { board.status?.isWirelessHID == true ? nil : board.status?.usb }
+
     private func kind(_ part: Recovery.Part) -> Notifier.Kind {
         switch part {
-        case .board: return .board
+        case .board, .cable, .pointer: return .board
         case .locked: return .locked
         case .hotspot: return .wifi
         case .mirroring, .frames: return .mirroring
@@ -91,6 +96,8 @@ extension AppModel {
 
     private func title(_ stage: Recovery.Stage) -> String {
         switch stage.part {
+        case .pointer: return String(localized: "Pair the Bluetooth pointer")
+        case .cable: return String(localized: "Plug the board into this iPhone")
         case .board: return String(localized: "Board disconnected")
         case .locked: return String(localized: "Unlock iPhone to continue")
         case .hotspot: return stage.lan ? String(localized: "Board left the Wi-Fi") : String(localized: "iPhone left the board's Wi-Fi")

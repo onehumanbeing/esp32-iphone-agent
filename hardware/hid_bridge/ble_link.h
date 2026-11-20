@@ -16,7 +16,7 @@ bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv = 
 void ble_reply_timing(uint32_t recv, uint32_t queued, uint32_t ran);  // for the next ble_reply: logged when slow
 void ble_reply(const String &line, char dest = FROM_APP);         // queued; sent before any further video
 void ble_status(const String &json);               // latest wins; sent before any further video
-void ble_cli_status(const String &full, const String &compact);  // to the CLI, the form that fits its MTU
+void ble_cli_status(String full, String compact);  // to the CLI, the form that fits its MTU
 size_t ble_video_room();                           // payload bytes per video notify; 0 = nobody listening
 bool ble_video_send(const uint8_t *p, size_t n);   // waits for free buffers; false = gave up
 void ble_unpair();
@@ -35,3 +35,9 @@ bool ble_cli_subscribed(int slot);
 bool ble_cli_notify(int slot, const uint8_t *p, size_t n, bool video, uint32_t timeout_ms);
 void ble_cli_drop(int slot);
 void ble_cli_push_cmd(const char *line, size_t n);
+
+#ifdef HID_TRANSPORT_BLE
+bool ble_hid_trusted(int handle);
+bool ble_cmd_stale();  // the last popped command was queued before the phone's HID session changed
+void ble_hid_subscribe(uint16_t handle, bool subscribed);
+#endif

@@ -14,3 +14,14 @@ clean:
 	rm -f test
 
 .PHONY: clean
+
+.PHONY: check-hid
+check-hid:
+	mkdir -p ../build/tests
+	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -o ../build/tests/test_hid test_hid_keys.cpp
+	../build/tests/test_hid
+	python3 test_build_targets.py
+	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -o ../build/tests/test_board_usb test_board_support.cpp ../hid_bridge/board_support.cpp
+	../build/tests/test_board_usb
+	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -DHID_TRANSPORT_BLE=1 -o ../build/tests/test_board_ble test_board_support.cpp ../hid_bridge/board_support.cpp
+	../build/tests/test_board_ble

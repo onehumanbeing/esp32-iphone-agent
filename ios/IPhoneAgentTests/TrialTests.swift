@@ -108,8 +108,8 @@ import XCTest
     /// 2026-11-13: a failed start says where and why in fixed words, never the error's own text.
     func testStartupFailureKinds() {
         func kind(_ error: Error, cancelled: Bool = false, step: StartupFailure.Step = .stream, board: Bool = true,
-                  usb: String? = "on", mirroring: Bool = true, inFront: Bool = false) -> String {
-            StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board, usb: usb,
+                  status: BoardStatus = BoardStatus(usb: "ok"), mirroring: Bool = true, inFront: Bool = false) -> String {
+            StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board, status: status,
                                 mirroring: mirroring, inFront: inFront)
         }
         let secret = DeviceError(message: "secret task text")
@@ -118,7 +118,8 @@ import XCTest
         XCTAssertEqual(kind(TrialError.busy, step: .trialClaim), "busy")
         XCTAssertEqual(kind(TrialError.usedUp, step: .trialClaim), "trial_refused")
         XCTAssertEqual(kind(secret, board: false), "board_lost")
-        XCTAssertEqual(kind(secret, usb: "off"), "usb_off")
+        XCTAssertEqual(kind(secret, status: BoardStatus(usb: "off")), "usb_off")
+        XCTAssertEqual(kind(secret, status: BoardStatus(usb: "off", hid: "ok"), mirroring: false), "mirroring_off")
         XCTAssertEqual(kind(secret, mirroring: false), "mirroring_off")
         XCTAssertEqual(kind(secret, step: .leaveApp, inFront: true), "on_screen")
         XCTAssertEqual(kind(DeviceError(message: "timeout")), "timeout")

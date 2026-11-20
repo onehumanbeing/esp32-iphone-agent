@@ -51,8 +51,8 @@ import UIKit
 
     var busy: Bool { phase.step != nil }
 
-    /// The mouse is up (board connected, USB HID mounted).
-    var boardReady: Bool { app.board.connected && app.board.status?.usb == "ok" }
+    /// Calibration needs both the control link and a working pointer.
+    var boardReady: Bool { app.board.connected && app.board.status?.inputReady == true }
     var mirroring: Bool { app.board.status?.ap == "streaming" }
 
     /// Calibration is due: never done, the screen shape changed, or the learned correction drifted.
@@ -140,8 +140,8 @@ import UIKit
         var noTaps = false
         if boardOpen {
             do {
-                var result = try await touchCalibrate(full: true)
-                if shaky(result), await waitForYoungBoard() { result = try await touchCalibrate(full: true) }
+                var result = try await tunedTouchCalibrate()
+                if shaky(result), await waitForYoungBoard() { result = try await tunedTouchCalibrate() }
                 switch result {
                 case .done(let error): return finished(error)
                 case .noTaps: noTaps = true
@@ -157,11 +157,15 @@ import UIKit
         await videoCalibrate(noTaps: noTaps)
     }
 
-    /// The fallback: find the pointer in the mirrored video.
     /// Right after it powers up, the board's USB drops reports for up to a minute: moves land short and clicks
     /// go missing (2026-11-11, users' diagnostics: probe clicks 3 of 10 arrived, 15-60 s after power-up; check
     /// taps rejected far off). A calibration that went wrong then is tried once more after the board settled.
-    static let settledAfter = 60.0, youngBelow = 90.0
+    static func usbStartupRetry(_ status: BoardStatus?) -> (uptime: Double, delay: Double)? {
+        guard let status, !status.isWirelessHID, status.inputState != nil, let ms = status.up else { return nil }
+        let uptime = Double(ms) / 1000
+        guard uptime < 90 else { return nil }
+        return (uptime, max(60 - uptime, 10))
+    }
 
     private func shaky(_ r: TouchResult) -> Bool {
         if case .done(let error) = r { return error > Self.rejectAbove }
@@ -171,17 +175,58 @@ import UIKit
     /// Waits for a board that powered up moments ago; false (at once) for one that has been up a while.
     private func waitForYoungBoard() async -> Bool {
         try? await app.board.refreshStatus()
-        guard let ms = app.board.status?.up, Double(ms) / 1000 < Self.youngBelow else { return false }
-        let wait = max(Self.settledAfter - Double(ms) / 1000, 10)
-        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+        guard let retry = Self.usbStartupRetry(app.board.status) else { return false }
+        app.say(String(format: "calibration: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
         reason = String(localized: "the board just started; trying again")
         progress = nil
-        try? await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+        try? await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
         return !Task.isCancelled
     }
 
+    /// Touch calibration. iPad over Bluetooth: a homing that brought down a system panel or stopped short of the top
+    /// changes how far home pushes up (HomeTuning, kept per model and orientation) and calibration starts again,
+    /// three times at most.
+    private func tunedTouchCalibrate() async throws -> TouchResult {
+        for attempt in 0... {
+            do {
+                return try await touchCalibrate(full: true)
+            } catch let miss as HomeTuning.Miss {
+                let landscape = DeviceScreen.size.width > DeviceScreen.size.height
+                let n = HomeTuning.value(landscape: landscape)
+                let what: String
+                switch miss {
+                case .panel: what = "brought down a system panel"
+                case .short(let below): what = String(format: "stopped %.1f%% below the top", below * 100)
+                }
+                if miss == .panel, !(await closePanel()) {
+                    app.say("calibration: home pushing up \(n) reports \(what), and it did not go away")
+                    return .failed("a system panel covers the app")
+                }
+                guard attempt < 3, let next = HomeTuning.next(after: miss, from: n) else {
+                    app.say("calibration: home pushing up \(n) reports \(what); no other count to try")
+                    return .failed("homing \(what)")
+                }
+                HomeTuning.store(next, landscape: landscape)
+                app.say("calibration: home pushing up \(n) reports \(what); trying \(next)")
+            }
+        }
+        return .failed("homing")
+    }
+
+    /// Notification Center covers the app: the pointer going down to the bottom edge puts it away (iPad Air M3,
+    /// 2026-11-20). No swipe: a swipe up from the bottom edge that arrives once the panel is gone turns the app into
+    /// a window, and calibration needs it full screen. True once the app is in front again (up to 3 s).
+    private func closePanel() async -> Bool {
+        _ = try? await app.board.commands.send("move 0 2000 40")  // to the bottom edge, where the pointer stops
+        app.pointer.forgetPosition()
+        for _ in 0..<30 where !DeviceScreen.sceneActive { try? await Task.sleep(nanoseconds: 100_000_000) }
+        app.say(DeviceScreen.sceneActive ? "calibration: the panel went away" : "calibration: a panel still covers the app")
+        return DeviceScreen.sceneActive
+    }
+
+    /// The fallback: find the pointer in the mirrored video.
     private func videoCalibrate(noTaps: Bool) async {
-        let diagnosis = noTaps ? Self.noTapsText : nil
+        let diagnosis = noTaps ? noTapsText : nil
         guard mirroring else { return failed(diagnosis ?? String(localized: "Mirroring is off, so the pointer can't be seen.")) }
         guard FrameMode.current == .stream else {  // the video finder needs the live stream
             app.say("calibration: video fallback skipped in snap mode")
@@ -206,8 +251,11 @@ import UIKit
         }
     }
 
-    static var noTapsText: String {
-        String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
+    private var noTapsText: String {
+        if app.board.status?.isWirelessHID == true {
+            return String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone.")
+        }
+        return String(localized: "Clicks aren't reaching the screen — is AssistiveTouch on and the board plugged into this iPhone?")
     }
 
     /// error: the check's miss, nil when no check could be made (the calibration is kept, unchecked).
