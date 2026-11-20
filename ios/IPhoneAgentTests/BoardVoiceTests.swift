@@ -40,6 +40,17 @@ import XCTest
         XCTAssertEqual(BoardVoice.unlabelled("[x] keep"), "[x] keep")
     }
 
+    func testAnswerGoesInPartsOfWholeCharacters() {
+        let text = String(repeating: "天气很好。", count: 30)  // 450 bytes
+        let lines = StopWatchUI.answerLines(text, room: 100)
+        XCTAssertTrue(lines.first!.hasPrefix("answer ") && lines.dropFirst().allSatisfy { $0.hasPrefix("answer+ ") })
+        XCTAssertTrue(lines.allSatisfy { $0.utf8.count <= 100 })
+        XCTAssertEqual(lines.map { $0.split(separator: " ", maxSplits: 1)[1] }.joined(), text)
+        let long = StopWatchUI.answerLines(String(repeating: "a", count: 900), room: 170)
+        XCTAssertEqual(long.map { $0.split(separator: " ", maxSplits: 1)[1].count }.reduce(0, +), StopWatchUI.maxAnswer)
+        XCTAssertEqual(StopWatchUI.answerLines("  ", room: 100), [])
+    }
+
     func testTheUILineSaysTheAppTakesVoice() throws {
         let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle)))
         XCTAssertTrue(line.contains(#""v":1"#), line)

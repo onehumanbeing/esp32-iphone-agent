@@ -434,6 +434,9 @@ extension AppModel {
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
         live.end((outcome.mood, last.map(StepText.line) ?? ""), asksVerdict: outcome == .done)
+        if outcome == .done, let answer = last?["answer"]?.str ?? last?["message"]?.str, !answer.isEmpty {
+            board.commands.sendAnswer(answer)  // a StopWatch shows it (StopWatchUI); other boards: nothing
+        }
         runs.reload()
         let summary = String(localized: "\(moveCount) steps · \(seconds.durationText)")
         switch outcome {

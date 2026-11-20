@@ -335,6 +335,18 @@ extension BoardTransport {
         }
     }
 
+    /// A done task's answer for the StopWatch's screen (it pages through it; blue closes it). Only to a StopWatch.
+    func sendAnswer(_ text: String) {
+        guard StopWatchUI.enabled(boardStatus()), let transport else { return }
+        let lines = StopWatchUI.answerLines(text, room: transport.maxWrite - "\(nextID) ".utf8.count - 4)
+        guard !lines.isEmpty else { return }
+        Task {
+            for line in lines {
+                do { try await send(line) } catch { return DebugLog.write("stopwatch: answer not sent: \(error.localizedDescription)") }
+            }
+        }
+    }
+
     /// `btn <verb> [arg]`, sent by the board on its own. Only a StopWatch's are heard.
     private func button(_ text: String) {
         guard StopWatchUI.enabled(boardStatus()) else { return }
@@ -453,6 +465,23 @@ enum StopWatchUI {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return (try? encoder.encode(p)).flatMap { String(data: $0, encoding: .utf8) }.map { "ui " + $0 }
+    }
+
+    /// The board keeps this much of a done task's answer (SW_ANSWER_MAX, about 6 pages); the app has all of it.
+    static let maxAnswer = 600
+
+    /// `answer <part>` then `answer+ <part>`: the text in whole characters, each line within `room` bytes.
+    static func answerLines(_ text: String, room: Int) -> [String] {
+        var rest = truncated(text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces), bytes: maxAnswer)
+        var lines: [String] = []
+        while !rest.isEmpty {
+            let prefix = lines.isEmpty ? "answer " : "answer+ "
+            let part = truncated(rest, bytes: Swift.max(1, room - prefix.utf8.count))
+            guard !part.isEmpty else { break }
+            lines.append(prefix + part)
+            rest = String(rest.dropFirst(part.count))
+        }
+        return lines
     }
 
     /// The board shows this much of what was heard (SW_SAID_MAX); the app keeps all of it to run.
