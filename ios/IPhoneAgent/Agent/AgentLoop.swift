@@ -8,6 +8,8 @@ import Foundation
     func drag(_ points: [CGPoint], hold: Bool) async throws
     /// nil: all of it went in; else what did not (Pointer.type).
     func type(_ text: String) async throws -> String?
+    /// `type`, with what is left to paste when the pinyin keyboard could not give a word (HanTyper.Stop.rest).
+    func typeStop(_ text: String) async throws -> HanTyper.Stop?
     func key(_ combo: String) async throws
     func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
     /// again: the previous step was Home too and changed little (Pointer.goHome).
@@ -29,6 +31,7 @@ extension Gestures {
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
     func pointerSeen(near p: CGPoint) async -> Bool? { nil }
     func homeKey() async throws { try await goHome(again: false) }  // fakes
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? { try await type(text).map { .init(note: $0) } }  // fakes
 }
 
 /// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own

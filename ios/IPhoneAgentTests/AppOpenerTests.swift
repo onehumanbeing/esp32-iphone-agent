@@ -184,7 +184,8 @@ import XCTest
         let agent = AgentLoop(phone: phone, screen: screen, actor: actor, planner: nil, trace: nil)
         _ = try await agent.step()
         let line = AgentLoop.effect(try XCTUnwrap(agent.steps.last))
-        XCTAssertTrue(line.contains("typing stopped: \"龘\" is not among"), line)
+        XCTAssertTrue(line.contains("typing stopped: If the screen already lists"), line)  // a listed target first
+        XCTAssertTrue(line.contains("tap it instead of typing more. \"龘\" is not among"), line)
     }
 
     /// The results come up after the first look: an empty field over Siri Suggestions, then "WeChat" in the field

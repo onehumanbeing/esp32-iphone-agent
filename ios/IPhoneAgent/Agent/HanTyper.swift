@@ -69,7 +69,8 @@ enum TypeStop {
 /// otherwise), checked on the next look. A word not among the candidates is retried in pairs of characters (3 or
 /// 4 of them), then character by character. Bounded: a piece is typed once more after one ctrl+space, and split
 /// at most twice (characters are never split again); anything that does not check out is cleared (only the uncommitted pinyin, never text
-/// already in the field) and the typing stops with a note for the model.
+/// already in the field) and the typing stops with a note for the model. When the field then holds exactly what was
+/// typed, the stop says what is left (`Stop.rest`), and the agent pastes that instead (AgentLoop.pasteInstead).
 @MainActor struct HanTyper {
     struct Seen {
         var words: [(text: String, box: [Int])]
@@ -88,21 +89,34 @@ enum TypeStop {
     /// Labels on the keyboard itself, not candidates (the return key turns to 选定 while composing).
     static let keyLabels: Set<String> = ["空格", "选定", "确认", "拼音", "拼", "换行", "发送", "搜索", "前往", "完成"]
 
+    /// A typing that stopped: the note for the model, and `rest` when the field holds what was typed (the letters of
+    /// the word that failed cleared: not offered, not shown after its commit, the keyboard stuck in English), so the
+    /// rest can go in another way. nil when it cannot (symbols that came out wrong, the board stopping).
+    struct Stop: Equatable {
+        var note: String
+        var rest: String? = nil
+    }
+
     /// Types `text`; nil = typed and checked (or no screen to check), else what went wrong and what is left.
     /// `checkLetters`: the keyboard may be pinyin (unknown), so letters are checked not to stay uncommitted.
     func type(_ text: String, checkLetters: Bool = true) async throws -> String? {
+        try await attempt(text, checkLetters: checkLetters)?.note
+    }
+
+    /// `type`, with what is left when the rest may be pasted.
+    func attempt(_ text: String, checkLetters: Bool = true) async throws -> Stop? {
         do { return try await typeBody(text, checkLetters: checkLetters) }
         catch let halt as TypeHalted {
-            return "typing stopped (\(halt.why)); not typed: \"\(halt.left)\""
+            return Stop(note: "typing stopped (\(halt.why)); not typed: \"\(halt.left)\"")
         }
     }
 
     /// A stopped `type` command, with what this piece and the queue still owe the field.
-    private func stopped(_ halt: TypeHalted, typed: String, piece: Piece, queue: ArraySlice<Piece>) -> String {
-        "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(halt.left)\(queue.map(\.text).joined())\""
+    private func stopped(_ halt: TypeHalted, typed: String, piece: Piece, queue: ArraySlice<Piece>) -> Stop {
+        Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(halt.left)\(queue.map(\.text).joined())\"")
     }
 
-    private func typeBody(_ text: String, checkLetters: Bool) async throws -> String? {
+    private func typeBody(_ text: String, checkLetters: Bool) async throws -> Stop? {
         var queue = Self.pieces(text)[...]
         var typed = ""
         let checked = checkLetters || queue.contains {
@@ -114,8 +128,18 @@ enum TypeStop {
         // pinyin, and the number key that was to pick it)
         var pending: (word: String, base: String, left: Int)?
         func remaining(_ piece: Piece) -> String { ([piece] + queue).map(\.text).joined() }
-        func stop(_ why: String, _ piece: Piece) -> String {
-            "\(why); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
+        /// The failed word's letters are cleared and the field holds `typed`, so the rest may be pasted.
+        func stop(_ why: String, _ piece: Piece) -> Stop {
+            Stop(note: "\(why); typed \"\(typed)\", not typed: \"\(remaining(piece))\"", rest: remaining(piece))
+        }
+        /// The pending word did not show up (its pinyin still read in the field) and its letters were cleared: it is
+        /// owed too, so the rest starts with it (2026-11-20: 西岸 did not show up and the run stopped there).
+        func notShown(_ piece: Piece?) -> Stop {
+            let word = pending!.word
+            typed.removeLast(word.count)
+            let rest = word + (piece.map(remaining) ?? "")
+            return Stop(note: "\"\(word)\" did not show up in the field after committing it (cleared); typed \"\(typed)\", not typed: \"\(rest)\"",
+                        rest: rest)
         }
         /// The next look: checks the pending word against it and finds the candidate row (relative to `last`).
         func next() async -> (seen: Seen, row: [Int], ok: Bool)? {
@@ -146,7 +170,7 @@ enum TypeStop {
                 guard var seen = await next() else { typed += s; continue }
                 if !seen.ok {
                     try await erase(plain.count + pending!.left)
-                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
+                    return notShown(piece)
                 }
                 pending = nil
                 if letters, seen.row.count >= 2 {  // the letters are pinyin being composed: English keyboard, again
@@ -163,16 +187,16 @@ enum TypeStop {
                 }
                 typed += s
                 if Self.symbolsWrong(plain, symbols, now: seen.seen, row: seen.row, before: before, beforeRow: lastRow) {
-                    return "the symbols \(String(symbols)) came out as other characters: the \(DeviceKind.name)'s hardware keyboard layout"
+                    return Stop(note: "the symbols \(String(symbols)) came out as other characters: the \(DeviceKind.name)'s hardware keyboard layout"
                         + " is not U.S. (Settings > General > Keyboard > Hardware Keyboard); typed \"\(typed)\" with them"
-                        + " wrong, not typed: \"\(queue.map(\.text).joined())\""
+                        + " wrong, not typed: \"\(queue.map(\.text).joined())\"")
                 }
                 last = seen.seen; lastRow = Set(seen.row)
             case .han(let word):
                 let pinyin = Pointer.typeable(word)
                 do { try await emit(pinyin) }
                 catch let halt as TypeHalted {
-                    return "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
+                    return Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\"")
                 }
                 guard last != nil, var seen = await next() else {  // no screen: commit the first candidate blind
                     try await key("space")
@@ -181,7 +205,7 @@ enum TypeStop {
                 }
                 if !seen.ok {
                     try await erase(pinyin.count + pending!.left)
-                    return stop("\"\(pending!.word)\" did not show up in the field after committing it (cleared)", piece)
+                    return notShown(piece)
                 }
                 pending = nil
                 let base = Self.fieldText(last!, minus: Array(lastRow))
@@ -191,7 +215,7 @@ enum TypeStop {
                     try await toggle()
                     do { try await emit(pinyin) }
                     catch let halt as TypeHalted {
-                        return "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\""
+                        return Stop(note: "typing stopped (\(halt.why)); typed \"\(typed)\", not typed: \"\(remaining(piece))\"")
                     }
                     guard let again = await next() else { try await key("space"); typed += word; continue }
                     guard !again.row.isEmpty else {
@@ -224,7 +248,7 @@ enum TypeStop {
         }
         if pending != nil, let seen = await next(), !seen.ok {
             try await erase(pending!.left)
-            return "\"\(pending!.word)\" did not show up in the field after committing it (cleared); typed \"\(typed)\""
+            return notShown(nil)
         }
         return nil
     }

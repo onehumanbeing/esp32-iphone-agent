@@ -235,7 +235,7 @@ enum TypedGuard {
 
     static func reason(_ left: String) -> String {
         "Not done: the last type stopped part way (\(left)), so the field may hold letters instead of the words. "
-            + "Check the field; clear it and type again if it is wrong, before sending."
+            + SendGuard.listedHint + "Else check the field; if it is wrong, \(SendGuard.clearHint) and type again, before sending."
     }
 }
 
