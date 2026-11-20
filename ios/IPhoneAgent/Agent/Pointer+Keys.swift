@@ -21,7 +21,10 @@ extension Pointer {
         let typed = han ? Self.typeable(text) : Accents.plan(text).typed
         if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
         guard !typed.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII and accented Latin letters)") }
-        let layout = try await matchKeyboard(pinyin: han)
+        // Chinese: HanTyper tells the keyboard from the field after the first word's space. The on-screen keyboard
+        // is hidden with the board as a hardware keyboard: it read "English" every time, and ctrl+space on the
+        // pinyin keyboard switched it to English (2026-11-20, 5–6 s lost per type)
+        let layout = han ? .none : try await matchKeyboard(pinyin: false)
         let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
                              toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }

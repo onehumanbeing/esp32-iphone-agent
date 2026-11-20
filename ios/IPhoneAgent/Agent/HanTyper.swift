@@ -73,8 +73,9 @@ enum TypeStop {
 /// candidate bar first: space when it is the first candidate, its digit for a single character further on, the
 /// first candidate unread (checked in the field) when the bar is not read. A word not read back but whose pinyin is
 /// gone is taken as committed (OCR misses characters in the field too). The first word, and the first after
-/// English letters, is read from the bar too: that tells a pinyin keyboard from an English one (letters left in the
-/// field after space), switched once with ctrl+space. Bounded: words are split at most twice (characters are never
+/// English letters, goes in with space and is read back at once: Chinese in the field = pinyin keyboard, its letters
+/// = English (deleted, ctrl+space once, typed again once). The bar is not read for it (hidden with a hardware
+/// keyboard, and search suggestions read as candidates). Bounded: words are split at most twice (characters are never
 /// split again), a word is retyped once after ctrl+space; anything that does not check out is cleared (only what
 /// this typing put in) and the typing stops with a note for the model (`not typed: "…"`). When the field then holds
 /// exactly what was typed, the stop says what is left (`Stop.rest`).
@@ -275,9 +276,14 @@ enum TypeStop {
                     DebugLog.write("type: \"\(word)\" (\(pinyin)): first candidate, read back later")
                     continue
                 }
-                guard let seen = await next() else { try await key("space"); typed += word; continue }
+                // the keyboard is told from the field, never the bar: with the board as a hardware keyboard iOS hides
+                // the on-screen keyboard, and Amap's suggestions read as candidates (2026-11-20: "上" not among the
+                // candidates, a 3 typed to pick 西). Until a commit showed pinyin, the first candidate goes in with
+                // space, the bar not read.
+                let read: (seen: Seen, row: [Int])? = pinyinSeen ? await next() : (last!, Array(lastRow))
+                guard let seen = read else { try await key("space"); typed += word; continue }
                 let base = Self.fieldText(last!, minus: Array(lastRow))
-                let words = seen.row.map { seen.seen.words[$0].text }
+                let words = pinyinSeen ? seen.row.map { seen.seen.words[$0].text } : []
                 if let at = Self.choice(word, in: words), at == 0 || word.count == 1 {
                     pinyinSeen = true
                     if at == 0, item.firstWrong {  // read first in the bar, but it showed up as another word
@@ -329,7 +335,7 @@ enum TypeStop {
                 try await key("space")
                 guard let after = await next() else { typed += word; continue }
                 if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased()) {
-                    // the letters stayed in the field after space: English keyboard
+                    // the letters stayed in the field after space: English keyboard (ctrl+space only for this)
                     try await erase(pinyin.count + 1)
                     if item.toggled { return stop("the Chinese (pinyin) keyboard did not come up with ctrl+space (cleared)", piece) }
                     try await toggle()

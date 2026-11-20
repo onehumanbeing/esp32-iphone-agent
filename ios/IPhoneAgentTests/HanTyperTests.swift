@@ -19,6 +19,8 @@ import XCTest
     var barAsOneWord = false
     /// OCR reads nothing of the candidate bar (2026-11-20: 中 and 西 "not among the candidates").
     var barHidden = false
+    /// OCR reads nothing of the field either.
+    var fieldHidden = false
     var looks = 0
 
     init(knowing text: String) {
@@ -61,7 +63,7 @@ import XCTest
     }
 
     var seen: HanTyper.Seen {
-        var words: [(text: String, box: [Int])] = [(field + composing, [20, 280, 700, 320])]
+        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : field + composing, [20, 280, 700, 320])]
         let row = barHidden ? [] : !composing.isEmpty ? candidates(composing) : committed ? association : []
         guard barAsOneWord else {
             for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
@@ -160,14 +162,14 @@ import XCTest
         XCTAssertTrue(unsure?.note.contains("typed \"\", not typed: \"北\"") == true, unsure?.note ?? "nil")
     }
 
-    /// 2026-11-20 device run: 上海西岸艺术中心 in four words; the bar read once, the field once for the rest.
+    /// 2026-11-20 device run: 上海西岸艺术中心 in four words; the field read after the first and once for the rest.
     func testTheWholeTextGoesInWithFewReads() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         let stop = try await ime.typer().attempt("上海西岸艺术中心")
         XCTAssertNil(stop)
         XCTAssertEqual(ime.field, "上海西岸艺术中心")
         XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
-        XCTAssertLessThanOrEqual(ime.looks, 3, "before, the screen, the first word's bar, the field once")
+        XCTAssertLessThanOrEqual(ime.looks, 3, "the screen before, the field after the first word, the field once for the rest")
     }
 
     /// The bar is never read: each first candidate is right, checked in the field, and nothing stops.
@@ -179,6 +181,29 @@ import XCTest
         XCTAssertEqual(ime.field, "上海西岸艺术中心")
         XCTAssertEqual(ime.composing, "")
         XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
+        XCTAssertFalse(ime.sent.contains("toggle"), "an unread bar is no reason for ctrl+space: \(ime.sent)")
+    }
+
+    /// Nothing read back at all: what went in stays, nothing is deleted, no ctrl+space.
+    func testAFieldNotReadBackIsKept() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.barHidden, ime.fieldHidden) = (true, true)
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertFalse(ime.sent.contains("key backspace") || ime.sent.contains("toggle"), "\(ime.sent)")
+    }
+
+    /// English keyboard, bar hidden: the first word's letters show in the field after space; deleted, one
+    /// ctrl+space, typed again, and the rest goes in.
+    func testAnEnglishKeyboardIsToldFromTheField() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.pinyin, ime.barHidden) = (false, true)
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        XCTAssertFalse(ime.sent.contains { $0.hasPrefix("type ") && $0.dropFirst(5).allSatisfy(\.isNumber) }, "no digit picks: \(ime.sent)")
     }
 
     /// A first candidate that is another word (西安 for xi'an) is read in the field, deleted with the words after
