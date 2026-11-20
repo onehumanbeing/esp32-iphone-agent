@@ -402,6 +402,7 @@ extension AppModel {
             guard !appIsBackgrounded, !Task.isCancelled else { return false }
             guard await UIApplication.shared.open(url) else { continue }
             var away = (try? await waitForBackground(0.8)) ?? false
+            if !away { toast = Toast(text: Self.openPromptNote) }  // still here: most likely iOS asks first
             // iOS asks "在“美团外卖”中打开？" for a scheme: the board taps 打开 / Open (Henry 2026-11-17: tapped by
             // hand each time). Only a prompt line that is just that word, read on the mirrored screen.
             if !away, await tapOpenPrompt() { away = (try? await waitForBackground(3)) ?? false }
@@ -412,6 +413,9 @@ extension AppModel {
         }
         return false
     }
+
+    /// Over Home while iOS asks "Open in “X”?" (only the first time a scheme opens that app), so the tap is no surprise.
+    static var openPromptNote: String { String(localized: "The first time, iOS asks to open the app: the agent taps Open.") }
 
     /// The system prompt that asks before another app opens: its 打开 / Open button, tapped by the board.
     static let openWords = ["打开", "Open", "開啟", "打開"]

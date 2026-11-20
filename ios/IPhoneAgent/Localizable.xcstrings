@@ -416,7 +416,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 App 中忘记这块板子"
+            "value" : "在本 App 中忘记这块板子"
           }
         }
       }
@@ -446,7 +446,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在“设置 › 蓝牙”中，如果列出了 %@，将其忽略。"
+            "value" : "如果 设置 › 蓝牙 中列有 %@，将其忽略。"
           }
         }
       }
@@ -1217,6 +1217,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这个文件会从这台 iPhone 上删除。"
+          }
+        }
+      }
+    },
+    "The first time, iOS asks to open the app: the agent taps Open." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一次打开时，iOS 会询问是否打开该 App：Agent 会点“打开”。"
           }
         }
       }
