@@ -212,7 +212,8 @@ extension AppModel {
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
             step = .leaveApp
             var openedAtStart: String?
-            if !resume { carryClipboard(task, inFront: !startedAway) }  // still in front: before the app is left
+            // No clipboard carry (Henry 2026-11-20): cmd+v into another app asks "Allow Paste" first, so typing stays
+            // the way; carryClipboard and the paste path stay for later.
             if !resume || agent.guides.isEmpty { AppGuides.shared.prefetch() }  // answered while the app opens and the first frame comes
             if let schemeApp, await openByScheme(schemeApp) {
                 openedAtStart = schemeApp
