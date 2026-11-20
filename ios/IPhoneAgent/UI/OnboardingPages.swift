@@ -43,16 +43,21 @@ enum Disclaimer {
 /// 1 · Connect the board: Bluetooth permission, scan, pair (automatically when only one board is found).
 struct ConnectPage: View {
     @ObservedObject var board: BoardLink
+    @Binding var toBluetooth: Bool  // switched to Bluetooth on this page: BluetoothSteps instead of the offer
     @State private var stuck = false
+
+    private var wireless: Bool { board.status?.isWirelessHID == true || DeviceCaps.hasLightning }
 
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: board.connected ? .success : board.scanning ? .listening : .sleeping,
-                       title: board.status?.isWirelessHID == true ? "Connect the board" : "Plug Me In",
+                       title: wireless ? "Connect the board" : "Plug Me In",
                        message: board.status?.isWirelessHID == true
                            ? "Keep the Bluetooth board powered on and near this iPhone."
+                           : wireless
+                           ? "Power the board from any USB charger and keep it near this iPhone. I'll find it over Bluetooth; tap Pair when iOS asks."
                            : "Connect the board to the USB-C port. I'll find it over Bluetooth; tap Pair when iOS asks.")
-            if !board.connected { MiniPhoneDemo(kind: .plugIn) }
+            if !board.connected && !wireless { MiniPhoneDemo(kind: .plugIn) }
             Panel {
                 switch board.state {
                 case .unauthorized:
@@ -65,6 +70,11 @@ struct ConnectPage: View {
                 default:
                     boards
                 }
+            }
+            if toBluetooth {
+                Panel { BluetoothSteps(board: board) }
+            } else if board.connected {
+                LightningAdvice(board: board, toBluetooth: $toBluetooth)
             }
             if !board.connected { FirmwareLinks() }
             if !board.connected && !MockMode.on { DemoOffer() }
@@ -126,6 +136,55 @@ struct ConnectPage: View {
 
 /// The board isn't found, or the remembered one won't connect: how to pair it again from the start. The board takes a
 /// new phone only in the 3 minutes after power-on (ble_link.cpp PAIR_WINDOW_MS). Shown once it has been stuck a while.
+/// A Lightning iPhone can't take the board's USB mouse: switch a --dual-hid board to Bluetooth, or point an
+/// older USB-only board at the Bluetooth firmware.
+struct LightningAdvice: View {
+    @ObservedObject var board: BoardLink
+    @Binding var toBluetooth: Bool
+    @State private var busy = false
+    @State private var error: String?
+
+    var body: some View {
+        switch DeviceCaps.bluetoothAdvice(lightning: DeviceCaps.hasLightning, status: board.status) {
+        case .none: EmptyView()
+        case .switchInput:
+            Panel {
+                Label("This iPhone has no USB-C port, so the board has to be its Bluetooth mouse.", systemImage: "cable.connector.slash")
+                    .font(.subheadline)
+                Button { switchToBluetooth() } label: {
+                    HStack { Text("Switch the Board to Bluetooth"); if busy { Spacer(); ProgressView() } }
+                }
+                .font(.body.weight(.semibold)).disabled(busy).padding(.top, Space.m)
+                if let error { Text(error).font(.footnote).foregroundStyle(.red).padding(.top, Space.s) }
+            }
+        case .needsFirmware:
+            Panel {
+                Label("This iPhone has no USB-C port, so the board has to be its Bluetooth mouse, and its firmware is USB only.",
+                      systemImage: "cable.connector.slash")
+                    .font(.subheadline)
+                Text("On a computer, open \(FirmwareLinks.install.absoluteString), plug the board into it and install the Bluetooth firmware. Then come back here.")
+                    .font(.footnote).foregroundStyle(.secondary).padding(.top, Space.s)
+                Link(destination: FirmwareLinks.install) { Text(verbatim: "manina.ai/install") }
+                    .font(.footnote.weight(.semibold)).padding(.top, Space.s)
+            }
+        }
+    }
+
+    private func switchToBluetooth() {
+        busy = true
+        error = nil
+        Task {
+            do {
+                try await BluetoothSteps.switchInput(to: "ble", on: board)
+                toBluetooth = true
+            } catch {
+                self.error = String(localized: "The board did not switch: \(error.localizedDescription)")
+            }
+            busy = false
+        }
+    }
+}
+
 struct BoardRepairHint: View {
     @ObservedObject var board: BoardLink
     let stuck: Bool

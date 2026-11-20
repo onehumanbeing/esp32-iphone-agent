@@ -441,6 +441,16 @@
         }
       }
     },
+    "In Settings › Accessibility › Touch, turn on AssistiveTouch, then under Devices › Bluetooth Devices tap %@. Once per %@; the app itself stays paired." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置” › “辅助功能” › “触控”中打开“辅助触控”，然后在“设备” › “蓝牙设备”中点 %1$@。每台 %2$@ 只需一次；App 本身保持配对。"
+          }
+        }
+      }
+    },
     "In Settings › Bluetooth, forget %@ if it is listed." : {
       "localizations" : {
         "zh-Hans" : {
@@ -751,6 +761,16 @@
         }
       }
     },
+    "On a computer, open %@, plug the board into it and install the Bluetooth firmware. Then come back here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在电脑上打开 %@，把板子插到电脑上，安装蓝牙固件。然后回到这里。"
+          }
+        }
+      }
+    },
     "Only what can't be undone" : {
       "localizations" : {
         "zh-Hans" : {
@@ -777,6 +797,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 App 并校准指针。"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth mouse" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对蓝牙鼠标"
           }
         }
       }
@@ -817,6 +847,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴你套餐里的 key"
+          }
+        }
+      }
+    },
+    "Power it from any USB charger: it no longer needs this %@'s port." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用任意 USB 充电器给它供电即可，不再需要这台 %@ 的接口。"
+          }
+        }
+      }
+    },
+    "Power the board from any USB charger and keep it near this iPhone. I'll find it over Bluetooth; tap Pair when iOS asks." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用任意 USB 充电器给板子供电，放在这台 iPhone 旁边。我会通过蓝牙找到它；iOS 询问时点“配对”。"
           }
         }
       }
@@ -1061,6 +1111,36 @@
         }
       }
     },
+    "Start Screen Mirroring again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新开启屏幕镜像"
+          }
+        }
+      }
+    },
+    "Swipe down from the top-right corner and tap Screen Mirroring › %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从右上角向下轻扫，点“屏幕镜像” › %@。"
+          }
+        }
+      }
+    },
+    "Switch the Board to Bluetooth" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把板子切换到蓝牙"
+          }
+        }
+      }
+    },
     "The Files tab also lists the app's own data (runs, chats, intent screens) and test tools. Deleting those can break runs and intents." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1207,6 +1287,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App 需要用到它，不能重命名或删除。"
+          }
+        }
+      }
+    },
+    "The board restarts as a Bluetooth mouse" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子重启为蓝牙鼠标"
           }
         }
       }
@@ -1607,6 +1697,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这些文件只保存在这台 iPhone 的这个 App 里。「记忆」里是 Agent 记住的内容和它保存的结果。用 ⋯ 可以新建文件夹或笔记、导入文件、导出文件夹。"
+          }
+        }
+      }
+    },
+    "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse, and its firmware is USB only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 没有 USB-C 接口，所以板子要作为它的蓝牙鼠标，但它现在的固件只支持 USB。"
+          }
+        }
+      }
+    },
+    "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 没有 USB-C 接口，所以板子要作为它的蓝牙鼠标。"
           }
         }
       }

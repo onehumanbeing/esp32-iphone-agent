@@ -20,6 +20,7 @@ struct OnboardingView: View {
     @State private var lanSSID = ""
     @State private var lanPass = ""
     @State private var lanRemember = true
+    @State private var toBluetooth = false  // Connect page: the board was switched to Bluetooth (BluetoothSteps)
 
     init(app: AppModel, board: BoardLink, feed: VideoFeed, settings: Settings, calibrator: AutoCalibrator,
          pointer: Pointer, start: SetupPage) {
@@ -54,7 +55,7 @@ struct OnboardingView: View {
             let from = page
             Task {
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                if page == from && (from != .act || pageDone) { advance() }
+                if page == from && ((from != .act && from != .connect) || pageDone) { advance() }
             }
         }
     }
@@ -125,7 +126,9 @@ struct OnboardingView: View {
     var pageDone: Bool {
         switch page {
         case .welcome: return false
-        case .connect: return board.connected
+        case .connect:  // a Lightning iPhone stays to read the Bluetooth advice or steps; Continue moves on
+            return board.connected && !toBluetooth
+                && DeviceCaps.bluetoothAdvice(lightning: DeviceCaps.hasLightning, status: board.status) == .none
         case .see: return streaming
         case .act: return calibrator.hasValidCalibration && !calibrator.busy && !board.needsWirelessPointer
         case .brain: return app.modelOK == true
@@ -220,8 +223,8 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true)
-        case .connect: ConnectPage(board: board)
+        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning)
+        case .connect: ConnectPage(board: board, toBluetooth: $toBluetooth)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
                            lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)
         case .act: ActPage(app: app, board: board, calibrator: calibrator, pointer: pointer)

@@ -12,6 +12,35 @@ enum DeviceCaps {
         return !(CTTelephonyNetworkInfo().serviceSubscriberCellularProviders ?? [:]).isEmpty
     }
 
+    /// This iPhone charges over Lightning, so the board cannot be its USB mouse: it has to be a Bluetooth one.
+    static var hasLightning: Bool { usesLightning(model: DeviceInfo.model) }
+
+    /// "iPhone14,7" -> true. USB-C came with iPhone15,4/15,5 (iPhone 15 / 15 Plus) and iPhone16,x (15 Pro); every
+    /// later model has it (iPhone17,5 = 16e included). iPhone15,2/15,3 are the 14 Pro / Pro Max, still Lightning.
+    /// Anything that is not an iPhone (iPad, simulator "arm64") -> false.
+    static func usesLightning(model: String) -> Bool {
+        guard model.hasPrefix("iPhone") else { return false }
+        let n = model.dropFirst("iPhone".count).split(separator: ",").compactMap { Int($0) }
+        guard n.count == 2 else { return false }
+        return n[0] < 15 || (n[0] == 15 && n[1] <= 3)
+    }
+
+    /// What setup tells a Lightning iPhone about the connected board's input.
+    enum BluetoothAdvice: Equatable {
+        case none             // USB-C iPhone, nothing connected yet, or the board is already a Bluetooth mouse
+        case switchInput      // a --dual-hid board in USB mode: one tap switches it to Bluetooth
+        case needsFirmware    // USB-only firmware (no hidm): flash the Bluetooth firmware first
+    }
+
+    static func bluetoothAdvice(lightning: Bool, status: BoardStatus?) -> BluetoothAdvice {
+        guard lightning, let status, !status.isWirelessHID else { return .none }
+        switch status.hidm {
+        case "usb"?: return .switchInput
+        case nil: return .needsFirmware
+        default: return .none
+        }
+    }
+
     /// The board's default AirPlay display (`res`), what an iPhone always gets: it streams 718x1560 from it.
     static let phoneDisplay = (w: 480, h: 1040)
 

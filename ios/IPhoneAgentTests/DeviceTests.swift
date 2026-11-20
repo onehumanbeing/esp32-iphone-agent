@@ -334,6 +334,34 @@ import XCTest
         XCTAssertNil(try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8))).hidm, "single-mode firmware")
     }
 
+    /// Lightning up to the 14 Pro (iPhone15,3); USB-C from the iPhone 15 (iPhone15,4), the 16e included.
+    func testLightningModels() {
+        for m in ["iPhone10,6", "iPhone12,8", "iPhone14,5", "iPhone14,6", "iPhone14,7", "iPhone14,8", "iPhone15,2", "iPhone15,3"] {
+            XCTAssertTrue(DeviceCaps.usesLightning(model: m), m)
+        }
+        for m in ["iPhone15,4", "iPhone15,5", "iPhone16,1", "iPhone16,2", "iPhone17,1", "iPhone17,5", "iPhone18,1",
+                  "iPad14,1", "arm64", "x86_64", "iPhone", ""] {
+            XCTAssertFalse(DeviceCaps.usesLightning(model: m), m)
+        }
+    }
+
+    /// Setup on a Lightning iPhone: a dual board in USB mode gets the switch, USB-only firmware the firmware hint;
+    /// a Bluetooth board and every USB-C iPhone see nothing new.
+    func testLightningSetupAdvice() throws {
+        let dualUSB = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"usb","usb":"ok"}"#.utf8)))
+        let dualBLE = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"ble","hid":"off","usb":"ok"}"#.utf8)))
+        let usbOnly = try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8)))
+        let bleOnly = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"note4","hid":"ok"}"#.utf8)))
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: dualUSB), .switchInput)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: usbOnly), .needsFirmware)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: dualBLE), .none)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: bleOnly), .none)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: nil), .none, "nothing connected yet")
+        for s in [dualUSB, dualBLE, usbOnly, bleOnly] {
+            XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: false, status: s), .none, "USB-C: unchanged")
+        }
+    }
+
     func testAnotherDevicesMirroringIsNotThisDevicesScreen() throws {
         let iPhone = try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPhone15,4","usb":"ok"}"#.utf8)))
         XCTAssertEqual(iPhone.seen(by: "iPad15,3").ap, "other", "the iPad must not take the iPhone's screen")
