@@ -79,11 +79,12 @@ extension ToolSpec {
     var all: [ToolSpec] { (Trial.available ? [Self.handsy] : []) + [Self.exa] + imported }
 
     /// Usable now: switched on, and its key (Manina AI's or its own) is there.
-    func ready(_ tool: ToolSpec) -> Bool {
-        guard enabled.contains(tool.id) else { return false }
-        if tool.builtin == "handsy" { return Trial.shared.keyed }
+    /// Has what it needs to run: Manina AI Search a Manina AI key, a tool that takes a key its own.
+    func usable(_ tool: ToolSpec, keyed: Bool) -> Bool {
+        if tool.builtin == "handsy" { return keyed }
         return !tool.needsKey || !key(tool.id).isEmpty
     }
+    func ready(_ tool: ToolSpec) -> Bool { enabled.contains(tool.id) && usable(tool, keyed: Trial.shared.keyed) }
     var active: [ToolSpec] { all.filter(ready) }
 
     func set(_ id: String, on: Bool) {

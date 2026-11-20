@@ -92,6 +92,7 @@ private struct ToolRow: View {
             }
         }
         .tint(Palette.accent)
+        .disabled(tool.builtin == "handsy" && !keyed)  // the switch is kept, but not in use without a key
         .swipeActions(edge: .leading) {
             if tool.needsKey { Button("Key", systemImage: "key", action: edit).tint(.gray) }
         }

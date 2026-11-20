@@ -184,6 +184,14 @@ import XCTest
         XCTAssertTrue(store.imported.isEmpty)
     }
 
+    /// Manina AI Search without a key: the switch stays as the user left it, but the tool is not in use.
+    func testManinaSearchNeedsAKey() {
+        let store = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertTrue(store.enabled.contains(ToolStore.handsy.id), "on by default")
+        XCTAssertFalse(store.usable(ToolStore.handsy, keyed: false))
+        XCTAssertTrue(store.usable(ToolStore.handsy, keyed: true))
+    }
+
     func testPruneKeepsNewestAndReferencedRunsAndFitsTheBudget() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("prune-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
