@@ -88,6 +88,7 @@ extension AgentLoop {
             let text = a["text"]?.str ?? ""
             if Scripts.needsPaste(text) {  // the board can't type it
                 let note = try await pasteInstead(text)
+                typeStats.pasted(note, pinyin: false)
                 sendGuard.typed(text, missing: note == nil ? nil : text)
                 return note.map { ("typed", $0) } ?? ("result", "pasted (the board cannot type this script)")
             }
@@ -96,7 +97,9 @@ extension AgentLoop {
             // 西岸艺术中心 not): the rest is pasted, the way text the board cannot type is, instead of left to the model
             if let stop, let rest = stop.rest, !rest.isEmpty {
                 DebugLog.write("type: the pinyin keyboard stopped part way; pasting the rest (\(rest.count) chars)")
-                if let note = try await pasteInstead(rest, not: stop.note) {
+                let note = try await pasteInstead(rest, not: stop.note)
+                typeStats.pasted(note, pinyin: true)
+                if let note {
                     sendGuard.typed(text, missing: rest)
                     return ("typed", SendGuard.listedHint + note)
                 }

@@ -105,6 +105,7 @@ extension Gestures {
     var eachDone = Set<String>()  // cards each has already opened this run
     var cache = ActionCache()  // taps that follow the same tap each time, done by code (ActionCache)
     var cachedSteps = 0
+    var typeStats = TypeStats()  // pinyin stops and paste fallbacks this run, for run_ended
     var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
@@ -264,7 +265,7 @@ extension Gestures {
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         steering = []
-        if !resume { (cache, cachedSteps, eachChecked, eachDone) = (ActionCache(), 0, [], []) }
+        if !resume { (cache, cachedSteps, eachChecked, eachDone, typeStats) = (ActionCache(), 0, [], [], TypeStats()) }
         (seenLines, recordAudits) = (SeenLines(), 0)
         inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0

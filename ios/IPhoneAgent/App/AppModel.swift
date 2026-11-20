@@ -57,6 +57,7 @@ import UIKit
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
     var recoverySince = Date()
     var mirrorHint = MirrorHint()
+    var videoHealth = VideoHealth()  // this run's frozen video and mirroring asks, for run_ended
     @Published var mirrorHintShown = false  // Home: restart mirroring after a long Bluetooth-mode session
     @Published var takingOver = false
     @Published var paused = false  // Pause on the Dynamic Island: the run holds before its next look
@@ -248,6 +249,7 @@ import UIKit
             self?.pointer.swipeHome = s.isWirelessHID
             let frozen = s.fz == 1
             if frozen != self?.feed.frozen {
+                if frozen, self?.agent.running == true { self?.videoHealth.frozen += 1 }
                 DebugLog.write(frozen ? "video: the board's GOP is full (overflows \(s.ovf ?? 0)); frozen until a keyframe"
                                       : "video: unfrozen (new keyframe)")
             }

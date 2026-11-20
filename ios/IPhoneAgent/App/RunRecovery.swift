@@ -66,6 +66,7 @@ extension AppModel {
         }
         DebugLog.write("recover: \(stage.logLine)")
         if stage.part == .frames && stage.ask { updateMirrorHint(staleNow: true) }  // "reconnect mirroring"
+        if stage.ask && (stage.part == .frames || stage.part == .mirroring) && was?.ask != true { videoHealth.mirrorAsked += 1 }
         if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
         live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
@@ -145,7 +146,7 @@ extension AppModel {
     func updateMirrorHint(_ s: BoardStatus? = nil, staleNow: Bool = false) {
         if let s { mirrorHint.status(streaming: s.ap == "streaming", frozen: s.fz == 1, at: now()) }
         if staleNow { mirrorHint.stale() }
-        let ble = board.status.map { $0.isWirelessHID || $0.hidm == "ble" } ?? false
+        let ble = board.status?.bleInput ?? false
         let trigger = mirrorHint.trigger(ble: ble, never: UserDefaults.standard.bool(forKey: MirrorHint.neverKey), at: now())
         guard (trigger != nil) != mirrorHintShown else { return }
         mirrorHintShown = trigger != nil

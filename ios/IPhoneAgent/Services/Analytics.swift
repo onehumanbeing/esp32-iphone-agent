@@ -4,7 +4,8 @@ import UIKit
 /// Anonymous usage stats, sent only after the user turns them on (first-launch sheet or Settings › Privacy;
 /// off by default). A fixed list of events goes to PostHog: setup steps, board, mirroring and calibration,
 /// run start and end with step count and duration (a start that failed: the startup step and a fixed error kind,
-/// StartupFailure), the model provider, and per model request its timing,
+/// StartupFailure), the model provider, the board's input (ble/usb), firmware and model, per run counts of typing
+/// fallbacks and video trouble (TypeStats, VideoHealth), and per model request its timing,
 /// token counts and error kind. Never the task, screenshots,
 /// model replies, keys or addresses; no location, no person profiles. No SDK: events are batched and
 /// POSTed to PostHog's capture API. Builds without IA_POSTHOG_KEY (e.g. built from source) send nothing.
@@ -153,4 +154,74 @@ enum DeviceInfo {
         uname(&info)
         return withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
     }()
+}
+
+/// A run's typing fallbacks for run_ended: counts and fixed reasons only, never the text.
+struct TypeStats: Equatable {
+    var pinyinStops = 0  // the pinyin keyboard stopped part way, the rest went to the paste path
+    var pasteOK = 0
+    var pasteFailed: [String: Int] = [:]  // reason → count
+
+    /// One paste fallback; `note` is pasteInstead's result (nil: pasted and read back).
+    mutating func pasted(_ note: String?, pinyin: Bool) {
+        if pinyin { pinyinStops += 1 }
+        guard let note else { pasteOK += 1; return }
+        pasteFailed[Self.reason(note), default: 0] += 1
+    }
+
+    /// pasteInstead's sentence as a fixed kind.
+    static func reason(_ note: String) -> String {
+        if note.contains("clipboard is not available") { return "no_clipboard" }
+        if note.contains("could not be put on the clipboard") { return "clipboard_write" }
+        if note.contains("did not open again") { return "reopen" }
+        if note.contains("open the target app again") { return "no_app" }
+        if note.contains("text is not seen") { return "not_seen" }
+        return "other"
+    }
+
+    var props: [String: Any] {
+        var p: [String: Any] = ["pinyin_stops": pinyinStops, "paste_ok": pasteOK,
+                                "paste_failed": pasteFailed.values.reduce(0, +)]
+        for (reason, n) in pasteFailed { p["paste_failed_" + reason] = n }
+        return p
+    }
+}
+
+/// A run's video trouble for run_ended: the board's GOP filling up (fz), the user asked to (re)start mirroring,
+/// and decode errors (a lost decoder session among them) since the run started.
+struct VideoHealth: Equatable {
+    var frozen = 0
+    var mirrorAsked = 0
+    var decodeErrorsBefore = 0, backgroundDecodeErrorsBefore = 0
+
+    init() {}
+    @MainActor init(_ metrics: Metrics) {
+        (decodeErrorsBefore, backgroundDecodeErrorsBefore) = (metrics.decodeErrors, metrics.backgroundDecodeErrors)
+    }
+
+    func props(decodeErrors: Int, backgroundDecodeErrors: Int) -> [String: Any] {
+        ["video_frozen": frozen, "mirror_reconnect_asked": mirrorAsked,
+         "decode_errors": max(0, decodeErrors - decodeErrorsBefore),
+         "decode_errors_bg": max(0, backgroundDecodeErrors - backgroundDecodeErrorsBefore)]
+    }
+}
+
+extension BoardStatus {
+    /// The board on run events: input transport, firmware and model; no addresses or names.
+    static func analytics(_ s: BoardStatus?) -> [String: Any] {
+        guard let s else { return ["hid": "none"] }
+        return ["hid": s.bleInput ? "ble" : "usb", "dual_hid": s.hidm != nil,
+                "fw": s.fw?.plain ?? "unknown", "board": s.board ?? "stock"]
+    }
+}
+
+extension AppModel {
+    /// Board, typing and video counts merged into both run_ended events.
+    var runHealthProps: [String: Any] {
+        BoardStatus.analytics(board.status)
+            .merging(agent.typeStats.props) { $1 }
+            .merging(videoHealth.props(decodeErrors: metrics.decodeErrors,
+                                       backgroundDecodeErrors: metrics.backgroundDecodeErrors)) { $1 }
+            .merging(["mirror_hint_shown": mirrorHintShown]) { $1 }
+    }
 }

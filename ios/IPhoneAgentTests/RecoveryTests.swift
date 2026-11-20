@@ -384,4 +384,58 @@ import XCTest
         r.status(streaming: false, frozen: false, at: 12)
         XCTAssertNil(r.trigger(ble: true, never: false, at: 12))
     }
+
+    // MARK: usage stats on run events (counts and fixed kinds only)
+
+    func testRunAnalyticsNameTheBoardsInputAndFirmware() {
+        XCTAssertEqual(BoardStatus.analytics(nil)["hid"] as? String, "none")
+        var s = BoardStatus()
+        s.usb = "ok"
+        XCTAssertEqual(BoardStatus.analytics(s)["hid"] as? String, "usb")
+        XCTAssertEqual(BoardStatus.analytics(s)["board"] as? String, "stock")
+        XCTAssertEqual(BoardStatus.analytics(s)["fw"] as? String, "unknown")
+        s.hid = "ok"; s.board = "note4"; s.fw = FirmwareVersion("0.2.6")
+        XCTAssertEqual(BoardStatus.analytics(s)["hid"] as? String, "ble")
+        XCTAssertEqual(BoardStatus.analytics(s)["fw"] as? String, "0.2.6")
+        XCTAssertEqual(BoardStatus.analytics(s)["dual_hid"] as? Bool, false)
+        var dual = BoardStatus()
+        dual.hidm = "usb"
+        XCTAssertFalse(dual.bleInput)
+        dual.hidm = "ble"
+        XCTAssertTrue(dual.bleInput)
+        XCTAssertEqual(BoardStatus.analytics(dual)["dual_hid"] as? Bool, true)
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(BoardStatus.analytics(s)))
+    }
+
+    func testTypeStatsCountPasteFallbacksByKind() {
+        var t = TypeStats()
+        t.pasted(nil, pinyin: true)
+        t.pasted("x, so \"y\" is on the clipboard instead: Notes is open again and cmd+v was pressed, but the text is not seen: tap", pinyin: false)
+        t.pasted("nothing typed, and the clipboard is not available here", pinyin: false)
+        t.pasted("x, so \"y\" is on the clipboard instead: Notes did not open again: open it", pinyin: true)
+        let p = t.props
+        XCTAssertEqual(p["pinyin_stops"] as? Int, 2)
+        XCTAssertEqual(p["paste_ok"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed"] as? Int, 3)
+        XCTAssertEqual(p["paste_failed_not_seen"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed_no_clipboard"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed_reopen"] as? Int, 1)
+        XCTAssertEqual(TypeStats.reason("something new"), "other")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(p))
+    }
+
+    func testVideoHealthCountsSinceTheRunStarted() {
+        let metrics = Metrics()
+        metrics.decodeError(background: false)
+        var v = VideoHealth(metrics)
+        metrics.decodeError(background: true)
+        metrics.decodeError(background: false)
+        v.frozen += 1
+        v.mirrorAsked += 1
+        let p = v.props(decodeErrors: metrics.decodeErrors, backgroundDecodeErrors: metrics.backgroundDecodeErrors)
+        XCTAssertEqual(p["decode_errors"] as? Int, 2)
+        XCTAssertEqual(p["decode_errors_bg"] as? Int, 1)
+        XCTAssertEqual(p["video_frozen"] as? Int, 1)
+        XCTAssertEqual(p["mirror_reconnect_asked"] as? Int, 1)
+    }
 }

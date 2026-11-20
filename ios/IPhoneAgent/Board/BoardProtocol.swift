@@ -48,6 +48,8 @@ struct BoardStatus: Codable, Equatable {
     var own: Int?      // LAN lock (LanAuth): 1 = on a home network with an owner, only it may mirror; nil = no lock
 
     var isWirelessHID: Bool { hid != nil }
+    /// Mouse and keyboard go over Bluetooth now: a Bluetooth board, or a --dual-hid one switched to it.
+    var bleInput: Bool { hidm.map { $0 == "ble" } ?? isWirelessHID }
     // A named board must report its input capability: its USB port may only supply power.
     var inputState: String? { hid ?? (board == nil ? usb : nil) }
     var inputReady: Bool { inputState == "ok" }

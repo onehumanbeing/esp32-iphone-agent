@@ -161,9 +161,10 @@ extension AppModel {
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
+        if !resume { videoHealth = VideoHealth(metrics) }
         Analytics.capture("run_started", settings.analyticsModel.merging(
             ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream",
-             "plan_cached": agent.cachedPlan != nil]) { $1 })
+             "plan_cached": agent.cachedPlan != nil]) { $1 }.merging(BoardStatus.analytics(board.status)) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
         // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
@@ -278,7 +279,7 @@ extension AppModel {
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
                 "seconds": Int(now() - t0), "from_intent": currentIntent != nil, "stage": step.rawValue, "error": kind
-            ]) { $1 })
+            ]) { $1 }.merging(runHealthProps) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
             traces.write(feed.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
@@ -425,7 +426,8 @@ extension AppModel {
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil,
                                                                "cached_steps": agent.cachedSteps,
                                                                "plan_cached": agent.usedCachedPlan, "plan_kept": plan.step.telemetry,
-                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 })
+                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 }
+                                    .merging(runHealthProps) { $1 })
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
