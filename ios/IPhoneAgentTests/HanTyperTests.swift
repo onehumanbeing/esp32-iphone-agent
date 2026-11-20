@@ -127,11 +127,11 @@ import XCTest
         XCTAssertTrue(text.contains("龘") && text.contains("typed \"好\""), text)
     }
 
-    /// 2026-11-20: 西岸 not offered for xian, then 西 not read among xi's candidates. What went in stays, the
+    /// 2026-11-20: 西岸 not offered (now typed as xi'an; here the keyboard still lacks it), then 西 not read among xi's candidates. What went in stays, the
     /// letters are cleared, and the stop says what is left to paste.
     func testAWordTheKeyboardDoesNotOfferLeavesTheRestToPaste() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
-        ime.only["xian"] = ["先", "西安"]
+        ime.only["xi'an"] = ["西安", "先"]
         ime.only["xi"] = ["系", "洗"]
         let stop = try await ime.typer().attempt("上海西岸艺术中心")
         XCTAssertEqual(ime.field, "上海")

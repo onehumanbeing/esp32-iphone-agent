@@ -106,18 +106,27 @@ extension Pointer {
         await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
     }
 
-    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
+    /// "卫生纸 3卷" → "weishengzhi 3juan", "西岸" → "xi'an": Han characters to joined pinyin, accents folded, the rest dropped.
     /// `trim` false keeps spaces at the ends (a piece of a longer text).
     nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
+        var prevHan = false
         for ch in text {
             let s = String(ch)
             let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
             let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
                 .applyingTransform(.stripDiacritics, reverse: false) ?? s
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
-            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
+            if isHan {
+                let syllable = kept.replacingOccurrences(of: " ", with: "")
+                // xi'an, not xian: a syllable starting with a vowel after another Han syllable gets the pinyin
+                // keyboard's separator, else 西岸 reads as xian (先, 现) and the word is never among the candidates
+                // (2026-11-20, 上海西岸艺术中心 stopped at 西 in every run)
+                if prevHan, let first = syllable.first, "aeo".contains(first) { out += "'" }
+                out += syllable
+            } else { out += kept }
+            prevHan = isHan
         }
         return trim ? out.trimmingCharacters(in: .whitespaces) : out
     }

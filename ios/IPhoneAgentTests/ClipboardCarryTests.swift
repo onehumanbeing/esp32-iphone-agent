@@ -99,8 +99,9 @@ import XCTest
         XCTAssertEqual(agent.typeStats, TypeStats(pinyinStops: 1, pasteOK: 0, pasteFailed: ["not_seen": 2]))
     }
 
-    func testNoPasteWhenTheClipboardChangedOrTheTextDiffers() async throws {
-        for (count, text) in [(8, "上海西岸艺术中心"), (7, "上海西岸美术馆")] {
+    /// Other text: nothing pasted. The clipboard's changeCount is not trusted (it moves in the background on a device).
+    func testNoPasteWhenTheTextDiffers() async throws {
+        for (count, text) in [(7, "上海西岸美术馆")] {
             let phone = FakeGestures()
             let agent = agent(phone, count: count)
             stopped(phone)
@@ -131,5 +132,13 @@ import XCTest
         let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
         XCTAssertEqual(phone.calls, ["type"], "nothing pasted")
         XCTAssertEqual(result?.field, "typed")
+    }
+
+    /// A vowel-initial syllable after another gets the pinyin separator: 西岸 is xi'an, not xian (先, 现).
+    func testPinyinSeparatesVowelSyllables() {
+        XCTAssertEqual(Pointer.typeable("上海西岸艺术中心"), "shanghaixi'anyishuzhongxin")
+        XCTAssertEqual(Pointer.typeable("天安门"), "tian'anmen")
+        XCTAssertEqual(Pointer.typeable("安全"), "anquan")
+        XCTAssertEqual(Pointer.typeable("卫生纸 3卷"), "weishengzhi 3juan")
     }
 }

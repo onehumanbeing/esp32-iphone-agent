@@ -103,7 +103,8 @@ extension AgentLoop {
     /// unchanged since the write and not expired).
     func carriedWhyNot(_ text: String) -> String? {
         guard let carried else { return "no carried text" }
-        if clipboardCount?() != carried.changeCount { return "clipboard changed" }
+        // changeCount is not checked: read from the background it moved with nothing else written (2026-11-20 device
+        // run: "not pasting: clipboard changed" on every type). The read-back after cmd+v tells a wrong paste.
         if Date() >= carried.expires { return "clipboard expired" }
         return carried.matches(text) ? nil : "different text"
     }
