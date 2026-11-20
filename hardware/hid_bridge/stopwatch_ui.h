@@ -11,7 +11,8 @@ uint8_t stopwatch_battery();                  // 0-100, the level the screen tas
 void stopwatch_ui_start(const char *name);    // end of setup(); name: the Bluetooth name, shown until paired
 bool stopwatch_ui_line(const char *arg);      // `ui <arg>` from the app; false: not a JSON object or `off`
 bool stopwatch_voice_line(const char *arg);
-bool stopwatch_picks_line(const char *arg);   // `picks ["name", ...]`: the quick intents (up to 5)
+bool stopwatch_picks_line(const char *arg);
+bool stopwatch_answer_line(const char *arg, bool more);  // `answer <text>`, `answer+ <more>`: a done task's answer   // `picks ["name", ...]`: the quick intents (up to 5)
 bool stopwatch_press(const char *arg);        // `swpress yellow|blue MS` (USB serial tests): a press held MS   // `voice heard <text>` | `voice fail <code>` from the app
 void stopwatch_ui_link(bool hid, bool app);   // loop(): the phone's HID link, the app's link
 bool stopwatch_ui_next(char *out, size_t n);  // loop(): the next `btn ...` line for the app

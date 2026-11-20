@@ -410,6 +410,8 @@ String board(const String &line, const String &id, char who) {
     return stopwatch_ui_line(arg.c_str()) ? "ok" : "err usage: ui {json} | ui off";
   if (cmd == "swpress" && who == FROM_APP)  // tests over USB serial: a StopWatch button held MS
     return stopwatch_press(arg.c_str()) ? "ok" : "err usage: swpress yellow|blue MS";
+  if ((cmd == "answer" || cmd == "answer+") && who == FROM_APP)  // a done task's answer, in parts (stopwatch_ui.h)
+    return stopwatch_answer_line(arg.c_str(), cmd == "answer+") ? "ok" : "err no screen";
   if (cmd == "picks" && who == FROM_APP)  // the quick intents: yellow picks one (stopwatch_ui.h)
     return stopwatch_picks_line(arg.c_str()) ? "ok" : "err usage: picks [\"name\", ...]";
   if (cmd == "voice" && who == FROM_APP)  // what the app heard from the StopWatch's mic (voice_rec.h)

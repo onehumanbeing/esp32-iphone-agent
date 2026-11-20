@@ -22,8 +22,11 @@ static std::atomic<uint8_t> battery{0};
 static std::atomic<bool> hidLinked{false}, appLinked{false};
 static char boardName[32];
 // The app's other lines for the task (latest wins), in PSRAM: `voice ...`, `picks [...]`, `answer ...`.
-enum { L_VOICE, L_PICKS, L_KINDS };
-static constexpr size_t LINE_CAP[L_KINDS] = {SW_SAID_MAX + 40, 256};
+enum { L_VOICE, L_PICKS, L_ANSWER, L_KINDS };
+static constexpr size_t LINE_CAP[L_KINDS] = {SW_SAID_MAX + 40, 256, SW_ANSWER_MAX + 1};
+static char *answerText;  // the task's copy of the answer (PSRAM)
+static const int ANSWER_ROWS = 5, ANSWER_GAP = 38, ANSWER_W = 360, ANSWER_LINES = 64;
+static int answerStart[ANSWER_LINES + 1], answerLines;  // where each wrapped line starts
 static char *lineBuf[L_KINDS];
 static bool lineHas[L_KINDS];
 static std::atomic<int> lang{SW_EN};
@@ -81,10 +84,11 @@ bool stopwatch_ui_line(const char *arg) {
   return true;
 }
 
-static bool appLine(int kind, const char *arg) {
+static bool appLine(int kind, const char *arg, bool append = false) {
   if (!lock || !lineBuf[kind]) return false;
   xSemaphoreTake(lock, portMAX_DELAY);
-  strlcpy(lineBuf[kind], arg, LINE_CAP[kind]);
+  if (append) strlcat(lineBuf[kind], arg, LINE_CAP[kind]);  // cut at the cap; the screen cuts on a character
+  else strlcpy(lineBuf[kind], arg, LINE_CAP[kind]);
   lineHas[kind] = true;
   xSemaphoreGive(lock);
   if (task) xTaskNotifyGive(task);
@@ -104,6 +108,8 @@ bool stopwatch_voice_line(const char *arg) {
   if (strncmp(arg, "heard", 5) && strncmp(arg, "fail", 4)) return false;
   return appLine(L_VOICE, arg);
 }
+
+bool stopwatch_answer_line(const char *arg, bool more) { return appLine(L_ANSWER, arg, more); }
 
 bool stopwatch_picks_line(const char *arg) {
   sw_ctl probe;  // checked here, so a bad line gets its `err` reply
@@ -233,6 +239,59 @@ static void wrapped(const char *text, int y, int width, int lines, int gap) {
   for (int i = 0; i < n; i++) canvas->drawString(out[i], CX, top + i * gap);
 }
 
+// The answer as lines of ANSWER_W pixels (in its font), once when it comes: where each starts.
+static void layoutAnswer() {
+  fontFor(answerText);
+  int n = (int)strlen(answerText);
+  while (n && ((uint8_t)answerText[n - 1] & 0xC0) == 0x80) n--;  // a character cut at the cap
+  if (n && (uint8_t)answerText[n - 1] >= 0xC0) n--;
+  answerText[n] = 0;
+  answerLines = 0;
+  int at = 0, width = 0, lastSpace = -1;
+  answerStart[0] = 0;
+  for (int i = 0; i <= n && answerLines < ANSWER_LINES;) {
+    if (i == n) { answerLines++; break; }
+    int len = 1;
+    while (i + len < n && ((uint8_t)answerText[i + len] & 0xC0) == 0x80) len++;
+    char ch[5] = {};
+    memcpy(ch, answerText + i, len);
+    int w = canvas->textWidth(ch);
+    if (ch[0] == ' ') lastSpace = i;
+    if (width + w > ANSWER_W && i > at) {  // break before this character, at the last space when there is one
+      int cut = lastSpace > at ? lastSpace + 1 : i;
+      answerStart[++answerLines] = at = cut;
+      width = 0, lastSpace = -1, i = cut;
+      continue;
+    }
+    width += w;
+    i += len;
+  }
+  answerStart[answerLines] = n;
+}
+
+static void answerPage(const sw_ctl &c) {
+  canvas->setTextColor(C_GREEN);
+  fontFor(T(SWT_DONE), 2);
+  canvas->drawString(T(SWT_DONE), CX, 72);
+  canvas->setTextColor(TFT_WHITE);
+  fontFor(answerText);
+  int first = c.page * ANSWER_ROWS, rows = min(ANSWER_ROWS, answerLines - first);
+  int top = CY - (ANSWER_ROWS - 1) * ANSWER_GAP / 2;
+  for (int i = 0; i < rows; i++) {
+    int a = answerStart[first + i], b = answerStart[first + i + 1];
+    String s = String(answerText).substring(a, b);
+    s.trim();
+    canvas->drawString(s, CX, top + i * ANSWER_GAP);
+  }
+  if (c.pages > 1) {
+    char p[8];
+    snprintf(p, sizeof p, "%d/%d", c.page + 1, (int)c.pages);
+    canvas->setTextColor(C_GREY);
+    font(&fonts::FreeSans12pt7b);
+    canvas->drawString(p, CX, H - 62);
+  }
+}
+
 static void ring(int permille, uint16_t color, uint16_t track, int r0, int r1) {
   canvas->fillArc(CX, CY, r0, r1, 0, 360, track);
   if (permille > 0) canvas->fillArc(CX, CY, r0, r1, -90, -90 + 360.0f * permille / 1000, color);
@@ -358,6 +417,9 @@ static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       line(u.text[0] ? u.text : T(ok ? SWT_DONE : SWT_NOT_DONE), CY + 130, ok ? C_GREEN : C_ORANGE);
       break;
     }
+    case SW_SCR_ANSWER:
+      answerPage(c);
+      break;
     case SW_SCR_STUCK:
       face(pose, CX, CY - 30, GLOW_INK, true, true);
       line(T(SWT_STUCK), CY + 130, C_ORANGE);
@@ -460,6 +522,12 @@ static void uiTask(void *) {
     bool gotVoice = takeLine(L_VOICE, said);
     if (got) buzzStart(buzz, sw_apply(&c, &u, off, now), now);
     if (takeLine(L_PICKS, picks)) sw_picks_line(&c, picks);
+    if (takeLine(L_ANSWER, answerText)) {
+      layoutAnswer();
+      sw_answer(&c);
+      c.pages = (uint8_t)max(1, (answerLines + ANSWER_ROWS - 1) / ANSWER_ROWS);
+      board_log("stopwatch: answer of %u bytes, %d lines, %d pages", (unsigned)strlen(answerText), answerLines, c.pages);
+    }
     if (gotVoice) {
       uint8_t was = c.voice;
       sw_voice_line(&c, said, now);
@@ -610,6 +678,7 @@ void stopwatch_ui_start(const char *name) {
   canvas->setTextWrap(false);
   lock = xSemaphoreCreateMutex();
   for (int i = 0; i < L_KINDS; i++) lineBuf[i] = (char *)heap_caps_calloc(1, LINE_CAP[i], MALLOC_CAP_SPIRAM);
+  answerText = (char *)heap_caps_calloc(1, LINE_CAP[L_ANSWER], MALLOC_CAP_SPIRAM);
   buttons = xQueueCreate(8, BTN_LINE);
   // Core 1 next to loop(), at its priority: drawing shares the core instead of starving it (NimBLE and Wi-Fi run
   // on core 0). The stack holds no frame: the canvas is in PSRAM.

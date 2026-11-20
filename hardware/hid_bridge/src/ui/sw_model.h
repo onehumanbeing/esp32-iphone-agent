@@ -32,7 +32,7 @@ enum sw_parsed { SW_PARSE_BAD, SW_PARSE_UI, SW_PARSE_OFF };
 int sw_parse(const char *arg, sw_ui *out);  // the argument of `ui`: a JSON object or `off`
 
 enum sw_screen { SW_SCR_IDLE, SW_SCR_RUN, SW_SCR_HELP, SW_SCR_PAUSED, SW_SCR_OK, SW_SCR_FAIL, SW_SCR_CONFIRM,
-                 SW_SCR_SHAKE, SW_SCR_STUCK, SW_SCR_VOICE };
+                 SW_SCR_SHAKE, SW_SCR_STUCK, SW_SCR_VOICE, SW_SCR_ANSWER };
 enum sw_buzz { SW_BUZZ_NONE, SW_BUZZ_HELP, SW_BUZZ_OK, SW_BUZZ_FAIL };
 // SW_IN_YELLOW: a press as before voice. With an app that takes voice the board sends YELLOW_DOWN and YELLOW_UP:
 // a short press does what YELLOW did (on release), a hold records.
@@ -43,7 +43,7 @@ enum sw_input { SW_IN_YELLOW, SW_IN_BLUE_DOWN, SW_IN_BLUE_UP, SW_IN_TAP, SW_IN_S
 // then yellow runs it (`btn voice go`), blue drops it (`btn voice cancel`).
 enum sw_voice { SW_V_NONE, SW_V_LISTEN, SW_V_WAIT, SW_V_RESULT, SW_V_SENT, SW_V_ERROR };
 enum sw_voice_err { SW_VE_NONE, SW_VE_DENIED, SW_VE_UNAVAILABLE, SW_VE_START, SW_VE_TIMEOUT, SW_VE_OTHER };
-enum { SW_SAID_MAX = 120 };
+enum { SW_SAID_MAX = 120, SW_ANSWER_MAX = 600 };
 
 enum {
   SW_STALE_MS = 15000,     // no `ui` line this long (the app repeats it every 5 s): the app is gone or suspended
@@ -82,6 +82,8 @@ typedef struct {
   bool voice_run;            // the text was heard while a task ran: yellow tells it the words
   uint32_t voice_at;
   char said[SW_SAID_MAX + 1];  // what the app heard
+  bool answer;               // a finished task's answer shows (the text is the screen's, `answer` lines)
+  uint8_t page, pages;       // its page, and how many the screen made of it
 } sw_ctl;
 
 void sw_init(sw_ctl *c);
@@ -96,7 +98,8 @@ int sw_progress(const sw_ui *ui);                     // 0-1000 around the ring,
 int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop hold, -1: not shown
 int sw_picks_line(sw_ctl *c, const char *arg);         // `picks ["name", ...]`: the quick intents; -1 bad, else count
 bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now);  // `voice heard <text>` | `voice fail <code>`
-bool sw_mic(const sw_ctl *c);                         // the mic should be on: yellow down for voice, or recording
+bool sw_mic(const sw_ctl *c);
+void sw_answer(sw_ctl *c);                            // an `answer` came: it shows from its first page                         // the mic should be on: yellow down for voice, or recording
 
 #ifdef __cplusplus
 }

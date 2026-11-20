@@ -286,6 +286,7 @@ int sw_apply(sw_ctl *c, const sw_ui *u, bool off, uint32_t now) {
     buzz = c->done_kind == SW_SCR_FAIL ? SW_BUZZ_FAIL : SW_BUZZ_OK;
   }
   if (sw_running(c, now)) {
+    c->answer = false;  // a new task: the last one's answer goes
     c->sel = -1;
     c->confirm = false;
     c->done = false;
@@ -323,6 +324,20 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
     c->shaking = false;
     if (in == SW_IN_BLUE_DOWN) c->blue_ignore = true;
     return false;
+  }
+  if (c->answer && !running && c->voice == SW_V_NONE) {  // the answer: yellow or a tap turns the page, blue closes
+    bool legacy = in == SW_IN_YELLOW_DOWN && !(sw_alive(c, now) && c->ui.voice);
+    if (in == SW_IN_TAP || in == SW_IN_YELLOW || legacy ||
+        (in == SW_IN_YELLOW_UP && c->y_down && !after(now, c->y_at, SW_HOLD_MS))) {
+      c->y_down = false;
+      c->page = (uint8_t)(c->pages > 1 ? (c->page + 1) % c->pages : 0);
+      return false;
+    }
+    if (in == SW_IN_BLUE_DOWN) {
+      c->answer = false;
+      c->blue_down = c->blue_ignore = true;
+      return false;
+    }
   }
   switch (in) {
     case SW_IN_YELLOW:
@@ -432,6 +447,7 @@ bool sw_tick(sw_ctl *c, uint32_t now, char *out, size_t n) {
 int sw_screen(const sw_ctl *c, uint32_t now) {
   if (c->voice != SW_V_NONE) return SW_SCR_VOICE;
   if (c->shaking) return SW_SCR_SHAKE;
+  if (c->answer && !sw_running(c, now)) return SW_SCR_ANSWER;
   if (c->done && !after(now, c->done_at, SW_DONE_MS)) return c->done_kind;
   if (sw_running(c, now)) return c->ui.phase == SW_HELP ? SW_SCR_HELP : c->ui.phase == SW_PAUSED ? SW_SCR_PAUSED : SW_SCR_RUN;
   // A run's lines stopped while the link stays (iOS suspended the app): the island's "×" eyes, until the link drops
@@ -465,6 +481,12 @@ int sw_picks_line(sw_ctl *c, const char *arg) {
   memcpy(c->ui.picks, u.picks, sizeof u.picks);
   if (c->sel >= c->ui.npicks) c->sel = -1, c->confirm = false;
   return u.npicks;
+}
+
+void sw_answer(sw_ctl *c) {
+  c->answer = true;
+  c->page = 0;
+  c->pages = 1;
 }
 
 bool sw_mic(const sw_ctl *c) { return (c->y_down && c->y_voice) || c->voice == SW_V_LISTEN; }

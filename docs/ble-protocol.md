@@ -136,6 +136,12 @@ asks to confirm, yellow a third time sends `btn run <i>` (0-based into the last 
 6 s without a press cancels. The app sends the list when it changes and every 3 minutes; older firmware answers `err`
 and the app keeps sending `k`.
 
+### StopWatch answer
+After a task finished with done, the app sends its answer: `answer <text>`, then `answer+ <more>` for the rest (each
+within one write). The board keeps 600 bytes (cut on a character) and shows them over idle, 5 lines a page with
+"i/n": a tap or yellow turns the page, blue closes it, a new run ends it. The finish's two short buzzes stay as they
+were. `err no screen` before the screen task runs.
+
 ### StopWatch voice
 Only with an app that sends `"v":1` in its `ui` lines (older apps never do: yellow stays a press as above).
 - Yellow held 350 ms: recording (the mic is on from the press, so the first word is kept). Released earlier: the

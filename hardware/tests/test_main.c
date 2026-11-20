@@ -863,6 +863,30 @@ static void test_sw_picks(void) {
   CHECK(c.ui.npicks == 1 && !strcmp(c.ui.picks[0], "old"));
 }
 
+// A finished task's answer: it shows over idle, yellow or a tap turns its pages, blue closes it, a new run ends it.
+static void test_sw_answer(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"m\":\"success\",\"f\":true,\"v\":1}", &u);
+  sw_apply(&c, &u, false, 0);
+  sw_answer(&c);
+  c.pages = 3;
+  CHECK(sw_screen(&c, 0) == SW_SCR_ANSWER && sw_screen(&c, 9000) == SW_SCR_ANSWER);  // past the 5 s check too
+  CHECK(!sw_input(&c, SW_IN_TAP, 100, out, sizeof out) && c.page == 1);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 200, out, sizeof out);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 300, out, sizeof out) && c.page == 2);
+  sw_input(&c, SW_IN_TAP, 400, out, sizeof out);
+  CHECK(c.page == 0);
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 500, out, sizeof out) && !c.answer && !sw_input(&c, SW_IN_BLUE_UP, 600, out, sizeof out));
+  CHECK(sw_screen(&c, 600) == SW_SCR_OK);
+  sw_answer(&c);
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\"}", &u);
+  sw_apply(&c, &u, false, 700);
+  CHECK(!c.answer && sw_screen(&c, 700) == SW_SCR_RUN);
+}
+
 static void test_sw_text(void) {
   for (int l = 0; l < SW_LANGS; l++)
     for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
@@ -1029,6 +1053,7 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_answer();
   test_sw_picks();
   test_sw_voice();
   test_sw_text();
