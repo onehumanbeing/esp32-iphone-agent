@@ -46,6 +46,7 @@ struct BoardStatus: Codable, Equatable {
     var ble: BLE?
     var udp: UDP?
     var own: Int?      // LAN lock (LanAuth): 1 = on a home network with an owner, only it may mirror; nil = no lock
+    var ui: Int?       // 1: the board has a screen that shows the run (`ui` lines, StopWatchUI); nil: no screen
 
     var isWirelessHID: Bool { hid != nil }
     /// Mouse and keyboard go over Bluetooth now: a Bluetooth board, or a --dual-hid one switched to it.
@@ -84,6 +85,7 @@ struct BoardStatus: Codable, Equatable {
         // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
         m.src = n.src ?? src
+        m.ui = n.ui ?? ui
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
         m.gop = n.gop ?? gop; m.vage = n.vage ?? vage; m.ovf = n.ovf ?? ovf; m.fz = n.fz ?? fz
         let a = ble ?? BLE(), b = n.ble ?? BLE()

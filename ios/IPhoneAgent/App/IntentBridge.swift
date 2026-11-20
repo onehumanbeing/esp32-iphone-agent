@@ -17,6 +17,31 @@ extension AppModel {
         else if !settings.standbyIsland { live.endStandby() }
     }
 
+    /// An M5Stack StopWatch shows the Live Activity's state and its buttons drive the run (StopWatchUI).
+    func wireStopWatch() {
+        live.onBoard = { [weak self] state in self?.board.commands.showUI(state) }
+        board.commands.onButton = { [weak self] action in self?.stopWatchButton(action) }
+    }
+
+    func stopWatchButton(_ action: StopWatchUI.Action) {
+        let idle = !agent.running && !startingAgent && !recorder.busy && !calibrator.busy
+        switch action {
+        case .command(let command):
+            Task { await control(command) }
+        case .home:
+            // Only while nothing else drives the pointer; mid-run the agent decides where it goes.
+            guard idle, board.connected, pointer.calibrated else {
+                return DebugLog.write("stopwatch: home ignored (busy or not calibrated)")
+            }
+            Task {
+                do { try await pointer.goHome() } catch { DebugLog.write("stopwatch: home failed: \(error.localizedDescription)") }
+            }
+        case .run(let id):
+            guard idle, intents.item(id) != nil else { return DebugLog.write("stopwatch: run ignored (busy or intent gone)") }
+            Task { _ = await handle(.runSaved(id)) }
+        }
+    }
+
     /// A task from the quick sheet (the island's New Task): it runs on the screen the user came from.
     func runHere(_ task: String, intent: SavedTask?) async {
         if !appIsBackgrounded, board.connected, pointer.calibrated, await backToPrevious() {

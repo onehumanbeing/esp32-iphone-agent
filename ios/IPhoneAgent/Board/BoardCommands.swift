@@ -66,6 +66,16 @@ extension BoardTransport {
     private var pending: [Int: CheckedContinuation<BoardReply, Error>] = [:]
     private var last = 0.0, beat = 0.0
     var onTiming: ((String, Double) -> Void)?  // command name, ms
+    /// The connected board's status (BoardLink): the StopWatch screen and buttons are only for a board that has them.
+    var boardStatus: () -> BoardStatus? = { nil }
+    /// A StopWatch button, already mapped (StopWatchUI.action).
+    var onButton: ((StopWatchUI.Action) -> Void)?
+    private var uiLast: StopWatchUI.Want?    // the newest screen state asked for, sent again after a reconnect
+    private var uiWanted: StopWatchUI.Want?  // not on the board yet
+    private var uiSent: String?
+    private var uiTimes: [Double] = []
+    private var uiRetry: Task<Void, Never>?
+    private(set) var uiPicks: [UUID] = []    // the standby picks of the last `ui` line the board got, for `btn run <i>`
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
 
@@ -75,6 +85,7 @@ extension BoardTransport {
     func linkUp() {
         links += 1
         last = now(); beat = last  // fresh link: nothing to keep awake yet
+        (uiSent, uiWanted) = (nil, uiLast)  // flushUI sends it once the status says StopWatch
     }
 
     // Invalidate in-flight frames and relative coordinates when only the system pointer drops.
@@ -91,6 +102,7 @@ extension BoardTransport {
         let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("app ") { return onAppCommand?(String(text.dropFirst(4))) ?? () }
         if text.hasPrefix("log ") { return }  // our own log lines, relayed to the harness
+        if text.hasPrefix("btn ") { return button(String(text.dropFirst(4))) }
         if text.hasPrefix("blog ") {  // the board's AirPlay log: "blog <board ms> <line>"
             let parts = text.dropFirst(5).split(separator: " ", maxSplits: 1)
             return DebugLog.write("board: " + (parts.count > 1 ? String(parts[1]) : ""))
@@ -222,6 +234,51 @@ extension BoardTransport {
         return true
     }
 
+    // MARK: - StopWatch screen and buttons
+
+    /// The run's state for the StopWatch screen (nil: `ui off`). Fire-and-forget: only the newest state is kept,
+    /// sent when it changed, at most 2 a second, and later (every 0.5 s) while the link is busy. Other boards: nothing.
+    func showUI(_ state: AgentActivityAttributes.ContentState?) {
+        let want = state.map(StopWatchUI.Want.show) ?? .off
+        (uiLast, uiWanted) = (want, want)
+        flushUI()
+    }
+
+    /// Called on every status too: the first status after a link-up says whether this board is a StopWatch.
+    func flushUI() {
+        guard let want = uiWanted, connected, let transport, StopWatchUI.enabled(boardStatus()) else { return }
+        let prefix = "\(nextID) "
+        guard case let (body, picks)? = StopWatchUI.command(want, max: min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count))
+        else { return uiWanted = nil }
+        guard body != uiSent else { return uiWanted = nil }
+        let t = now()
+        uiTimes = uiTimes.filter { t - $0 < 1 }
+        guard uiTimes.count < 2, transport.writeIfIdle(prefix + body) else { return retryUI() }
+        nextID += 1
+        uiTimes.append(t)
+        (uiSent, uiWanted) = (body, nil)
+        if let picks { uiPicks = picks }
+    }
+
+    private func retryUI() {
+        guard uiRetry == nil else { return }
+        uiRetry = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.uiRetry = nil
+            self?.flushUI()
+        }
+    }
+
+    /// `btn <verb> [arg]`, sent by the board on its own. Only a StopWatch's are heard.
+    private func button(_ text: String) {
+        guard StopWatchUI.enabled(boardStatus()) else { return }
+        guard let action = StopWatchUI.action(text, picks: uiPicks) else {
+            return DebugLog.write("stopwatch: button ignored: \(text.prefix(30))")
+        }
+        DebugLog.write("stopwatch: button \(text.prefix(30))")
+        onButton?(action)
+    }
+
     private func fail(_ id: Int, _ error: Error) {
         pending.removeValue(forKey: id)?.resume(throwing: error)
     }
@@ -258,3 +315,77 @@ extension BoardTransport {
 }
 
 func now() -> Double { Date().timeIntervalSince1970 }
+
+/// M5Stack StopWatch: its screen shows the run (the Live Activity's state, `ui <json>`) and its buttons send
+/// `btn <verb> [arg]`. Only a board whose status says so (board "stopwatch", ui 1) gets or is heard on any of it.
+enum StopWatchUI {
+    typealias State = AgentActivityAttributes.ContentState
+    static let maxLine = 200, maxText = 80, maxPick = 24, maxPicks = 3
+
+    enum Want: Equatable { case off, show(State) }
+
+    enum Action: Equatable { case command(AgentCommand), home, run(UUID) }
+
+    static func enabled(_ status: BoardStatus?) -> Bool { status?.board == "stopwatch" && status?.ui == 1 }
+
+    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks.
+    struct Payload: Encodable, Equatable {
+        var m: String, p: String, s: Int, l: Int
+        var t: String?
+        var d: Int?, n: Int?
+        var f: Bool
+        var k: [String]?
+    }
+
+    /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
+    /// Too long: the text gets shorter, then goes, then the picks go.
+    static func command(_ want: Want, max: Int = maxLine) -> (String, [UUID]?)? {
+        guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
+        let picks = state.picks.map { Array($0.prefix(maxPicks)) }
+        var p = Payload(m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
+                        t: truncated(state.line.replacingOccurrences(of: "\n", with: " "), bytes: maxText),
+                        d: state.done, n: state.total, f: state.finished,
+                        k: picks?.map { truncated($0.name, bytes: maxPick) })
+        while true {
+            if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
+            if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }
+            else if p.t != nil { p.t = nil }
+            else if p.k != nil { p.k = nil }
+            else { return nil }
+        }
+    }
+
+    private static func line(_ p: Payload) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return (try? encoder.encode(p)).flatMap { String(data: $0, encoding: .utf8) }.map { "ui " + $0 }
+    }
+
+    /// The longest prefix of whole characters within `bytes` UTF-8 bytes.
+    static func truncated(_ text: String, bytes: Int) -> String {
+        var out = "", used = 0
+        for c in text {
+            used += c.utf8.count
+            if used > bytes { break }
+            out.append(c)
+        }
+        return out
+    }
+
+    /// `<verb> [arg]` after "btn ". `run <i>`: the i-th (from 0) of the picks the board was last sent.
+    static func action(_ text: String, picks: [UUID]) -> Action? {
+        let parts = text.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
+        switch parts.first {
+        case "stop": return .command(.stop)
+        case "pause": return .command(.pause)
+        case "unpause": return .command(.unpause)
+        case "continue": return .command(.resume)
+        case "takeover": return .command(.takeOver)
+        case "home": return .home
+        case "run":
+            guard parts.count > 1, let i = Int(parts[1]), picks.indices.contains(i) else { return nil }
+            return .run(picks[i])
+        default: return nil
+        }
+    }
+}

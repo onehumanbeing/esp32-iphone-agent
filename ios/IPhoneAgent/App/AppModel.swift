@@ -335,6 +335,7 @@ import UIKit
         agent.clipboardCount = { UIPasteboard.general.changeCount }
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         live.standbyPicks = { [weak self] in self?.standbyPicks }
+        wireStopWatch()
         AgentControl.verdict = { [weak self] run, correct in self?.runVerdict(run, correct: correct) }
         Trial.shared.attach(self)  // free line
         AgentRequests.handle = { [weak self] request in await self?.handle(request) ?? AgentRequests.unavailable }
