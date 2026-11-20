@@ -66,11 +66,15 @@ struct RootView: View {
             Text(verbatim: DiagnosticReport.contents.map { "• " + $0 }.joined(separator: "\n"))
         }
         .fullScreenCover(item: $app.review) { draft in
-            if draft.showSaveOnOpen {
-                SaveIntentSheet(draft: draft, intents: app.intents) { app.review = nil }
-            } else {
-                ReviewView(draft: draft, app: app)
+            Group {
+                if draft.showSaveOnOpen {
+                    SaveIntentSheet(draft: draft, intents: app.intents) { app.review = nil }
+                } else {
+                    ReviewView(draft: draft, app: app)
+                }
             }
+            .onAppear { app.reviewShown = true }
+            .onDisappear { app.reviewShown = false }
         }
         .background {
             Color.clear.fullScreenCover(item: $app.setupPage) { page in

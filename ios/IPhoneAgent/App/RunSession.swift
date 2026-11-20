@@ -492,8 +492,16 @@ extension AppModel {
         // The same run's review is up with the same steps: keep it. A new draft (a new id) makes the cover close and
         // present again, and a second open while the first is still animating in can leave it closed (2026-11-13:
         // the review of a stopped run showed for ~1 s, then Home).
-        if let open = review, open.runID == id, open.steps.count == run.steps.count { return }
-        review = ReviewDraft(run: run, intent: intents.intent(of: run))
+        if let open = review, reviewShown, open.runID == id, open.steps.count == run.steps.count { return }
+        let draft = ReviewDraft(run: run, intent: intents.intent(of: run))
+        guard review != nil, !reviewShown else { review = draft; return }
+        // set with no cover up (set in the background): cleared first, so the cover presents again
+        DebugLog.write("review: a review was set with no cover up; opening \(id) again")
+        review = nil
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            self?.review = draft
+        }
     }
 
     /// The model rewrites the prompt and checklist from the trace and the user's corrections.

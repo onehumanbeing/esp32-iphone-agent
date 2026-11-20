@@ -52,6 +52,9 @@ import UIKit
     @Published var aiConsentRun: String?
     /// The review editor on screen (after a run, a recording, or editing an intent).
     @Published var review: ReviewDraft?
+    /// The review cover is on screen. `review` set while the app was in the background (a run ending in another app)
+    /// can stay set with no cover up, and then no run opened (2026-11-20).
+    var reviewShown = false
     /// Paused for the user: why (nil = not paused), and whether they are doing it by hand right now.
     @Published var help: String?
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
