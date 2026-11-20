@@ -84,6 +84,8 @@ extension BoardTransport {
     private var quickSent: (names: [String], at: Double)?
     private var quickBusy = false
     private(set) var quickOn = false
+    /// The run's start and (once ended) end, for the StopWatch's timer (`e`); nil: no run yet.
+    var runTimes: (start: Date, end: Date?)?
     /// The run's help is a confirm (pay, delete…): the StopWatch's blue skips the step instead of stopping the run.
     var uiConfirm = false {
         didSet { if uiConfirm != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
@@ -265,7 +267,8 @@ extension BoardTransport {
         if quickOn, case .show(var state) = want { state.picks = nil; want = .show(state) }  // `picks` has them
         let prefix = "\(nextID) "
         let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
-        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm)
+        let elapsed = runTimes.map { Int(max(0, ($0.end ?? clock()).timeIntervalSince($0.start))) }
+        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed)
         else { return uiWanted = nil }
         guard body != uiSent else { return uiWanted = nil }
         let t = now()
@@ -431,6 +434,7 @@ enum StopWatchUI {
         var x: Double?, y: Double?
         var v = 1
         var h: Int?  // 1: the help is a confirm
+        var e: Int?  // seconds since the run began; at the finish, its length
     }
 
     /// What the character says, as the expanded island: its words while the run goes, the line otherwise (help, done).
@@ -445,14 +449,16 @@ enum StopWatchUI {
 
     /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
     /// Too long: the text gets shorter, then goes, then the picks go.
-    static func command(_ want: Want, max: Int = maxLine, at time: Date = Date(), confirm: Bool = false) -> (String, [UUID]?)? {
+    static func command(_ want: Want, max: Int = maxLine, at time: Date = Date(), confirm: Bool = false,
+                        elapsed: Int? = nil) -> (String, [UUID]?)? {
         guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
         let picks = state.picks.map { Array($0.prefix(maxPicks)) }
         var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
                         t: truncated(says(state).replacingOccurrences(of: "\n", with: " "), bytes: maxText),
                         d: state.done, n: state.total, f: state.finished,
                         k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY),
-                        h: confirm && state.phase == .help ? 1 : nil)
+                        h: confirm && state.phase == .help ? 1 : nil,
+                        e: state.phase == .standby && !state.finished ? nil : elapsed)
         while true {
             if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
             if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }

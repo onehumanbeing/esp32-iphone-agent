@@ -61,6 +61,15 @@ import XCTest
         XCTAssertEqual(StopWatchUI.action("skip", picks: []), .command(.skip))
     }
 
+    func testTheRunsTimeGoesWithItsLinesNotWithStandby() throws {
+        var state = StopWatchUI.idle
+        XCTAssertFalse(try XCTUnwrap(StopWatchUI.command(.show(state), elapsed: 12)).0.contains(#""e""#))
+        state.phase = .running
+        XCTAssertTrue(try XCTUnwrap(StopWatchUI.command(.show(state), elapsed: 12)).0.contains(#""e":12"#))
+        state.finished = true
+        XCTAssertTrue(try XCTUnwrap(StopWatchUI.command(.show(state), elapsed: 95)).0.contains(#""e":95"#))
+    }
+
     func testTheUILineSaysTheAppTakesVoice() throws {
         let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle)))
         XCTAssertTrue(line.contains(#""v":1"#), line)

@@ -359,6 +359,7 @@ extension AppModel {
         runMood = .thinking
         paused = false
         runStarted = Date()
+        board.commands.runTimes = (runStarted, nil)  // the StopWatch's timer
         runUsage = ModelUsage()
         if !early {
             live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
@@ -425,6 +426,7 @@ extension AppModel {
         let last = agent.steps.last
         let outcome = Outcome(last: last?["action"]?.str, running: false)
         let seconds = Date().timeIntervalSince(runStarted)
+        board.commands.runTimes = (runStarted, Date())
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil,
                                                                "cached_steps": agent.cachedSteps,
