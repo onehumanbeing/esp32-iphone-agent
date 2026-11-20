@@ -20,6 +20,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_ERR_TIMEOUT] = "No answer from the app", [SWT_ERR_OTHER] = "Something went wrong",
         [SWT_TOTAL] = "%d steps - %s", [SWT_CONFIRM_STEP] = "OK to go on?", [SWT_HELP_KEYS] = "Yellow: go on - Blue: stop",
         [SWT_CONFIRM_KEYS] = "Yellow: go on - Blue: skip", [SWT_TAKEOVER_HINT] = "Swipe up to take over",
+        [SWT_CHARGING] = "Charging %u%%", [SWT_LOW_BATTERY] = "Battery low %u%% - charge me",
     },
     [SW_ZH] = {
         [SWT_BATTERY] = "电量 ", [SWT_BATTERY_NONE] = "电量 --",
@@ -39,6 +40,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_ERR_TIMEOUT] = "App 没有回应", [SWT_ERR_OTHER] = "出错了",
         [SWT_TOTAL] = "%d 步 · %s", [SWT_CONFIRM_STEP] = "可以继续吗？", [SWT_HELP_KEYS] = "黄色继续 · 蓝色停止",
         [SWT_CONFIRM_KEYS] = "黄色继续 · 蓝色跳过", [SWT_TAKEOVER_HINT] = "上滑自己接手",
+        [SWT_CHARGING] = "充电中 %u%%", [SWT_LOW_BATTERY] = "电量低 %u%% · 请充电",
     },
 };
 

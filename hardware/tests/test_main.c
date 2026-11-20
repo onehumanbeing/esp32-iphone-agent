@@ -22,6 +22,7 @@
 #include "../hid_bridge/src/ui/sw_face.h"
 #include "../hid_bridge/src/ui/sw_text.h"
 #include "../hid_bridge/src/ui/ima_adpcm.h"
+#include "../hid_bridge/src/ui/sw_power.h"
 #include <math.h>
 
 static int fails;
@@ -946,6 +947,33 @@ static void test_sw_elapsed(void) {
   CHECK(!strcmp(d, "0:00"));
 }
 
+// Screen power: dim, off, on again; a wrist turn wakes it, lying still or shaking does not.
+static void test_sw_power(void) {
+  sw_power p;
+  swp_init(&p, 0);
+  CHECK(swp_level(&p, SWP_DIM_MS - 1, false) == SWP_ON && swp_level(&p, SWP_DIM_MS, false) == SWP_DIM);
+  CHECK(swp_level(&p, SWP_OFF_MS, false) == SWP_OFF && swp_level(&p, SWP_OFF_MS, true) == SWP_ON);
+  swp_active(&p, 70000);
+  CHECK(swp_level(&p, 70001, false) == SWP_ON);
+  uint32_t t = 100000;
+  for (int i = 0; i < 60; i++, t += 33) CHECK(!swp_motion(&p, 0, 0, 1, t));  // flat on a table
+  for (int i = 0; i < 30; i++, t += 33) CHECK(!swp_motion(&p, 0.05f, 0, 1.4f, t));  // a bump, still face up
+  for (int i = 0; i < 10; i++, t += 33) CHECK(!swp_motion(&p, 3, 1, 0, t));  // a shake: not read
+  bool raised = false;
+  uint32_t at = 0;
+  for (int i = 0; i < 20 && !raised; i++, t += 33) raised = swp_motion(&p, 0, 0.8f, 0.6f, t), at = t;  // turned ~53 degrees
+  CHECK(raised && swp_level(&p, at, false) == SWP_ON && at - 100000 < 4000);
+  for (int i = 0; i < 40; i++, t += 33) CHECK(!swp_motion(&p, 0, 0.8f, 0.6f, t));  // held there: once
+
+  // the battery: one warning under 15 %, one under 5 %, none while charging, again after charging back up
+  swp_init(&p, 0);
+  CHECK(swp_battery(&p, 40, false) == 0 && swp_battery(&p, 14, true) == 0 && swp_battery(&p, 14, false) == SWP_LOW);
+  CHECK(swp_battery(&p, 13, false) == 0 && swp_battery(&p, 16, false) == 0 && swp_battery(&p, 14, false) == 0);
+  CHECK(swp_battery(&p, 4, false) == SWP_EMPTY && swp_battery(&p, 3, false) == 0);
+  CHECK(swp_battery(&p, 9, false) == 0 && swp_battery(&p, 4, false) == SWP_EMPTY);  // 5 % again after 8 %+
+  CHECK(swp_battery(&p, 60, false) == 0 && swp_battery(&p, 12, false) == SWP_LOW && swp_battery(&p, -1, false) == 0);
+}
+
 static void test_sw_text(void) {
   for (int l = 0; l < SW_LANGS; l++)
     for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
@@ -1112,6 +1140,7 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_power();
   test_sw_elapsed();
   test_sw_help();
   test_sw_answer();

@@ -132,6 +132,12 @@ help is answered (the screen stays amber); two short on success, three short on 
 Help: `h` 1 in the `ui` line marks a confirm (pay, delete): "OK to go on?". Yellow (or a tap) sends `btn continue`;
 blue, released within 0.5 s, sends `btn skip` for a confirm and `btn stop` for other help; swipe up `btn takeover`.
 
+Screen power (board-local, no app line): with no run, voice, pick, status page or help on screen, it dims after
+20 s without a press, touch, wrist raise or anything new on screen, and goes off after 60 s. A press or touch while
+it is off only wakes it (nothing is sent); a wrist raise (the IMU's gravity turning 35° or more) wakes it too.
+Plugged in: a pulsing ring with "Charging N%" on the idle face. Unplugged, the battery falling under 15 % and again
+under 5 %: a long buzz and a red "Battery low N%" banner for 4 s (once each, again after charging 3 % or more above).
+
 Language: the board's own words (status page, hints, voice states) are English by default or Chinese; the status
 page's last row shows it, and a tap on that row or yellow while the page is open switches it (kept in NVS; flashing
 the merged image resets it). Text the app sends is shown as it comes (ASCII in a Latin font, anything else in efontCN).

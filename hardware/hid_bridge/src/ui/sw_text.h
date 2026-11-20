@@ -20,6 +20,7 @@ enum sw_text_id {
   SWT_ERR_NONE, SWT_ERR_DENIED, SWT_ERR_UNAVAILABLE, SWT_ERR_START, SWT_ERR_TIMEOUT, SWT_ERR_OTHER,
   SWT_TOTAL,  // "%d steps - %s": steps and time at the finish
   SWT_CONFIRM_STEP, SWT_HELP_KEYS, SWT_CONFIRM_KEYS, SWT_TAKEOVER_HINT,
+  SWT_CHARGING, SWT_LOW_BATTERY,  // "%u" (the battery) in each
   SWT_COUNT
 };
 

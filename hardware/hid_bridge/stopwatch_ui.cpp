@@ -7,8 +7,10 @@
 #include "src/ui/sw_face.h"
 #include "src/ui/sw_model.h"
 #include "src/ui/sw_text.h"
+#include "src/ui/sw_power.h"
 #include "voice_rec.h"
 #include "stopwatch_draw.h"
+using namespace sw;
 #include <Preferences.h>
 
 // Everything on the internal I2C bus (touch, IMU, PMIC, RTC, the IO expander behind the display power and the
@@ -20,13 +22,10 @@ static bool hasPending, pendingOff;
 static QueueHandle_t buttons;  // `btn` lines for loop()
 static std::atomic<uint8_t> battery{0};
 static std::atomic<bool> hidLinked{false}, appLinked{false};
-static char boardName[32];
+char boardName[32];  // stopwatch_draw.h
 // The app's other lines for the task (latest wins), in PSRAM: `voice ...`, `picks [...]`, `answer ...`.
 enum { L_VOICE, L_PICKS, L_ANSWER, L_KINDS };
 static constexpr size_t LINE_CAP[L_KINDS] = {SW_SAID_MAX + 40, 256, SW_ANSWER_MAX + 1};
-static char *answerText;  // the task's copy of the answer (PSRAM)
-static const int ANSWER_ROWS = 5, ANSWER_GAP = 38, ANSWER_W = 360, ANSWER_LINES = 64;
-static int answerStart[ANSWER_LINES + 1], answerLines;  // where each wrapped line starts
 static char *lineBuf[L_KINDS];
 static bool lineHas[L_KINDS];
 static std::atomic<int> lang{SW_EN};
@@ -36,6 +35,8 @@ static std::atomic<uint32_t> fakeMs{0};  // the screen's language (NVS "sw"/"lan
 static const int BTN_LINE = 32;
 static const uint32_t SLEEP_AFTER_MS = 180000;  // no app, no touch, no button for 3 min: it falls asleep
 static const uint32_t FRAME_MS = 33, SLEEP_FRAME_MS = 66;  // ~30 fps; the sleeping face only drifts its z
+static const uint32_t DARK_FRAME_MS = 100;  // the screen off: buttons, touch and the raise still read
+static const uint8_t BRIGHT[] = {160, 40, 0};  // SWP_ON, SWP_DIM, SWP_OFF
 static const float SHAKE_G = 2.5f;  // acceleration magnitude of a deliberate shake; a wrist turn stays under 1.5 g
 static const int SWIPE_PX = 60;
 
@@ -126,7 +127,7 @@ bool stopwatch_press(const char *arg) {
   return true;
 }
 
-static const char *T(int id) { return sw_text(lang, id); }
+const char *T(int id) { return sw_text(lang, id); }
 
 static void setLang(int l) {
   lang = l;
@@ -182,307 +183,6 @@ static void buzzRun(Buzz &b, uint32_t now) {
 
 // Drawing. One canvas in PSRAM; a frame is drawn into it and only the part that changed is pushed, so a frame never
 // shows half drawn and the eyes can move at 30 fps without sending the whole screen.
-M5Canvas *canvas;  // stopwatch_draw.h
-static int W, H, CX, CY;
-static const uint16_t C_AMBER = 0xFD80, C_GREY = 0x8410, C_DIM = 0x4208, C_GREEN = 0x2E8A, C_RED = 0xF186,
-                      C_ORANGE = 0xFC60;
-
-static void font(const lgfx::IFont *f, float size = 1) {
-  canvas->setFont(f);
-  canvas->setTextSize(size);
-}
-
-static bool ascii(const char *s) {
-  for (; *s; s++)
-    if ((uint8_t)*s >= 0x80) return false;
-  return true;
-}
-
-// The font for this text: plain ASCII in a Latin font, anything else (Chinese, the app's words) in efontCN, at the
-// same size. big: 1 normal, 2 a heading, 3 the largest.
-static void fontFor(const char *s, int big = 1) {
-  if (ascii(s)) font(big == 3 ? &fonts::FreeSansBold24pt7b : big == 2 ? &fonts::FreeSansBold18pt7b : &fonts::FreeSans12pt7b);
-  else font(&fonts::efontCN_24, big == 3 ? 2 : big == 2 ? 1.5f : 1);
-}
-
-static int utf8Back(const String &s) {  // start of the last character
-  int i = s.length() - 1;
-  while (i > 0 && ((uint8_t)s[i] & 0xC0) == 0x80) i--;
-  return i < 0 ? 0 : i;
-}
-
-static String fit(String s, int width) {
-  if (canvas->textWidth(s) <= width) return s;
-  while (s.length() && canvas->textWidth(s + "…") > width) s.remove(utf8Back(s));
-  return s + "…";
-}
-
-// Up to `lines` lines of at most `width` pixels, the last one cut with an ellipsis.
-static void wrapped(const char *text, int y, int width, int lines, int gap) {
-  String rest = text, out[4];
-  lines = lines > 4 ? 4 : lines;
-  int n = 0;
-  while (rest.length() && n < lines) {
-    if (n == lines - 1 || canvas->textWidth(rest) <= width) { out[n++] = fit(rest, width); break; }
-    int cut = 0;
-    for (int i = 1; i <= (int)rest.length(); i++) {
-      if (i < (int)rest.length() && ((uint8_t)rest[i] & 0xC0) == 0x80) continue;
-      if (canvas->textWidth(rest.substring(0, i)) > width) break;
-      cut = i;
-    }
-    if (!cut) break;
-    out[n++] = rest.substring(0, cut);
-    rest = rest.substring(cut);
-    rest.trim();
-  }
-  int top = y - (n - 1) * gap / 2;
-  for (int i = 0; i < n; i++) canvas->drawString(out[i], CX, top + i * gap);
-}
-
-// The answer as lines of ANSWER_W pixels (in its font), once when it comes: where each starts.
-static void layoutAnswer() {
-  fontFor(answerText);
-  int n = (int)strlen(answerText);
-  while (n && ((uint8_t)answerText[n - 1] & 0xC0) == 0x80) n--;  // a character cut at the cap
-  if (n && (uint8_t)answerText[n - 1] >= 0xC0) n--;
-  answerText[n] = 0;
-  answerLines = 0;
-  int at = 0, width = 0, lastSpace = -1;
-  answerStart[0] = 0;
-  for (int i = 0; i <= n && answerLines < ANSWER_LINES;) {
-    if (i == n) { answerLines++; break; }
-    int len = 1;
-    while (i + len < n && ((uint8_t)answerText[i + len] & 0xC0) == 0x80) len++;
-    char ch[5] = {};
-    memcpy(ch, answerText + i, len);
-    int w = canvas->textWidth(ch);
-    if (ch[0] == ' ') lastSpace = i;
-    if (width + w > ANSWER_W && i > at) {  // break before this character, at the last space when there is one
-      int cut = lastSpace > at ? lastSpace + 1 : i;
-      answerStart[++answerLines] = at = cut;
-      width = 0, lastSpace = -1, i = cut;
-      continue;
-    }
-    width += w;
-    i += len;
-  }
-  answerStart[answerLines] = n;
-}
-
-static void answerPage(const sw_ctl &c) {
-  canvas->setTextColor(C_GREEN);
-  fontFor(T(SWT_DONE), 2);
-  canvas->drawString(T(SWT_DONE), CX, 72);
-  canvas->setTextColor(TFT_WHITE);
-  fontFor(answerText);
-  int first = c.page * ANSWER_ROWS, rows = min(ANSWER_ROWS, answerLines - first);
-  int top = CY - (ANSWER_ROWS - 1) * ANSWER_GAP / 2;
-  for (int i = 0; i < rows; i++) {
-    int a = answerStart[first + i], b = answerStart[first + i + 1];
-    String s = String(answerText).substring(a, b);
-    s.trim();
-    canvas->drawString(s, CX, top + i * ANSWER_GAP);
-  }
-  if (c.pages > 1) {
-    char p[8];
-    snprintf(p, sizeof p, "%d/%d", c.page + 1, (int)c.pages);
-    canvas->setTextColor(C_GREY);
-    font(&fonts::FreeSans12pt7b);
-    canvas->drawString(p, CX, H - 62);
-  }
-}
-
-static void ring(int permille, uint16_t color, uint16_t track, int r0, int r1) {
-  canvas->fillArc(CX, CY, r0, r1, 0, 360, track);
-  if (permille > 0) canvas->fillArc(CX, CY, r0, r1, -90, -90 + 360.0f * permille / 1000, color);
-}
-
-// ---- the character (ios/Shared/AgentFace.swift; the pose comes from src/ui/sw_face.c) ----
-
-// Where a point of the face lands: breathing about the centre, the squish and tilt anchored at the bottom of the
-// face (PokeableFace's anchor: .bottom), then the lean / lift / hop offset.
-static const int SW_SCR_STATUS = 100;
-struct View {
-  int screen, hold, sel;
-  uint8_t battery;
-  bool hid, alive;
-  uint8_t lang;
-  int16_t level;  // the mic's, while listening (in 50ths)
-  int32_t elapsed;  // the run's seconds (-1: none)
-  char clock[6];
-  sw_ui ui;
-};
-
-static const uint16_t GLOW_INK = lgfx::color565(255, 245, 219);  // AgentFace.glow
-
-static void line(const char *text, int y, uint16_t color, int lines = 2, int width = 330) {
-  canvas->setTextColor(color);
-  fontFor(text);
-  wrapped(text, y, width, lines, 32);
-}
-
-static const int STATUS_Y = 140, STATUS_GAP = 42, STATUS_LANG = 5;  // the language row: a tap there switches
-
-// Hold yellow: the level bar while it listens, the thinking face while the phone transcribes, the text with what
-// yellow and blue do, then "sent" or what went wrong.
-static void voicePage(const sw_ctl &c, const swf_pose &pose, int level) {
-  switch (c.voice) {
-    case SW_V_LISTEN: {
-      face(pose, CX, CY - 50, GLOW_INK, true);
-      int w = 220, x = CX - w / 2, y = CY + 85;
-      canvas->fillSmoothRoundRect(x, y, w, 14, 7, C_DIM);
-      if (level > 0) canvas->fillSmoothRoundRect(x, y, max(14, w * level / 1000), 14, 7, C_GREEN);
-      line(T(SWT_LISTENING), CY + 130, TFT_WHITE, 1);
-      line(T(SWT_LISTEN_HINT), CY + 170, C_GREY, 1, 300);
-      break;
-    }
-    case SW_V_WAIT:
-      face(pose, CX, CY - 40, GLOW_INK, true);
-      line(T(SWT_TRANSCRIBING), CY + 130, C_GREY, 1);
-      break;
-    case SW_V_RESULT:
-      line(c.said, CY - 20, TFT_WHITE, 4, 340);
-      line(T(c.voice_run ? SWT_TELL_HINT : SWT_RUN_HINT), CY + 135, C_AMBER, 1, 320);
-      break;
-    case SW_V_SENT:
-      face(pose, CX, CY - 30, GLOW_INK, true);
-      line(T(SWT_SENT), CY + 130, C_GREEN, 1);
-      break;
-    default: {
-      static const int ERR[] = {SWT_ERR_NONE, SWT_ERR_DENIED, SWT_ERR_UNAVAILABLE, SWT_ERR_START, SWT_ERR_TIMEOUT, SWT_ERR_OTHER};
-      face(pose, CX, CY - 30, GLOW_INK, true);
-      line(T(ERR[c.voice_err < 6 ? c.voice_err : 5]), CY + 130, C_ORANGE, 2);
-    }
-  }
-}
-
-static void statusPage(const View &v) {
-  canvas->setTextColor(TFT_WHITE);
-  font(&fonts::Font4);
-  canvas->drawString(v.clock[0] ? v.clock : "--:--", CX, 80);
-  char bat[32], fw[32];
-  if (v.battery) snprintf(bat, sizeof bat, "%s%u%%", T(SWT_BATTERY), v.battery);
-  else strlcpy(bat, T(SWT_BATTERY_NONE), sizeof bat);
-  snprintf(fw, sizeof fw, "%s%s", T(SWT_FIRMWARE), FW_VERSION);
-  const char *rows[] = {bat, T(v.hid ? SWT_BT_ON : SWT_BT_OFF), T(v.alive ? SWT_APP_ON : SWT_APP_OFF), fw, boardName,
-                        T(SWT_LANGUAGE)};
-  for (int i = 0; i < 6; i++) {
-    bool ok = i == 1 ? v.hid : i == 2 ? v.alive : true;
-    canvas->setTextColor(i == 4 ? C_GREY : i == STATUS_LANG ? C_AMBER : ok ? (i == 1 || i == 2 ? C_GREEN : TFT_WHITE) : C_GREY);
-    fontFor(rows[i]);
-    canvas->drawString(fit(rows[i], 330), CX, STATUS_Y + i * STATUS_GAP);
-  }
-}
-
-static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
-  if (v.screen == SW_SCR_VOICE) {
-    canvas->fillScreen(TFT_BLACK);
-    canvas->setTextDatum(lgfx::textdatum_t::middle_center);
-    bx0 = by0 = 1e9f, bx1 = by1 = -1e9f;
-    place.on = false;
-    voicePage(c, pose, v.level * 50);
-    return;
-  }
-  const sw_ui &u = c.ui;
-  uint16_t bg = v.screen == SW_SCR_HELP ? C_AMBER : v.screen == SW_SCR_SHAKE ? C_RED : TFT_BLACK;
-  canvas->fillScreen(bg);
-  canvas->setTextDatum(lgfx::textdatum_t::middle_center);
-  bx0 = by0 = 1e9f, bx1 = by1 = -1e9f;
-  place.on = false;
-  int count = u.total > 0 ? sw_progress(&u) : -1;  // the island's green ring: the task's own count only
-  char counter[24];
-  if (u.total > 0) snprintf(counter, sizeof counter, "%d/%d", (int)u.done, (int)u.total);
-  else snprintf(counter, sizeof counter, u.limit > 0 ? "%d/%d" : "", (int)u.step, (int)u.limit);
-  char took[12] = "";
-  if (v.elapsed >= 0) sw_duration(v.elapsed, took);
-  char top[40];  // the step count and the run's time, as the island's counter and timer
-  snprintf(top, sizeof top, "%s%s%s", counter, counter[0] && took[0] ? "   " : "", took);
-  switch (v.screen) {
-    case SW_SCR_RUN: case SW_SCR_PAUSED:
-      if (count >= 0) ring(count, C_GREEN, scaled(C_GREEN, 0.25f), 220, 230);
-      canvas->setTextColor(count >= 0 ? C_GREEN : C_GREY);
-      font(&fonts::Font4);
-      canvas->drawString(v.screen == SW_SCR_PAUSED ? took : top, CX, 62);
-      face(pose, CX, CY - 30, v.screen == SW_SCR_PAUSED ? C_GREY : GLOW_INK, v.screen != SW_SCR_PAUSED);
-      if (v.screen == SW_SCR_PAUSED) line(T(SWT_PAUSED), CY + 130, C_GREY);
-      else line(u.text, CY + 130, u.phase == SW_RECORDING ? C_RED : TFT_WHITE);
-      break;
-    case SW_SCR_HELP:
-      canvas->setTextColor(TFT_BLACK);
-      fontFor(T(u.confirm ? SWT_CONFIRM_STEP : SWT_HELP), 2);
-      canvas->drawString(T(u.confirm ? SWT_CONFIRM_STEP : SWT_HELP), CX, 82);
-      face(pose, CX, CY - 35, TFT_BLACK, false);
-      line(u.text, CY + 95, TFT_BLACK);
-      line(T(u.confirm ? SWT_CONFIRM_KEYS : SWT_HELP_KEYS), H - 88, TFT_BLACK, 1, 320);
-      line(T(SWT_TAKEOVER_HINT), H - 52, scaled(TFT_BLACK, 1), 1, 260);
-      break;
-    case SW_SCR_OK: case SW_SCR_FAIL: {
-      bool ok = v.screen == SW_SCR_OK;
-      if (ok && count >= 0) ring(1000, C_GREEN, C_GREEN, 220, 230);
-      face(pose, CX, CY - 30, GLOW_INK, true);
-      line(u.text[0] ? u.text : T(ok ? SWT_DONE : SWT_NOT_DONE), CY + 130, ok ? C_GREEN : C_ORANGE);
-      if (took[0]) {  // how long it took, and its steps
-        char total[48];
-        snprintf(total, sizeof total, T(SWT_TOTAL), (int)u.step, took);
-        line(total, CY + 182, C_GREY, 1);
-      }
-      break;
-    }
-    case SW_SCR_ANSWER:
-      answerPage(c);
-      break;
-    case SW_SCR_STUCK:
-      face(pose, CX, CY - 30, GLOW_INK, true, true);
-      line(T(SWT_STUCK), CY + 130, C_ORANGE);
-      break;
-    case SW_SCR_CONFIRM:
-      canvas->setTextColor(TFT_WHITE);
-      fontFor(T(SWT_CONFIRM), 2);
-      canvas->drawString(T(SWT_CONFIRM), CX, CY - 60);
-      fontFor(u.picks[c.sel]);
-      canvas->drawString(fit(u.picks[c.sel], 330), CX, CY + 10);
-      line(T(SWT_CONFIRM_HINT), CY + 70, C_GREY, 1);
-      break;
-    case SW_SCR_SHAKE:
-      canvas->setTextColor(TFT_WHITE);
-      fontFor(T(SWT_SHAKE), 3);
-      canvas->drawString(T(SWT_SHAKE), CX, CY - 20);
-      line(T(SWT_SHAKE_HINT), CY + 50, TFT_WHITE, 1);
-      break;
-    case SW_SCR_STATUS:
-      statusPage(v);
-      break;
-    default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
-      face(pose, CX, CY - 10, GLOW_INK, true);
-      font(&fonts::efontCN_24);
-      if (c.sel >= 0 && u.npicks) {
-        fontFor(u.picks[c.sel]);
-        canvas->fillSmoothRoundRect(CX - 150, CY + 125, 300, 44, 22, TFT_WHITE);
-        canvas->setTextColor(TFT_BLACK);
-        canvas->drawString(fit(u.picks[c.sel], 270), CX, CY + 147);
-        char n[8];
-        snprintf(n, sizeof n, "%d/%d", c.sel + 1, (int)u.npicks);
-        canvas->setTextColor(C_GREY);
-        font(&fonts::FreeSans12pt7b);
-        canvas->drawString(n, CX, CY + 190);
-      } else if (!v.hid) {
-        fontFor(boardName);
-        canvas->setTextColor(C_DIM);
-        canvas->drawString(fit(boardName, 300), CX, H - 70);  // what to look for in the phone's Bluetooth list
-      } else if (v.battery && v.battery < 15) {
-        char b[8];
-        snprintf(b, sizeof b, "%u%%", v.battery);
-        canvas->setTextColor(C_RED);
-        canvas->drawString(b, CX, H - 70);
-      }
-  }
-  if (v.hold >= 0) {  // blue held during a run: the stop countdown over whatever is on screen
-    ring(v.hold * 20, C_RED, C_DIM, 200, 230);
-    line(T(SWT_RELEASE_CANCELS), H - 50, TFT_WHITE, 1);
-  }
-}
-
-// The face's motion as integers: a frame is drawn only when one of them changed.
 struct PoseKey {
   int mood, gx, gy, sx, sy, tilt, dx, dy, blink, breathe, spin;
 };
@@ -513,6 +213,13 @@ static void uiTask(void *) {
   int lx0 = 0, ly0 = 0, lx1 = W, ly1 = H;  // the face's area in the last frame (with no face: empty, not used)
   bool wasApp = false, micOn = false, streamed = false;
   uint32_t activeAt = millis();
+  sw_power pw;  // dim after 20 s, off after 60 s with no run (sw_power.h); a press, touch or wrist raise wakes it
+  swp_init(&pw, millis());
+  int shown = SWP_ON, lastScreen = -1, lastVoice = -1;
+  bool eatY = false, eatB = false, eatT = false, wasAlive = false;
+  int8_t charging = -1;  // M5.Power.isCharging(), read every 3 s (-1 unknown)
+  uint32_t chargeAt = 0, lowUntil = 0;
+  uint8_t low = 0;
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   // The codec's mic gives only zeros for ~0.85 s after its first start since power-on (measured 2026-11-21), later
@@ -556,6 +263,16 @@ static void uiTask(void *) {
     int fb = fakeBtn.exchange(-1);
     if (fb >= 0 && fakeHeld < 0) (fb ? bDown : yDown) = true, fakeHeld = fb, fakeUntil = now + fakeMs;
     if (fakeHeld >= 0 && (int32_t)(now - fakeUntil) >= 0) (fakeHeld ? bUp : yUp) = true, fakeHeld = -1;
+    // the screen off: a press or touch only wakes it, its release and click are dropped too
+    bool dark = shown == SWP_OFF, touching = M5.Touch.getCount() > 0;
+    if (yDown || bDown || touching) swp_active(&pw, now);
+    if (dark && yDown) eatY = true;
+    if (dark && bDown) eatB = true;
+    if (dark && touching) eatT = true;
+    if (eatY) eatY = !yUp, yDown = yUp = false;
+    if (eatB) eatB = !bUp, bDown = bUp = false;
+    bool skipTouch = eatT;
+    if (eatT && !touching) eatT = false;
     bool voiceBefore = c.voice != SW_V_NONE || c.sel >= 0, legacy = !(alive && c.ui.voice) && !c.y_down;
     bool pokeIdle = !running && !c.ui.npicks;  // yellow with nothing to pick: it reacts
     if (statusUntil && yDown) {  // yellow on the status page: the other language (Henry 2026-11-21)
@@ -586,7 +303,7 @@ static void uiTask(void *) {
     swf_mood(&f, mood, running, c.ui.look_x, c.ui.look_y, now);
     bool down = false;
     int tx = 0, ty = 0;
-    for (int i = 0; i < M5.Touch.getCount(); i++) {
+    for (int i = 0; !skipTouch && i < M5.Touch.getCount(); i++) {
       auto &t = M5.Touch.getDetail(i);
       if (i == 0 && t.isPressed()) down = true, tx = t.x, ty = t.y;
       if (t.wasClicked() && statusUntil && abs(t.y - (STATUS_Y + STATUS_LANG * STATUS_GAP)) < STATUS_GAP / 2 + 6) {
@@ -602,9 +319,15 @@ static void uiTask(void *) {
     }
     swf_touch(&f, down, tx, ty, W, H, now);
     float ax, ay, az;
-    if (M5.Imu.getAccel(&ax, &ay, &az) && ax * ax + ay * ay + az * az > SHAKE_G * SHAKE_G) {
-      if (running) sw_input(&c, SW_IN_SHAKE, now, out, sizeof out);
-      else swf_dizzy(&f, now);
+    if (M5.Imu.getAccel(&ax, &ay, &az)) {
+      if (ax * ax + ay * ay + az * az > SHAKE_G * SHAKE_G) {
+        if (running) sw_input(&c, SW_IN_SHAKE, now, out, sizeof out);
+        else swf_dizzy(&f, now);
+      }
+      if (swp_motion(&pw, ax, ay, az, now)) {
+        activeAt = now;  // the character wakes up with the screen
+        if (shown != SWP_ON) board_log("stopwatch: raised, screen on");
+      }
     }
     if (statusUntil && (running || c.voice != SW_V_NONE || (int32_t)(now - statusUntil) >= 0)) statusUntil = 0;
     if (sw_tick(&c, now, out, sizeof out)) send(out);
@@ -618,11 +341,29 @@ static void uiTask(void *) {
     voice_poll();
     buzzPulse(buzz, swf_haptic(&f), now);
     buzzRun(buzz, now);
+    if (now - chargeAt >= 3000) {
+      auto ch = M5.Power.isCharging();
+      int8_t was = charging;
+      charging = ch == m5::Power_Class::is_charging ? 0 : ch == m5::Power_Class::is_discharging ? -1 : charging;
+      if ((was >= 0) != (charging >= 0)) {
+        swp_active(&pw, now);  // plugged in or out: shown
+        board_log("stopwatch: %s", charging >= 0 ? "charging" : "not charging");
+        batteryAt = 0;  // the level now
+      }
+      chargeAt = now;
+    }
     if (now - batteryAt >= 10000) {
       int32_t level = M5.Power.getBatteryLevel();
       if (level >= 0 && level <= 100) battery = (uint8_t)level;
       batteryAt = now;
+      if (int under = swp_battery(&pw, level, charging >= 0)) {  // under 15 % or 5 %: a buzz and a banner
+        low = battery.load(), lowUntil = now + 4000;
+        buzzStart(buzz, SW_BUZZ_FAIL, now);
+        swp_active(&pw, now);
+        board_log("stopwatch: battery under %d%% (%u%%)", under, (unsigned)battery.load());
+      }
     }
+    if (low && (int32_t)(now - lowUntil) >= 0) low = 0;
     // draw: everything when the view changed, else only the face's area when it moved
     View v;
     memset(&v, 0, sizeof v);
@@ -636,13 +377,22 @@ static void uiTask(void *) {
     v.level = c.voice == SW_V_LISTEN ? voice_level() / 50 : 0;
     v.elapsed = sw_elapsed(&c, now);
     if (v.screen == SW_SCR_STATUS) sw_clock(&c, now, v.clock);
+    v.charge = charging < 0 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
+    v.low = low;
     v.ui = c.ui;
+    // the screen's power: anything new on it is activity; a run, help, voice, a pick or the status page keep it on
+    if (v.screen != lastScreen || c.voice != lastVoice || alive != wasAlive) swp_active(&pw, now);
+    lastScreen = v.screen, lastVoice = c.voice, wasAlive = alive;
+    bool keepOn = running || c.voice != SW_V_NONE || c.sel >= 0 || statusUntil || v.hold >= 0 || low;
+    int level = swp_level(&pw, now, keepOn);
+    if (level == SWP_OFF) v.charge = -1;  // nothing to animate in the dark
+    if (shown == SWP_OFF && level != SWP_OFF) memset(&last, 0xff, sizeof last);  // waking: all of it, fresh
     v.ui.look_x = v.ui.look_y = 0;  // the face's motion, not the view
     swf_pose pose;
     swf_pose_at(&f, &pose);
     PoseKey k = key(pose);
     bool full = memcmp(&v, &last, sizeof v) != 0, moved = place.on && memcmp(&k, &lastKey, sizeof k) != 0;
-    if (full || moved) {
+    if (level != SWP_OFF && (full || moved)) {
       uint32_t t0 = millis();
       int x0 = 0, y0 = 0, x1 = W, y1 = H;
       if (!full) {  // only the face moved: redraw and send the area of its old and new place
@@ -665,6 +415,11 @@ static void uiTask(void *) {
       uint32_t took = millis() - t0;
       drawMs += took, drawMax = max(drawMax, took), frames++;
     }
+    if (level != shown) {  // after the frame: waking shows the new picture, not the one from before the dark
+      M5.Display.setBrightness(BRIGHT[level]);
+      board_log("stopwatch: screen %s", level == SWP_ON ? "on" : level == SWP_DIM ? "dim" : "off");
+      shown = level;
+    }
     if (now - statAt >= 60000) {  // how hard the screen works, once a minute
       board_log("stopwatch: %u frames/min, draw avg %u ms max %u ms, stack left %u, internal heap %u\n",
                 (unsigned)frames, (unsigned)(frames ? drawMs / frames : 0), (unsigned)drawMax,
@@ -672,7 +427,8 @@ static void uiTask(void *) {
       statAt = now, frames = drawMs = drawMax = 0;
     }
     // a `ui` line wakes the task early; otherwise the next frame
-    uint32_t frame = pose.mood == SW_SLEEPING && v.screen == SW_SCR_IDLE ? SLEEP_FRAME_MS : FRAME_MS;
+    uint32_t frame = level == SWP_OFF ? DARK_FRAME_MS
+                     : pose.mood == SW_SLEEPING && v.screen == SW_SCR_IDLE ? SLEEP_FRAME_MS : FRAME_MS;
     TickType_t next = start + pdMS_TO_TICKS(frame), nowT = xTaskGetTickCount();
     if ((int32_t)(next - nowT) <= 0) next = nowT + 1;  // late (a long draw): never spin, other tasks get the core
     ulTaskNotifyTake(pdTRUE, next - nowT);
