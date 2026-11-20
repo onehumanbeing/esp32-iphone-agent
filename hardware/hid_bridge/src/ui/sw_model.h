@@ -20,6 +20,8 @@ typedef struct {
   int32_t step, limit, done, total;  // done/total: 0 when not sent
   bool finished;
   char text[SW_TEXT_MAX + 1];        // UTF-8, cut at a character boundary
+  char clock[6];                     // the phone's local time "HH:MM" when the line was sent ("": not sent)
+  float look_x, look_y;              // where the eyes look, -1...1 (the island's lookX / lookY)
   bool has_picks;                    // `k` was in this line (else the last picks stay)
   uint8_t npicks;
   char picks[SW_PICKS][SW_PICK_MAX + 1];
@@ -29,12 +31,12 @@ enum sw_parsed { SW_PARSE_BAD, SW_PARSE_UI, SW_PARSE_OFF };
 int sw_parse(const char *arg, sw_ui *out);  // the argument of `ui`: a JSON object or `off`
 
 enum sw_screen { SW_SCR_IDLE, SW_SCR_RUN, SW_SCR_HELP, SW_SCR_PAUSED, SW_SCR_OK, SW_SCR_FAIL, SW_SCR_CONFIRM,
-                 SW_SCR_SHAKE };
+                 SW_SCR_SHAKE, SW_SCR_STUCK };
 enum sw_buzz { SW_BUZZ_NONE, SW_BUZZ_HELP, SW_BUZZ_OK, SW_BUZZ_FAIL };
 enum sw_input { SW_IN_YELLOW, SW_IN_BLUE_DOWN, SW_IN_BLUE_UP, SW_IN_TAP, SW_IN_SWIPE_UP, SW_IN_SHAKE };
 
 enum {
-  SW_STALE_MS = 10000,     // no `ui` line this long: the screen goes idle
+  SW_STALE_MS = 15000,     // no `ui` line this long (the app repeats it every 5 s): the app is gone or suspended
   SW_DONE_MS = 5000,       // the check or cross after a finished task
   SW_PICK_MS = 3000,       // a pick or its confirmation without a press is cancelled
   SW_HOME_MS = 500,        // blue released before this: `btn home`; later and before SW_STOP_MS: nothing
@@ -66,6 +68,8 @@ int sw_apply(sw_ctl *c, const sw_ui *ui, bool off, uint32_t now);  // a parsed l
 bool sw_input(sw_ctl *c, int input, uint32_t now, char *out, size_t n);  // true: out holds a `btn ...` line
 bool sw_tick(sw_ctl *c, uint32_t now, char *out, size_t n);             // timeouts; true: out holds a line
 bool sw_running(const sw_ctl *c, uint32_t now);
+bool sw_alive(const sw_ctl *c, uint32_t now);         // the app sent a line lately: awake (AppModel.mood idle)
+bool sw_clock(const sw_ctl *c, uint32_t now, char out[6]);  // the phone's time now, from the last `c`
 int sw_screen(const sw_ctl *c, uint32_t now);
 int sw_progress(const sw_ui *ui);                     // 0-1000 around the ring, -1: none
 int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop hold, -1: not shown

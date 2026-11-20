@@ -669,7 +669,7 @@ void setup() {
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
 #ifdef M5_STOPWATCH
-  stopwatch_ui_start();
+  stopwatch_ui_start((String(BOARD_NAME_TEXT " ") + board_suffix()).c_str());
 #endif
   board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

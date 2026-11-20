@@ -83,7 +83,8 @@ IDR-only instead of building latency).
 ## StopWatch screen (M5Stack StopWatch, experimental)
 `hardware/flash.sh --stopwatch --build-only` builds BLE HID for the M5Stack StopWatch (round 466×466 screen, two
 buttons, touch, vibration, IMU). Its status carries `"board":"stopwatch","ui":1`; the app talks to the screen only
-on such a board. Without an app that does (an older one), it is a plain Bluetooth mouse and keyboard with an idle screen.
+on such a board. Without an app that does (an older one), it is a plain Bluetooth mouse and keyboard with the character
+asleep on screen.
 
 App → board: `ui <json>` (answers `ok`; `err usage: …` when it is not a JSON object) or `ui off` (the app is gone: idle).
 Every line is the whole state, except `k`, which stays until the app sends another. Unknown keys and values are ignored.
@@ -92,15 +93,22 @@ Every line is the whole state, except `k`, which stays until the app sends anoth
 |---|---|
 | `m` | mood: `sleeping`, `idle`, `listening`, `thinking`, `acting`, `success`, `failure`, `dizzy`, `content`, `wink` |
 | `p` | phase: `running`, `help`, `countdown`, `recording`, `paused`, `resuming`, `standby` |
-| `s`, `l` | step and step limit (the progress ring when `d`/`n` are missing) |
-| `d`, `n` | optional done and total (the progress ring) |
-| `t` | the current line, UTF-8, up to 80 bytes (cut at a character) |
+| `s`, `l` | step and step limit (a grey `s/l` counter when `d`/`n` are missing) |
+| `d`, `n` | optional done and total: the island's green ring and `d/n` |
+| `t` | what the character says (the island's words while running, else the line), UTF-8, up to 80 bytes |
+| `c` | the phone's local time `HH:MM` (the status page's clock; the board has none set) |
+| `x`, `y` | where the eyes look, -1…1 (the island's look; missing: 0) |
 | `f` | `true`: the task finished (`m` `failure`: failed) |
 | `k` | standby picks: up to 3 intent names of up to 24 bytes |
 
-No `ui` line for 10 s, `p` `standby`, or the app's link dropping shows the idle screen (clock if the RTC is set,
-battery, Bluetooth HID link, the picks). A finished task shows a check or a cross for 5 s, then idle. `ui` lines do
-not count as the app using the board (the CLI is not kept out by them).
+The screen is the app's character (`hardware/hid_bridge/src/ui/sw_face.c`, a port of `AgentFace` and `PokeableFace`).
+Idle it is awake while `ui` lines come (the app sends its idle mood, `p` `standby`, every 5 s) and asleep without
+them (15 s), after `ui off` or when the phone's link drops. Idle pokes as in the app: tap happy, double tap wink,
+3 quick taps or a shake dizzy, long press petting, drag: the eyes follow the finger. A run shows its mood, the line
+and, with a count, the green ring; `help` turns the screen amber. A run whose lines stop for 15 s while the link
+stays shows the island's "×" eyes (iOS suspended the app). A finished task shows the outcome for 5 s. Blue held
+0.8 s while nothing runs: a status page for 5 s (battery, Bluetooth, app, firmware, name). `ui` lines do not count
+as the app using the board (the CLI is not kept out by them).
 
 Board → app: unprompted reply lines `btn <verb> [arg]`, like the `app` relay (no request id; an app that does not know
 them ignores them):

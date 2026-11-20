@@ -193,6 +193,19 @@ int sw_parse(const char *arg, sw_ui *u) {
       if (ok && i >= 0) *(key[0] == 'm' ? &u->mood : &u->phase) = (uint8_t)i;
     } else if (!strcmp(key, "t") && *r.p == '"') {
       ok = str(&r, u->text, sizeof u->text);
+    } else if (!strcmp(key, "c") && *r.p == '"') {
+      char v[8];
+      ok = str(&r, v, sizeof v);
+      bool hhmm = strlen(v) == 5 && v[2] == ':' && v[0] >= '0' && v[0] <= '2' && v[1] >= '0' && v[1] <= '9' &&
+                  v[3] >= '0' && v[3] <= '5' && v[4] >= '0' && v[4] <= '9' && (v[0] - '0') * 10 + v[1] - '0' < 24;
+      if (ok && hhmm) memcpy(u->clock, v, 6);
+    } else if ((!strcmp(key, "x") || !strcmp(key, "y")) && (*r.p == '-' || (*r.p >= '0' && *r.p <= '9'))) {
+      char *end;
+      double v = strtod(r.p, &end);
+      ok = end != r.p;
+      r.p = end;
+      float f = v < -1 ? -1 : v > 1 ? 1 : (float)v;
+      *(key[0] == 'x' ? &u->look_x : &u->look_y) = f;
     } else if (!strcmp(key, "k")) {
       ok = picks(&r, u);
     } else if (!strcmp(key, "f")) {
@@ -223,8 +236,18 @@ void sw_init(sw_ctl *c) {
   c->sel = -1;
 }
 
+bool sw_alive(const sw_ctl *c, uint32_t now) { return c->live && !after(now, c->ui_at, SW_STALE_MS); }
+
 bool sw_running(const sw_ctl *c, uint32_t now) {
-  return c->live && !after(now, c->ui_at, SW_STALE_MS) && c->ui.phase != SW_STANDBY && !c->ui.finished;
+  return sw_alive(c, now) && c->ui.phase != SW_STANDBY && !c->ui.finished;
+}
+
+bool sw_clock(const sw_ctl *c, uint32_t now, char out[6]) {
+  if (!c->live || !c->ui.clock[0]) return false;
+  int m = ((c->ui.clock[0] - '0') * 10 + c->ui.clock[1] - '0') * 60 + (c->ui.clock[3] - '0') * 10 + c->ui.clock[4] - '0';
+  m = (m + (int)((now - c->ui_at) / 60000)) % (24 * 60);  // the minute it was sent, plus the time since
+  snprintf(out, 6, "%02d:%02d", m / 60, m % 60);
+  return true;
 }
 
 int sw_apply(sw_ctl *c, const sw_ui *u, bool off, uint32_t now) {
@@ -346,6 +369,8 @@ int sw_screen(const sw_ctl *c, uint32_t now) {
   if (c->shaking) return SW_SCR_SHAKE;
   if (c->done && !after(now, c->done_at, SW_DONE_MS)) return c->done_kind;
   if (sw_running(c, now)) return c->ui.phase == SW_HELP ? SW_SCR_HELP : c->ui.phase == SW_PAUSED ? SW_SCR_PAUSED : SW_SCR_RUN;
+  // A run's lines stopped while the link stays (iOS suspended the app): the island's "×" eyes, until the link drops
+  if (c->live && c->ui.phase != SW_STANDBY && !c->ui.finished) return SW_SCR_STUCK;
   return c->confirm && c->sel >= 0 ? SW_SCR_CONFIRM : SW_SCR_IDLE;
 }
 

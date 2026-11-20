@@ -19,6 +19,8 @@
 #include "../hid_bridge/src/airplay/ap_internal.h"
 #include "../hid_bridge/src/net/lan_lock.h"
 #include "../hid_bridge/src/ui/sw_model.h"
+#include "../hid_bridge/src/ui/sw_face.h"
+#include <math.h>
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -702,33 +704,184 @@ static void test_sw_buttons(void) {
   CHECK(sw_screen(&c, 19000) == SW_SCR_SHAKE);
   CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 19100, out, sizeof out) && !sw_input(&c, SW_IN_BLUE_UP, 19200, out, sizeof out));
   CHECK(!sw_tick(&c, 20500, out, sizeof out) && sw_screen(&c, 20500) == SW_SCR_HELP);
-  // no `ui` for 10 s: idle, and a shake does nothing
-  CHECK(sw_running(&c, 28099) && !sw_running(&c, 28100) && sw_screen(&c, 28100) == SW_SCR_IDLE);
-  sw_input(&c, SW_IN_SHAKE, 28200, out, sizeof out);
-  CHECK(sw_screen(&c, 28200) == SW_SCR_IDLE);
+  // no `ui` for 15 s mid-run: the island's stuck face (not running: a shake does nothing), until the app is gone
+  CHECK(sw_running(&c, 33099) && !sw_running(&c, 33100) && sw_screen(&c, 33100) == SW_SCR_STUCK && !sw_alive(&c, 33100));
+  sw_input(&c, SW_IN_SHAKE, 33200, out, sizeof out);
+  CHECK(sw_screen(&c, 33200) == SW_SCR_STUCK);
 
   // finished: check (two buzzes) or cross (three) for 5 s, once per task
   sw_parse("{\"m\":\"success\",\"f\":true}", &u);
-  CHECK(sw_apply(&c, &u, false, 30000) == SW_BUZZ_OK && sw_screen(&c, 30000) == SW_SCR_OK && !sw_running(&c, 30000));
-  CHECK(sw_apply(&c, &u, false, 31000) == SW_BUZZ_NONE);
-  sw_tick(&c, 35000, out, sizeof out);
-  CHECK(sw_screen(&c, 35000) == SW_SCR_IDLE);
+  CHECK(sw_apply(&c, &u, false, 40000) == SW_BUZZ_OK && sw_screen(&c, 40000) == SW_SCR_OK && !sw_running(&c, 40000));
+  CHECK(sw_apply(&c, &u, false, 41000) == SW_BUZZ_NONE);
+  sw_tick(&c, 45000, out, sizeof out);
+  CHECK(sw_screen(&c, 45000) == SW_SCR_IDLE);
   sw_parse("{\"m\":\"acting\"}", &u);
-  sw_apply(&c, &u, false, 36000);
+  sw_apply(&c, &u, false, 46000);
   sw_parse("{\"m\":\"failure\",\"f\":true}", &u);
-  CHECK(sw_apply(&c, &u, false, 37000) == SW_BUZZ_FAIL && sw_screen(&c, 37000) == SW_SCR_FAIL);
+  CHECK(sw_apply(&c, &u, false, 47000) == SW_BUZZ_FAIL && sw_screen(&c, 47000) == SW_SCR_FAIL);
   // `ui off`: idle, picks gone; a help line straight after buzzes
-  sw_apply(&c, NULL, true, 38000);
-  CHECK(sw_screen(&c, 38000) == SW_SCR_IDLE && c.ui.npicks == 0);
+  sw_apply(&c, NULL, true, 48000);
+  CHECK(sw_screen(&c, 48000) == SW_SCR_IDLE && c.ui.npicks == 0);
   sw_parse("{\"p\":\"help\"}", &u);
-  CHECK(sw_apply(&c, &u, false, 39000) == SW_BUZZ_HELP);
+  CHECK(sw_apply(&c, &u, false, 49000) == SW_BUZZ_HELP);
   // the millisecond clock wrapping does not end a run early
   sw_init(&c);
   sw_apply(&c, &u, false, 0xFFFFF000u);
   CHECK(sw_running(&c, 0x1000) && !sw_running(&c, 0xFFFFF000u + SW_STALE_MS));
 }
 
+// The phone's time and the island's look in `ui` lines; awake while the lines come.
+static void test_sw_clock(void) {
+  sw_ui u;
+  sw_ctl c;
+  char t[6];
+  CHECK(sw_parse("{\"c\":\"23:58\",\"x\":0.5,\"y\":-3,\"p\":\"standby\"}", &u) == SW_PARSE_UI);
+  CHECK(!strcmp(u.clock, "23:58") && u.look_x == 0.5f && u.look_y == -1);
+  CHECK(sw_parse("{\"c\":\"24:00\"}", &u) == SW_PARSE_UI && !u.clock[0]);
+  CHECK(sw_parse("{\"c\":\"9:05\"}", &u) == SW_PARSE_UI && !u.clock[0]);
+  CHECK(sw_parse("{\"x\":\"a\"}", &u) == SW_PARSE_UI && u.look_x == 0);  // not a number: skipped
+  sw_init(&c);
+  CHECK(!sw_alive(&c, 0) && !sw_clock(&c, 0, t));
+  sw_parse("{\"c\":\"23:58\",\"p\":\"standby\"}", &u);
+  sw_apply(&c, &u, false, 1000);
+  CHECK(sw_alive(&c, 1000) && !sw_running(&c, 1000) && sw_screen(&c, 1000) == SW_SCR_IDLE);
+  CHECK(sw_clock(&c, 60999, t) && !strcmp(t, "23:58") && sw_clock(&c, 121000, t) && !strcmp(t, "00:00"));
+  CHECK(!sw_alive(&c, 1000 + SW_STALE_MS) && sw_screen(&c, 1000 + SW_STALE_MS) == SW_SCR_IDLE);  // asleep, not stuck
+  sw_apply(&c, NULL, true, 20000);
+  CHECK(!sw_alive(&c, 20000) && !sw_clock(&c, 20000, t));
+}
+
+static void face_at(sw_face *f, uint32_t t) { swf_tick(f, t); }
+
+static void tap(sw_face *f, uint32_t t) {
+  swf_touch(f, true, 233, 233, 466, 466, t);
+  swf_touch(f, false, 233, 233, 466, 466, t + 80);
+}
+
+// The character, as the app's AgentFace and PokeableFace (src/ui/sw_face.h).
+static void test_sw_face(void) {
+  sw_face f;
+  swf_pose p;
+  swf_init(&f, 1.6f, 0);
+  swf_mood(&f, SW_IDLE, false, 0, 0,0);
+  // idle: blinks every 4.3 s, breathes, looks left at 6-7 s of each 9 s
+  face_at(&f, 1000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && p.blink == 1 && p.breathe != 1 && p.gaze_x == 0 && p.sx == 1 && p.dy == 0);
+  face_at(&f, 4365);
+  swf_pose_at(&f, &p);
+  CHECK(p.blink < 0.2f);
+  face_at(&f, 6500);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_x < 0);
+  // tap: happy and squished, a light buzz, back to idle after 0.7 s
+  tap(&f, 10000);
+  CHECK(swf_haptic(&f) > 0 && swf_haptic(&f) == 0);
+  face_at(&f, 10150);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS && p.sx > 1.02f && p.sy < 0.95f);
+  face_at(&f, 10779);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS);
+  face_at(&f, 10781);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  face_at(&f, 12000);
+  swf_pose_at(&f, &p);
+  CHECK(fabsf(p.sx - 1) < 0.01f && fabsf(p.dy) < 0.5f);  // springs settled
+  // double tap within 0.35 s: wink and a jump
+  tap(&f, 20000);
+  tap(&f, 20250);
+  face_at(&f, 20390);  // the first tap's squash still pulls the lift back, as in the app
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_WINK && p.dy < -10);
+  face_at(&f, 21200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  // three taps within 1.2 s: dizzy for 1.3 s, shakes it off, then the real mood
+  tap(&f, 30000);
+  tap(&f, 30500);
+  tap(&f, 31000);
+  face_at(&f, 31500);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_DIZZY && p.tilt > 4);
+  face_at(&f, 32400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);  // shaking it off
+  face_at(&f, 33200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && f.override == -1 && p.tilt == 0);
+  // long press: petting (content), soft buzzes every 0.65 s while held, back after release
+  swf_touch(&f, true, 233, 233, 466, 466, 40000);
+  face_at(&f, 40399);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  face_at(&f, 40401);
+  CHECK(swf_haptic(&f) > 0);
+  face_at(&f, 41000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_CONTENT && p.sx > 1.03f && p.tilt > 2);
+  face_at(&f, 41100);
+  CHECK(swf_haptic(&f) > 0);
+  swf_touch(&f, false, 233, 233, 466, 466, 42000);
+  face_at(&f, 42300);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_CONTENT);
+  face_at(&f, 42400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  // drag: the eyes look at the finger, the body leans after it (at most 22 points), springs back on release
+  swf_touch(&f, true, 233, 233, 466, 466, 50000);
+  swf_touch(&f, true, 433, 233, 466, 466, 50100);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_LISTENING && p.gaze_x > 0.8f && p.dx > 20 && p.dx <= 22 && p.tilt > 7);
+  swf_touch(&f, true, 133, 433, 466, 466, 50200);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_x < -0.3f && p.gaze_y > 0.8f && p.dx < 0);
+  swf_touch(&f, false, 133, 433, 466, 466, 50300);
+  face_at(&f, 52000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && fabsf(p.dx) < 0.5f && p.gaze_x == 0);
+  // a run: a tap only glances up; the app's mood reacts (acting hops, failure shakes); the island's look
+  swf_mood(&f, SW_ACTING, true, 0.5f, -0.5f,60000);
+  face_at(&f, 60100);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_ACTING && p.dy < -5);
+  face_at(&f, 61000);
+  swf_pose_at(&f, &p);
+  CHECK(fabsf(p.gaze_x - 0.5f) < 0.02f && fabsf(p.gaze_y + 0.5f) < 0.02f);
+  tap(&f, 62000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_ACTING && p.gaze_y < -0.7f);
+  face_at(&f, 62700);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_y > -0.6f);
+  swf_mood(&f, SW_FAILURE, true, 0, 0,62750);
+  face_at(&f, 62790);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_FAILURE && p.dx > 2);
+  // a shake while idle: dizzy; not during a run
+  swf_dizzy(&f, 63000);
+  CHECK(f.override == -1);
+  swf_mood(&f, SW_IDLE, false, 0, 0,63500);
+  swf_dizzy(&f, 64000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_DIZZY);
+  // the millisecond clock wrapping keeps the timers
+  swf_init(&f, 1.6f, 0xFFFFFF00u);
+  swf_mood(&f, SW_IDLE, false, 0, 0,0xFFFFFF00u);
+  tap(&f, 0xFFFFFF00u);
+  face_at(&f, 0x200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS);
+  face_at(&f, 0x400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+}
+
 int main(void) {
+  test_sw_clock();
+  test_sw_face();
   test_sw_parse();
   test_sw_buttons();
   test_lan_lock();
