@@ -49,12 +49,14 @@ import XCTest
 @MainActor final class StopWatchUITests: XCTestCase {
     typealias State = AgentActivityAttributes.ContentState
     let stopwatch = BoardStatus(board: "stopwatch", ui: 1)
+    var time = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 9, minute: 5))!
 
     private func make(_ status: BoardStatus?) -> (CommandChannel, FakeBoard) {
         let board = FakeBoard()
         let channel = CommandChannel(transport: board)
         board.channel = channel
         channel.boardStatus = { status }
+        channel.clock = { [unowned self] in self.time }
         return (channel, board)
     }
 
@@ -67,10 +69,11 @@ import XCTest
     func testTheLineCarriesTheStateWithinItsLimits() throws {
         var state = State(mood: .acting, step: 4, limit: 300, line: String(repeating: "点开设置", count: 30), phase: .running)
         (state.done, state.total) = (3, 12)
-        let (line, picks) = try XCTUnwrap(StopWatchUI.command(.show(state)))
+        let (line, picks) = try XCTUnwrap(StopWatchUI.command(.show(state), at: time))
         XCTAssertNil(picks)
         XCTAssertLessThanOrEqual(line.utf8.count, StopWatchUI.maxLine)
         let o = try json(line)
+        XCTAssertEqual(o["c"] as? String, "09:05")
         XCTAssertEqual(o["m"] as? String, "acting")
         XCTAssertEqual(o["p"] as? String, "running")
         XCTAssertEqual(o["s"] as? Int, 4)
@@ -93,11 +96,11 @@ import XCTest
         let k = try XCTUnwrap(json(line)["k"] as? [String])
         XCTAssertEqual(k, ["Morning alarm and weathe", "B", "C"])
         XCTAssertTrue(k.allSatisfy { $0.utf8.count <= StopWatchUI.maxPick })
-        let (tight, kept) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 100))
-        XCTAssertLessThanOrEqual(tight.utf8.count, 100)
+        let (tight, kept) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 112))
+        XCTAssertLessThanOrEqual(tight.utf8.count, 112)
         XCTAssertNil(try json(tight)["t"])
         XCTAssertNotNil(kept)
-        let (tiny, none) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 60))
+        let (tiny, none) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 70))
         XCTAssertNil(try json(tiny)["k"])
         XCTAssertNil(none)
         XCTAssertEqual(StopWatchUI.command(.off)?.0, "ui off")
@@ -129,6 +132,29 @@ import XCTest
         channel.linkUp()  // a reconnect: the newest state goes again
         channel.flushUI()
         XCTAssertEqual(board.lines.count, 2)  // still rate-limited
+    }
+
+    func testTheLineGoesAgainEvery5sAndOnANewMinuteButNotWhenFinished() {
+        let (channel, board) = make(stopwatch)
+        var state = State(mood: .thinking, step: 1, limit: 300, line: "a")
+        channel.showUI(state)
+        channel.refreshUI()  // unchanged: still sent, so the screen does not fall back to idle
+        XCTAssertEqual(board.lines.count, 2)
+        XCTAssertEqual(board.lines[0].split(separator: " ", maxSplits: 1)[1], board.lines[1].split(separator: " ", maxSplits: 1)[1])
+        let (later, laterBoard) = make(stopwatch)
+        later.showUI(state)
+        time = time.addingTimeInterval(60)
+        later.showUI(state)  // the same state, a new minute: a change
+        XCTAssertEqual(laterBoard.lines.count, 2)
+        XCTAssertTrue(laterBoard.lines[1].contains(#""c":"09:06""#))
+        let (done, doneBoard) = make(stopwatch)
+        state.finished = true
+        done.showUI(state)
+        done.refreshUI()
+        done.showUI(nil)
+        done.refreshUI()
+        XCTAssertEqual(doneBoard.lines.count, 2)  // the finished line and `ui off`, neither repeated
+        XCTAssertTrue(doneBoard.lines[1].hasSuffix(" ui off"))
     }
 
     func testButtonsMapToCommands() {

@@ -75,6 +75,8 @@ extension BoardTransport {
     private var uiSent: String?
     private var uiTimes: [Double] = []
     private var uiRetry: Task<Void, Never>?
+    private var uiRefresh: Task<Void, Never>?
+    var clock: () -> Date = { Date() }      // the `c` key's local time
     private(set) var uiPicks: [UUID] = []    // the standby picks of the last `ui` line the board got, for `btn run <i>`
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
@@ -237,7 +239,8 @@ extension BoardTransport {
     // MARK: - StopWatch screen and buttons
 
     /// The run's state for the StopWatch screen (nil: `ui off`). Fire-and-forget: only the newest state is kept,
-    /// sent when it changed, at most 2 a second, and later (every 0.5 s) while the link is busy. Other boards: nothing.
+    /// sent when it changed, at most 2 a second, and later (every 0.5 s) while the link is busy. A run or standby
+    /// goes again every 5 s (refreshUI): the screen falls back to idle after 10 s without a line. Other boards: nothing.
     func showUI(_ state: AgentActivityAttributes.ContentState?) {
         let want = state.map(StopWatchUI.Want.show) ?? .off
         (uiLast, uiWanted) = (want, want)
@@ -248,7 +251,8 @@ extension BoardTransport {
     func flushUI() {
         guard let want = uiWanted, connected, let transport, StopWatchUI.enabled(boardStatus()) else { return }
         let prefix = "\(nextID) "
-        guard case let (body, picks)? = StopWatchUI.command(want, max: min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count))
+        let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
+        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock())
         else { return uiWanted = nil }
         guard body != uiSent else { return uiWanted = nil }
         let t = now()
@@ -258,6 +262,27 @@ extension BoardTransport {
         uiTimes.append(t)
         (uiSent, uiWanted) = (body, nil)
         if let picks { uiPicks = picks }
+        startRefresh()
+    }
+
+    /// The line on the board's screen once more, unchanged or with the new minute; finished runs and `off` are not
+    /// repeated (the screen goes back to idle by itself).
+    func refreshUI() {
+        guard case .show(let state)? = uiLast, !state.finished else { return }
+        (uiSent, uiWanted) = (nil, uiLast)
+        flushUI()
+    }
+
+    private func startRefresh() {
+        guard uiRefresh == nil, case .show(let state)? = uiLast, !state.finished else { return }
+        uiRefresh = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, case .show(let state)? = self.uiLast, !state.finished else { break }
+                self.refreshUI()
+            }
+            self?.uiRefresh = nil
+        }
     }
 
     private func retryUI() {
@@ -328,8 +353,10 @@ enum StopWatchUI {
 
     static func enabled(_ status: BoardStatus?) -> Bool { status?.board == "stopwatch" && status?.ui == 1 }
 
-    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks.
+    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, and the
+    /// local time "HH:mm" (the board has no clock).
     struct Payload: Encodable, Equatable {
+        var c: String
         var m: String, p: String, s: Int, l: Int
         var t: String?
         var d: Int?, n: Int?
@@ -339,10 +366,10 @@ enum StopWatchUI {
 
     /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
     /// Too long: the text gets shorter, then goes, then the picks go.
-    static func command(_ want: Want, max: Int = maxLine) -> (String, [UUID]?)? {
+    static func command(_ want: Want, max: Int = maxLine, at time: Date = Date()) -> (String, [UUID]?)? {
         guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
         let picks = state.picks.map { Array($0.prefix(maxPicks)) }
-        var p = Payload(m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
+        var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
                         t: truncated(state.line.replacingOccurrences(of: "\n", with: " "), bytes: maxText),
                         d: state.done, n: state.total, f: state.finished,
                         k: picks?.map { truncated($0.name, bytes: maxPick) })
@@ -353,6 +380,11 @@ enum StopWatchUI {
             else if p.k != nil { p.k = nil }
             else { return nil }
         }
+    }
+
+    static func clock(_ time: Date) -> String {
+        let t = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return String(format: "%02d:%02d", t.hour ?? 0, t.minute ?? 0)
     }
 
     private static func line(_ p: Payload) -> String? {
