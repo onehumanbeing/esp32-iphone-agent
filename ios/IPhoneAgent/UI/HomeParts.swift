@@ -147,36 +147,35 @@ struct RecoveryPanel: View {
     }
 }
 
-/// Above the face on Home in Bluetooth mode after a long mirroring session or frozen video (MirrorHint): a tip,
-/// not a warning; × hides it until mirroring restarts, "Don't show again" for good.
+/// Above the face on Home in Bluetooth mode after a long mirroring session or frozen video (MirrorHint): a quiet
+/// one-line tip in grey, not a box (Henry 2026-11-20: the blue card was too loud). × hides it until mirroring
+/// restarts; Don't Show Again sits in the long-press / × menu, not on a second line.
 struct MirrorHintBanner: View {
     @ObservedObject var app: AppModel
     let busy: Bool  // a run starting or going: the tip waits
 
     var body: some View {
         if app.mirrorHintShown && !busy {
-            HStack(alignment: .top, spacing: Space.s) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Label("Bluetooth mode: if runs get stuck after a long session, stop and restart Screen Mirroring.",
-                          systemImage: "rectangle.on.rectangle")
+            HStack(spacing: Space.xs) {
+                Text("Stuck after a long session? Restart Screen Mirroring.")
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .contextMenu { Button("Don't Show Again") { app.dismissMirrorHint(forever: true) } }
+                Menu {  // tap: hide for now; long press: for good
                     Button("Don't Show Again") { app.dismissMirrorHint(forever: true) }
-                        .font(.footnote.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Button { app.dismissMirrorHint(forever: false) } label: {
-                    Image(systemName: "xmark").font(.footnote.weight(.bold)).frame(width: 28, height: 28)
+                } label: {
+                    Image(systemName: "xmark.circle.fill").imageScale(.small).frame(width: 28, height: 28)
                         .contentShape(Rectangle())
+                } primaryAction: {
+                    app.dismissMirrorHint(forever: false)
                 }
+                .tint(Color.secondary)
                 .accessibilityLabel(Text("Close"))
             }
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(Palette.accent)
-            .buttonStyle(.plain)
-            .padding(.horizontal, Space.m)
-            .padding(.vertical, Space.s)
-            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .font(.caption)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, Space.l)
-            .transition(.opacity.combined(with: .scale))
+            .transition(.opacity)
         }
     }
 }

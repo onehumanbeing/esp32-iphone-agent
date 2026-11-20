@@ -89,6 +89,7 @@ struct LanSheet: View {
                     .buttonStyle(BigButton())
                     .disabled(app.lanJoin.busy || ssid.trimmingCharacters(in: .whitespaces).isEmpty || app.lanJoin == .joined)
                     .padding(.horizontal, Space.l)
+                    if app.lanJoin == .joined && app.board.status?.ap != "streaming" { MirroringSteps(app: app) }
                 }
                 .padding(.horizontal, Space.xl)
                 .padding(.top, Space.l)
@@ -130,6 +131,31 @@ struct MirroringRestartHint: View {
                   systemImage: "rectangle.on.rectangle")
                 .font(.footnote)
                 .foregroundStyle(Palette.warning)
+        }
+    }
+}
+
+
+/// The board is on the network, mirroring not yet: where to tap, the Control Center picture, and the wait. Shared by
+/// setup's See page (hotspot and Home Wi-Fi) and Settings' Home Wi-Fi sheet, so every path shows the same steps.
+struct MirroringSteps: View {
+    @ObservedObject var app: AppModel
+
+    var body: some View {
+        VStack(spacing: Space.xl) {
+            Text("Now swipe down from the top-right corner and tap **Screen Mirroring → \(BoardName.current)**.")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            MirroringRestartHint(app: app)
+            MiniPhoneDemo(kind: .controlCenter)
+            VStack(spacing: Space.s) {
+                HStack(spacing: Space.s) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for Screen Mirroring…")
+                }
+                Label("Keep the screen unlocked: locking stops mirroring.", systemImage: "lock.open")
+            }
+            .font(.footnote).foregroundStyle(.secondary)
         }
     }
 }
