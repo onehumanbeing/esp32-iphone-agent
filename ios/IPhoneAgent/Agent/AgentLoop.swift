@@ -129,6 +129,7 @@ extension Gestures {
     var fileView: String?  // the last long `file` result (a listing, a file's text), for the next round only
     var viewedSinceWrite: Set<String> = []  // paths `file view` read since the run last wrote a file
     var resultWritten = false  // a `file` write that worked this run (the README, a table)
+    var autoResult: (path: String, text: String)?  // the result the app saved from the notebook (saveListResult)
     /// A saved plan for this run (PlanCache), set before start: the first round goes to the actor with it.
     var cachedPlan: String?
     private(set) var usedCachedPlan = false
@@ -162,6 +163,8 @@ extension Gestures {
     var onWrite: ((String) async throws -> Bool)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
+    /// The words for the user while help is asked, when the reason is only for the record (errorsReason).
+    private(set) var helpMessage: String?
     private var helpAsked = 0
     /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
     var acceptedLookLinks: Int?
@@ -204,6 +207,9 @@ extension Gestures {
     var mirrorSuspicious = false
     /// The run's own reasons to ask (the help panel words them for people).
     static let stepLimitReason = "step limit reached", stallReason = "the screen did not change"
+    /// The end of a fail step's reason after `maxFailures` failed rounds ("3 errors in a row"): the run's record,
+    /// RunPolicy and Trial match it; the user reads ModelRequestFailure.streakMessage.
+    static let errorsReason = "errors in a row"
     /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
     /// off = it goes on by itself. Continue = do it, Skip = don't, Stop = end the run.
     var onConfirm: ((String) async -> HelpChoice)?
@@ -242,7 +248,7 @@ extension Gestures {
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
             recorder.task?.cancel(); recorder = RecorderState()
-            notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
+            notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; autoResult = nil; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
             filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
             limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
@@ -569,6 +575,7 @@ extension Gestures {
 
     func run() async {
         var failures = 0, stalls = 0, rounds = 0
+        var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         do {
             if startsOnHome, !scripting, !steps.contains(where: { Actions.gestures.contains($0["action"]?.str ?? "") || $0["action"]?.str == "resumed" }),
@@ -650,11 +657,26 @@ extension Gestures {
                         continue
                     }
                     modelBackoffs = 0
-                    record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
+                    let cutOff = ModelRequestFailure.cutOff(error)
+                    record(nil, ["action": .str("hiccup"), "kind": .str(ModelRequestFailure.kind(error)),
+                                 "reason": .str(cutOff ? ModelRequestFailure.cutOffHiccup : String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)
                     failures += linkLost ? 0 : 1  // a lost link is not the agent's fault
+                    if failures == 1 { cutOffs = 0 }
+                    if cutOff, !linkLost { cutOffs += 1 }
+                    if failures >= maxFailures, workComplete() {
+                        // 2026-11-20: 25 rides collected and saved, then the closing reply was cut three times and
+                        // the run ended in help although the work was done. Now it ends as done, the result kept.
+                        DebugLog.write("errors: \(failures) in a row after the work was complete; the run ends as done")
+                        var act: JObject = ["action": .str("done"), "answer": .str(""),
+                                            "reason": .str("the model failed \(failures) times in a row after the work was complete: the result is saved")]
+                        attachNotebook(&act)
+                        record(nil, act)
+                        return finish()
+                    }
                     if failures >= maxFailures {
-                        record(nil, ["action": .str("fail"), "reason": .str("\(failures) errors in a row")])
+                        record(nil, ["action": .str("fail"), "reason": .str("\(failures) \(Self.errorsReason)"),
+                                     "message": .str(ModelRequestFailure.streakMessage(failures, cutOff: cutOffs >= failures))])
                         switch try await askForHelp() {
                         case .stop: return finish()
                         case .goOn: failures = 0
@@ -734,7 +756,11 @@ extension Gestures {
             guard onHelp != nil, helpAsked < 2 else { return .stop }
         } else if onHelp == nil { return .stop }
         let reason = steps.last?["reason"]?.str ?? ""
-        record(nil, ["action": .str("help"), "reason": .str(reason)])
+        helpMessage = steps.last?["message"]?.str
+        defer { helpMessage = nil }
+        var help: JObject = ["action": .str("help"), "reason": .str(reason)]
+        if let helpMessage { help["message"] = .str(helpMessage) }
+        record(nil, help)
         let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {

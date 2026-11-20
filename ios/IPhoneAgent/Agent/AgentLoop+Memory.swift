@@ -100,7 +100,7 @@ extension AgentLoop {
             let (lines, added, seconds) = try await readScreen(act["what"]?.str ?? "")
             act["think_s"] = .num(seconds)
             act["reason"] = .str("read \(lines) line\(lines == 1 ? "" : "s"), \(added) new; \(notebook.items.count) in the notebook"
-                                 + (readPastStart ? "; this screen's items are all before the goal's dates. " + Collect.listDone : ""))
+                                 + (readPastStart ? "; this screen's items are all before the goal's dates. " + listDone() : ""))
         case "note":
             let text = act["text"]?.str ?? ""
             if notebook.noted(text) {  // the same note again (2026-11-18: an order noted twice in notes.md)
@@ -166,6 +166,7 @@ extension AgentLoop {
             if let path = RunOutputs.written(result.hasPrefix("ok: ") ? String(result.dropFirst(4)) : "") {
                 liveNotes.wrote(path, files: files)
                 viewedSinceWrite = []; resultWritten = true
+                if path == autoResult?.path { autoResult = nil }  // the actor changed the app's result: it is the actor's now
             }
         case "snap":
             // with RECORD the reader keeps each item's screen beside its note: a snap only repeats it (2026-11-18:

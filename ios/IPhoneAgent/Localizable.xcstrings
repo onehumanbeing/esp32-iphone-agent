@@ -14302,6 +14302,46 @@
           }
         }
       }
+    },
+    "The AI service's answer was cut off or took too long; trying again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务的回复被截断或超时，正在重试。"
+          }
+        }
+      }
+    },
+    "The AI service's answer was cut off or took too long %lld times in a row. Your progress and notes are saved. Tap Continue to try again, or Stop to end the run here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务的回复连续 %lld 次被截断或超时。进度和记录都已保存。点「继续」重试，或点「停止」在这里结束运行。"
+          }
+        }
+      }
+    },
+    "The AI service didn't give a usable answer %lld times in a row. Your progress and notes are saved. Tap Continue to try again, or Stop to end the run here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务连续 %lld 次没有给出可用的回复。进度和记录都已保存。点「继续」重试，或点「停止」在这里结束运行。"
+          }
+        }
+      }
+    },
+    "The AI service isn't answering" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务没有回应"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

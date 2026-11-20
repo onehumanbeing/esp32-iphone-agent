@@ -520,7 +520,7 @@ extension AppModel {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
         runMood = confirm ? .listening : .failure
         let worded = [TouchCheck.reason: TouchCheck.advice, NoProgress.reason: NoProgress.advice]
-        let shown = worded[reason] ?? help ?? ""  // the panel words it from the reason
+        let shown = worded[reason] ?? agent.helpMessage ?? help ?? ""  // the panel words it from the reason
         let line = confirm ? String(localized: "OK to do this? \(shown)") : String(localized: "Needs your help: \(shown)")
         live.update(mood: runMood ?? .failure, step: moveCount, line: line, phase: .help, status: confirm ? .confirm : .help)
         if confirm {
