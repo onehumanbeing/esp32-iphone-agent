@@ -184,13 +184,15 @@ import XCTest
         XCTAssertFalse(ime.sent.contains("toggle"), "an unread bar is no reason for ctrl+space: \(ime.sent)")
     }
 
-    /// Nothing read back at all: what went in stays, nothing is deleted, no ctrl+space.
-    func testAFieldNotReadBackIsKept() async throws {
+    /// Nothing on screen changed (2026-11-20: the field had lost focus and the keys went nowhere): the typing says so
+    /// instead of passing, and deletes nothing, no ctrl+space (the text may be in a field it cannot read).
+    func testNothingSeenOnScreenStopsWithoutDeleting() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         (ime.barHidden, ime.fieldHidden) = (true, true)
         let stop = try await ime.typer().attempt("上海西岸艺术中心")
-        XCTAssertNil(stop)
-        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertTrue(stop?.note.hasPrefix("nothing appeared in the field") == true, "\(String(describing: stop))")
+        XCTAssertNil(stop?.rest, "nothing to paste: it may be in already")
+        XCTAssertEqual(ime.field, "上海", "stops after the first word read back")
         XCTAssertFalse(ime.sent.contains("key backspace") || ime.sent.contains("toggle"), "\(ime.sent)")
     }
 
