@@ -296,6 +296,15 @@ extension BoardTransport {
         }
     }
 
+    /// What the phone made of the StopWatch's voice, for its screen. Only to a StopWatch.
+    func sendVoice(_ result: BoardVoice.Result) {
+        guard StopWatchUI.enabled(boardStatus()), let transport else { return }
+        let line = StopWatchUI.voiceLine(result, max: transport.maxWrite - "\(nextID) ".utf8.count - 4)
+        Task {
+            do { try await send(line) } catch { DebugLog.write("stopwatch: \(line.prefix(20)) not sent: \(error.localizedDescription)") }
+        }
+    }
+
     /// `btn <verb> [arg]`, sent by the board on its own. Only a StopWatch's are heard.
     private func button(_ text: String) {
         guard StopWatchUI.enabled(boardStatus()) else { return }
@@ -358,12 +367,14 @@ enum StopWatchUI {
         return state
     }()
 
-    enum Action: Equatable { case command(AgentCommand), home, run(UUID) }
+    /// voice: yellow (true, run the heard text) or blue (false, drop it) after the board showed it (BoardVoice).
+    enum Action: Equatable { case command(AgentCommand), home, run(UUID), voice(Bool) }
 
     static func enabled(_ status: BoardStatus?) -> Bool { status?.board == "stopwatch" && status?.ui == 1 }
 
     /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, the
-    /// local time "HH:mm" (the board has no clock) and where the eyes look (x, y; left out at 0).
+    /// local time "HH:mm" (the board has no clock), where the eyes look (x, y; left out at 0) and v 1: this app takes
+    /// the board's voice (hold yellow, BoardVoice). Older firmware ignores keys it does not know.
     struct Payload: Encodable, Equatable {
         var c: String
         var m: String, p: String, s: Int, l: Int
@@ -372,6 +383,7 @@ enum StopWatchUI {
         var f: Bool
         var k: [String]?
         var x: Double?, y: Double?
+        var v = 1
     }
 
     /// What the character says, as the expanded island: its words while the run goes, the line otherwise (help, done).
@@ -413,6 +425,20 @@ enum StopWatchUI {
         return (try? encoder.encode(p)).flatMap { String(data: $0, encoding: .utf8) }.map { "ui " + $0 }
     }
 
+    /// The board shows this much of what was heard (SW_SAID_MAX); the app keeps all of it to run.
+    static let maxSaid = 120
+
+    /// `voice heard <text>` or `voice fail <code>` for the board, within `max` bytes.
+    static func voiceLine(_ result: BoardVoice.Result, max: Int) -> String {
+        switch result {
+        case .heard(let text):
+            let prefix = "voice heard "
+            return prefix + truncated(text.replacingOccurrences(of: "\n", with: " "),
+                                      bytes: Swift.max(0, Swift.min(maxSaid, max - prefix.utf8.count)))
+        case .failed(let code): return "voice fail " + code
+        }
+    }
+
     /// The longest prefix of whole characters within `bytes` UTF-8 bytes.
     static func truncated(_ text: String, bytes: Int) -> String {
         var out = "", used = 0
@@ -434,6 +460,9 @@ enum StopWatchUI {
         case "continue": return .command(.resume)
         case "takeover": return .command(.takeOver)
         case "home": return .home
+        case "voice":
+            guard parts.count > 1, ["go", "cancel"].contains(parts[1]) else { return nil }
+            return .voice(parts[1] == "go")
         case "run":
             guard parts.count > 1, let i = Int(parts[1]), picks.indices.contains(i) else { return nil }
             return .run(picks[i])

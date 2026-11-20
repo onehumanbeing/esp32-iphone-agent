@@ -22,6 +22,7 @@ extension AppModel {
         // No run (nil): the app's own mood, idle, so the board's character is awake while the app is there.
         live.onBoard = { [weak self] state in self?.board.commands.showUI(state ?? StopWatchUI.idle) }
         board.commands.onButton = { [weak self] action in self?.stopWatchButton(action) }
+        voice.onResult = { [weak self] result in self?.board.commands.sendVoice(result) }
     }
 
     func stopWatchButton(_ action: StopWatchUI.Action) {
@@ -40,6 +41,24 @@ extension AppModel {
         case .run(let id):
             guard idle, intents.item(id) != nil else { return DebugLog.write("stopwatch: run ignored (busy or intent gone)") }
             Task { _ = await handle(.runSaved(id)) }
+        case .voice(let go):
+            guard go else { return voice.cancel() }
+            guard let text = voice.take() else { return board.commands.sendVoice(.failed("none")) }
+            Task { await runSpoken(text) }
+        }
+    }
+
+    /// Words said into the StopWatch: they join the running task (as Siri's do), else they start a new one.
+    private func runSpoken(_ text: String) async {
+        if agent.running {
+            if !steer(text, from: "stopwatch") { board.commands.sendVoice(.failed("start")) }
+            return
+        }
+        guard !startingAgent, !recorder.busy, !calibrator.busy else { return board.commands.sendVoice(.failed("start")) }
+        let said = await runFromIntent(text, intent: nil)
+        if !agent.running {
+            DebugLog.write("stopwatch: voice task did not start: \(said)")
+            board.commands.sendVoice(.failed("start"))
         }
     }
 

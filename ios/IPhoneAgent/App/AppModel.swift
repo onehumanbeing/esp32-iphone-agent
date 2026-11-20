@@ -19,6 +19,7 @@ import UIKit
     private var lastVideoToken: String?
     private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
+    let voice = BoardVoice()  // a StopWatch's mic (yellow held), transcribed on the phone
     let audio = AudioFeed()  // AirPlay audio over that link, transcribed on the phone (Settings › Listen to phone audio)
     private var hearSent: Bool?  // last `hear on|off` the board got on this link
     let metrics = Metrics()
@@ -223,7 +224,9 @@ import UIKit
             self?.modelFirstTokenSeconds = nil
             self?.modelResponseSeconds = nil
         }
-        board.onVideo = { [weak self] in self?.feed.receive($0) }
+        board.onVideo = { [weak self] chunk in  // a StopWatch's voice shares the characteristic, with its own flag
+            if VoiceChunk.isVoice(chunk) { self?.voice.receive(chunk) } else { self?.feed.receive(chunk) }
+        }
         wifiVideo.onChunk = { [weak self] in self?.feed.receive($0, via: "wifi") }
         wifiVideo.onAudio = { [weak self] in self?.audio.receive($0) }
         wifiVideo.wantsAudio = { ListenSetting.on }
