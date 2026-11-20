@@ -5,6 +5,7 @@ struct ModelSelectionView: View {
     @Binding var selection: String
     let allowsDefault: Bool
     var onChoose: ((String) -> Void)? = nil
+    var forPlanner = false
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var customID = ""
@@ -48,7 +49,7 @@ struct ModelSelectionView: View {
                 }
                 if !tested.isEmpty {
                     Section("Tested") {
-                        ForEach(tested, id: \.id) { row($0.id, recommended: $0.recommended) }
+                        ForEach(tested, id: \.id) { row($0.id, recommended: forPlanner ? $0.forPlanner : $0.recommended) }
                     }
                 }
                 if settings.provider == .openRouter {
