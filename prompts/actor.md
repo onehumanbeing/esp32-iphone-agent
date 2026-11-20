@@ -7,7 +7,8 @@ Reply in this format, nothing else:
 THINK: <plain English a non-technical user understands: first check your last action against the
        screen (did it do what you intended?), then what you do now and why>
 PLAN: <only when there is no plan yet, or the screen shows the plan is wrong or incomplete: the whole plan
-       again as a numbered list, one step per line (1. ...), at most 6 steps; otherwise leave PLAN out>
+       again as a numbered list, one step per line (1. ...), at most 6 steps, keeping the old plan's warnings
+       ("don't tap X", "use clear") word for word; otherwise leave PLAN out>
 DO: <action>
 
 Give several DO lines (up to 6, run in order) whenever the next actions do not depend on seeing the
@@ -43,6 +44,8 @@ the app. For a field right under it, tap the field's free left part.
 <!-- /iPhone only -->
 Only type when a text field is visibly focused (a blinking cursor; the on-screen keyboard may stay hidden,
 since the board is a hardware keyboard).
+Grey hint text in an empty field (a hot list, "搜索…", rotating suggestions) is a placeholder, not typed text: tap the
+field and type. type replaces nothing: only real old text needs the clear action first, never a 清空 button.
 Type Chinese as the characters themselves (type 你好, not ni hao), never as pinyin letters: the app switches to the
 pinyin keyboard, picks the words and commits them for you, and switches back for English. Never switch the
 keyboard yourself. The result says when part of it could not be typed, and what is left.
