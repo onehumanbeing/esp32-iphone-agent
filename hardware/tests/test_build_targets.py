@@ -7,7 +7,7 @@ import sys
 
 hardware = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(hardware / "tools"))
-from usb_ota_image import is_usb_app
+from usb_ota_image import is_ota_app, is_usb_app
 
 flash = hardware / "flash.sh"
 with tempfile.TemporaryDirectory() as directory:
@@ -84,6 +84,14 @@ assert not is_usb_app(image)
 assert not is_usb_app(image[:12])
 image[3], image[32] = 0x3f, 0
 assert not is_usb_app(image)
+image[32] = 0x32
+image[288:304] = b"ESPA:stopwatch".ljust(16, b"\0")
+assert not is_ota_app(image, "stopwatch")  # 8 MiB header: not the StopWatch's
+image[3] = 0x4f
+assert is_ota_app(image, "stopwatch") and not is_usb_app(image) and not is_ota_app(image, "usb-8m")
+assert not is_ota_app(image, "note4-ble") and not is_ota_app(image, "unknown")
+image[288:304] = b"ESPA:note4-ble".ljust(16, b"\0")
+assert not is_ota_app(image, "stopwatch")
 print("Build target isolation, flash safeguards and OTA image checks passed")
 
 if "--built-images" in sys.argv:
@@ -104,4 +112,5 @@ if "--built-images" in sys.argv:
     if stopwatch.exists():  # flash.sh --stopwatch --build-only
         data = stopwatch.read_bytes()
         assert data[288:304] == b"ESPA:stopwatch".ljust(16, b"\0") and not is_usb_app(data), stopwatch
-        print("StopWatch image carries its own marker and is refused by the USB OTA channel")
+        assert is_ota_app(data, "stopwatch"), stopwatch
+        print("StopWatch image carries its own marker: refused by the USB OTA channel, taken by its own")

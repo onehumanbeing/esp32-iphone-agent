@@ -447,6 +447,13 @@ String board(const String &line, const String &id, char who) {
     return "ok";
   }
   if (cmd == "result") return recentReply(arg, who);
+#ifdef M5_STOPWATCH
+  if (cmd == "ota") {  // the app's Update Board: start the Wi-Fi listener now (ota.h, ota_open)
+    if (arg != "on") return "err usage: ota on";
+    const char *why = ota_open();
+    return *why ? String("err ") + why : String("ok");
+  }
+#endif
   if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
   if (cmd == "vdbg") return "ok " + video_debug();  // why a frozen screen stays frozen (video_link.cpp)
   if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;

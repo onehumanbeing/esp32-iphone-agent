@@ -141,6 +141,12 @@ blue hides it (nothing sent) until another comes; it goes when `w` goes or Bluet
 Clock: the RTC, set from `z`, keeps the time without the app (and over resets). The idle face shows HH:MM under
 it while asleep or without the app; the status page shows it too (else the app's `c`). No `z` ever: no clock.
 
+Firmware update: the status's `"ota":1` says the StopWatch takes the app's Update Board from its own release
+channel (`firmware/stopwatch/firmware.json`, signed with `target=stopwatch`; `hardware/tools/fw_release.py --target
+stopwatch`). Its Wi-Fi listener (TCP 7300, ota.h, same protocol as the USB board) is off until the app sends `ota on`
+(`ok`, or `err low memory, try again` under 11 KB of free internal RAM); it closes 120 s after the last session. The
+board takes only an image marked `ESPA:stopwatch` for 16 MiB flash; a USB board's image is refused, and the reverse.
+
 Screen power (board-local, no app line): with no run, voice, pick, status page or help on screen, it dims after
 20 s without a press, touch, wrist raise or anything new on screen, and goes off after 60 s. A press or touch while
 it is off only wakes it (nothing is sent); a wrist raise (the IMU's gravity turning 35° or more) wakes it too.

@@ -23,7 +23,7 @@ int main() {
 #ifdef M5_STOPWATCH
   board_begin();
   assert(begun == 1 && board_battery_percent() == 87);
-  assert(strcmp(board_status_fields(), ",\"board\":\"stopwatch\",\"ui\":1") == 0);
+  assert(strcmp(board_status_fields(), ",\"board\":\"stopwatch\",\"ui\":1,\"ota\":1") == 0);
   assert(!board_supports_usb_release());
   assert(strcmp(firmware_target, "ESPA:stopwatch") == 0);
   puts("StopWatch board hooks reach the screen task");

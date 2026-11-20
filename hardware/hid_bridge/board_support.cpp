@@ -63,7 +63,7 @@ uint8_t board_battery_percent() {
 
 const char *board_status_fields() {
 #ifdef M5_STOPWATCH
-  return ",\"board\":\"stopwatch\",\"ui\":1";  // ui: it takes `ui <json>` and sends `btn` lines
+  return ",\"board\":\"stopwatch\",\"ui\":1,\"ota\":1";  // ui: it takes `ui <json>` and sends `btn` lines; ota: `ota on`
 #elif defined(ZECTRIX_NOTE4)
   return ",\"board\":\"note4\"";
 #else
