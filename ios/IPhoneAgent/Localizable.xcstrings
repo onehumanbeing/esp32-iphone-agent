@@ -1311,16 +1311,6 @@
         }
       }
     },
-    "The first time, iOS asks to open the app: the agent taps Open." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第一次打开时，iOS 会询问是否打开该 App：Agent 会点“打开”。"
-          }
-        }
-      }
-    },
     "The folder and everything in it are deleted from this iPhone." : {
       "localizations" : {
         "zh-Hans" : {
@@ -14509,6 +14499,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 服务没有回应"
+          }
+        }
+      }
+    },
+    "The first time %@ opens this way, iOS asks first: the agent taps Open." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一次这样打开「%@」时，iOS 会先问一下：Agent 会点「打开」。"
           }
         }
       }
