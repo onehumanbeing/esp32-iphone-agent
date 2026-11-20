@@ -51,6 +51,16 @@ import XCTest
         XCTAssertEqual(StopWatchUI.answerLines("  ", room: 100), [])
     }
 
+    func testAConfirmIsMarkedAndBlueSkipsIt() throws {
+        var state = StopWatchUI.idle
+        state.phase = .help
+        let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(state), confirm: true))
+        XCTAssertTrue(line.contains(#""h":1"#), line)
+        state.phase = .running
+        XCTAssertFalse(try XCTUnwrap(StopWatchUI.command(.show(state), confirm: true)).0.contains(#""h""#))
+        XCTAssertEqual(StopWatchUI.action("skip", picks: []), .command(.skip))
+    }
+
     func testTheUILineSaysTheAppTakesVoice() throws {
         let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle)))
         XCTAssertTrue(line.contains(#""v":1"#), line)

@@ -417,6 +417,7 @@ extension AppModel {
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
         help = nil
+        board.commands.uiConfirm = false
         takingOver = false
         recovering = nil
         notifier.clearHelp()
@@ -536,6 +537,7 @@ extension AppModel {
     /// whose buttons answer it) and wait for their choice.
     func needsHelp(_ reason: String, confirm: Bool = false) async -> AgentLoop.HelpChoice {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
+        board.commands.uiConfirm = confirm  // the StopWatch: blue skips a confirm, stops otherwise
         runMood = confirm ? .listening : .failure
         let worded = [TouchCheck.reason: TouchCheck.advice, NoProgress.reason: NoProgress.advice]
         let shown = worded[reason] ?? agent.helpMessage ?? help ?? ""  // the panel words it from the reason
@@ -553,6 +555,7 @@ extension AppModel {
 
     func answerHelp(_ choice: AgentLoop.HelpChoice) {
         guard let wait = helpWait else { return }
+        board.commands.uiConfirm = false
         resumeAsked = now()  // Continue tapped in this app: the run sends it away before looking again
         helpWait = nil
         help = nil
