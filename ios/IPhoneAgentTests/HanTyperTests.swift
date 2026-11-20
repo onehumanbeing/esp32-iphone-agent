@@ -17,6 +17,9 @@ import XCTest
     /// The bar as Vision reads it on a device: one word run together, per-character boxes as wide as a cell's share
     /// (a cell's last character takes the gap), plus a search suggestion row and a stray 个 off a key.
     var barAsOneWord = false
+    /// OCR reads nothing of the candidate bar (2026-11-20: 中 and 西 "not among the candidates").
+    var barHidden = false
+    var looks = 0
 
     init(knowing text: String) {
         let chars = Array(text)
@@ -59,7 +62,7 @@ import XCTest
 
     var seen: HanTyper.Seen {
         var words: [(text: String, box: [Int])] = [(field + composing, [20, 280, 700, 320])]
-        let row = !composing.isEmpty ? candidates(composing) : committed ? association : []
+        let row = barHidden ? [] : !composing.isEmpty ? candidates(composing) : committed ? association : []
         guard barAsOneWord else {
             for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
             return HanTyper.Seen(words: words, height: 1554)
@@ -85,7 +88,7 @@ import XCTest
     func typer(screen: Bool = true) -> HanTyper {
         HanTyper(send: { self.send($0) }, key: { self.key($0) },
                  toggle: { self.sent.append("toggle"); self.committed = false; if self.toggles { self.pinyin.toggle() } },
-                 look: { screen ? self.seen : nil })
+                 look: { self.looks += 1; return screen ? self.seen : nil })
     }
 }
 
@@ -155,6 +158,57 @@ import XCTest
         XCTAssertEqual(bei.field, "")
         XCTAssertEqual(unsure?.rest, "北")
         XCTAssertTrue(unsure?.note.contains("typed \"\", not typed: \"北\"") == true, unsure?.note ?? "nil")
+    }
+
+    /// 2026-11-20 device run: 上海西岸艺术中心 in four words; the bar read once, the field once for the rest.
+    func testTheWholeTextGoesInWithFewReads() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
+        XCTAssertLessThanOrEqual(ime.looks, 3, "before, the screen, the first word's bar, the field once")
+    }
+
+    /// The bar is never read: each first candidate is right, checked in the field, and nothing stops.
+    func testAnUnreadBarStillTypesTheFirstCandidates() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.barHidden = true
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertEqual(ime.composing, "")
+        XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
+    }
+
+    /// A first candidate that is another word (西安 for xi'an) is read in the field, deleted with the words after
+    /// it, and typed again by halves.
+    func testAWrongFirstCandidateIsRepaired() async throws {
+        for hidden in [false, true] {
+            let ime = FakeIME(knowing: "上海西岸艺术中心")
+            ime.barHidden = hidden
+            ime.decoys["xi'an"] = ["西安"]
+            let stop = try await ime.typer().attempt("上海西岸艺术中心")
+            XCTAssertNil(stop, "bar hidden \(hidden)")
+            XCTAssertEqual(ime.field, "上海西岸艺术中心", "bar hidden \(hidden)")
+            XCTAssertEqual(ime.sent.filter { $0 == "key backspace" }.count, 6, "西安艺术中心 deleted: \(ime.sent)")
+        }
+    }
+
+    func testReadBackTellsAMissedWordFromAWrongOne() {
+        let words = ["西岸", "艺术", "中心"]
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西岸艺术中心", base: "", lines: ["上海西岸艺术中心"]),
+                       [.seen, .seen, .seen])
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海艺术中心", base: "", lines: ["上海艺术中心"]),
+                       [.unseen, .seen, .seen], "OCR dropped 西岸: taken as committed")
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西安艺术中心", base: "", lines: ["上海西安艺术中心"]),
+                       [.wrong("西安")])
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西岸艺术中心上海博物馆", base: "上海博物馆",
+                                         lines: ["上海西岸艺术中心", "上海博物馆"]), [.seen, .seen, .seen])
+        XCTAssertEqual(HanTyper.readBack(["西岸"], prior: "上海", field: "上海上海博物", base: "上海博物", lines: ["上海", "上海博物"]),
+                       [.unseen], "a suggestion that was there before is not the field")
+        XCTAssertEqual(HanTyper.pinyinLeft("上海xin", base: "", pinyin: "zhongxin"), "xin")
+        XCTAssertNil(HanTyper.pinyinLeft("上海中心", base: "", pinyin: "zhongxin"))
     }
 
     func testAnEnglishKeyboardIsSwitchedOnceAndTheWordRetyped() async throws {
