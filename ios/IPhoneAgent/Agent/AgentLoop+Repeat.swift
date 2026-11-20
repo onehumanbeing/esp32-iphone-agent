@@ -220,17 +220,17 @@ enum DoneGuard {
         + "give the same done again: a second done is taken."
 }
 
-/// A send right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters, not the
-/// words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left.
+/// A send (key enter) right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters,
+/// not the words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left. A tap
+/// is never held (2026-11-20: Amap's suggestion list already showed the place, the tap on it that listedHint asks
+/// for was held, and the run spiralled into StuckGuard for ~2 min).
 enum TypedGuard {
     static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
         guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
               let last = steps.last(where: { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }),
               last["action"]?.str == "type", last["typed"]?.str?.isEmpty == false,
               (last["text"]?.str ?? "").unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) else { return nil }
-        let name = new["action"]?.str
-        guard name == "tap" || (name == "key" && new["combo"]?.str?.lowercased() == "enter") else { return nil }
-        return new
+        return Actions.isEnter(new) ? new : nil
     }
 
     static func reason(_ left: String) -> String {

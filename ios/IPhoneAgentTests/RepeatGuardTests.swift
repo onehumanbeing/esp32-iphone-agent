@@ -221,11 +221,19 @@ final class DefectGuardTests: XCTestCase {
 
     func testASendAfterAChineseTypeThatStoppedIsHeld() {
         var typed: JObject = ["action": .str("type"), "text": .str("你好"), "typed": .str("left: hao")]
-        XCTAssertNotNil(TypedGuard.repeated([["action": .str("key"), "combo": .str("enter")]], after: [typed]))
-        XCTAssertNotNil(TypedGuard.repeated([g("tap", 900, 500)], after: [typed]))
+        let enter: JObject = ["action": .str("key"), "combo": .str("enter")]
+        XCTAssertNotNil(TypedGuard.repeated([enter], after: [typed]))
         typed["text"] = .str("hello")
-        XCTAssertNil(TypedGuard.repeated([g("tap", 900, 500)], after: [typed]), "English stops are not pinyin")
-        XCTAssertNil(TypedGuard.repeated([g("tap", 900, 500)], after: [["action": .str("type"), "text": .str("你好")]]))
+        XCTAssertNil(TypedGuard.repeated([enter], after: [typed]), "English stops are not pinyin")
+        XCTAssertNil(TypedGuard.repeated([enter], after: [["action": .str("type"), "text": .str("你好")]]))
+    }
+
+    /// Amap 2026-11-20: pinyin typed 上海 and stopped, the suggestion list already showed the place; the tap on that
+    /// row (what listedHint asks for) goes through, it is not a send.
+    func testATapOnASuggestionAfterAPartWayTypeIsNotHeld() {
+        let typed: JObject = ["action": .str("type"), "text": .str("上海西岸艺术中心"),
+                              "typed": .str("\"西\" is not among the candidates for xi; typed \"上海\", not typed: \"西岸艺术中心\"")]
+        XCTAssertNil(TypedGuard.repeated([g("tap", 500, 260)], after: [g("tap", 500, 90), typed]))
     }
 
     func testTheThirdHoldInAShortWhileIsStuck() {

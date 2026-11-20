@@ -1,9 +1,10 @@
 import Foundation
 
 /// Chinese text the run will likely type, put on the clipboard once at the start while this app is still in front
-/// (iOS ignores clipboard writes from the background, 2026-10-20). When pinyin then stops part way through that
-/// text, the field is cleared and cmd+v pastes it, with no hop back to this app (Henry 2026-11-20: the Spotlight hop
-/// looked bizarre and missed with many apps open). The write is local only; logs carry counts, never the text.
+/// (iOS ignores clipboard writes from the background, 2026-10-20). A `type` of that text is pasted first (cmd+v,
+/// read back) and typed in pinyin only when the paste is not seen; when pinyin then stops part way through it, the
+/// field is cleared and pasted once more, with no hop back to this app (Henry 2026-11-20: the Spotlight hop looked
+/// bizarre and missed with many apps open). The write is local only; logs carry counts, never the text.
 struct ClipboardCarry: Equatable {
     var text: String
     var changeCount: Int  // UIPasteboard.changeCount right after the write: any later write changes it
@@ -98,24 +99,45 @@ struct ClipboardCarry: Equatable {
 }
 
 extension AgentLoop {
-    /// A Chinese `type` that pinyin stopped part way: paste the carried text when the clipboard still holds it and it
-    /// is this text (ClipboardCarry.matches): clear the field, cmd+v, read it back. Never leaves the app. nil: not
-    /// pasted, the model is told to type the rest itself.
-    func pasteCarried(_ text: String, stop: HanTyper.Stop) async throws -> (field: String, value: String)? {
-        let why: String? = if let carried {
-            clipboardCount?() != carried.changeCount ? "clipboard changed" : Date() >= carried.expires ? "clipboard expired"
-                : carried.matches(text) ? nil : "different text"
-        } else { "no carried text" }
-        if let why { DebugLog.write("clipboard: not pasting: \(why)"); return nil }
-        guard let phone else { return nil }
+    /// Why the carried text is not pasted for this `type` text; nil: it is (ClipboardCarry.matches, the clipboard
+    /// unchanged since the write and not expired).
+    func carriedWhyNot(_ text: String) -> String? {
+        guard let carried else { return "no carried text" }
+        if clipboardCount?() != carried.changeCount { return "clipboard changed" }
+        if Date() >= carried.expires { return "clipboard expired" }
+        return carried.matches(text) ? nil : "different text"
+    }
+
+    /// Clear the focused field (FieldClearer: deletes only what is there, a placeholder stays), cmd+v, read back:
+    /// whether the screen then shows the text.
+    func pasteClipboard(_ text: String) async throws -> Bool {
+        guard let phone else { return false }
         _ = try await phone.clearField()
         try await phone.key("cmd+v")
         lastActed = now()
         _ = await settle()
-        var seen = false
-        if let frame = screen?.frame, let image = Vision.image(frame) {
-            seen = Self.shows(ClipboardCarry.trim(text), await UITreeOCR.lines(image, languages: UITreeOCR.languages(for: text)).map(\.text))
-        }
+        guard let frame = screen?.frame, let image = Vision.image(frame) else { return false }
+        return Self.shows(ClipboardCarry.trim(text), await UITreeOCR.lines(image, languages: UITreeOCR.languages(for: text)).map(\.text))
+    }
+
+    /// A Chinese `type` of the carried text: pasted before any pinyin (Henry 2026-11-20 watched pinyin being typed
+    /// for the very text the clipboard held). true: read back, typed. false: not seen, and what the paste may have
+    /// put in the field is cleared again so the pinyin that follows can't double it.
+    func pasteCarriedFirst(_ text: String) async throws -> Bool {
+        let seen = try await pasteClipboard(text)
+        DebugLog.write("clipboard: pasted carried text first (\(text.count) chars): read back \(seen ? "ok" : "not seen, typing")")
+        typeStats.pasted(seen ? nil : "text is not seen", pinyin: false)
+        if seen { sendGuard.typed(text, missing: nil) } else { _ = try await phone?.clearField() }
+        return seen
+    }
+
+    /// A Chinese `type` that pinyin stopped part way: paste the carried text when the clipboard still holds it and it
+    /// is this text (carriedWhyNot): clear the field, cmd+v, read it back. Never leaves the app. nil: not pasted, the
+    /// model is told to type the rest itself.
+    func pasteCarried(_ text: String, stop: HanTyper.Stop) async throws -> (field: String, value: String)? {
+        if let why = carriedWhyNot(text) { DebugLog.write("clipboard: not pasting: \(why)"); return nil }
+        guard phone != nil else { return nil }
+        let seen = try await pasteClipboard(text)
         DebugLog.write("clipboard: paste carried text (\(text.count) chars): read back \(seen ? "ok" : "not seen")")
         if seen {
             sendGuard.typed(text, missing: nil)

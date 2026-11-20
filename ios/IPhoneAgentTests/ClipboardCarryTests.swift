@@ -43,19 +43,49 @@ import XCTest
         return agent
     }
 
-    /// Equal to the carried text, clipboard unchanged: clear, cmd+v, read back; no Home, Spotlight or app switch.
-    func testTheCarriedTextIsPastedInPlaceAndReadBack() async throws {
+    private func shows(_ text: String) -> Data? {
+        UIImage(cgImage: ChineseOCRTests.screen([[text]], points: 28)).jpegData(compressionQuality: 1)
+    }
+
+    /// Equal to the carried text, clipboard unchanged: pasted first (clear, cmd+v, read back), no pinyin at all; no
+    /// Home, Spotlight or app switch (Henry 2026-11-20 watched pinyin typed for the text the clipboard held).
+    func testTheCarriedTextIsPastedFirstWithoutPinyin() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
-        screen.frame = UIImage(cgImage: ChineseOCRTests.screen([["上海西岸艺术中心"]], points: 28)).jpegData(compressionQuality: 1)
+        screen.frame = shows("上海西岸艺术中心")
         let agent = agent(phone, screen: screen)
-        stopped(phone)
         let result = try await agent.perform(["action": .str("type"), "text": .str(" 上海西岸艺术中心 ")])
         XCTAssertEqual(result?.field, "result")
         XCTAssertTrue(result?.value.contains("read back") == true, result?.value ?? "nil")
-        XCTAssertEqual(phone.calls.first, "type")
-        XCTAssertTrue(phone.calls.dropFirst().allSatisfy { $0 == "key" }, "clear's keys and cmd+v only: \(phone.calls)")
-        XCTAssertGreaterThan(phone.calls.count, 2)
+        XCTAssertFalse(phone.calls.contains("type"), "no pinyin keys: \(phone.calls)")
+        XCTAssertTrue(phone.calls.allSatisfy { $0 == "key" }, "clear's keys and cmd+v only: \(phone.calls)")
+        XCTAssertEqual(phone.keys.last, "cmd+v")
         XCTAssertNil(agent.sendGuard.enter(step: 2), "the field is whole: Enter is not held")
+        XCTAssertEqual(agent.typeStats, TypeStats(pinyinStops: 0, pasteOK: 1, pasteFailed: [:]))
+    }
+
+    /// Paste first not seen: the field is cleared again and the text typed in pinyin as before.
+    func testAPasteFirstNotSeenFallsBackToPinyin() async throws {
+        let phone = FakeGestures()
+        let agent = agent(phone)
+        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
+        XCTAssertNil(result, "pinyin typed it all")
+        XCTAssertEqual(phone.calls.last, "type")
+        let paste = try XCTUnwrap(phone.keys.firstIndex(of: "cmd+v"))
+        XCTAssertTrue(phone.keys[(paste + 1)...].contains("alt+backspace"), "cleared again before pinyin: \(phone.keys)")
+        XCTAssertEqual(agent.typeStats, TypeStats(pinyinStops: 0, pasteOK: 0, pasteFailed: ["not_seen": 1]))
+    }
+
+    /// Paste first not seen, pinyin then stops part way, and the paste after the stop is read back.
+    func testThePasteAfterAPinyinStopStillWorks() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let agent = agent(phone, screen: screen)
+        stopped(phone)
+        phone.onType = { screen.frame = self.shows("上海西岸艺术中心") }
+        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
+        XCTAssertEqual(result?.field, "result")
+        XCTAssertTrue(result?.value.contains("stopped part way") == true, result?.value ?? "nil")
+        XCTAssertEqual(phone.keys.filter { $0 == "cmd+v" }.count, 2)
+        XCTAssertEqual(agent.typeStats, TypeStats(pinyinStops: 1, pasteOK: 1, pasteFailed: ["not_seen": 1]))
     }
 
     func testAPasteNotSeenTellsTheModelToCheckTheField() async throws {
@@ -66,6 +96,7 @@ import XCTest
         XCTAssertEqual(result?.field, "typed")
         XCTAssertTrue(result?.value.contains("not seen") == true, result?.value ?? "nil")
         XCTAssertFalse(phone.calls.contains { $0.hasPrefix("open") || $0 == "home" || $0 == "swipe" }, "\(phone.calls)")
+        XCTAssertEqual(agent.typeStats, TypeStats(pinyinStops: 1, pasteOK: 0, pasteFailed: ["not_seen": 2]))
     }
 
     func testNoPasteWhenTheClipboardChangedOrTheTextDiffers() async throws {

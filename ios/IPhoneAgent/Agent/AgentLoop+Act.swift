@@ -92,12 +92,18 @@ extension AgentLoop {
                 sendGuard.typed(text, missing: note == nil ? nil : text)
                 return note.map { ("typed", $0) } ?? ("result", "pasted (the board cannot type this script)")
             }
+            // the text carried on the clipboard since the start (ClipboardCarry): pasted first, pinyin only when the
+            // paste is not read back
+            if carriedWhyNot(text) == nil, try await pasteCarriedFirst(text) {
+                return ("result", "typed: pasted from the clipboard, which held this text; read back: the field holds all of it")
+            }
             let stop = try await phone.typeStop(text)
             // the pinyin keyboard did not offer a word (2026-11-20: 西 not read among xi's candidates, 上海 typed and
             // 西岸艺术中心 not): the text carried on the clipboard since the start is pasted when it is this text
             // (ClipboardCarry); never a hop back to this app. Otherwise the model types the rest itself.
             if let stop, let rest = stop.rest, !rest.isEmpty {
                 DebugLog.write("type: the pinyin keyboard stopped part way (\(rest.count) chars left)")
+                // tried once more after a paste-first not seen: the read may have missed it, the field holds pinyin now
                 if let pasted = try await pasteCarried(text, stop: stop) {
                     typeStats.pasted(pasted.field == "result" ? nil : "text is not seen", pinyin: true)
                     return pasted
