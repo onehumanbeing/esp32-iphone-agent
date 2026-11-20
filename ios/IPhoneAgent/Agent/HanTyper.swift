@@ -201,6 +201,14 @@ enum TypeStop {
                 case .wrong(let shown): DebugLog.write("type: \"\(word)\" shows as \"\(shown)\" in the field; repairing")
                 }
             }
+            // none of the words read back and the screen's text is as it was before them: the keys went nowhere
+            // (2026-11-20: the field had lost focus, every word "taken as committed", the model searched the placeholder)
+            if verdicts.allSatisfy({ $0 == .unseen }), field(now) == unreadBase {
+                DebugLog.write("type: nothing of \"\(words.joined())\" reached the screen; the field may not have focus")
+                typed.removeLast(words.joined().count)
+                return Stop(note: "nothing appeared in the field (it may not have focus): tap the text field, then type again;"
+                    + " typed \"\(typed)\", not typed: \"\(words.joined())\(rest(nil))\"")
+            }
             guard let j = verdicts.firstIndex(where: { if case .wrong = $0 { true } else { false } }) else { return nil }
             let gone = words[j...].joined()
             try await erase(gone.count)
