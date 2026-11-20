@@ -921,6 +921,31 @@ static void test_sw_help(void) {
   CHECK(sw_buzz_due(&c, t + 40000) == SW_BUZZ_NONE);  // answered: quiet
 }
 
+// The run's time: counting on between the app's lines while it runs, frozen at the finish.
+static void test_sw_elapsed(void) {
+  sw_ctl c;
+  sw_ui u;
+  char d[12];
+  sw_init(&c);
+  CHECK(sw_elapsed(&c, 0) == -1);
+  sw_parse("{\"p\":\"running\",\"e\":62}", &u);
+  CHECK(u.elapsed == 62);
+  sw_apply(&c, &u, false, 1000);
+  CHECK(sw_elapsed(&c, 1000) == 62 && sw_elapsed(&c, 4500) == 65);
+  sw_parse("{\"m\":\"success\",\"f\":true,\"e\":70}", &u);
+  sw_apply(&c, &u, false, 9000);
+  CHECK(sw_elapsed(&c, 30000) == 70);
+  sw_parse("{\"p\":\"standby\"}", &u);
+  sw_apply(&c, &u, false, 31000);
+  CHECK(sw_elapsed(&c, 31000) == -1);
+  sw_duration(65, d);
+  CHECK(!strcmp(d, "1:05"));
+  sw_duration(3725, d);
+  CHECK(!strcmp(d, "1:02:05"));
+  sw_duration(-3, d);
+  CHECK(!strcmp(d, "0:00"));
+}
+
 static void test_sw_text(void) {
   for (int l = 0; l < SW_LANGS; l++)
     for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
@@ -1087,6 +1112,7 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_elapsed();
   test_sw_help();
   test_sw_answer();
   test_sw_picks();

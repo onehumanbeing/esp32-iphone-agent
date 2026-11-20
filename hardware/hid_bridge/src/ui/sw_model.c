@@ -167,6 +167,7 @@ int sw_parse(const char *arg, sw_ui *u) {
   memset(u, 0, sizeof *u);
   u->mood = SW_IDLE;
   u->phase = SW_RUNNING;
+  u->elapsed = -1;
   rd r = {arg};
   ws(&r);
   if (!strncmp(r.p, "off", 3)) {
@@ -222,6 +223,8 @@ int sw_parse(const char *arg, sw_ui *u) {
       int w = word(&r);
       ok = w >= 0 || num(&r, NULL);
       u->finished = w == 1;
+    } else if (!strcmp(key, "e") && (*r.p >= '0' && *r.p <= '9')) {
+      ok = num(&r, &u->elapsed);
     } else if (strlen(key) == 1 && strchr("sldn", key[0]) && (*r.p == '-' || (*r.p >= '0' && *r.p <= '9'))) {
       int32_t *at = key[0] == 's' ? &u->step : key[0] == 'l' ? &u->limit : key[0] == 'd' ? &u->done : &u->total;
       ok = num(&r, at);
@@ -489,6 +492,17 @@ int sw_picks_line(sw_ctl *c, const char *arg) {
   memcpy(c->ui.picks, u.picks, sizeof u.picks);
   if (c->sel >= c->ui.npicks) c->sel = -1, c->confirm = false;
   return u.npicks;
+}
+
+int32_t sw_elapsed(const sw_ctl *c, uint32_t now) {
+  if (!c->live || c->ui.elapsed < 0) return -1;
+  return c->ui.elapsed + (sw_running(c, now) ? (int32_t)((now - c->ui_at) / 1000) : 0);
+}
+
+void sw_duration(int32_t s, char out[12]) {
+  if (s < 0) s = 0;
+  if (s >= 3600) snprintf(out, 12, "%d:%02d:%02d", (int)(s / 3600), (int)(s / 60 % 60), (int)(s % 60));
+  else snprintf(out, 12, "%d:%02d", (int)(s / 60), (int)(s % 60));
 }
 
 int sw_buzz_due(sw_ctl *c, uint32_t now) {

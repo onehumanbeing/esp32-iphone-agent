@@ -308,6 +308,7 @@ struct View {
   bool hid, alive;
   uint8_t lang;
   int16_t level;  // the mic's, while listening (in 50ths)
+  int32_t elapsed;  // the run's seconds (-1: none)
   char clock[6];
   sw_ui ui;
 };
@@ -392,12 +393,16 @@ static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
   char counter[24];
   if (u.total > 0) snprintf(counter, sizeof counter, "%d/%d", (int)u.done, (int)u.total);
   else snprintf(counter, sizeof counter, u.limit > 0 ? "%d/%d" : "", (int)u.step, (int)u.limit);
+  char took[12] = "";
+  if (v.elapsed >= 0) sw_duration(v.elapsed, took);
+  char top[40];  // the step count and the run's time, as the island's counter and timer
+  snprintf(top, sizeof top, "%s%s%s", counter, counter[0] && took[0] ? "   " : "", took);
   switch (v.screen) {
     case SW_SCR_RUN: case SW_SCR_PAUSED:
       if (count >= 0) ring(count, C_GREEN, scaled(C_GREEN, 0.25f), 220, 230);
       canvas->setTextColor(count >= 0 ? C_GREEN : C_GREY);
       font(&fonts::Font4);
-      canvas->drawString(v.screen == SW_SCR_PAUSED ? "" : counter, CX, 62);
+      canvas->drawString(v.screen == SW_SCR_PAUSED ? took : top, CX, 62);
       face(pose, CX, CY - 30, v.screen == SW_SCR_PAUSED ? C_GREY : GLOW_INK, v.screen != SW_SCR_PAUSED);
       if (v.screen == SW_SCR_PAUSED) line(T(SWT_PAUSED), CY + 130, C_GREY);
       else line(u.text, CY + 130, u.phase == SW_RECORDING ? C_RED : TFT_WHITE);
@@ -416,6 +421,11 @@ static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       if (ok && count >= 0) ring(1000, C_GREEN, C_GREEN, 220, 230);
       face(pose, CX, CY - 30, GLOW_INK, true);
       line(u.text[0] ? u.text : T(ok ? SWT_DONE : SWT_NOT_DONE), CY + 130, ok ? C_GREEN : C_ORANGE);
+      if (took[0]) {  // how long it took, and its steps
+        char total[48];
+        snprintf(total, sizeof total, T(SWT_TOTAL), (int)u.step, took);
+        line(total, CY + 182, C_GREY, 1);
+      }
       break;
     }
     case SW_SCR_ANSWER:
@@ -624,6 +634,7 @@ static void uiTask(void *) {
     v.alive = alive;
     v.lang = lang;
     v.level = c.voice == SW_V_LISTEN ? voice_level() / 50 : 0;
+    v.elapsed = sw_elapsed(&c, now);
     if (v.screen == SW_SCR_STATUS) sw_clock(&c, now, v.clock);
     v.ui = c.ui;
     v.ui.look_x = v.ui.look_y = 0;  // the face's motion, not the view

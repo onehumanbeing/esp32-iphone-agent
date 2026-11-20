@@ -97,6 +97,9 @@ Every line is the whole state, except `k`, which stays until the app sends anoth
 | `d`, `n` | optional done and total: the island's green ring and `d/n` |
 | `t` | what the character says (the island's words while running, else the line), UTF-8, up to 80 bytes |
 | `c` | the phone's local time `HH:MM` (the status page's clock; the board has none set) |
+| `e` | seconds since the run began (at `f`: its length); the board counts on between lines. Shown with the step count at the top, and "N steps - m:ss" at the finish |
+| `h` | 1: the help is a confirm (pay, delete); blue skips the step |
+| `v` | 1: the app takes the board's voice (hold yellow) |
 | `x`, `y` | where the eyes look, -1…1 (the island's look; missing: 0) |
 | `f` | `true`: the task finished (`m` `failure`: failed) |
 | `k` | standby picks: up to 3 intent names of up to 24 bytes |

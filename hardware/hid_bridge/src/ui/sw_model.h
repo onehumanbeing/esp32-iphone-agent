@@ -18,6 +18,7 @@ enum { SW_TEXT_MAX = 80, SW_PICK_MAX = 24, SW_PICKS = 5 };
 typedef struct {
   uint8_t mood, phase;
   int32_t step, limit, done, total;  // done/total: 0 when not sent
+  int32_t elapsed;                   // `e`: seconds since the run began (at the finish: its length), -1: not sent
   bool finished;
   char text[SW_TEXT_MAX + 1];        // UTF-8, cut at a character boundary
   char clock[6];                     // the phone's local time "HH:MM" when the line was sent ("": not sent)
@@ -102,6 +103,8 @@ int sw_screen(const sw_ctl *c, uint32_t now);
 int sw_progress(const sw_ui *ui);                     // 0-1000 around the ring, -1: none
 int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop hold, -1: not shown
 int sw_picks_line(sw_ctl *c, const char *arg);         // `picks ["name", ...]`: the quick intents; -1 bad, else count
+int32_t sw_elapsed(const sw_ctl *c, uint32_t now);    // the run's seconds now (counting on while it runs), -1: none
+void sw_duration(int32_t s, char out[12]);            // "1:05", "1:02:05"
 bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now);  // `voice heard <text>` | `voice fail <code>`
 bool sw_mic(const sw_ctl *c);
 void sw_answer(sw_ctl *c);
