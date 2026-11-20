@@ -100,6 +100,7 @@ Every line is the whole state, except `k`, which stays until the app sends anoth
 | `e` | seconds since the run began (at `f`: its length); the board counts on between lines. Shown with the step count at the top, and "N steps - m:ss" at the finish |
 | `h` | 1: the help is a confirm (pay, delete); blue skips the step |
 | `v` | 1: the app takes the board's voice (hold yellow) |
+| `w` | a paused run's lost link the user has to fix: `mirror` (Screen Mirroring), `locked` (the iPhone), `hid` (the Bluetooth pointer); missing: none |
 | `x`, `y` | where the eyes look, -1…1 (the island's look; missing: 0) |
 | `f` | `true`: the task finished (`m` `failure`: failed) |
 | `k` | standby picks: up to 3 intent names of up to 24 bytes |
@@ -131,6 +132,10 @@ help is answered (the screen stays amber); two short on success, three short on 
 
 Help: `h` 1 in the `ui` line marks a confirm (pay, delete): "OK to go on?". Yellow (or a tap) sends `btn continue`;
 blue, released within 0.5 s, sends `btn skip` for a confirm and `btn stop` for other help; swipe up `btn takeover`.
+
+Alerts: a new `w`, or the board's Bluetooth HID dropping while a run or the app's lines were going (board-local),
+buzzes once (400 ms) and shows what happened, what to do on the iPhone and the board's name where it is picked;
+blue hides it (nothing sent) until another comes; it goes when `w` goes or Bluetooth is back. Older apps send no `w`.
 
 Screen power (board-local, no app line): with no run, voice, pick, status page or help on screen, it dims after
 20 s without a press, touch, wrist raise or anything new on screen, and goes off after 60 s. A press or touch while

@@ -1,6 +1,7 @@
 #ifdef M5_STOPWATCH
 // The StopWatch's pages: the run, help, outcome, status, voice and answer, in the screen's language (sw_text.h).
 #include "stopwatch_draw.h"
+#include "src/ui/sw_warn.h"
 #include "version.h"
 #include "src/ui/sw_text.h"
 
@@ -186,6 +187,23 @@ static void statusPage(const View &v) {
   }
 }
 
+// A lost link the user has to fix (sw_warn.h): what happened, what to do, the board's name where it is picked.
+static void warnPage(const View &v) {
+  static const int TITLE[] = {0, SWT_W_MIRROR, SWT_W_LOCKED, SWT_W_HID}, FIX[] = {0, SWT_W_MIRROR_FIX, SWT_W_LOCKED_FIX, SWT_W_HID_FIX};
+  int w = v.warn < 4 ? v.warn : SW_W_HID;
+  ring(1000, C_ORANGE, C_ORANGE, 222, 230);
+  canvas->setTextColor(C_ORANGE);
+  fontFor(T(TITLE[w]), 2);
+  canvas->drawString(fit(T(TITLE[w]), 340), CX, CY - 70);
+  line(T(FIX[w]), CY + 5, TFT_WHITE, 2, 340);
+  if (w != SW_W_LOCKED) {
+    fontFor(boardName);
+    canvas->setTextColor(C_AMBER);
+    canvas->drawString(fit(boardName, 320), CX, CY + 85);
+  }
+  line(T(SWT_W_HIDE), H - 70, C_GREY, 1);
+}
+
 void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
   if (v.screen == SW_SCR_VOICE) {
     canvas->fillScreen(TFT_BLACK);
@@ -263,6 +281,9 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       break;
     case SW_SCR_STATUS:
       statusPage(v);
+      break;
+    case SW_SCR_WARN:
+      warnPage(v);
       break;
     default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
       face(pose, CX, CY - 10, GLOW_INK, true);

@@ -21,6 +21,10 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_TOTAL] = "%d steps - %s", [SWT_CONFIRM_STEP] = "OK to go on?", [SWT_HELP_KEYS] = "Yellow: go on - Blue: stop",
         [SWT_CONFIRM_KEYS] = "Yellow: go on - Blue: skip", [SWT_TAKEOVER_HINT] = "Swipe up to take over",
         [SWT_CHARGING] = "Charging %u%%", [SWT_LOW_BATTERY] = "Battery low %u%% - charge me",
+        [SWT_W_MIRROR] = "Screen Mirroring stopped", [SWT_W_MIRROR_FIX] = "iPhone Control Center > Screen Mirroring, pick",
+        [SWT_W_LOCKED] = "iPhone is locked", [SWT_W_LOCKED_FIX] = "Unlock it and the task goes on",
+        [SWT_W_HID] = "Bluetooth lost", [SWT_W_HID_FIX] = "iPhone Settings > Bluetooth, connect",
+        [SWT_W_HIDE] = "Blue: hide",
     },
     [SW_ZH] = {
         [SWT_BATTERY] = "电量 ", [SWT_BATTERY_NONE] = "电量 --",
@@ -41,6 +45,10 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_TOTAL] = "%d 步 · %s", [SWT_CONFIRM_STEP] = "可以继续吗？", [SWT_HELP_KEYS] = "黄色继续 · 蓝色停止",
         [SWT_CONFIRM_KEYS] = "黄色继续 · 蓝色跳过", [SWT_TAKEOVER_HINT] = "上滑自己接手",
         [SWT_CHARGING] = "充电中 %u%%", [SWT_LOW_BATTERY] = "电量低 %u%% · 请充电",
+        [SWT_W_MIRROR] = "屏幕镜像断开了", [SWT_W_MIRROR_FIX] = "在 iPhone 控制中心打开屏幕镜像，选择",
+        [SWT_W_LOCKED] = "iPhone 锁屏了", [SWT_W_LOCKED_FIX] = "解锁后任务会继续",
+        [SWT_W_HID] = "蓝牙断开了", [SWT_W_HID_FIX] = "在 iPhone 设置 › 蓝牙 里连接",
+        [SWT_W_HIDE] = "蓝色关闭",
     },
 };
 

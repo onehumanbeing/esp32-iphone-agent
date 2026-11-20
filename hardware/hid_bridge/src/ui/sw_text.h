@@ -21,6 +21,7 @@ enum sw_text_id {
   SWT_TOTAL,  // "%d steps - %s": steps and time at the finish
   SWT_CONFIRM_STEP, SWT_HELP_KEYS, SWT_CONFIRM_KEYS, SWT_TAKEOVER_HINT,
   SWT_CHARGING, SWT_LOW_BATTERY,  // "%u" (the battery) in each
+  SWT_W_MIRROR, SWT_W_MIRROR_FIX, SWT_W_LOCKED, SWT_W_LOCKED_FIX, SWT_W_HID, SWT_W_HID_FIX, SWT_W_HIDE,
   SWT_COUNT
 };
 

@@ -8,6 +8,7 @@
 #include "src/ui/sw_model.h"
 #include "src/ui/sw_text.h"
 #include "src/ui/sw_power.h"
+#include "src/ui/sw_warn.h"
 #include "voice_rec.h"
 #include "stopwatch_draw.h"
 using namespace sw;
@@ -220,6 +221,9 @@ static void uiTask(void *) {
   int8_t charging = -1;  // M5.Power.isCharging(), read every 3 s (-1 unknown)
   uint32_t chargeAt = 0, lowUntil = 0;
   uint8_t low = 0;
+  sw_warn warn;  // mirroring lost, the iPhone locked, Bluetooth lost: a buzz, what to do (sw_warn.h)
+  sww_init(&warn);
+  uint32_t busyAt = 0;
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   // The codec's mic gives only zeros for ~0.85 s after its first start since power-on (measured 2026-11-21), later
@@ -255,6 +259,12 @@ static void uiTask(void *) {
     if (wasApp && !app) sw_apply(&c, nullptr, true, now);  // the phone's link is gone: idle, as after `ui off`
     wasApp = app;
     bool running = sw_running(&c, now), alive = sw_alive(&c, now);
+    if (running || alive) busyAt = now;
+    bool busy = busyAt && now - busyAt < 2000;  // in use just now: the app's link may drop with Bluetooth's
+    if (sww_update(&warn, alive ? sw_warn_parse(c.ui.warn) : SW_W_NONE, hidLinked, busy)) {
+      buzzStart(buzz, SW_BUZZ_HELP, now);
+      board_log("stopwatch: alert %d", sww_shown(&warn));
+    }
     // buttons, touch, shake
     // the buttons, or a test press from USB serial (`swpress`)
     bool yDown = M5.BtnA.wasPressed(), yUp = M5.BtnA.wasReleased(), bDown = M5.BtnB.wasPressed(), bUp = M5.BtnB.wasReleased();
@@ -288,7 +298,11 @@ static void uiTask(void *) {
     if (bUp && sw_input(&c, SW_IN_BLUE_UP, now, out, sizeof out)) send(out);
     if (yDown) board_log("stopwatch: yellow");
     if (bDown) board_log("stopwatch: blue");
-    if (!running && !voiceBefore && bDown) {  // blue while nothing runs: the status page, on and off (Henry 2026-11-20)
+    bool warned = sww_shown(&warn) && !voiceBefore;
+    if (warned && bDown) {  // blue on an alert: hidden until another comes, nothing sent
+      sww_hide(&warn);
+      c.blue_ignore = true;
+    } else if (!running && !voiceBefore && bDown) {  // blue while nothing runs: the status page, on and off (Henry 2026-11-20)
       statusUntil = statusUntil ? 0 : now + 5000;
       c.blue_ignore = true;  // no `home`, no `stop` from this press
     }
@@ -367,7 +381,8 @@ static void uiTask(void *) {
     // draw: everything when the view changed, else only the face's area when it moved
     View v;
     memset(&v, 0, sizeof v);
-    v.screen = statusUntil ? SW_SCR_STATUS : screen;
+    v.screen = statusUntil ? SW_SCR_STATUS : sww_shown(&warn) && screen != SW_SCR_VOICE ? SW_SCR_WARN : screen;
+    v.warn = (uint8_t)sww_shown(&warn);
     v.hold = running && sw_hold(&c, now) >= 0 ? sw_hold(&c, now) / 20 : -1;
     v.sel = c.sel;
     v.battery = battery;
@@ -383,7 +398,7 @@ static void uiTask(void *) {
     // the screen's power: anything new on it is activity; a run, help, voice, a pick or the status page keep it on
     if (v.screen != lastScreen || c.voice != lastVoice || alive != wasAlive) swp_active(&pw, now);
     lastScreen = v.screen, lastVoice = c.voice, wasAlive = alive;
-    bool keepOn = running || c.voice != SW_V_NONE || c.sel >= 0 || statusUntil || v.hold >= 0 || low;
+    bool keepOn = running || c.voice != SW_V_NONE || c.sel >= 0 || statusUntil || v.hold >= 0 || low || v.warn;
     int level = swp_level(&pw, now, keepOn);
     if (level == SWP_OFF) v.charge = -1;  // nothing to animate in the dark
     if (shown == SWP_OFF && level != SWP_OFF) memset(&last, 0xff, sizeof last);  // waking: all of it, fresh

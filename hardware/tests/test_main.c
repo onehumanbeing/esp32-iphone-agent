@@ -23,6 +23,7 @@
 #include "../hid_bridge/src/ui/sw_text.h"
 #include "../hid_bridge/src/ui/ima_adpcm.h"
 #include "../hid_bridge/src/ui/sw_power.h"
+#include "../hid_bridge/src/ui/sw_warn.h"
 #include <math.h>
 
 static int fails;
@@ -974,6 +975,28 @@ static void test_sw_power(void) {
   CHECK(swp_battery(&p, 60, false) == 0 && swp_battery(&p, 12, false) == SWP_LOW && swp_battery(&p, -1, false) == 0);
 }
 
+static void test_sw_warn(void) {
+  sw_ui u;
+  CHECK(sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"w\":\"mirror\"}", &u) == SW_PARSE_UI && !strcmp(u.warn, "mirror"));
+  CHECK(sw_parse("{\"m\":\"acting\"}", &u) == SW_PARSE_UI && !u.warn[0]);
+  CHECK(sw_warn_parse("mirror") == SW_W_MIRROR && sw_warn_parse("locked") == SW_W_LOCKED && sw_warn_parse("hid") == SW_W_HID);
+  CHECK(sw_warn_parse("wifi") == SW_W_NONE && sw_warn_parse("") == SW_W_NONE && sw_warn_parse(NULL) == SW_W_NONE);
+  sw_warn w;
+  sww_init(&w);
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && !sww_shown(&w));  // no Bluetooth at boot: no alert
+  CHECK(!sww_update(&w, SW_W_NONE, true, false));
+  CHECK(sww_update(&w, SW_W_MIRROR, true, true) && sww_shown(&w) == SW_W_MIRROR);  // once
+  CHECK(!sww_update(&w, SW_W_MIRROR, true, true) && sww_shown(&w) == SW_W_MIRROR);
+  sww_hide(&w);
+  CHECK(!sww_update(&w, SW_W_MIRROR, true, true) && !sww_shown(&w));  // blue: hidden while it lasts
+  CHECK(sww_update(&w, SW_W_LOCKED, true, true) && sww_shown(&w) == SW_W_LOCKED);  // another: shown again
+  CHECK(!sww_update(&w, SW_W_NONE, true, true) && !sww_shown(&w));  // fixed: gone
+  CHECK(sww_update(&w, SW_W_NONE, false, true) && sww_shown(&w) == SW_W_HID);  // Bluetooth dropped while in use
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && sww_shown(&w) == SW_W_HID);  // stays until it is back
+  CHECK(!sww_update(&w, SW_W_NONE, true, false) && !sww_shown(&w));
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && !sww_shown(&w));  // dropped while unused: nothing
+}
+
 static void test_sw_text(void) {
   for (int l = 0; l < SW_LANGS; l++)
     for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
@@ -1141,6 +1164,7 @@ static void test_sw_face(void) {
 
 int main(void) {
   test_sw_power();
+  test_sw_warn();
   test_sw_elapsed();
   test_sw_help();
   test_sw_answer();

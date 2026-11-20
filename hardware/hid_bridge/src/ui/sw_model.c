@@ -207,6 +207,8 @@ int sw_parse(const char *arg, sw_ui *u) {
       r.p = end;
       float f = v < -1 ? -1 : v > 1 ? 1 : (float)v;
       *(key[0] == 'x' ? &u->look_x : &u->look_y) = f;
+    } else if (!strcmp(key, "w") && *r.p == '"') {
+      ok = str(&r, u->warn, sizeof u->warn);
     } else if (!strcmp(key, "k")) {
       ok = picks(&r, u);
     } else if (!strcmp(key, "h")) {

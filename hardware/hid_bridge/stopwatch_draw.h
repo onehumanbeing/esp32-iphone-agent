@@ -19,7 +19,7 @@ void fontFor(const char *s, int big = 1);  // ASCII in a Latin font, the rest in
 String fit(String s, int width);
 void line(const char *text, int y, uint16_t color, int lines = 2, int width = 330);  // wrapped, centred
 void ring(int permille, uint16_t color, uint16_t track, int r0, int r1);
-static const int SW_SCR_STATUS = 100;
+static const int SW_SCR_STATUS = 100, SW_SCR_WARN = 101;  // the board's own pages
 struct View {
   int screen, hold, sel;
   uint8_t battery;
@@ -30,6 +30,7 @@ struct View {
   char clock[6];
   int8_t charge;   // charging: the ring's pulse step (0..15), -1 not charging
   uint8_t low;     // the low-battery banner: the battery % (0 none)
+  uint8_t warn;    // SW_SCR_WARN: the alert (sw_warn_code)
   sw_ui ui;
 };
 static const int STATUS_Y = 140, STATUS_GAP = 42, STATUS_LANG = 5;  // the language row: a tap there switches
