@@ -98,11 +98,11 @@ import XCTest
         let k = try XCTUnwrap(json(line)["k"] as? [String])
         XCTAssertEqual(k, ["Morning alarm and weathe", "B", "C"])
         XCTAssertTrue(k.allSatisfy { $0.utf8.count <= StopWatchUI.maxPick })
-        let (tight, kept) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 118))  // 112 before `"v":1`
-        XCTAssertLessThanOrEqual(tight.utf8.count, 118)
+        let (tight, kept) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 135))  // 112 before `"v":1`, 118 before `"z"`
+        XCTAssertLessThanOrEqual(tight.utf8.count, 135)
         XCTAssertNil(try json(tight)["t"])
         XCTAssertNotNil(kept)
-        let (tiny, none) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 76))
+        let (tiny, none) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 93))
         XCTAssertNil(try json(tiny)["k"])
         XCTAssertNil(none)
         XCTAssertEqual(StopWatchUI.command(.off)?.0, "ui off")

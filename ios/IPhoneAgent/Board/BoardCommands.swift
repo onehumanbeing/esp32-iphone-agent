@@ -275,13 +275,15 @@ extension BoardTransport {
         guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed,
                                                                warn: uiWarn)
         else { return uiWanted = nil }
-        guard body != uiSent else { return uiWanted = nil }
+        // the same line but for its clock (`z` ticks every second) is not sent again: the 5 s refresh carries the time
+        let key = body.replacingOccurrences(of: #","z":\d+"#, with: "", options: .regularExpression)
+        guard key != uiSent else { return uiWanted = nil }
         let t = now()
         uiTimes = uiTimes.filter { t - $0 < 1 }
         guard uiTimes.count < 2, transport.writeIfIdle(prefix + body) else { return retryUI() }
         nextID += 1
         uiTimes.append(t)
-        (uiSent, uiWanted) = (body, nil)
+        (uiSent, uiWanted) = (key, nil)
         if let picks, !quickOn { uiPicks = picks }
         startRefresh()
     }
@@ -441,6 +443,11 @@ enum StopWatchUI {
         var h: Int?  // 1: the help is a confirm
         var e: Int?  // seconds since the run began; at the finish, its length
         var w: String?  // a lost link the user has to fix: mirror, locked, hid
+        var z: Int?     // the phone's local time, seconds since 1970 read as UTC: the board sets its clock from it
+    }
+
+    static func localSeconds(_ time: Date, zone: TimeZone = .current) -> Int {
+        Int(time.timeIntervalSince1970) + zone.secondsFromGMT(for: time)
     }
 
     /// A paused run's lost link, for the StopWatch's alert (`w`): only what the user can fix from the watch's words.
@@ -474,7 +481,7 @@ enum StopWatchUI {
                         d: state.done, n: state.total, f: state.finished,
                         k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY),
                         h: confirm && state.phase == .help ? 1 : nil,
-                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn)
+                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn, z: localSeconds(time))
         while true {
             if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
             if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }

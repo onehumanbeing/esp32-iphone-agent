@@ -81,6 +81,14 @@ import XCTest
         XCTAssertNil(StopWatchUI.warning(.hotspot))
     }
 
+    func testTheUILineCarriesThePhonesLocalTimeForTheBoardsClock() throws {
+        let t = Date(timeIntervalSince1970: 1_795_200_000)
+        XCTAssertEqual(StopWatchUI.localSeconds(t, zone: TimeZone(secondsFromGMT: 8 * 3600)!), 1_795_228_800)
+        XCTAssertEqual(StopWatchUI.localSeconds(t, zone: TimeZone(secondsFromGMT: 0)!), 1_795_200_000)
+        let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle), at: t))
+        XCTAssertTrue(line.hasSuffix(#","z":\#(StopWatchUI.localSeconds(t))}"#), line)
+    }
+
     func testTheUILineSaysTheAppTakesVoice() throws {
         let (line, _) = try XCTUnwrap(StopWatchUI.command(.show(StopWatchUI.idle)))
         XCTAssertTrue(line.contains(#""v":1"#), line)
