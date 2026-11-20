@@ -34,7 +34,7 @@ struct RunPolicy: Equatable {
     func fallback(reason: String, confirm: Bool, restarts: Int) -> AgentLoop.HelpChoice {
         if confirm { return confirmDefault == .resume ? .skip : confirmDefault }
         let retry = reason.contains(AgentLoop.stallReason) || reason.contains(AgentLoop.stepLimitReason)
-            || reason.contains("errors in a row") || reason.contains(StuckGuard.reason)
+            || reason.contains(AgentLoop.errorsReason) || reason.contains(StuckGuard.reason)
         if retry && restarts < maxRestarts { return .restart }
         return .stop
     }

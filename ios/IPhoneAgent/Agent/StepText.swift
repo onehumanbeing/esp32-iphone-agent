@@ -55,7 +55,7 @@ enum StepText {
     /// The model's own words if it gave any, else the action.
     static func line(_ s: JObject) -> String {
         if let t = s["thought"]?.str, !t.isEmpty { return t }
-        if let a = s["answer"]?.str ?? s["reason"]?.str, !a.isEmpty { return "\(title(s)): \(a)" }
+        if let a = s["answer"]?.str ?? s["message"]?.str ?? s["reason"]?.str, !a.isEmpty { return "\(title(s)): \(a)" }  // message: for people
         return title(s)
     }
 

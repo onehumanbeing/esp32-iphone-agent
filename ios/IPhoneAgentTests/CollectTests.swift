@@ -319,4 +319,93 @@ final class NotebookBlockTests: XCTestCase {
         XCTAssertNotNil(agent.scrollBackRefusal(back))
         XCTAssertNil(agent.scrollBackRefusal(back))  // asked again: it goes through
     }
+
+    private func loop(_ model: FakeModel, folder: String) -> AgentLoop {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: model, planner: nil, trace: nil)
+        (agent.task, agent.runFolder) = ("collect my rides", folder)
+        return agent
+    }
+
+    private func folder() -> (String, URL) {
+        let name = "listdone-\(UUID().uuidString.prefix(6))"
+        return (name, MemoryFiles.root.appendingPathComponent(name))
+    }
+
+    /// 2026-11-20: 25 rides collected, then the README in one reply was cut three times. The app writes it now.
+    func testAListDoneWritesTheResultFromTheNotebook() throws {
+        let (name, dir) = folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let agent = loop(FakeModel { _ in "" }, folder: name)
+        XCTAssertEqual(agent.listDone(), Collect.listDone, "an empty notebook: nothing to write")
+        agent.notebook.add(["Ride A ¥12", "Ride B ¥30"])
+        let hint = agent.listDone()
+        XCTAssertTrue(hint.contains("\(name)/README.md") && hint.contains("Do not write it again"), hint)
+        XCTAssertTrue(agent.resultWritten)
+        let readme = dir.appendingPathComponent("README.md")
+        XCTAssertEqual(try String(contentsOf: readme, encoding: .utf8), "# collect my rides\n\n- Ride A ¥12\n- Ride B ¥30\n")
+        let saved = agent.steps.filter { $0["action"]?.str == "file" }
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(RunOutputs.written(String(saved[0]["reason"]?.str?.dropFirst(4) ?? "")), "\(name)/README.md", "shown with the run")
+        XCTAssertTrue(agent.actorUserPrompt().contains("Do not write it again"), "said in full, not only in a cut history line")
+        // more read later: the app's file is written again; nothing new: left as it is
+        agent.notebook.add(["Ride C ¥8"])
+        _ = agent.listDone(); _ = agent.listDone()
+        XCTAssertTrue(try String(contentsOf: readme, encoding: .utf8).hasSuffix("- Ride C ¥8\n"))
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "file" }.count, 2)
+        // a result the actor wrote itself is left alone
+        let own = loop(FakeModel { _ in "" }, folder: name + "-own")
+        own.notebook.add(["Ride A ¥12"])
+        own.resultWritten = true
+        XCTAssertEqual(own.listDone(), Collect.listDone)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: MemoryFiles.root.appendingPathComponent(name + "-own").path))
+    }
+
+    func testErrorsInARowAfterTheWorkIsCompleteEndTheRunAsDone() async throws {
+        let (name, dir) = folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let agent = loop(FakeModel { _ in "no action here" }, folder: name)
+        agent.notebook.add(["Ride A ¥12"])
+        agent.listRead = true
+        var asked = false
+        agent.onHelp = { _ in asked = true; return .stop }
+        await agent.run()
+        XCTAssertFalse(asked, "the work was done: no help")
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "done")
+        XCTAssertTrue(agent.steps.last?["reason"]?.str?.contains("after the work was complete") == true)
+        XCTAssertEqual(agent.steps.last?["notebook"], .arr([.str("Ride A ¥12")]))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("README.md").path))
+    }
+
+    func testErrorsInARowBeforeTheWorkIsCompleteAskForHelpInPlainWords() async throws {
+        let (name, dir) = folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = FakeModel { _ in "" }
+        model.error = LLMError(message: "the model's reply stream ended before it finished", reason: "stream_cut")
+        let agent = loop(model, folder: name)
+        agent.notebook.add(["Ride A ¥12"])  // the list is not read to its end
+        var asked: (reason: String, shown: String?)?
+        agent.onHelp = { [unowned agent] reason in asked = (reason, agent.helpMessage); return .stop }
+        await agent.run()
+        XCTAssertEqual(asked?.reason, "3 errors in a row", "the record and its matching stay")
+        XCTAssertEqual(asked?.shown, ModelRequestFailure.streakMessage(3, cutOff: true))
+        XCTAssertNil(agent.helpMessage)
+        XCTAssertEqual(agent.steps.last?["action"]?.str, "stopped")
+        XCTAssertEqual(agent.steps.filter { $0["action"]?.str == "hiccup" }.first?["reason"]?.str, ModelRequestFailure.cutOffHiccup)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("README.md").path))
+    }
+
+    func testTheErrorHelpSaysWhatHappenedAndWhatToDo() {
+        let cut = ModelRequestFailure.streakMessage(3, cutOff: true), other = ModelRequestFailure.streakMessage(3, cutOff: false)
+        for text in [cut, other] {
+            XCTAssertTrue(text.contains("3 times in a row") && text.contains("saved") && text.contains("Continue"), text)
+            XCTAssertFalse(text.contains("errors in a row"))
+        }
+        XCTAssertTrue(cut.contains("cut off"))
+        XCTAssertFalse(other.contains("cut off"))
+        XCTAssertTrue(ModelRequestFailure.cutOff(URLError(.timedOut)))
+        XCTAssertTrue(ModelRequestFailure.cutOff(LLMError(message: "x", reason: "stream_cut")))
+        XCTAssertTrue(ModelRequestFailure.cutOff(LLMError(message: "x", status: 504)))
+        XCTAssertFalse(ModelRequestFailure.cutOff(LLMError(message: "x", status: 500)))
+        XCTAssertEqual(RunPolicy.unattended(repairMirroring: false).fallback(reason: "3 errors in a row", confirm: false, restarts: 0), .restart)
+    }
 }

@@ -546,7 +546,7 @@ struct RunEnd: Equatable {
         case "done": reason = .done
         case "stopped": reason = trace.dropLast().last?["action"]?.str == "help" ? .helpStop : .userStop
         case "fail":
-            if why.hasSuffix("errors in a row") { reason = .failErrors }
+            if why.hasSuffix(AgentLoop.errorsReason) { reason = .failErrors }
             // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
             else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
