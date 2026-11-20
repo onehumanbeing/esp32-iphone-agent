@@ -29,7 +29,8 @@ extension AppModel {
         lastTask = task
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
-        agent.cachedPlan = resume ? nil : intent.flatMap { planCache.reload(); return planCache.entry(for: $0)?.plan }  // PlanCache
+        agent.cachedPlan = resume || intent?.reusesPlan == false ? nil  // PlanCache (Reuse Plan off: planned afresh)
+            : intent.flatMap { planCache.reload(); return planCache.entry(for: $0)?.plan }
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
         pointer.overlayStays = Calls.isCall(task, kind: intent?.kind)
         if agent.replay.steps.isEmpty, Calls.isCall(task, kind: intent?.kind) {  // a call: the fast scripted way (Calls.script)
@@ -161,7 +162,8 @@ extension AppModel {
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
         Analytics.capture("run_started", settings.analyticsModel.merging(
-            ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
+            ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream",
+             "plan_cached": agent.cachedPlan != nil]) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
         // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
@@ -406,8 +408,8 @@ extension AppModel {
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
         RunMarker.clear()
-        Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
-                                firmware: board.status?.fw?.plain))  // free line
+        let plan = endLine(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
+                                  firmware: board.status?.fw?.plain))  // free line (held while the plan is judged)
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
@@ -422,6 +424,7 @@ extension AppModel {
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil,
                                                                "cached_steps": agent.cachedSteps,
+                                                               "plan_cached": agent.usedCachedPlan, "plan_kept": plan.step.telemetry,
                                                                "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 })
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
@@ -442,7 +445,7 @@ extension AppModel {
         if let intent = currentIntent {
             intents.record(intent.id, RunStat(run: runID, ok: outcome == .done, seconds: seconds))
             learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done, failed: outcome == .failed,
-                        missed: agent.replay.missed)
+                        missed: agent.replay.missed, plan: plan)
         }
         threads.append(ChatTurn(ask: agent.task, run: runID, outcome: last?["action"]?.str ?? "stopped",
                                 answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",

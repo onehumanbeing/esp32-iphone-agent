@@ -14053,6 +14053,56 @@
         }
       }
     },
+    "Reuse Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复用方案"
+          }
+        }
+      }
+    },
+    "Off: every run plans afresh, and no plan is saved for this intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关闭：每次运行都重新规划，也不会为这个意图保存方案。"
+          }
+        }
+      }
+    },
+    "After a run, AI checks whether its plan is worth reusing. If it is, the next run starts from it without waiting for a new one." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次运行后，AI 会判断这次的方案是否值得复用。值得的话，下次运行直接从它开始，不用等新方案。"
+          }
+        }
+      }
+    },
+    "Reuse Plan is off for this intent: not used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个意图已关闭复用方案，不会使用"
+          }
+        }
+      }
+    },
+    "The app kept this plan from a run after AI checked it is worth reusing. Edit it to keep your version; delete it to plan afresh." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份方案来自一次运行，AI 判断它值得复用后保存。编辑后会保留你的版本；删掉则下次重新规划。"
+          }
+        }
+      }
+    },
     "Runs start from this plan while the instruction is unchanged, without waiting for a new one. It is dropped when you edit the instruction, a run with it fails, or after 7 days." : {
       "localizations" : {
         "zh-Hans" : {

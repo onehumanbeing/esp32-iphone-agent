@@ -215,6 +215,7 @@ import UIKit
         startKeepAlive(generation: taken.generation, token: token)
     }
     private var claimedAt = Date()
+    private var holding = false, heldEnd: RunEnd?, holds = 0  // hold(): the ended run's line, kept for one more call
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
     private var lostReason: String?  // its reason, from the keep-alive
     private var lastRefusal: String?
@@ -262,7 +263,7 @@ import UIKit
     }
 
     /// A model call was refused because the server ended this run's lease: the run has to stop.
-    func runEnded() { if lease != nil { leaseLost = true } }
+    func runEnded() { if lease != nil, !holding { leaseLost = true } }  // held: the run already ended its own way
 
     /// The server no longer knows this install's token (401): forget it, so the next request enrolls again
     /// (App Attest) instead of being refused with it every time. A run under way ends: its lease came with that token.
@@ -285,14 +286,17 @@ import UIKit
     /// body); the server also ends it on its own when idle. In its own background task: the run's ends right after,
     /// and a DELETE that never went out left the lease to idle out 30 s later.
     func end(_ runEnd: RunEnd?) {
+        let ended = holding ? heldEnd ?? runEnd : runEnd  // a held run ends with its own reason
+        holding = false
+        heldEnd = nil
         keepAlive?.cancel()
         keepAlive = nil
-        if let run = keyRun { endKeyRun(run, runEnd) }
+        if let run = keyRun { endKeyRun(run, ended) }
         keyRun = nil
         guard let lease else { return }
         self.lease = nil
         guard let token else { return }  // refused (401): nothing to release it with, it idles out on the server
-        var runEnd = runEnd ?? RunEnd(reason: .other, stage: .running)
+        var runEnd = ended ?? RunEnd(reason: .other, stage: .running)
         if leaseLost, runEnd.reason != .done { runEnd.reason = .leaseLost }
         let held = Date().timeIntervalSince(claimedAt), id = String(lease.id.prefix(8))
         var background = UIBackgroundTaskIdentifier.invalid
@@ -318,6 +322,21 @@ import UIKit
             DebugLog.write(String(format: "trial: lease %@ released after %.1f s: %@ → %@", id, held, runEnd.logLine, result))
         }
     }
+
+    /// The run is over, but one short call (PlanJudge) still goes out on its line: given back on `release()`, within
+    /// PlanJudge.timeout (under the server's 30 s idle end); a new run's `begin` releases it at once.
+    /// Returns the hold's number for `release`: a later run's hold is not given back by this one's.
+    @discardableResult func hold(_ runEnd: RunEnd?) -> Int {
+        holds += 1
+        guard lease != nil || keyRun != nil else { end(runEnd); return holds }
+        keepAlive?.cancel()
+        keepAlive = nil
+        holding = true
+        heldEnd = runEnd
+        return holds
+    }
+
+    func release(_ hold: Int) { if holding, hold == holds { end(nil) } }
 
     func headers() throws -> [String: String] {
         if keyed {
@@ -526,6 +545,7 @@ struct RunEnd: Equatable {
     var stage: Stage
     var steps = 0, calls = 0
     var firmware: String?
+    var planCached: Bool?  // the run started from the intent's saved plan (PlanCache), sent as `plan_cached`
     /// A failed start: the startup step it stopped at (StartupFailure.Step), sent as `step`.
     var step: String?
 
@@ -573,6 +593,7 @@ struct RunEnd: Equatable {
                                    "app_version": Self.appVersion]
         if let firmware { body["fw"] = firmware }
         if let step { body["step"] = step }
+        if let planCached { body["plan_cached"] = planCached }
         return body
     }
 
