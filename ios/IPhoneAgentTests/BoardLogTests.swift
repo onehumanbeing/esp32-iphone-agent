@@ -230,6 +230,29 @@ import XCTest
         XCTAssertEqual(heard.count, 2)
     }
 
+    func testQuickIntentsGoAsAPicksLineAndYellowRunsThem() async throws {
+        let picks = (1...7).map { StandbyPick(id: UUID(), name: "Intent \($0)", symbol: "star") }
+        let (channel, board) = make(stopwatch)
+        var heard: [StopWatchUI.Action] = []
+        channel.onButton = { heard.append($0) }
+        channel.quickIntents = { picks }
+        channel.flushPicks()
+        for _ in 0..<50 where !channel.quickOn { try await Task.sleep(nanoseconds: 10_000_000) }
+        let line = try XCTUnwrap(board.lines.first { $0.contains(" picks ") })
+        XCTAssertTrue(line.hasSuffix(#"picks ["Intent 1","Intent 2","Intent 3","Intent 4","Intent 5"]"#), line)
+        XCTAssertEqual(channel.uiPicks, picks.prefix(5).map(\.id))
+        channel.showUI(LiveActivityController.standbyState(Array(picks.suffix(2))))  // the island's picks: not for the board now
+        let ui = try XCTUnwrap(board.lines.last { $0.contains(" ui ") })
+        XCTAssertNil(try json(String(ui.split(separator: " ", maxSplits: 1)[1]))["k"])
+        XCTAssertEqual(channel.uiPicks, picks.prefix(5).map(\.id))
+        channel.handleReply("btn run 4")
+        XCTAssertEqual(heard, [.run(picks[4].id)])
+        let count = board.lines.count
+        channel.flushPicks()  // unchanged: not again
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(board.lines.count, count)
+    }
+
     func testStatusWithAScreenDecodesAndSurvivesAShortNotify() throws {
         let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"stopwatch","ui":1,"hid":"ok"}"#.utf8)))
         XCTAssertTrue(StopWatchUI.enabled(full))

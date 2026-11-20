@@ -23,6 +23,11 @@ extension AppModel {
         live.onBoard = { [weak self] state in self?.board.commands.showUI(state ?? StopWatchUI.idle) }
         board.commands.onButton = { [weak self] action in self?.stopWatchButton(action) }
         voice.onResult = { [weak self] result in self?.board.commands.sendVoice(result) }
+        // the newest intents first (IntentStore inserts at the top), ready to run
+        board.commands.quickIntents = { [weak self] in
+            (self?.intents.items ?? []).filter { !$0.unfilled && $0.builtin == nil }
+                .map { StandbyPick(id: $0.id, name: $0.name, symbol: $0.symbol) }
+        }
     }
 
     func stopWatchButton(_ action: StopWatchUI.Action) {

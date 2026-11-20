@@ -78,6 +78,12 @@ extension BoardTransport {
     private var uiRefresh: Task<Void, Never>?
     var clock: () -> Date = { Date() }      // the `c` key's local time
     private(set) var uiPicks: [UUID] = []    // the standby picks of the last `ui` line the board got, for `btn run <i>`
+    /// The StopWatch's quick intents (the newest 5, yellow picks one): set by the app. Sent as a `picks` line when
+    /// they change and every 3 minutes; a board that answers it gets no `k` in `ui` lines any more.
+    var quickIntents: () -> [StandbyPick] = { [] }
+    private var quickSent: (names: [String], at: Double)?
+    private var quickBusy = false
+    private(set) var quickOn = false
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
 
@@ -88,6 +94,7 @@ extension BoardTransport {
         links += 1
         last = now(); beat = last  // fresh link: nothing to keep awake yet
         (uiSent, uiWanted) = (nil, uiLast)  // flushUI sends it once the status says StopWatch
+        (quickSent, quickOn) = (nil, false)
     }
 
     // Invalidate in-flight frames and relative coordinates when only the system pointer drops.
@@ -249,7 +256,9 @@ extension BoardTransport {
 
     /// Called on every status too: the first status after a link-up says whether this board is a StopWatch.
     func flushUI() {
-        guard let want = uiWanted, connected, let transport, StopWatchUI.enabled(boardStatus()) else { return }
+        flushPicks()
+        guard var want = uiWanted, connected, let transport, StopWatchUI.enabled(boardStatus()) else { return }
+        if quickOn, case .show(var state) = want { state.picks = nil; want = .show(state) }  // `picks` has them
         let prefix = "\(nextID) "
         let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
         guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock())
@@ -261,7 +270,7 @@ extension BoardTransport {
         nextID += 1
         uiTimes.append(t)
         (uiSent, uiWanted) = (body, nil)
-        if let picks { uiPicks = picks }
+        if let picks, !quickOn { uiPicks = picks }
         startRefresh()
     }
 
@@ -284,6 +293,27 @@ extension BoardTransport {
                 self.refreshUI()
             }
             self?.uiRefresh = nil
+        }
+    }
+
+    /// The quick intents to a StopWatch: when they changed, or 3 minutes after the last time. Older firmware answers
+    /// `err`: it keeps the standby picks of the `ui` line.
+    func flushPicks() {
+        guard connected, !quickBusy, StopWatchUI.enabled(boardStatus()) else { return }
+        let picks = Array(quickIntents().prefix(StopWatchUI.maxQuick))
+        let names = picks.map { StopWatchUI.truncated($0.name, bytes: StopWatchUI.maxPick) }
+        if let sent = quickSent, sent.names == names, now() - sent.at < 180 { return }
+        guard let data = try? JSONEncoder().encode(names), let json = String(data: data, encoding: .utf8) else { return }
+        quickBusy = true
+        Task {
+            defer { quickBusy = false }
+            do {
+                try await send("picks " + json)
+                (quickSent, quickOn, uiPicks) = ((names, now()), true, picks.map(\.id))
+            } catch {
+                quickSent = (names, now())  // older firmware: try again in 3 minutes, `k` meanwhile
+                if quickOn { (quickOn, uiSent) = (false, nil) }
+            }
         }
     }
 
@@ -356,7 +386,7 @@ func now() -> Double { Date().timeIntervalSince1970 }
 /// `btn <verb> [arg]`. Only a board whose status says so (board "stopwatch", ui 1) gets or is heard on any of it.
 enum StopWatchUI {
     typealias State = AgentActivityAttributes.ContentState
-    static let maxLine = 200, maxText = 80, maxPick = 24, maxPicks = 3
+    static let maxLine = 200, maxText = 80, maxPick = 24, maxPicks = 3, maxQuick = 5
 
     enum Want: Equatable { case off, show(State) }
 
