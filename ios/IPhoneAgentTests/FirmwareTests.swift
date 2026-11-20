@@ -23,6 +23,30 @@ final class FirmwareTests: XCTestCase {
         XCTAssertFalse(Firmware.verify(r, key: key.publicKey.rawRepresentation), "a changed manifest")
     }
 
+    /// A StopWatch release is signed with its target: it can't be passed off as the USB board's, or the reverse.
+    func testAnotherBoardsReleaseIsSignedWithItsTarget() throws {
+        let key = Curve25519.Signing.PrivateKey()
+        var r = FirmwareRelease(version: "0.2.8", size: 1, sha256: "a", md5: "b", url: "fw.bin", target: "stopwatch")
+        r.sig = try key.signature(for: r.signed).base64EncodedString()
+        XCTAssertTrue(Firmware.verify(r, key: key.publicKey.rawRepresentation))
+        XCTAssertEqual(r.channel, "stopwatch")
+        r.target = nil
+        XCTAssertFalse(Firmware.verify(r, key: key.publicKey.rawRepresentation), "the target dropped")
+        XCTAssertEqual(r.channel, Firmware.usbTarget)
+        XCTAssertEqual(Firmware.sources(for: Firmware.usbTarget), Firmware.sources)
+        XCTAssertEqual(Firmware.sources(for: "stopwatch").map(\.absoluteString),
+                       Firmware.sources.map { $0.absoluteString.replacingOccurrences(of: "/firmware.json", with: "/stopwatch/firmware.json") })
+    }
+
+    func testEachBoardGetsItsOwnReleaseChannel() {
+        func target(_ json: String) -> String? { BoardStatus.decode(Data(json.utf8))?.releaseTarget }
+        XCTAssertEqual(target(#"{"fw":"0.2.7","usb":"ok"}"#), Firmware.usbTarget)
+        XCTAssertEqual(target(#"{"fw":"0.2.7","usb":"ok","hid":"ok","board":"stopwatch","ui":1,"ota":1}"#), "stopwatch")
+        XCTAssertNil(target(#"{"fw":"0.2.7","usb":"ok","hid":"ok","board":"stopwatch","ui":1}"#), "older StopWatch firmware")
+        XCTAssertNil(target(#"{"fw":"0.2.7","usb":"ok","board":"note4","ota":1}"#))
+        XCTAssertNil(target(#"{"fw":"0.2.7","usb":"ok","hid":"ok"}"#), "a BLE board")
+    }
+
     func testImageMustMatchManifest() throws {
         let r = try release(image, key: Curve25519.Signing.PrivateKey())
         XCTAssertTrue(Firmware.matches(image, r))

@@ -47,6 +47,7 @@ struct BoardStatus: Codable, Equatable {
     var udp: UDP?
     var own: Int?      // LAN lock (LanAuth): 1 = on a home network with an owner, only it may mirror; nil = no lock
     var ui: Int?       // 1: the board has a screen that shows the run (`ui` lines, StopWatchUI); nil: no screen
+    var ota: Int?      // 1: a StopWatch that takes its own release channel (the listener starts on `ota on`)
 
     var isWirelessHID: Bool { hid != nil }
     /// Mouse and keyboard go over Bluetooth now: a Bluetooth board, or a --dual-hid one switched to it.
@@ -61,6 +62,11 @@ struct BoardStatus: Codable, Equatable {
     // The signed feed ships only standard USB images; wait for positive identification. A --dual-hid board in USB
     // mode (hidm) runs no OTA server: offering it the USB release would ask on every connection and always fail.
     var acceptsUSBRelease: Bool { board == nil && hid == nil && hidm == nil && usb != nil }
+    /// The release channel this board takes (Firmware.usbTarget or its own, as its image's marker); nil: none.
+    var releaseTarget: String? {
+        if acceptsUSBRelease { return Firmware.usbTarget }
+        return board == "stopwatch" && ota == 1 ? "stopwatch" : nil
+    }
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 
