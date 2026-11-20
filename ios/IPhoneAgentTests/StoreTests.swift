@@ -100,6 +100,29 @@ import XCTest
         XCTAssertTrue(store.runs.isEmpty)
     }
 
+    /// Runs tab › Delete All Runs: every run but the one in progress goes; Delete Failed Runs keeps the done ones too.
+    func testBulkDeleteRemovesAllButTheActiveRun() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lasts = ["20261120-100000": "done", "20261120-100100": "error", "20261120-100200": "stopped", "20261120-100300": "error"]
+        for (name, last) in lasts {
+            let folder = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data("{\"kind\":\"task\",\"task\":\"t\"}\n{\"kind\":\"step\",\"action\":\"\(last)\"}\n".utf8)
+                .write(to: folder.appendingPathComponent("steps.jsonl"))
+        }
+        let store = RunStore(traces: TraceStore(root: root))
+        store.reload()
+        let active = "20261120-100300"  // in progress: its swipe is disabled, so bulk delete skips it too
+
+        let failed = AppModel.bulkDeletable(store.runs, failedOnly: true) { $0.id != active }
+        XCTAssertEqual(failed.map(\.id), ["20261120-100100"])
+
+        for run in AppModel.bulkDeletable(store.runs, failedOnly: false, canDelete: { $0.id != active }) { try store.delete(run) }
+        store.reload()
+        XCTAssertEqual(store.runs.map(\.id), [active])
+    }
+
     func testFailedDiskRemovalKeepsRunVisibleAndReportsError() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
