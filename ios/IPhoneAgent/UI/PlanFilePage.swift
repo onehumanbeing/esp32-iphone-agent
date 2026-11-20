@@ -77,15 +77,16 @@ struct PlanFilePage: View {
         } footer: {
             Text(plan.edited
                  ? "You edited this plan, so the app keeps it as it is. It ends when the intent's instruction changes or you delete this file."
-                 : "The app wrote this plan from a run that worked. Edit it to keep your version; delete it to plan afresh.")
+                 : "The app kept this plan from a run after AI checked it is worth reusing. Edit it to keep your version; delete it to plan afresh.")
         }
     }
 
-    private func used(_ intent: SavedTask?) -> Bool { intent.flatMap { cache.entry(for: $0) } != nil }
+    private func used(_ intent: SavedTask?) -> Bool { intent.flatMap { $0.reusesPlan ? cache.entry(for: $0) : nil } != nil }
 
     private func status(_ plan: PlanFile, _ intent: SavedTask?) -> LocalizedStringKey {
         guard let intent else { return "Its intent is gone" }
         if used(intent) { return "The next run starts from this plan" }
+        if !intent.reusesPlan { return "Reuse Plan is off for this intent: not used" }
         if plan.key != PlanCache.key(intent) { return "The instruction changed: not used" }
         return "Older than 7 days: not used"
     }
