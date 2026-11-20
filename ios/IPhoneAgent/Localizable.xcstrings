@@ -321,6 +321,46 @@
         }
       }
     },
+    "Delete All Runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除全部记录"
+          }
+        }
+      }
+    },
+    "Delete all runs? This can't be undone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除全部记录？此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "Delete Failed Runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除失败的记录"
+          }
+        }
+      }
+    },
+    "Delete failed runs? This can't be undone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除失败的记录？此操作无法撤销。"
+          }
+        }
+      }
+    },
     "Demo Data Is On" : {
       "localizations" : {
         "zh-Hans" : {
