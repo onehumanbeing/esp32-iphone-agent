@@ -19,6 +19,7 @@ static std::atomic<bool> hidLinked{false}, appLinked{false};
 static char boardName[32];
 
 static const int BTN_LINE = 32;
+static const uint32_t SLEEP_AFTER_MS = 180000;  // no app, no touch, no button for 3 min: it falls asleep
 static const uint32_t FRAME_MS = 33, SLEEP_FRAME_MS = 66;  // ~30 fps; the sleeping face only drifts its z
 static const float SHAKE_G = 2.5f;  // acceleration magnitude of a deliberate shake; a wrist turn stays under 1.5 g
 static const int SWIPE_PX = 60;
@@ -468,6 +469,7 @@ static void uiTask(void *) {
   memset(&lastKey, 0xff, sizeof lastKey);
   int lx0 = 0, ly0 = 0, lx1 = W, ly1 = H;  // the face's area in the last frame (with no face: empty, not used)
   bool wasApp = false;
+  uint32_t activeAt = millis();
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   for (;;) {
@@ -489,10 +491,19 @@ static void uiTask(void *) {
     if (M5.BtnA.wasPressed() && sw_input(&c, SW_IN_YELLOW, now, out, sizeof out)) send(out);
     if (M5.BtnB.wasPressed() && sw_input(&c, SW_IN_BLUE_DOWN, now, out, sizeof out)) send(out);
     if (M5.BtnB.wasReleased() && sw_input(&c, SW_IN_BLUE_UP, now, out, sizeof out)) send(out);
+    if (M5.BtnA.wasPressed()) board_log("stopwatch: yellow");
+    if (M5.BtnB.wasPressed()) board_log("stopwatch: blue");
+    if (!running && M5.BtnB.wasPressed()) {  // blue while nothing runs: the status page, on and off (Henry 2026-11-20)
+      statusUntil = statusUntil ? 0 : now + 5000;
+      c.blue_ignore = true;  // no `home`, no `stop` from this press
+    }
+    if (!running && !c.ui.npicks && M5.BtnA.wasPressed()) swf_poke(&f, now);  // yellow with nothing to pick: it reacts
+    if (got || M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.Touch.getCount()) activeAt = now;
     int screen = sw_screen(&c, now);
     // the face's mood: the run's, the outcome's, or AppModel.mood (idle with the app, asleep without)
     int mood = screen == SW_SCR_OK ? SW_SUCCESS : screen == SW_SCR_FAIL ? SW_FAILURE
-               : running || screen == SW_SCR_STUCK ? c.ui.mood : alive ? SW_IDLE : SW_SLEEPING;
+               : running || screen == SW_SCR_STUCK ? c.ui.mood
+               : alive || now - activeAt < SLEEP_AFTER_MS ? SW_IDLE : SW_SLEEPING;  // awake, looking around; asleep when left alone
     swf_mood(&f, mood, running, c.ui.look_x, c.ui.look_y, now);
     bool down = false;
     int tx = 0, ty = 0;
@@ -510,10 +521,6 @@ static void uiTask(void *) {
     if (M5.Imu.getAccel(&ax, &ay, &az) && ax * ax + ay * ay + az * az > SHAKE_G * SHAKE_G) {
       if (running) sw_input(&c, SW_IN_SHAKE, now, out, sizeof out);
       else swf_dizzy(&f, now);
-    }
-    if (!running && M5.BtnB.isPressed() && M5.BtnB.pressedFor(800)) {  // blue held while nothing runs: status
-      statusUntil = now + 5000;
-      c.blue_ignore = true;  // this hold is for the status page: no `home`, no `stop`
     }
     if (statusUntil && (running || M5.BtnA.wasPressed() || (int32_t)(now - statusUntil) >= 0)) statusUntil = 0;
     if (sw_tick(&c, now, out, sizeof out)) send(out);

@@ -55,6 +55,7 @@ void swf_init(sw_face *f, float px, uint32_t now);
 void swf_mood(sw_face *f, int mood, bool busy, float look_x, float look_y, uint32_t now);
 // The finger: called every frame with whether it is down and where (screen pixels; w, h: the screen).
 void swf_touch(sw_face *f, bool down, int x, int y, int w, int h, uint32_t now);
+void swf_poke(sw_face *f, uint32_t now);   // a button while idle: as a tap
 void swf_dizzy(sw_face *f, uint32_t now);  // a shake while idle: as three quick taps
 void swf_tick(sw_face *f, uint32_t now);   // springs and the app's timers, up to now
 void swf_pose_at(const sw_face *f, swf_pose *p);
