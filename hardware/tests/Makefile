@@ -6,7 +6,7 @@ CFLAGS = -std=c11 -Wall -Wextra -g -fsanitize=address,undefined
 BREW := $(shell brew --prefix 2>/dev/null)
 MBEDTLS := $(firstword $(wildcard $(BREW)/opt/mbedtls@3 $(BREW)/opt/mbedtls) /usr)
 
-test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c $(SRC)/airplay/keystream.c $(SRC)/cli/cli_proto.c $(SRC)/hid/arbiter.c $(SRC)/hid/pace.c $(SRC)/log/logring.c $(SRC)/airplay/mdns.c $(SRC)/airplay/audio.c $(SRC)/heard/heard.c $(SRC)/net/lan_lock.c
+test: test_main.c $(SRC)/bplist/bplist.c $(SRC)/video/gop.c $(SRC)/airplay/keystream.c $(SRC)/cli/cli_proto.c $(SRC)/hid/arbiter.c $(SRC)/hid/pace.c $(SRC)/log/logring.c $(SRC)/airplay/mdns.c $(SRC)/airplay/audio.c $(SRC)/heard/heard.c $(SRC)/net/lan_lock.c $(SRC)/ui/sw_model.c
 	$(CC) $(CFLAGS) -Istubs -I$(MBEDTLS)/include -o $@ $^ -L$(MBEDTLS)/lib -lmbedcrypto -lm
 	./test
 
@@ -25,3 +25,5 @@ check-hid:
 	../build/tests/test_board_usb
 	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -DHID_TRANSPORT_BLE=1 -o ../build/tests/test_board_ble test_board_support.cpp ../hid_bridge/board_support.cpp
 	../build/tests/test_board_ble
+	$(CXX) -std=c++11 -Wall -Wextra -g -fsanitize=address,undefined -DHID_TRANSPORT_BLE=1 -DM5_STOPWATCH=1 -o ../build/tests/test_board_stopwatch test_board_support.cpp ../hid_bridge/board_support.cpp
+	../build/tests/test_board_stopwatch
