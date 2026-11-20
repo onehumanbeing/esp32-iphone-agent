@@ -262,13 +262,14 @@ int sw_apply(sw_ctl *c, const sw_ui *u, bool off, uint32_t now) {
   if (off) {
     c->live = false;
     c->ui.npicks = 0;
+    c->own_picks = false;
     c->sel = -1;
     c->confirm = false;
     c->shaking = c->done = false;
     return SW_BUZZ_NONE;
   }
   sw_ui next = *u;
-  if (!next.has_picks) {  // the picks stay until the app sends others
+  if (!next.has_picks || c->own_picks) {  // the picks stay until the app sends others (a `picks` line beats `k`)
     next.npicks = c->ui.npicks;
     memcpy(next.picks, c->ui.picks, sizeof next.picks);
   }
@@ -350,6 +351,13 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
       }
       return yellow(c, running, now, out, n);
     case SW_IN_BLUE_DOWN:
+      if (c->sel >= 0 && !running) {  // blue drops the selected intent (and does nothing else)
+        c->sel = -1;
+        c->confirm = false;
+        c->blue_down = true;
+        c->blue_ignore = true;
+        return false;
+      }
       c->blue_down = true;
       c->blue_fired = false;
       c->blue_ignore = false;
@@ -442,6 +450,21 @@ int sw_hold(const sw_ctl *c, uint32_t now) {
   if (!c->blue_down || c->blue_fired || c->blue_ignore || !after(now, c->blue_at, SW_RING_MS)) return -1;
   uint32_t held = now - c->blue_at;
   return held >= SW_STOP_MS ? 1000 : (int)(held * 1000 / SW_STOP_MS);
+}
+
+int sw_picks_line(sw_ctl *c, const char *arg) {
+  rd r = {arg};
+  sw_ui u;
+  memset(&u, 0, sizeof u);
+  ws(&r);
+  if (*r.p != '[' || !picks(&r, &u)) return -1;
+  ws(&r);
+  if (*r.p) return -1;
+  c->own_picks = true;
+  c->ui.npicks = u.npicks;
+  memcpy(c->ui.picks, u.picks, sizeof u.picks);
+  if (c->sel >= c->ui.npicks) c->sel = -1, c->confirm = false;
+  return u.npicks;
 }
 
 bool sw_mic(const sw_ctl *c) { return (c->y_down && c->y_voice) || c->voice == SW_V_LISTEN; }

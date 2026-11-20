@@ -128,6 +128,14 @@ Language: the board's own words (status page, hints, voice states) are English b
 page's last row shows it, and a tap on that row or yellow while the page is open switches it (kept in NVS; flashing
 the merged image resets it). Text the app sends is shown as it comes (ASCII in a Latin font, anything else in efontCN).
 
+### StopWatch quick intents
+App → board `picks ["name", ...]` (up to 5 names of up to 24 bytes, newest first; `[]`: none), answered `ok`
+(`err usage` when not a JSON array). Once it came, the `k` of `ui` lines is ignored until `ui off` (an older app's `k`
+counts again). Idle yellow selects the first (shown under the face with "i/n"), a tap moves to the next, yellow again
+asks to confirm, yellow a third time sends `btn run <i>` (0-based into the last `picks`); blue drops the selection;
+6 s without a press cancels. The app sends the list when it changes and every 3 minutes; older firmware answers `err`
+and the app keeps sending `k`.
+
 ### StopWatch voice
 Only with an app that sends `"v":1` in its `ui` lines (older apps never do: yellow stays a press as above).
 - Yellow held 350 ms: recording (the mic is on from the press, so the first word is kept). Released earlier: the

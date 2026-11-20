@@ -21,8 +21,11 @@ static QueueHandle_t buttons;  // `btn` lines for loop()
 static std::atomic<uint8_t> battery{0};
 static std::atomic<bool> hidLinked{false}, appLinked{false};
 static char boardName[32];
-static char voicePending[SW_SAID_MAX + 40];  // the app's last `voice` line, for the task
-static bool hasVoice;
+// The app's other lines for the task (latest wins), in PSRAM: `voice ...`, `picks [...]`, `answer ...`.
+enum { L_VOICE, L_PICKS, L_KINDS };
+static constexpr size_t LINE_CAP[L_KINDS] = {SW_SAID_MAX + 40, 256};
+static char *lineBuf[L_KINDS];
+static bool lineHas[L_KINDS];
 static std::atomic<int> lang{SW_EN};
 static std::atomic<int> fakeBtn{-1};  // `swpress`: 0 yellow, 1 blue, held fakeMs
 static std::atomic<uint32_t> fakeMs{0};  // the screen's language (NVS "sw"/"lang"), English by default
@@ -78,15 +81,34 @@ bool stopwatch_ui_line(const char *arg) {
   return true;
 }
 
-bool stopwatch_voice_line(const char *arg) {
-  if (strncmp(arg, "heard", 5) && strncmp(arg, "fail", 4)) return false;
-  if (!lock) return false;
+static bool appLine(int kind, const char *arg) {
+  if (!lock || !lineBuf[kind]) return false;
   xSemaphoreTake(lock, portMAX_DELAY);
-  strlcpy(voicePending, arg, sizeof voicePending);
-  hasVoice = true;
+  strlcpy(lineBuf[kind], arg, LINE_CAP[kind]);
+  lineHas[kind] = true;
   xSemaphoreGive(lock);
   if (task) xTaskNotifyGive(task);
   return true;
+}
+
+// The task's copy of a line; false: none waiting.
+static bool takeLine(int kind, char *out) {
+  bool got = false;
+  xSemaphoreTake(lock, portMAX_DELAY);
+  if (lineHas[kind]) memcpy(out, lineBuf[kind], LINE_CAP[kind]), lineHas[kind] = false, got = true;
+  xSemaphoreGive(lock);
+  return got;
+}
+
+bool stopwatch_voice_line(const char *arg) {
+  if (strncmp(arg, "heard", 5) && strncmp(arg, "fail", 4)) return false;
+  return appLine(L_VOICE, arg);
+}
+
+bool stopwatch_picks_line(const char *arg) {
+  sw_ctl probe;  // checked here, so a bad line gets its `err` reply
+  sw_init(&probe);
+  return sw_picks_line(&probe, arg) >= 0 && appLine(L_PICKS, arg);
 }
 
 bool stopwatch_press(const char *arg) {
@@ -365,6 +387,11 @@ static void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
         canvas->fillSmoothRoundRect(CX - 150, CY + 125, 300, 44, 22, TFT_WHITE);
         canvas->setTextColor(TFT_BLACK);
         canvas->drawString(fit(u.picks[c.sel], 270), CX, CY + 147);
+        char n[8];
+        snprintf(n, sizeof n, "%d/%d", c.sel + 1, (int)u.npicks);
+        canvas->setTextColor(C_GREY);
+        font(&fonts::FreeSans12pt7b);
+        canvas->drawString(n, CX, CY + 190);
       } else if (!v.hid) {
         fontFor(boardName);
         canvas->setTextColor(C_DIM);
@@ -429,12 +456,10 @@ static void uiTask(void *) {
     xSemaphoreTake(lock, portMAX_DELAY);
     if (hasPending) u = pending, off = pendingOff, got = true, hasPending = false;
     xSemaphoreGive(lock);
-    char said[sizeof voicePending];
-    bool gotVoice = false;
-    xSemaphoreTake(lock, portMAX_DELAY);
-    if (hasVoice) memcpy(said, voicePending, sizeof said), gotVoice = true, hasVoice = false;
-    xSemaphoreGive(lock);
+    char said[LINE_CAP[L_VOICE]], picks[LINE_CAP[L_PICKS]];
+    bool gotVoice = takeLine(L_VOICE, said);
     if (got) buzzStart(buzz, sw_apply(&c, &u, off, now), now);
+    if (takeLine(L_PICKS, picks)) sw_picks_line(&c, picks);
     if (gotVoice) {
       uint8_t was = c.voice;
       sw_voice_line(&c, said, now);
@@ -452,7 +477,7 @@ static void uiTask(void *) {
     int fb = fakeBtn.exchange(-1);
     if (fb >= 0 && fakeHeld < 0) (fb ? bDown : yDown) = true, fakeHeld = fb, fakeUntil = now + fakeMs;
     if (fakeHeld >= 0 && (int32_t)(now - fakeUntil) >= 0) (fakeHeld ? bUp : yUp) = true, fakeHeld = -1;
-    bool voiceBefore = c.voice != SW_V_NONE, legacy = !(alive && c.ui.voice) && !c.y_down;
+    bool voiceBefore = c.voice != SW_V_NONE || c.sel >= 0, legacy = !(alive && c.ui.voice) && !c.y_down;
     bool pokeIdle = !running && !c.ui.npicks;  // yellow with nothing to pick: it reacts
     if (statusUntil && yDown) {  // yellow on the status page: the other language (Henry 2026-11-21)
       setLang(sw_lang_next(lang));
@@ -584,6 +609,7 @@ void stopwatch_ui_start(const char *name) {
   if (!canvas->createSprite(W, H)) log_e("stopwatch: no PSRAM for the screen");
   canvas->setTextWrap(false);
   lock = xSemaphoreCreateMutex();
+  for (int i = 0; i < L_KINDS; i++) lineBuf[i] = (char *)heap_caps_calloc(1, LINE_CAP[i], MALLOC_CAP_SPIRAM);
   buttons = xQueueCreate(8, BTN_LINE);
   // Core 1 next to loop(), at its priority: drawing shares the core instead of starving it (NimBLE and Wi-Fi run
   // on core 0). The stack holds no frame: the canvas is in PSRAM.

@@ -114,13 +114,14 @@ static void voiceTask(void *) {
       break;
     }
   }
-  board_log("voice: %lu ms recorded%s, %lu ms lost to the lag, sent in %lu ms after the first chunk, %lu chunks",
+  if (streaming) board_log("voice: %lu ms recorded%s, %lu ms lost to the lag, sent in %lu ms after the first chunk, %lu chunks",
             (unsigned long)(w / 16), streaming ? "" : " (a short press: dropped)", (unsigned long)(lost / 16),
             (unsigned long)(streaming ? millis() - sent0 : 0), (unsigned long)seq);
-  char dbs[40 * 5 + 1] = "";
-  for (uint32_t i = 0; i < 40 && i < w / FRAME; i++) snprintf(dbs + strlen(dbs), 6, " %d", x->db[i]);
-  board_log("voice: task stack left %u", (unsigned)uxTaskGetStackHighWaterMark(nullptr));
-  board_log("voice: dBFS per 50 ms from the press:%s", dbs);
+  if (streaming) {  // a recording: how it sounded at first (the codec's start), and the task's headroom
+    char dbs[40 * 5 + 1] = "";
+    for (uint32_t i = 0; i < 40 && i < w / FRAME; i++) snprintf(dbs + strlen(dbs), 6, " %d", x->db[i]);
+    board_log("voice: dBFS per 50 ms from the press:%s; stack left %u", dbs, (unsigned)uxTaskGetStackHighWaterMark(nullptr));
+  }
   (void)t0, (void)frame;
   streaming = false;
   while (!micEnded) vTaskDelay(5);  // voice_poll() ends the mic on the screen task

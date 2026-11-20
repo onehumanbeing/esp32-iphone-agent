@@ -13,7 +13,7 @@ extern "C" {
 enum sw_mood { SW_SLEEPING, SW_IDLE, SW_LISTENING, SW_THINKING, SW_ACTING, SW_SUCCESS, SW_FAILURE, SW_DIZZY,
                SW_CONTENT, SW_WINK };
 enum sw_phase { SW_RUNNING, SW_HELP, SW_COUNTDOWN, SW_RECORDING, SW_PAUSED, SW_RESUMING, SW_STANDBY };
-enum { SW_TEXT_MAX = 80, SW_PICK_MAX = 24, SW_PICKS = 3 };
+enum { SW_TEXT_MAX = 80, SW_PICK_MAX = 24, SW_PICKS = 5 };
 
 typedef struct {
   uint8_t mood, phase;
@@ -48,7 +48,7 @@ enum { SW_SAID_MAX = 120 };
 enum {
   SW_STALE_MS = 15000,     // no `ui` line this long (the app repeats it every 5 s): the app is gone or suspended
   SW_DONE_MS = 5000,       // the check or cross after a finished task
-  SW_PICK_MS = 3000,       // a pick or its confirmation without a press is cancelled
+  SW_PICK_MS = 6000,       // a pick or its confirmation without a press is cancelled (5 to browse)
   SW_HOME_MS = 500,        // blue released before this: `btn home`; later and before SW_STOP_MS: nothing
   SW_STOP_MS = 2000,       // blue held this long: `btn stop`
   SW_RING_MS = 300,        // the stop ring shows from here on
@@ -68,6 +68,7 @@ typedef struct {
   uint32_t done_at;
   uint8_t done_kind;  // SW_SCR_OK or SW_SCR_FAIL
   int8_t sel;         // selected pick, -1: none
+  bool own_picks;     // a `picks` line came: the quick intents, `k` no longer counts
   bool confirm;
   uint32_t sel_at;
   uint8_t next_pick;
@@ -93,6 +94,7 @@ bool sw_clock(const sw_ctl *c, uint32_t now, char out[6]);  // the phone's time 
 int sw_screen(const sw_ctl *c, uint32_t now);
 int sw_progress(const sw_ui *ui);                     // 0-1000 around the ring, -1: none
 int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop hold, -1: not shown
+int sw_picks_line(sw_ctl *c, const char *arg);         // `picks ["name", ...]`: the quick intents; -1 bad, else count
 bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now);  // `voice heard <text>` | `voice fail <code>`
 bool sw_mic(const sw_ctl *c);                         // the mic should be on: yellow down for voice, or recording
 

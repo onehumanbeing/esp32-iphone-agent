@@ -640,7 +640,7 @@ static void test_sw_parse(void) {
   strcat(line, "\"}");
   CHECK(sw_parse(line, &u) == SW_PARSE_UI && strlen(u.text) == 78);
   CHECK(sw_parse("{\"k\":[\"Order coffee\",\"每日签到\",\"c\",\"d\"]}", &u) == SW_PARSE_UI);
-  CHECK(u.has_picks && u.npicks == 3 && !strcmp(u.picks[1], "每日签到") && !strcmp(u.picks[2], "c"));
+  CHECK(u.has_picks && u.npicks == 4 && !strcmp(u.picks[1], "每日签到") && !strcmp(u.picks[3], "d"));
   CHECK(sw_parse("{\"k\":[]}", &u) == SW_PARSE_UI && u.has_picks && u.npicks == 0);
   CHECK(sw_parse("{\"k\":[\"abcdefghijklmnopqrstuvwxyz\"]}", &u) == SW_PARSE_UI && strlen(u.picks[0]) == 24);
 }
@@ -670,13 +670,14 @@ static void test_sw_buttons(void) {
   CHECK(!sw_input(&c, SW_IN_TAP, 10200, out, sizeof out) && c.sel == 1);  // a tap moves to the next one
   CHECK(!sw_input(&c, SW_IN_YELLOW, 10300, out, sizeof out) && sw_screen(&c, 10300) == SW_SCR_CONFIRM);
   CHECK(sw_input(&c, SW_IN_YELLOW, 10400, out, sizeof out) && !strcmp(out, "btn run 1") && c.sel == -1);
-  // 3 s without a press cancels; the next press goes on from the last pick
+  // SW_PICK_MS without a press cancels; the next press goes on from the last pick
   sw_input(&c, SW_IN_YELLOW, 11000, out, sizeof out);
   CHECK(c.sel == 2);
-  sw_tick(&c, 13999, out, sizeof out);
+  sw_tick(&c, 11000 + SW_PICK_MS - 1, out, sizeof out);
   CHECK(c.sel == 2);
-  sw_tick(&c, 14000, out, sizeof out);
+  sw_tick(&c, 11000 + SW_PICK_MS, out, sizeof out);
   CHECK(c.sel == -1);
+  sw_apply(&c, &u, false, 14000);
   sw_input(&c, SW_IN_YELLOW, 14100, out, sizeof out);
   CHECK(c.sel == 0);
 
@@ -835,6 +836,31 @@ static void test_sw_voice(void) {
   sw_input(&c, SW_IN_YELLOW_DOWN, 121000, out, sizeof out);
   sw_tick(&c, 121400, out, sizeof out);
   CHECK(c.voice == SW_V_LISTEN && c.voice_run && sw_screen(&c, 121400) == SW_SCR_VOICE);
+}
+
+// Quick intents: the app's `picks` line (the newest 5), yellow selects, a tap moves on, blue drops the selection.
+static void test_sw_picks(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"p\":\"standby\",\"k\":[\"old\"]}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(sw_picks_line(&c, "[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\"]") == 5 && c.ui.npicks == 5 && !strcmp(c.ui.picks[4], "e"));
+  CHECK(sw_picks_line(&c, "a") == -1 && sw_picks_line(&c, "[1] x") == -1 && c.ui.npicks == 5);
+  sw_apply(&c, &u, false, 100);  // `k` no longer counts once `picks` came
+  CHECK(c.ui.npicks == 5 && !strcmp(c.ui.picks[0], "a"));
+  sw_input(&c, SW_IN_YELLOW, 200, out, sizeof out);
+  for (int i = 0; i < 4; i++) sw_input(&c, SW_IN_TAP, 300 + i, out, sizeof out);
+  CHECK(c.sel == 4);
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 400, out, sizeof out) && c.sel == -1 && !sw_input(&c, SW_IN_BLUE_UP, 450, out, sizeof out));
+  sw_input(&c, SW_IN_YELLOW, 500, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW, 600, out, sizeof out);
+  CHECK(sw_screen(&c, 600) == SW_SCR_CONFIRM && sw_input(&c, SW_IN_YELLOW, 700, out, sizeof out) && !strcmp(out, "btn run 0"));
+  CHECK(sw_picks_line(&c, "[]") == 0 && c.ui.npicks == 0);
+  sw_apply(&c, NULL, true, 800);  // the app gone: an older app's `k` counts again
+  sw_apply(&c, &u, false, 900);
+  CHECK(c.ui.npicks == 1 && !strcmp(c.ui.picks[0], "old"));
 }
 
 static void test_sw_text(void) {
@@ -1003,6 +1029,7 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_picks();
   test_sw_voice();
   test_sw_text();
   test_ima();
