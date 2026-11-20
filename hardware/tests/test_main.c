@@ -978,7 +978,9 @@ static void test_sw_power(void) {
 static void test_sw_warn(void) {
   sw_ui u;
   CHECK(sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"w\":\"mirror\"}", &u) == SW_PARSE_UI && !strcmp(u.warn, "mirror"));
-  CHECK(sw_parse("{\"m\":\"acting\"}", &u) == SW_PARSE_UI && !u.warn[0]);
+  CHECK(sw_parse("{\"m\":\"acting\"}", &u) == SW_PARSE_UI && !u.warn[0] && u.local == 0);
+  CHECK(sw_parse("{\"m\":\"idle\",\"z\":1795252800}", &u) == SW_PARSE_UI && u.local == 1795252800LL);
+  CHECK(sw_parse("{\"m\":\"idle\",\"z\":42}", &u) == SW_PARSE_UI && u.local == 0);
   CHECK(sw_warn_parse("mirror") == SW_W_MIRROR && sw_warn_parse("locked") == SW_W_LOCKED && sw_warn_parse("hid") == SW_W_HID);
   CHECK(sw_warn_parse("wifi") == SW_W_NONE && sw_warn_parse("") == SW_W_NONE && sw_warn_parse(NULL) == SW_W_NONE);
   sw_warn w;

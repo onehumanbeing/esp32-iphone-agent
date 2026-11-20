@@ -288,6 +288,12 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
     default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
       face(pose, CX, CY - 10, GLOW_INK, true);
       font(&fonts::efontCN_24);
+      if (v.clock[0] && c.sel < 0) {  // asleep or without the app: the time (the RTC, set from the phone)
+        font(&fonts::Font7);
+        canvas->setTextColor(pose.mood == SW_SLEEPING ? C_GREY : TFT_WHITE);
+        canvas->drawString(v.clock, CX, CY + 110);
+        font(&fonts::efontCN_24);
+      }
       if (c.sel >= 0 && u.npicks) {
         fontFor(u.picks[c.sel]);
         canvas->fillSmoothRoundRect(CX - 150, CY + 125, 300, 44, 22, TFT_WHITE);

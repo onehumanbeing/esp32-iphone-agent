@@ -201,6 +201,38 @@ static void send(const char *line) {
   xQueueSend(buttons, b, 0);  // 8 waiting: loop() is stuck, and a late press is worth nothing
 }
 
+// The clock: the phone's local time (`z`) goes into the RTC, which keeps it without the app (and across reboots
+// on battery); the screen reads it once a minute and counts on with millis().
+static int32_t rtcDay = -1;  // seconds into the day at rtcAt, -1: unknown
+static uint32_t rtcAt;
+static bool rtcSet;  // set from the phone since boot
+
+static void clockRead(uint32_t now) {
+  m5::rtc_datetime_t dt;
+  if (!M5.Rtc.isEnabled() || !M5.Rtc.getDateTime(&dt) || dt.date.year < 2025) return;  // never set: no clock
+  rtcDay = dt.time.hours * 3600 + dt.time.minutes * 60 + dt.time.seconds, rtcAt = now;
+}
+
+static void clockFromApp(int64_t local, uint32_t now) {
+  if (local <= 0 || !M5.Rtc.isEnabled()) return;
+  int32_t day = (int32_t)(local % 86400), mine = rtcDay < 0 ? -1 : (int32_t)((rtcDay + (now - rtcAt) / 1000) % 86400);
+  if (rtcSet && mine >= 0 && abs(mine - day) <= 2) return;  // already right
+  time_t t = (time_t)local;
+  struct tm tm;
+  gmtime_r(&t, &tm);  // `z` is local time read as UTC: the wall clock
+  M5.Rtc.setDateTime(&tm);
+  board_log("stopwatch: clock %s from the phone: %04d-%02d-%02d %02d:%02d:%02d (was %d s off)", rtcSet ? "corrected" : "set",
+            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, mine < 0 ? -1 : abs(mine - day));
+  rtcSet = true, rtcDay = day, rtcAt = now;
+}
+
+static bool clockNow(uint32_t now, char out[6]) {
+  if (rtcDay < 0) return false;
+  int32_t d = (int32_t)((rtcDay + (now - rtcAt) / 1000) % 86400);
+  snprintf(out, 6, "%02d:%02d", (int)(d / 3600), (int)(d / 60 % 60));
+  return true;
+}
+
 static void uiTask(void *) {
   sw_ctl c;
   sw_init(&c);
@@ -224,6 +256,11 @@ static void uiTask(void *) {
   sw_warn warn;  // mirroring lost, the iPhone locked, Bluetooth lost: a buzz, what to do (sw_warn.h)
   sww_init(&warn);
   uint32_t busyAt = 0;
+  clockRead(millis());
+  uint32_t clockAt = millis();
+  char hhmm[6] = "--:--";
+  clockNow(millis(), hhmm);
+  board_log("stopwatch: rtc %s, time %s", M5.Rtc.isEnabled() ? "on" : "missing", hhmm);
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   // The codec's mic gives only zeros for ~0.85 s after its first start since power-on (measured 2026-11-21), later
@@ -243,6 +280,8 @@ static void uiTask(void *) {
     char said[LINE_CAP[L_VOICE]], picks[LINE_CAP[L_PICKS]];
     bool gotVoice = takeLine(L_VOICE, said);
     if (got) buzzStart(buzz, sw_apply(&c, &u, off, now), now);
+    if (got && !off) clockFromApp(u.local, now);
+    if (now - clockAt >= 60000) clockRead(now), clockAt = now;
     if (takeLine(L_PICKS, picks)) sw_picks_line(&c, picks);
     if (takeLine(L_ANSWER, answerText)) {
       layoutAnswer();
@@ -391,7 +430,9 @@ static void uiTask(void *) {
     v.lang = lang;
     v.level = c.voice == SW_V_LISTEN ? voice_level() / 50 : 0;
     v.elapsed = sw_elapsed(&c, now);
-    if (v.screen == SW_SCR_STATUS) sw_clock(&c, now, v.clock);
+    // the time: the status page's, and under the face when it sleeps or no app is there (the RTC; the app's `c` else)
+    if (!clockNow(now, v.clock)) sw_clock(&c, now, v.clock);
+    if (v.screen != SW_SCR_STATUS && !(v.screen == SW_SCR_IDLE && (mood == SW_SLEEPING || !alive))) v.clock[0] = 0;
     v.charge = charging < 0 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
     v.low = low;
     v.ui = c.ui;

@@ -26,6 +26,7 @@ typedef struct {
   bool voice;                        // `v` 1: the app takes voice (hold yellow to talk)
   bool confirm;                      // `h` 1: the help is a confirm (pay, delete): blue skips the step
   char warn[8];                      // `w`: a lost link the user has to fix (sw_warn.h), "": none
+  int64_t local;                     // `z`: the phone's local time, seconds since 1970 read as UTC (0: not sent)
   bool has_picks;                    // `k` was in this line (else the last picks stay)
   uint8_t npicks;
   char picks[SW_PICKS][SW_PICK_MAX + 1];

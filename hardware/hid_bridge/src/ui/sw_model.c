@@ -207,6 +207,12 @@ int sw_parse(const char *arg, sw_ui *u) {
       r.p = end;
       float f = v < -1 ? -1 : v > 1 ? 1 : (float)v;
       *(key[0] == 'x' ? &u->look_x : &u->look_y) = f;
+    } else if (!strcmp(key, "z") && *r.p >= '0' && *r.p <= '9') {
+      char *end;
+      double v = strtod(r.p, &end);
+      ok = end != r.p;
+      r.p = end;
+      u->local = v >= 1e9 && v < 1e11 ? (int64_t)v : 0;  // 2001 to 5138: anything else is not a clock
     } else if (!strcmp(key, "w") && *r.p == '"') {
       ok = str(&r, u->warn, sizeof u->warn);
     } else if (!strcmp(key, "k")) {
