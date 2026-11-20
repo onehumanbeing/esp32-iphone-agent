@@ -231,16 +231,6 @@
         }
       }
     },
-    "Bluetooth mode: if runs get stuck after a long session, stop and restart Screen Mirroring." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "蓝牙模式：用久了如果卡住，把屏幕镜像停掉再重连一下。"
-          }
-        }
-      }
-    },
     "Board not showing up?" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1127,6 +1117,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新开启屏幕镜像"
+          }
+        }
+      }
+    },
+    "Stuck after a long session? Restart Screen Mirroring." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用久了卡住？重连一下屏幕镜像。"
           }
         }
       }

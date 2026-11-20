@@ -330,10 +330,11 @@ struct SeePage: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.manualHotspot?.ssid)
     }
 
-    /// LAN mode: the board joins the home Wi-Fi; the phone stays on whatever network it has.
+    /// LAN mode: the board joins the home Wi-Fi; the phone stays on whatever network it has. Once the board is on it,
+    /// the form folds away like the hotspot path's hints, so the mirroring picture is on screen, not below the fold.
     private var lan: some View {
         VStack(spacing: Space.xl) {
-            LanForm(app: app, ssid: $lanSSID, pass: $lanPass, remember: $lanRemember)
+            if !joined { LanForm(app: app, ssid: $lanSSID, pass: $lanPass, remember: $lanRemember) }
             Panel {
                 CheckRow(title: "Board on your Wi-Fi", done: joined, active: !joined,
                          waiting: app.lanJoin.busy && !joined,
@@ -341,18 +342,7 @@ struct SeePage: View {
                 Divider().padding(.vertical, Space.s)
                 CheckRow(title: "Start Screen Mirroring", done: streaming, active: joined && !streaming)
             }
-            if joined && !streaming {
-                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → ESP32 Agent**.")
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                MirroringRestartHint(app: app)
-                MiniPhoneDemo(kind: .controlCenter)
-                HStack(spacing: Space.s) {
-                    ProgressView().controlSize(.small)
-                    Text("Waiting for Screen Mirroring…")
-                }
-                .font(.footnote).foregroundStyle(.secondary)
-            }
+            if joined && !streaming { MirroringSteps(app: app) }
         }
     }
 
@@ -382,19 +372,7 @@ struct SeePage: View {
                 .font(.footnote).foregroundStyle(.secondary)
                 Button("I'm already on the board's Wi-Fi") { onWiFi = true }.font(.footnote)
             } else if !streaming {
-                Text("Now swipe down from the top-right corner and tap **Screen Mirroring → \(BoardName.current)**.")
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                MirroringRestartHint(app: app)
-                MiniPhoneDemo(kind: .controlCenter)
-                VStack(spacing: Space.s) {
-                    HStack(spacing: Space.s) {
-                        ProgressView().controlSize(.small)
-                        Text("Waiting for Screen Mirroring…")
-                    }
-                    Label("Keep the screen unlocked: locking stops mirroring.", systemImage: "lock.open")
-                }
-                .font(.footnote).foregroundStyle(.secondary)
+                MirroringSteps(app: app)
             }
         }
     }
