@@ -195,6 +195,7 @@ struct HomeView: View {
         VStack(spacing: Space.m) {
             FirmwareBanner(updater: app.firmware)
             AppUpdateBanner(firmware: app.firmware)
+            MirrorHintBanner(app: app, busy: agent.running || app.startingAgent)
             PokeableFace(mood: editing ? .listening : app.mood, look: lookAt, busy: app.agent.running,
                          onInteract: { Task { await app.refreshHomeStatus() } })
                 .frame(width: 128, height: 143)
@@ -272,16 +273,18 @@ struct HomeView: View {
             }
             .padding(.vertical, Space.xs)
             .handsyRunAnnotation(liveRunID)  // Siri: "replay this one"
+            .swipeActions(edge: .trailing) {  // like the Runs tab; none while a run is going
+                if let run = card.storedRun, app.canDeleteRun(run) {
+                    Button("Delete", systemImage: "trash", role: .destructive) { delete(run) }
+                }
+            }
         } header: {
             HStack {
                 Text(agent.running ? "Now" : "Last run")
                 Spacer()
                 if let run = card.storedRun, app.canDeleteRun(run) {
                     Menu("Last run options", systemImage: "ellipsis") {
-                        Button("Delete run", systemImage: "trash", role: .destructive) {
-                            do { try app.deleteRun(run) }
-                            catch { deleteError = error.localizedDescription; showingDeleteError = true }
-                        }
+                        Button("Delete run", systemImage: "trash", role: .destructive) { delete(run) }
                     }
                     .labelStyle(.iconOnly)
                     .foregroundStyle(.secondary)
@@ -289,6 +292,11 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func delete(_ run: Run) {
+        do { try app.deleteRun(run) }
+        catch { deleteError = error.localizedDescription; showingDeleteError = true }
     }
 
     /// The run this card is about: the one in progress, else the newest recorded one.
@@ -430,6 +438,8 @@ struct HomeView: View {
     /// The first thing missing before a run, and the setup page that fixes it.
     private var blocker: (text: LocalizedStringKey, page: SetupPage)? {
         if !board.connected { return ("Connect the board", .connect) }
+        if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
+        if let status = board.status, status.board != nil, status.inputState == nil { return ("Waiting for the mouse…", .act) }
         if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.calibrator.hasValidCalibration { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }

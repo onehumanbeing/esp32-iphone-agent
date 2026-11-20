@@ -182,7 +182,7 @@ struct ReviewView: View {
             Spacer()
             Menu {
                 if let folder = draft.folder {
-                    Button { shareURL = try? TraceStore.zip(folder) } label: {
+                    Button { shareURL = try? TraceStore.zipForSharing(folder, name: "trace.zip") } label: {
                         Label("Export trace", systemImage: "square.and.arrow.up")
                     }
                 }

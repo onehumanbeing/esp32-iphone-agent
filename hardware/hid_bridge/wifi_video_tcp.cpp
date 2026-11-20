@@ -34,6 +34,8 @@ static char nonce[LAN_NONCE_HEX + 1];  // this connection's challenge, until an 
 static lan_ctr ctr;                    // an `auth` session: records encrypted (under lock)
 static uint32_t winStart, winBytes;
 static volatile uint32_t kbps, drops;
+static volatile uint32_t records, maxWriteMs;  // for the `diag` lines
+static const char *volatile inactiveWhy = "-";
 
 static void count(size_t n) {
   uint32_t now = millis();
@@ -64,7 +66,12 @@ static bool writeRecord(const uint8_t *p, size_t n) {
   rec[1] = (uint8_t)(n >> 8);
   if (n) memcpy(rec + 2, p, n);
   lan_ctr_crypt(&ctr, rec + 2, n);  // an `auth` session only; the keystream runs on across records
-  if (writeAll(client, rec, n + 2)) {
+  uint32_t started = millis();
+  bool ok = writeAll(client, rec, n + 2);
+  uint32_t took = millis() - started;  // a send waits while the radio can't get the data out
+  if (took > maxWriteMs) maxWriteMs = took;
+  if (ok) {
+    records++;
     count(n + 2);
     return true;
   }
@@ -208,8 +215,10 @@ String wv_token() { return token; }
 bool wv_active() {
   bool on = authed && client >= 0 && millis() - lastSeen < PEER_TIMEOUT_MS;
   static bool was;  // log why the session stopped counting: a late "ka" sends the app's video over BLE
-  if (was && !on) board_log("wv: inactive (%s, last ka %lu ms ago)", client < 0 ? "closed" : !authed ? "not authed" : "ka late",
-                            (unsigned long)(millis() - lastSeen));
+  if (was && !on) {
+    inactiveWhy = client < 0 ? "closed" : !authed ? "not authed" : "ka late";
+    board_log("wv: inactive (%s, last ka %lu ms ago)", inactiveWhy, (unsigned long)(millis() - lastSeen));
+  }
   if (!was && on) board_log("wv: active");
   was = on;
   return on;
@@ -326,5 +335,11 @@ uint32_t wv_audio_drops() { return audioDrops; }
 uint32_t wv_kbps() { return millis() - winStart < 3000 ? kbps : 0; }
 uint32_t wv_nacks() { return 0; }
 uint32_t wv_drops() { return drops; }
+void wv_diag(uint32_t *r, uint32_t *maxMs) {
+  *r = records;
+  *maxMs = maxWriteMs;
+  maxWriteMs = 0;
+}
+const char *wv_why() { return inactiveWhy; }
 
 #endif  // WV_TCP

@@ -117,4 +117,100 @@ final class PlanCacheTests: XCTestCase {
         XCTAssertNil(second.cachedPlan, "used once")
         XCTAssertFalse(planner2.prompts.contains { $0.contains("Plan:\n(none yet") }, "no first-round plan asked for")
     }
+
+    // MARK: PlanJudge: after any run, a fast model says whether the plan is kept
+
+    private let plan = "1. Open the shop app\n2. Orders tab\n3. note each order"
+    private func stopped() -> [JObject] {
+        [["action": .str("plan"), "plan": .str("1. Open the shop app")],
+         ["action": .str("tap"), "x": .int(100), "y": .int(200), "thought": .str("the Orders tab is at the bottom")],
+         ["action": .str("stopped"), "reason": .str("stopped by the user")]]
+    }
+
+    func testAYesSavesThePlanFromTextOnly() async throws {
+        let cache = PlanCache(folder: tempFolder())
+        let intent = SavedTask(name: "Orders", prompt: "list my orders")
+        let judge = FakeModel { _ in "**YES** — right app, right order" }
+        let notes = PlanJudge.notes(task: intent.prompt, plan: plan, steps: stopped(), latestPlan: plan, progress: "")
+        let kept = await PlanJudge.keep(plan, for: intent, run: "r1", notes: notes, model: judge, cache: cache) { true }
+        XCTAssertEqual(kept, .yes)
+        XCTAssertEqual(cache.entry(for: intent)?.plan, plan)
+        XCTAssertEqual(cache.entry(for: intent)?.run, "r1")
+        XCTAssertEqual(judge.images, [nil], "never a screen")
+        let asked = try XCTUnwrap(judge.prompts.first)
+        XCTAssertTrue(asked.contains("Task: list my orders") && asked.contains(plan))
+        XCTAssertTrue(asked.contains("The user stopped it.") && asked.contains("the Orders tab is at the bottom"))
+        XCTAssertTrue(asked.contains("after 1 step(s)"))
+    }
+
+    func testANoOrAnErrorSavesNothing() async {
+        let intent = SavedTask(name: "Orders", prompt: "list my orders")
+        for (reply, expected) in [("NO: it opens the wrong app", PlanJudge.Kept.no), ("I am not sure.", .error)] {
+            let cache = PlanCache(folder: tempFolder())
+            let kept = await PlanJudge.keep(plan, for: intent, run: "r1", notes: "n", model: FakeModel { _ in reply }, cache: cache) { true }
+            XCTAssertEqual(kept, expected, reply)
+            XCTAssertNil(cache.entry(for: intent), reply)
+        }
+        let cache = PlanCache(folder: tempFolder())
+        let failing = FakeModel { _ in "YES: fine" }
+        failing.error = LLMError(message: "offline")
+        let kept = await PlanJudge.keep(plan, for: intent, run: "r1", notes: "n", model: failing, cache: cache) { true }
+        XCTAssertEqual(kept, .error)
+        XCTAssertNil(cache.entry(for: intent), "an error keeps nothing")
+        let none = await PlanJudge.keep(plan, for: intent, run: "r1", notes: "n", model: nil, cache: cache) { true }
+        XCTAssertEqual(none, .error, "no model: not kept")
+        let unwanted = await PlanJudge.keep(plan, for: intent, run: "r1", notes: "n", model: FakeModel { _ in "YES: ok" },
+                                            cache: cache) { false }
+        XCTAssertEqual(unwanted, .no, "✗ or Reuse Plan off while it was asked")
+        XCTAssertNil(cache.entry(for: intent))
+    }
+
+    func testWhichRunsAreJudged() {
+        func step(reuse: Bool = true, learn: Bool = true, rejected: Bool = false, plan: String? = "1. go",
+                  usedCached: Bool = false, cachedKept: Bool = false, _ outcome: Outcome) -> PlanJudge.Step {
+            PlanJudge.step(reuse: reuse, learn: learn, rejected: rejected, plan: plan, usedCached: usedCached,
+                           cachedKept: cachedKept, outcome: outcome)
+        }
+        for outcome in [Outcome.done, .stopped, .failed] {
+            XCTAssertEqual(step(outcome), .judge("1. go"), "any end is judged, a stop by the user too: \(outcome)")
+            XCTAssertEqual(step(reuse: false, outcome), .skip, "Reuse Plan off: not saved")
+            XCTAssertEqual(step(learn: false, outcome), .skip, "Learn from runs off")
+            XCTAssertEqual(step(rejected: true, outcome), .skip)
+            XCTAssertEqual(step(plan: nil, outcome), .skip, "no first plan")
+            XCTAssertEqual(step(plan: " ", outcome), .skip)
+        }
+        XCTAssertEqual(step(usedCached: true, cachedKept: true, .failed), .drop, "the saved plan failed: dropped")
+        XCTAssertEqual(step(usedCached: true, cachedKept: false, .failed), .drop)
+        XCTAssertEqual(step(usedCached: true, cachedKept: true, .stopped), .skip, "stopped by the user: kept as it is")
+        XCTAssertEqual(step(usedCached: true, cachedKept: true, .done), .skip)
+        XCTAssertEqual(step(usedCached: true, cachedKept: false, .stopped), .judge("1. go"), "forgotten meanwhile: asked again")
+        XCTAssertEqual(step(reuse: false, usedCached: true, cachedKept: true, .failed), .skip)
+    }
+
+    func testTheVerdictLine() {
+        XCTAssertEqual(PlanJudge.verdict("YES: right app")?.keep, true)
+        XCTAssertEqual(PlanJudge.verdict("YES: right app")?.reason, "right app")
+        XCTAssertEqual(PlanJudge.verdict("Thinking first.\nNo — it misses the Orders tab")?.keep, false)
+        XCTAssertEqual(PlanJudge.verdict("> \"yes\", it works")?.keep, nil, "a quote mark is not a verdict line")
+        XCTAssertNil(PlanJudge.verdict("NOTE: hard to say\nYesterday's plan"), "words that only start like it")
+        XCTAssertNil(PlanJudge.verdict(""))
+    }
+
+    func testReusePlanSwitchDecodesOldIntentsAsOn() throws {
+        let old = #"[{"id":"7C1D4B6A-1F7E-4B9B-9F5A-2E7A0C7B1D11","name":"Orders","prompt":"list my orders"}]"#
+        let item = try XCTUnwrap(JSONDecoder().decode([SavedTask].self, from: Data(old.utf8)).first)
+        XCTAssertNil(item.planReuse)
+        XCTAssertTrue(item.reusesPlan, "saved before the switch: on")
+        var off = item
+        off.planReuse = false
+        let back = try JSONDecoder().decode(SavedTask.self, from: JSONEncoder().encode(off))
+        XCTAssertFalse(back.reusesPlan)
+    }
+
+    func testTheRunEndSaysWhetherTheRunStartedFromASavedPlan() {
+        var end = RunEnd(reason: .userStop, stage: .running)
+        XCTAssertNil(end.json["plan_cached"], "a failed start says nothing")
+        end.planCached = true
+        XCTAssertEqual(end.json["plan_cached"] as? Bool, true)
+    }
 }

@@ -20,6 +20,7 @@ struct OnboardingView: View {
     @State private var lanSSID = ""
     @State private var lanPass = ""
     @State private var lanRemember = true
+    @State private var toBluetooth = false  // Connect page: the board was switched to Bluetooth (BluetoothSteps)
 
     init(app: AppModel, board: BoardLink, feed: VideoFeed, settings: Settings, calibrator: AutoCalibrator,
          pointer: Pointer, start: SetupPage) {
@@ -54,7 +55,7 @@ struct OnboardingView: View {
             let from = page
             Task {
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                if page == from { advance() }
+                if page == from && ((from != .act && from != .connect) || pageDone) { advance() }
             }
         }
     }
@@ -122,12 +123,14 @@ struct OnboardingView: View {
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
 
     /// The page's goal is reached (drives auto-advance).
-    private var pageDone: Bool {
+    var pageDone: Bool {
         switch page {
         case .welcome: return false
-        case .connect: return board.connected
+        case .connect:  // a Lightning iPhone stays to read the Bluetooth advice or steps; Continue moves on
+            return board.connected && !toBluetooth
+                && DeviceCaps.bluetoothAdvice(lightning: DeviceCaps.hasLightning, status: board.status) == .none
         case .see: return streaming
-        case .act: return calibrator.hasValidCalibration && !calibrator.busy
+        case .act: return calibrator.hasValidCalibration && !calibrator.busy && !board.needsWirelessPointer
         case .brain: return app.modelOK == true
         }
     }
@@ -164,6 +167,9 @@ struct OnboardingView: View {
             default: return "Join the Board's Wi-Fi"
             }
         case .act:
+            if board.needsWirelessPointer {
+                return board.connected ? "Pair the Bluetooth pointer" : "Waiting for the mouse…"
+            }
             if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
             return actReady ? "Calibrate" : "Waiting for the mouse…"
@@ -173,12 +179,12 @@ struct OnboardingView: View {
         }
     }
 
-    private var primaryEnabled: Bool {
+    var primaryEnabled: Bool {
         switch page {
         case .welcome: return true
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
-        case .act: return !calibrator.busy && (calibrator.hasValidCalibration || actReady)
+        case .act: return calibrator.hasValidCalibration ? pageDone : !calibrator.busy && actReady
         case .brain: return !testing && (app.modelOK == true || app.modelReady)
         }
     }
@@ -217,8 +223,8 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: accepted)
-        case .connect: ConnectPage(board: board)
+        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning)
+        case .connect: ConnectPage(board: board, toBluetooth: $toBluetooth)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
                            lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)
         case .act: ActPage(app: app, board: board, calibrator: calibrator, pointer: pointer)

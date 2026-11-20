@@ -50,6 +50,10 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><img src="docs/images/highlights.png" alt="New in 1.0.2 and 1.0.3: it hears the phone, a free Jev line, long tasks with step-by-step replay" width="100%"></p>
 
+- **Bluetooth mode (1.0.8, firmware v0.2.7).** One firmware holds both inputs: the board is the iPhone's USB mouse
+  and keyboard, or a Bluetooth one, switched in the app. In Bluetooth mode no cable goes into the phone, so Lightning
+  iPhones work without a camera adapter; the board then needs its own power (a USB charger or power bank). Built on
+  [@cy41](https://github.com/cy41)'s Bluetooth mouse and keyboard work ([#94](https://github.com/onehumanbeing/esp32-iphone-agent/pull/94)).
 - **It hears the phone.** The board forwards AirPlay audio and the iPhone turns it into words, so listening
   exercises and voice prompts work. [How it works](https://manina.ai/docs/listen?ref=github).
 - **Free Jev line.** Jev takes the plain steps in a fraction of a second and leaves the rest to the large model;
@@ -107,7 +111,8 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
   on the board's hotspot. Or switch the board to your home Wi-Fi (onboarding and Settings › Board, stored on the
   board): phone and board share the router, and no cellular data is needed. The board is 2.4 GHz-only, and routers
   with client isolation or blocked mDNS hide it from Screen Mirroring; the hotspot always works.
-- **Hands — USB HID.** The board is a standard USB mouse and keyboard. With AssistiveTouch on, the mouse moves an
+- **Hands — USB HID or Bluetooth HID.** The board is a standard mouse and keyboard, over USB or over Bluetooth (switched
+  in the app). With AssistiveTouch on, the mouse moves an
   on-screen pointer, so a click is a tap and a drag is a swipe.
 - **Brain — the app.** The app decodes the stream, sends screenshots to any OpenAI-compatible vision model, and runs
   a planner and an actor: tap, swipe, draw, type, press keys, go home, finish. It runs in the background while it
@@ -133,11 +138,13 @@ The first version (v0.1.0) ran on a Mac/Linux computer with UxPlay and a Python 
 Supported boards and setup details: [hardware guide](https://manina.ai/docs/hardware).
 Picking a board, cables and adapters, or stuck during setup: [setup guide](https://manina.ai/esp32-iphone-agent-setup).
 
+For wireless input built from source, see [Bluetooth mouse and keyboard](docs/bluetooth-hid.md). For the Zectrix Note 4 power, battery and flash layout, see the [Note 4 board guide](docs/note4-bluetooth.md).
+
 | Part | Notes |
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
 | **USB-C cable** | Short USB-C to USB-C, e.g. [Anker 60W, 1 ft, 2-pack](https://amzn.to/4yvNyvi)\*. |
-| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter. The phone powers the board. |
+| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter, or use Bluetooth mode. Over USB the phone powers the board; in Bluetooth mode the board needs its own power. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images: a cloud API or your own server. |
 | **Mac with Xcode** | Only to flash the board and build the app once. Not needed at run time. With the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app, Xcode is not needed for the app. |
 
@@ -337,6 +344,9 @@ WebDriverAgent/XCUITest-based tools such as [mobile-mcp](https://github.com/mobi
 [UxPlay](https://github.com/FDH2/UxPlay) (the AirPlay receiver the firmware's is ported from) ·
 [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) ·
 [Arduino ESP32 core](https://github.com/espressif/arduino-esp32) and [TinyUSB](https://github.com/hathach/tinyusb)
+
+Bluetooth mode builds on [@cy41](https://github.com/cy41)'s Bluetooth mouse and keyboard support and the Zectrix
+Note 4 board adapter ([#94](https://github.com/onehumanbeing/esp32-iphone-agent/pull/94)). Thank you.
 
 ## License
 

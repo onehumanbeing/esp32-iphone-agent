@@ -47,7 +47,7 @@ struct IntentDetailView: View {
                     }
                 }
                 IntentRunsSection(app: app, item: item)
-                IntentPlanSection(cache: app.planCache, item: item)
+                IntentPlanSection(cache: app.planCache, intents: intents, item: item)
                 Section {
                     // Edited in place (Henry 2026-11-13): tap the words and type; the first [blank] is selected, so
                     // typing replaces it. Saved when the keyboard goes away or the page closes.

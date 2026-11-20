@@ -12,8 +12,9 @@ metadata:
 
 # Manina AI: drive a real iPhone with esp32agent
 
-An ESP32 Agent board (Manina AI) plugs into the iPhone (USB-C models directly, Lightning models through a Lightning to
-USB Camera Adapter) and acts as the phone's USB mouse and keyboard. It also receives the iPhone's AirPlay screen mirroring. Your computer reaches
+An ESP32 Agent board (Manina AI) acts as the iPhone's mouse and keyboard: plugged into a USB-C iPhone (USB mode),
+or as its Bluetooth mouse and keyboard on any USB power (Bluetooth mode; Lightning iPhones XS to 14 need it). The
+mode is set in the iOS app (Settings > Board > Input); the CLI cannot switch it. It also receives the iPhone's AirPlay screen mirroring. Your computer reaches
 the board over Bluetooth with the `esp32agent` command line tool, which is also an MCP server. No jailbreak is
 needed.
 
@@ -23,7 +24,7 @@ iPhone only for now. iPad support is coming soon.
 
 - A Seeed Studio XIAO ESP32S3 board (8 MB flash, 8 MB PSRAM), or a similar ESP32-S3 board with native USB.
 - Board firmware v0.2.2 or later. Install it in Chrome or Edge at https://manina.ai/install
-  (one USB data cable, nothing else to install).
+  (one USB data cable, nothing else to install). Bluetooth mode needs v0.2.7 or later with both inputs.
 - On the iPhone:
   - AssistiveTouch on (Settings > Accessibility > Touch > AssistiveTouch), so the mouse pointer shows and taps.
   - Screen Mirroring to the board: join the board's Wi-Fi, then Control Center > Screen Mirroring > ESP32 Agent.
@@ -55,7 +56,9 @@ Other MCP clients:
 
 ## Pair (once per computer)
 
-1. Plug the board into the iPhone. Within 3 minutes run `npx -y esp32agent pair`.
+1. Power the board (USB mode: plug it into the iPhone). Within 3 minutes of it powering up run
+   `npx -y esp32agent pair`. In Bluetooth mode, pair the board on the iPhone in the same window (Settings >
+   Accessibility > Touch > AssistiveTouch > Devices > Bluetooth Devices); missed it, replug the board's power.
 2. Start Screen Mirroring on the iPhone to ESP32 Agent.
 3. `npx -y esp32agent screenshot` should now save a PNG of the phone's screen.
 4. `npx -y esp32agent calibrate` measures the pointer. It also runs by itself before the earliest tap. It needs
@@ -72,7 +75,7 @@ Other MCP clients:
 | `type_text` | Type into the focused field (ASCII; Chinese is typed as pinyin) |
 | `press_key` | `enter`, `esc`, `tab`, `backspace`, `space`, arrows, `cmd+a`, `shift+tab` ... |
 | `press_button` | `HOME` only (go to the Home Screen) |
-| `device_info` | Board status: mirroring (`ap`), video frozen (`fz`), app busy (`busy`), `usb`, `ble` |
+| `device_info` | Board status: mirroring (`ap`), video frozen (`fz`), app busy (`busy`), `usb`, `ble`; in Bluetooth mode `hid` (`ok`/`off`) |
 | `history` | `action: list` (recent runs) or `show` (one run's steps with their screenshots) |
 | `intent_list`, `intent_show`, `intent_save` | Saved tasks: list, show one, save what worked |
 
@@ -116,7 +119,9 @@ Tips:
 - To scroll a list, swipe up from the lower middle to the upper middle of the screen.
 - To open an app: press HOME, swipe down in the middle of the Home Screen, type the app name, press `enter`.
 - If a tap missed, retry with `io tap X,Y --aim`.
-- Tap a text field so it has focus before typing. `cmd+a` then `backspace` clears it.
+- Tap a text field so it has focus before typing. `cmd+a` then `backspace` clears it. In Bluetooth mode, whether
+  iOS takes modifier combos from the board is being verified: screenshot after one, and if nothing changed, select
+  the text with a long press (Select All) and press `backspace`.
 - The board is a hardware keyboard, so iOS may hide the on-screen keyboard; the field still takes the keys.
 - Chinese text is typed as pinyin (`io text '拿铁'` types `natie`). With the Chinese pinyin keyboard active, press
   `space` to accept the top candidate, or screenshot and tap the right one.
@@ -146,10 +151,11 @@ You are using a real phone with the owner's accounts, money and contacts.
 
 | Error or symptom | What to do |
 |---|---|
-| `not paired` | Replug the board into the iPhone and run `pair` within 3 minutes |
+| `not paired`, `pairing window closed` | Replug the board (its power, in Bluetooth mode) and run `pair` within 3 minutes |
 | `screen mirroring is off` | Ask the user to start Screen Mirroring to ESP32 Agent |
 | `video frozen` | Ask the user to stop and restart Screen Mirroring |
-| `phone usb asleep` | The phone is locked; ask the user to unlock it |
+| `phone usb asleep` | USB mode: the phone is locked; ask the user to unlock it |
+| `Bluetooth HID not paired`, `typed N of M: asleep` | Bluetooth mode: the phone's Bluetooth link to the board is down. Check Bluetooth is on and the board shows Connected; if the phone never paired it, replug the board's power and pair within 3 minutes |
 | `busy: the app is using the phone` | The ESP32 Agent iOS app is driving the phone. Wait and retry later |
 | `no cli service (firmware too old?)` | Update the board firmware to v0.2.2 or later at https://manina.ai/install |
 | `not supported on ESP32 Agent` | There is no app list, UI tree or file access; work from screenshots |
@@ -157,6 +163,7 @@ You are using a real phone with the owner's accounts, money and contacts.
 | Screenshot fails | Check that `ffmpeg` is installed and Screen Mirroring is on |
 
 Limits: screenshots can be up to about a second behind and animations look choppy. Typing is ASCII only, one key
-per character. HOME is the only button: no volume or power buttons, and no installing or launching apps directly.
+per character. HOME is the only button (in Bluetooth mode it goes Home with Cmd+H or the swipe up from the home
+bar, which needs Screen Mirroring on): no volume or power buttons, and no installing or launching apps directly.
 
 Help: support@manina.ai · https://manina.ai

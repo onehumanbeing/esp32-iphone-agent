@@ -123,6 +123,39 @@ import Foundation
         return sum
     }
 
+    /// Traces zipped with the debug log (secrets already redacted) and the app version, iOS version and phone
+    /// model beside them: people share traces.zip, never the log on its own (2026-11-19: a user's two runs that
+    /// never started came as steps.jsonl only, with no version and nothing to say why).
+    nonisolated static func zipForSharing(_ folder: URL, name: String = "traces.zip") throws -> URL {
+        let fm = FileManager.default
+        let stage = fm.temporaryDirectory.appendingPathComponent("share-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: stage) }
+        let root = stage.appendingPathComponent((name as NSString).deletingPathExtension)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        try fm.copyItem(at: folder, to: root.appendingPathComponent(folder.lastPathComponent))
+        let logs = DebugLog.url.deletingLastPathComponent()
+        for log in ["debug.1.log", "debug.log"] where fm.fileExists(atPath: logs.appendingPathComponent(log).path) {
+            try? fm.copyItem(at: logs.appendingPathComponent(log), to: root.appendingPathComponent(log))
+        }
+        try Data(about.utf8).write(to: root.appendingPathComponent("about.txt"))
+        return try zip(root, name: name)
+    }
+
+    /// App version and build, iOS version, phone model: one line each.
+    nonisolated static var about: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        var sys = utsname()
+        uname(&sys)
+        let model = withUnsafeBytes(of: &sys.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return """
+            app \(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))
+            iOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)
+            model \(model)
+
+            """
+    }
+
     /// All traces zipped (via a coordinated read "for uploading"), for the share sheet.
     nonisolated static func zip(_ folder: URL, name: String = "traces.zip") throws -> URL {
         var result: URL?, failure: Error?

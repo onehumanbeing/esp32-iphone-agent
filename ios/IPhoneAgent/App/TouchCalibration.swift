@@ -9,6 +9,7 @@ extension AutoCalibrator {
     enum TouchResult { case done(Double), noTaps, failed(String) }
 
     static let roughStops = [150, 350]
+    static let shortestStop = 30  // stage 1 halves its stops down to this while taps land on the screen edge
     static let targets: [(Double, Double)] = [(0.25, 0.25), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0.75, 0.75)]
     static let check = (x: 0.5, y: 0.62)
     static let tapTimeout = 3.0
@@ -23,6 +24,11 @@ extension AutoCalibrator {
             guard let geometry, !geometry.matches(app.feed.geometry) else { return }
             throw DeviceError(message: String(localized: "The screen rotated during calibration. Try again."))
         }
+        /// iPad over Bluetooth: this app is in front for the whole calibration, so leaving the front means homing
+        /// pushed at the top edge long enough to bring down Notification Center (HomeTuning).
+        func checkPanel() throws {
+            if pointer.homeUp?() != nil && !DeviceScreen.sceneActive { throw HomeTuning.Miss.panel }
+        }
         var total = full ? Self.roughStops.count + Self.targets.count + 1 : 1
         var clicks = 0, hits = 0
         phase = .homing
@@ -33,10 +39,12 @@ extension AutoCalibrator {
         func click(_ ux: Int, _ uy: Int, then: (dx: Int, dy: Int, speed: Int?)? = nil) async throws -> CGPoint? {
             try checkRotation()
             try await pointer.probe(ux, uy, then: then)
+            try checkPanel()
             let sent = now()
             try await device.send("click")
             let p = await probe.tap(since: sent, timeout: Self.tapTimeout)
             try checkRotation()
+            if p == nil { try checkPanel() }
             clicks += 1
             progress = Progress(done: clicks, total: total)
             if let p {
@@ -91,13 +99,23 @@ extension AutoCalibrator {
             return (x, y)
         }
 
-        // stage 1: rough, on the diagonal
+        // stage 1: rough, on the diagonal. A tap on the right or bottom edge is the pointer stuck there (a high
+        // Tracking Speed carries 350 units past the screen: Wiki #1177): the stops are halved and tried again.
         phase = .probeA
-        for u in Self.roughStops {
-            let p = try await click(u, u)
-            if p == nil && hits == 0 { return .noTaps }
-            if p == nil { _ = try? await device.send("key esc") }  // no fit yet to place the spot or an empty click
-            record(u, u, p)
+        var stops = Self.roughStops
+        while true {
+            samples.removeAll()
+            for u in stops {
+                let p = try await click(u, u)
+                if p == nil && hits == 0 { return .noTaps }
+                if p == nil { _ = try? await device.send("key esc") }  // no fit yet to place the spot or an empty click
+                record(u, u, p)
+            }
+            guard samples.contains(where: { Self.onEdge(CGPoint(x: $0.fx, y: $0.fy)) }), stops[0] / 2 >= Self.shortestStop
+            else { break }
+            stops = stops.map { $0 / 2 }
+            total += stops.count
+            app.say("probe: a tap landed on the screen edge; again with stops \(stops)")
         }
         guard let rough = lines() else { return .failed("probe taps stuck at the screen edge") }
 
@@ -124,6 +142,9 @@ extension AutoCalibrator {
                        lx.a, lx.b, ly.a, ly.b, lx.rms * 100, ly.rms * 100,
                        "\(Int(DeviceScreen.size.width))×\(Int(DeviceScreen.size.height)) pt @\(Int(DeviceScreen.scale))x"))
         try checkRotation()
+        // Every probe starts from home, so the fit's y at 0 units is where home left the pointer: well below the top
+        // means homing stopped short (HomeTuning), and every later move would be off by that much.
+        if pointer.homeUp?() != nil && ly.b > HomeTuning.shortOffset { throw HomeTuning.Miss.short(ly.b) }
         pointer.applyProbe(x: lx, y: ly, samples: samples)
         if (pointer.boardPace ?? 1) >= 3 {
             total += Self.speeds.count + 2

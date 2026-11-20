@@ -108,6 +108,7 @@ import UIKit
             Task { @MainActor in _ = await Trial.shared.refresh() }
         }
         Task {
+            await releaseLeftover()  // before the status check: our own leftover lease would read as busy
             await refresh()
             let settings = app.settings
             if status == .free, settings.provider != .handsyTrial, !settings.isConfigured(settings.provider) {
@@ -167,8 +168,13 @@ import UIKit
     /// Claim the run's lease, waiting in line up to `wait` seconds (onWait: the first time it has to wait).
     func begin(wait: TimeInterval = 600, onWait: (() -> Void)? = nil) async throws {
         end(nil)
-        if keyed { return keyRun = UUID().uuidString.lowercased() }
-        var token = try await enrolledToken(), enrolledAgain = false
+        if keyed {
+            let run = UUID().uuidString.lowercased()
+            keyRun = run
+            Self.leftover = Leftover(keyRun: run)
+            return
+        }
+        var token = try await enrolledToken(), enrolledAgain = false, releasedLeftover = false
         struct Lease: Decodable { let lease_id: String; let lease_token: String; let generation: Int? }
         let run = UUID().uuidString.lowercased()
         // All places taken: wait in line (first come, first served) by asking again with the same run, as
@@ -192,6 +198,9 @@ import UIKit
                 dropped += 1
                 DebugLog.write("trial: lease request did not reach the line (\(error.code.rawValue)); asking again (\(dropped))")
                 try await Task.sleep(nanoseconds: 1_000_000_000)
+            } catch TrialError.busy where !releasedLeftover && Self.leftover?.lease != nil {
+                releasedLeftover = true  // the line may be busy with our own lease from before the app restarted
+                await releaseLeftover()
             } catch TrialError.unenrolled where !enrolledAgain {
                 enrolledAgain = true
                 tokenRefused()
@@ -206,6 +215,7 @@ import UIKit
         }
         app?.homeHint = String(localized: "Preparing the run…")
         lease = (taken.lease_id, taken.lease_token, run)
+        Self.leftover = Leftover(lease: taken.lease_id, leaseToken: taken.lease_token)
         claimedAt = Date()
         leaseLost = false
         lostReason = nil
@@ -215,6 +225,7 @@ import UIKit
         startKeepAlive(generation: taken.generation, token: token)
     }
     private var claimedAt = Date()
+    private var holding = false, heldEnd: RunEnd?, holds = 0  // hold(): the ended run's line, kept for one more call
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
     private var lostReason: String?  // its reason, from the keep-alive
     private var lastRefusal: String?
@@ -262,7 +273,7 @@ import UIKit
     }
 
     /// A model call was refused because the server ended this run's lease: the run has to stop.
-    func runEnded() { if lease != nil { leaseLost = true } }
+    func runEnded() { if lease != nil, !holding { leaseLost = true } }  // held: the run already ended its own way
 
     /// The server no longer knows this install's token (401): forget it, so the next request enrolls again
     /// (App Attest) instead of being refused with it every time. A run under way ends: its lease came with that token.
@@ -285,14 +296,18 @@ import UIKit
     /// body); the server also ends it on its own when idle. In its own background task: the run's ends right after,
     /// and a DELETE that never went out left the lease to idle out 30 s later.
     func end(_ runEnd: RunEnd?) {
+        let ended = holding ? heldEnd ?? runEnd : runEnd  // a held run ends with its own reason
+        holding = false
+        heldEnd = nil
         keepAlive?.cancel()
         keepAlive = nil
-        if let run = keyRun { endKeyRun(run, runEnd) }
+        if let run = keyRun { endKeyRun(run, ended); Self.leftover = nil }
         keyRun = nil
         guard let lease else { return }
         self.lease = nil
+        Self.leftover = nil
         guard let token else { return }  // refused (401): nothing to release it with, it idles out on the server
-        var runEnd = runEnd ?? RunEnd(reason: .other, stage: .running)
+        var runEnd = ended ?? RunEnd(reason: .other, stage: .running)
         if leaseLost, runEnd.reason != .done { runEnd.reason = .leaseLost }
         let held = Date().timeIntervalSince(claimedAt), id = String(lease.id.prefix(8))
         var background = UIBackgroundTaskIdentifier.invalid
@@ -317,6 +332,60 @@ import UIKit
             }
             DebugLog.write(String(format: "trial: lease %@ released after %.1f s: %@ → %@", id, held, runEnd.logLine, result))
         }
+    }
+
+    /// The run is over, but one short call (PlanJudge) still goes out on its line: given back on `release()`, within
+    /// PlanJudge.timeout (under the server's 30 s idle end); a new run's `begin` releases it at once.
+    /// Returns the hold's number for `release`: a later run's hold is not given back by this one's.
+    @discardableResult func hold(_ runEnd: RunEnd?) -> Int {
+        holds += 1
+        guard lease != nil || keyRun != nil else { end(runEnd); return holds }
+        keepAlive?.cancel()
+        keepAlive = nil
+        holding = true
+        heldEnd = runEnd
+        return holds
+    }
+
+    func release(_ hold: Int) { if holding, hold == holds { end(nil) } }
+
+    /// The run's lease (or key run), on record while it is held: a process killed mid-run (2026-11-20: an app
+    /// install) never gave it back, and the next start read "busy" until the gateway's idle timeout.
+    struct Leftover: Codable, Equatable { var lease: String?; var leaseToken: String?; var keyRun: String? }
+    nonisolated static let leftoverAccount = "trial-held-run"
+    static var leftover: Leftover? {
+        get { Keychain.get(leftoverAccount).flatMap { try? JSONDecoder().decode(Leftover.self, from: Data($0.utf8)) } ?? leftoverHere }
+        set {
+            leftoverHere = newValue  // this process's copy, where the keychain can't be written (an unsigned test host in CI)
+            Keychain.set(newValue.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "",
+                         for: leftoverAccount)
+        }
+    }
+    private static var leftoverHere: Leftover?
+
+    /// At launch (and when a claim is refused as busy): give back what the previous process still held. `send`
+    /// gives back a lease: nil when done, else the error (tests stub it). A dropped connection keeps the record
+    /// for the next try; anything else is final (the gateway's idle timeout ends it all the same).
+    func releaseLeftover(send: ((Leftover) async -> Error?)? = nil) async {
+        guard lease == nil, keyRun == nil, let left = Self.leftover else { return }
+        let runEnd = RunEnd(reason: .appRestart, stage: .running)
+        if let run = left.keyRun {
+            Self.leftover = nil
+            DebugLog.write("trial: key run \(run.prefix(8)) left by the previous process; ending it")
+            endKeyRun(run, runEnd)
+        }
+        guard let id = left.lease else { return }
+        let error: Error?
+        if let send { error = await send(left) } else if let token, let leaseToken = left.leaseToken {
+            do {
+                let _: Empty = try await call("DELETE", "/trial/leases/\(id)", token: token, leaseToken: leaseToken,
+                                              body: ["run_end": runEnd.json])
+                error = nil
+            } catch let failure { error = failure }
+        } else { error = TrialError.unenrolled }  // no token to release it with: it idles out on the server
+        if !(error is URLError), Self.leftover == left { Self.leftover = nil }
+        let result = error.map { "err (" + (lastRefusal ?? String(describing: $0)) + ")" } ?? "ok"
+        DebugLog.write("trial: released lease \(id.prefix(8)) left by the previous process → \(result)")
     }
 
     func headers() throws -> [String: String] {
@@ -518,6 +587,7 @@ struct RunEnd: Equatable {
              stepLimit = "step_limit", modelFail = "model_fail", modelError = "model_error",
              blindMirroring = "blind_mirroring", boardLost = "board_lost", leaseLost = "lease_lost",
              startFailed = "start_failed", other
+        case appRestart = "app_restart"  // the previous process ended mid-run: given back at the next launch
     }
     enum Stage: String { case startup, running }  // startup: the lease was held but the agent never started
 
@@ -526,6 +596,7 @@ struct RunEnd: Equatable {
     var stage: Stage
     var steps = 0, calls = 0
     var firmware: String?
+    var planCached: Bool?  // the run started from the intent's saved plan (PlanCache), sent as `plan_cached`
     /// A failed start: the startup step it stopped at (StartupFailure.Step), sent as `step`.
     var step: String?
 
@@ -546,11 +617,11 @@ struct RunEnd: Equatable {
         case "done": reason = .done
         case "stopped": reason = trace.dropLast().last?["action"]?.str == "help" ? .helpStop : .userStop
         case "fail":
-            if why.hasSuffix("errors in a row") { reason = .failErrors }
+            if why.hasSuffix(AgentLoop.errorsReason) { reason = .failErrors }
             // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
             else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
-            else if Recovery.matches(why, .board) { reason = .boardLost }
+            else if [.board, .cable, .pointer].contains(where: { Recovery.matches(why, $0) }) { reason = .boardLost }
             else if why == BlindError().reason || why == LinkCheck.reason
                         || ([.locked, .hotspot, .mirroring, .frames] as [Recovery.Part]).contains(where: { Recovery.matches(why, $0) }) {
                 reason = .blindMirroring
@@ -573,6 +644,7 @@ struct RunEnd: Equatable {
                                    "app_version": Self.appVersion]
         if let firmware { body["fw"] = firmware }
         if let step { body["step"] = step }
+        if let planCached { body["plan_cached"] = planCached }
         return body
     }
 

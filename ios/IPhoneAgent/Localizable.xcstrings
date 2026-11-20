@@ -231,6 +231,16 @@
         }
       }
     },
+    "Board not showing up?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到板子？"
+          }
+        }
+      }
+    },
     "Call [who] and talk about [topic]" : {
       "localizations" : {
         "zh-Hans" : {
@@ -307,6 +317,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法导出此文件夹"
+          }
+        }
+      }
+    },
+    "Delete All Runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除全部记录"
+          }
+        }
+      }
+    },
+    "Delete all runs? This can't be undone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除全部记录？此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "Delete Failed Runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除失败的记录"
+          }
+        }
+      }
+    },
+    "Delete failed runs? This can't be undone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除失败的记录？此操作无法撤销。"
           }
         }
       }
@@ -401,6 +451,16 @@
         }
       }
     },
+    "Forget this board in the app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在本 App 中忘记这块板子"
+          }
+        }
+      }
+    },
     "From This Run" : {
       "localizations" : {
         "zh-Hans" : {
@@ -417,6 +477,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "来自：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "In Settings › Accessibility › Touch, turn on AssistiveTouch, then under Devices › Bluetooth Devices tap %@. Once per %@; the app itself stays paired." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“设置” › “辅助功能” › “触控”中打开“辅助触控”，然后在“设备” › “蓝牙设备”中点 %1$@。每台 %2$@ 只需一次；App 本身保持配对。"
+          }
+        }
+      }
+    },
+    "In Settings › Bluetooth, forget %@ if it is listed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 设置 › 蓝牙 中列有 %@，将其忽略。"
           }
         }
       }
@@ -721,6 +801,26 @@
         }
       }
     },
+    "On a computer, open %@, plug the board into it and install the Bluetooth firmware. Then come back here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在电脑上打开 %@，把板子插到电脑上，安装蓝牙固件。然后回到这里。"
+          }
+        }
+      }
+    },
+    "Only what can't be undone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在无法撤销时"
+          }
+        }
+      }
+    },
     "Open %@ and allow sending screenshots and your task to this model, then ask again." : {
       "localizations" : {
         "zh-Hans" : {
@@ -737,6 +837,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 App 并校准指针。"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth mouse" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对蓝牙鼠标"
+          }
+        }
+      }
+    },
+    "Pair within 3 minutes: after power-on the board accepts a new phone for 3 minutes only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 分钟内完成配对：板子通电后只在 3 分钟内接受新手机。"
           }
         }
       }
@@ -767,6 +887,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴你套餐里的 key"
+          }
+        }
+      }
+    },
+    "Power it from any USB charger: it no longer needs this %@'s port." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用任意 USB 充电器给它供电即可，不再需要这台 %@ 的接口。"
+          }
+        }
+      }
+    },
+    "Power the board from any USB charger and keep it near this iPhone. I'll find it over Bluetooth; tap Pair when iOS asks." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用任意 USB 充电器给板子供电，放在这台 iPhone 旁边。我会通过蓝牙找到它；iOS 询问时点“配对”。"
           }
         }
       }
@@ -1011,6 +1151,46 @@
         }
       }
     },
+    "Start Screen Mirroring again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新开启屏幕镜像"
+          }
+        }
+      }
+    },
+    "Stuck after a long session? Restart Screen Mirroring." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用久了卡住？重连一下屏幕镜像。"
+          }
+        }
+      }
+    },
+    "Swipe down from the top-right corner and tap Screen Mirroring › %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从右上角向下轻扫，点“屏幕镜像” › %@。"
+          }
+        }
+      }
+    },
+    "Switch the Board to Bluetooth" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把板子切换到蓝牙"
+          }
+        }
+      }
+    },
     "The Files tab also lists the app's own data (runs, chats, intent screens) and test tools. Deleting those can break runs and intents." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1157,6 +1337,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App 需要用到它，不能重命名或删除。"
+          }
+        }
+      }
+    },
+    "The board restarts as a Bluetooth mouse" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子重启为蓝牙鼠标"
           }
         }
       }
@@ -1371,12 +1561,12 @@
         }
       }
     },
-    "Payments only" : {
+    "Payments and what can't be undone" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只在付款时"
+            "value" : "付款和无法撤销的操作"
           }
         }
       }
@@ -1551,6 +1741,26 @@
         }
       }
     },
+    "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse, and its firmware is USB only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 没有 USB-C 接口，所以板子要作为它的蓝牙鼠标，但它现在的固件只支持 USB。"
+          }
+        }
+      }
+    },
+    "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 没有 USB-C 接口，所以板子要作为它的蓝牙鼠标。"
+          }
+        }
+      }
+    },
     "Tools" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1567,6 +1777,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撤销：改回之前的步骤"
+          }
+        }
+      }
+    },
+    "Unplug the board and plug it back in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拔下板子再重新插上。"
           }
         }
       }
@@ -1931,12 +2151,12 @@
         }
       }
     },
-    "Ask me first: the agent stops and asks you in a notification before paying (Payments only), or also before sending a message, deleting or changing account settings. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
+    "Ask me first: the agent always stops and asks you in a notification before a step that can't be undone, such as deleting for good, approving a request, a phone call or accepting terms. It also asks before paying, and with the widest choice before sending a message. Every run keeps a low-frame-rate video of the mirrored screen for the review." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先问我：agent 会在付款前停下来，用通知问你（只在付款时）；也可以设为在发送消息、删除或修改账户设置前也问你。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
+            "value" : "先问我：遇到无法撤销的操作，比如永久删除、审批、通话或接受协议，agent 一定会停下来用通知问你；付款前也会问；选最宽的一档，发送消息前也会问。每次运行都会保留一段低帧率的镜像屏幕录像，供回看。"
           }
         }
       }
@@ -4807,12 +5027,32 @@
         }
       }
     },
-    "It's the grey dot, near the top left." : {
+    "It was on the edge of the screen, so it moved less this time. Tap the grey dot again." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "就是左上方附近的灰色圆点。"
+            "value" : "刚才它在屏幕边上，这次移动得少一些。请再点一下灰色圆点。"
+          }
+        }
+      }
+    },
+    "It's the grey dot, usually near the top left." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就是那个灰色圆点，通常在左上方附近。"
+          }
+        }
+      }
+    },
+    "The pointer runs to the edge of the screen. In Settings › Accessibility › Touch › AssistiveTouch, set Tracking Speed to the middle, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指针跑到了屏幕边上。请在 设置 › 辅助功能 › 触控 › 辅助触控 里把跟踪速度调到中间，然后再试一次。"
           }
         }
       }
@@ -7095,12 +7335,12 @@
         }
       }
     },
-    "The endpoint lists no models." : {
+    "The endpoint lists no models. Enter the model ID under Custom model." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "该接口没有列出任何模型。"
+            "value" : "该接口没有列出任何模型。请在「自定义模型」里填写模型 ID。"
           }
         }
       }
@@ -10049,6 +10289,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点“屏幕镜像”→ %@ 以继续"
+          }
+        }
+      }
+    },
+    "The AI service %@ failed (HTTP %lld), usually a passing problem on its side. Tap Continue in a moment. If it fails again on the same screen, the service may be refusing what is on it. Its reply: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务 %1$@ 出错（HTTP %2$lld），通常是对方临时故障。稍后点「继续」。如果在同一个画面反复出错，可能是服务拒绝处理画面上的内容。对方返回：%3$@"
+          }
+        }
+      }
+    },
+    "The AI service refused this screen, most likely because its content filter blocks words on it (news headlines and trending lists often trigger it). The run was paused. Leave this page, then tap Continue, or use another AI service." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务拒绝处理这个画面，多半是页面上有被它内容审核屏蔽的词（新闻标题、热搜榜常会触发）。这次运行已暂停。先离开这个页面，再点「继续」，或换一个 AI 服务。"
           }
         }
       }
@@ -13843,6 +14103,56 @@
         }
       }
     },
+    "Reuse Plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复用方案"
+          }
+        }
+      }
+    },
+    "Off: every run plans afresh, and no plan is saved for this intent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关闭：每次运行都重新规划，也不会为这个意图保存方案。"
+          }
+        }
+      }
+    },
+    "After a run, AI checks whether its plan is worth reusing. If it is, the next run starts from it without waiting for a new one." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次运行后，AI 会判断这次的方案是否值得复用。值得的话，下次运行直接从它开始，不用等新方案。"
+          }
+        }
+      }
+    },
+    "Reuse Plan is off for this intent: not used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个意图已关闭复用方案，不会使用"
+          }
+        }
+      }
+    },
+    "The app kept this plan from a run after AI checked it is worth reusing. Edit it to keep your version; delete it to plan afresh." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份方案来自一次运行，AI 判断它值得复用后保存。编辑后会保留你的版本；删掉则下次重新规划。"
+          }
+        }
+      }
+    },
     "Runs start from this plan while the instruction is unchanged, without waiting for a new one. It is dropped when you edit the instruction, a run with it fails, or after 7 days." : {
       "localizations" : {
         "zh-Hans" : {
@@ -14019,6 +14329,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "连不上 Manina AI Free。请检查网络后再试。"
+          }
+        }
+      }
+    },
+    "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "告诉我任务，我会通过屏幕镜像查看这台 iPhone，用指针进行操作。"
+          }
+        }
+      }
+    },
+    "Keep the Bluetooth board powered on and near this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让蓝牙开发板保持通电，并放在这台 iPhone 附近。"
+          }
+        }
+      }
+    },
+    "the board connected in this app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 中连接的同一块开发板"
+          }
+        }
+      }
+    },
+    "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在这台 iPhone 上打开“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”，选择 %@ 完成配对。"
+          }
+        }
+      }
+    },
+    "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配对蓝牙指针"
+          }
+        }
+      }
+    },
+    "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在这台 iPhone 的辅助触控设置中配对蓝牙指针。"
+          }
+        }
+      }
+    },
+    "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查这台 iPhone 上的蓝牙开发板配对状态和辅助触控设置。"
+          }
+        }
+      }
+    },
+    "the Bluetooth pointer did not reconnect in 5 minutes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针在五分钟内未能重新连接"
+          }
+        }
+      }
+    },
+    "Waiting for the Bluetooth pointer…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待蓝牙指针连接…"
+          }
+        }
+      }
+    },
+    "Firmware updates in this app are for the USB board only." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用内固件更新仅支持 USB 开发板。"
+          }
+        }
+      }
+    },
+    "Use firmware made for Note 4. Back up the board and follow its USB installation guide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用适用于 Note 4 的固件。先备份开发板，再按指南通过 USB 安装。"
+          }
+        }
+      }
+    },
+    "Bluetooth HID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "蓝牙指针"
+          }
+        }
+      }
+    },
+    "Use firmware for your board model. Back up the board and follow its installation guide." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用适用于当前板型的固件。先备份开发板，再按指南安装。"
+          }
+        }
+      }
+    },
+    "Input" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入方式"
+          }
+        }
+      }
+    },
+    "Restarting the board…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板正在重启…"
+          }
+        }
+      }
+    },
+    "The board is a Bluetooth mouse and keyboard: pair it once in Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices. Its USB-C port only powers it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板作为蓝牙鼠标和键盘：请在“设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备”中配对一次。它的 USB-C 口只用来供电。"
+          }
+        }
+      }
+    },
+    "The board is this %@'s USB mouse and keyboard: plug it into its USB-C port." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板作为这台%@的 USB 鼠标和键盘：请把它插到 USB-C 口。"
+          }
+        }
+      }
+    },
+    "Use Bluetooth for the mouse?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用蓝牙连接鼠标？"
+          }
+        }
+      }
+    },
+    "Use USB for the mouse?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用 USB 连接鼠标？"
+          }
+        }
+      }
+    },
+    "Switch" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换"
+          }
+        }
+      }
+    },
+    "The board restarts and reconnects in a few seconds. Start Screen Mirroring again afterwards." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板会重启，几秒后重新连接。之后请重新开启屏幕镜像。"
+          }
+        }
+      }
+    },
+    "The board did not switch: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发板没有切换成功：%@"
+          }
+        }
+      }
+    },
+    "The AI service's answer was cut off or took too long; trying again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务的回复被截断或超时，正在重试。"
+          }
+        }
+      }
+    },
+    "The AI service's answer was cut off or took too long %lld times in a row. Your progress and notes are saved. Tap Continue to try again, or Stop to end the run here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务的回复连续 %lld 次被截断或超时。进度和记录都已保存。点「继续」重试，或点「停止」在这里结束运行。"
+          }
+        }
+      }
+    },
+    "The AI service didn't give a usable answer %lld times in a row. Your progress and notes are saved. Tap Continue to try again, or Stop to end the run here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务连续 %lld 次没有给出可用的回复。进度和记录都已保存。点「继续」重试，或点「停止」在这里结束运行。"
+          }
+        }
+      }
+    },
+    "The AI service isn't answering" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务没有回应"
+          }
+        }
+      }
+    },
+    "The first time %@ opens this way, iOS asks first: the agent taps Open." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一次这样打开「%@」时，iOS 会先问一下：Agent 会点「打开」。"
           }
         }
       }

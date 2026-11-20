@@ -1,18 +1,27 @@
 ---
 name: esp32agent
-description: See and drive a real iPhone through an ESP32 Agent board (USB mouse/keyboard + AirPlay screen mirroring, reached over Bluetooth). Use when asked to look at, tap, type on, or operate the iPhone, or to test an iOS app on the device.
+description: See and drive a real iPhone through an ESP32 Agent board (the phone's mouse/keyboard over USB or Bluetooth + AirPlay screen mirroring, reached over Bluetooth). Use when asked to look at, tap, type on, or operate the iPhone, or to test an iOS app on the device.
 ---
 
 # esp32agent
 
-`esp32agent` talks to an ESP32 Agent board plugged into the iPhone. The board is the phone's USB mouse and
-keyboard and receives its AirPlay screen mirroring; this computer reaches it over Bluetooth. Every command prints
+`esp32agent` talks to an ESP32 Agent board next to the iPhone. The board is the phone's mouse and keyboard and
+receives its AirPlay screen mirroring; this computer reaches it over Bluetooth. Every command prints
 JSON: `{"status":"ok","data":...}` or `{"status":"error","error":"..."}`. The MCP server (`esp32agent mcp`)
 offers the same as tools: screenshot, tap, longpress, swipe, type_text, press_key, press_button, device_info,
 plus history, intent_list, intent_show, intent_save, memory_recall and memory_add.
 
+The board runs in one of two modes, set in the iOS app (Settings > Board > Input); the CLI cannot switch it:
+- USB mode: plugged into the iPhone's USB-C port, it is the phone's USB mouse and keyboard.
+- Bluetooth mode: it is the phone's Bluetooth mouse and keyboard, with no USB data to the phone; any USB power
+  (charger, power bank) will do. Lightning iPhones (XS to 14) need this mode. `esp32agent device info` then has
+  `hid`: `ok` while the phone's Bluetooth link to the board is up, else `off`.
+
 ## Setup (once)
-- `esp32agent pair` within 3 minutes of plugging the board into the iPhone.
+- The board takes new pairings only in the first 3 minutes after it powers up: run `esp32agent pair` then.
+  In Bluetooth mode the iPhone pairs the board in that same window (Settings > Accessibility > Touch >
+  AssistiveTouch > Devices > Bluetooth Devices); the CLI pairs on its own, next to the phone. Missed it: unplug
+  and replug the board's power (forgetting the device on the iPhone does not reopen it).
 - Screen Mirroring on the iPhone: Control Center > Screen Mirroring > ESP32 Agent.
 - `esp32agent calibrate` (also runs by itself on the first tap). It needs the mouse pointer visible on screen.
 
@@ -40,6 +49,9 @@ the app not sharing, no Wi-Fi). The words can be partial or misheard; check the 
   Many search boxes accept the plain pinyin as well.
 - The board is a hardware keyboard, so iOS may hide the on-screen keyboard; the text field still takes the keys.
 - Tap the text field first so it has focus; `io keys cmd+a` then `io keys backspace` clears it.
+- Bluetooth mode: whether iOS takes modifier combos (`cmd+a`, `ctrl+space`, ...) from the board is being verified.
+  Screenshot after one; if nothing changed, select the text with a long press (Select All) or a double tap on a
+  word, then `io keys backspace`.
 
 ## Save what worked
 After a task succeeded, save it so the next run is faster:
@@ -71,11 +83,16 @@ After a task succeeded, save it so the next run is faster:
 - `busy: the app is using the phone`: the iOS app is driving right now. Wait and retry later; don't fight it.
 - `screen mirroring is off`: ask the user to start Screen Mirroring to ESP32 Agent.
 - `video frozen`: ask the user to stop and restart Screen Mirroring.
-- `not paired`: ask the user to replug the board and run `esp32agent pair` within 3 minutes.
-- `phone usb asleep`: the phone is locked; ask the user to unlock it.
+- `not paired` or `pairing window closed`: ask the user to replug the board (its power, in Bluetooth mode) and
+  run `esp32agent pair` within 3 minutes.
+- `phone usb asleep` (USB mode): the phone is locked; ask the user to unlock it.
+- `Bluetooth HID not paired` or `typed N of M: asleep` (Bluetooth mode): the phone's Bluetooth link to the board
+  is down. Ask the user to check that Bluetooth is on and the board shows Connected on the iPhone; if the phone
+  never paired it, replug the board's power and pair it within 3 minutes.
 - `not supported on ESP32 Agent`: there is no app list, UI tree, file access or webview; work from screenshots.
 
 ## Limits
 - Video comes over Bluetooth: a screenshot can be up to a second behind, animations look choppy.
-- Only HOME as a button; no volume, power, or app install/launch (open apps from the Home Screen or Spotlight:
+- Only HOME as a button (in Bluetooth mode iOS has no Home key, so it goes Home with Cmd+H or the swipe up from
+  the home bar, which needs Screen Mirroring on); no volume, power, or app install/launch (open apps from the Home Screen or Spotlight:
   `io button HOME`, swipe down in the middle, `io text 'Settings'`, `io keys enter`).

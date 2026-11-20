@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import IPhoneAgent
 
 /// Japanese, Korean and other scripts the board cannot type: app names pasted and matched in any width or kana,
@@ -94,6 +95,35 @@ import XCTest
         let plain = try await agent.perform(["action": .str("type"), "text": .str("hello")])
         XCTAssertNil(plain)
         XCTAssertEqual(phone.calls, ["type"])
+    }
+
+    func testAStopWithNothingToPasteNeverTouchesTheClipboard() async throws {
+        let phone = FakeGestures()
+        let agent = AgentLoop(phone: phone, screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        var written: [String] = []
+        agent.onWrite = { written.append($0); return true }
+        phone.typeNote = "typing stopped (budget); typed \"上海\", not typed: \"西岸\""
+        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸")])
+        XCTAssertEqual(written, [])
+        XCTAssertEqual(result?.value, SendGuard.listedHint + (phone.typeNote ?? ""), "no rest: the note as it was")
+        phone.typeNote = nil
+        let typed = try await agent.perform(["action": .str("type"), "text": .str("上海西岸")])
+        XCTAssertNil(typed, "pinyin worked: nothing changes")
+        XCTAssertEqual(written, [])
+        XCTAssertEqual(phone.calls, ["type", "type"])
+    }
+
+    /// The partial-type hold points to the app's own clear action, never a 清空 button (the pay guard stops at it).
+    func testThePartialTypeHoldPointsToTheClearAction() {
+        var guardian = SendGuard()
+        guardian.typed("上海西岸艺术中心", missing: "西岸艺术中心")
+        let held = guardian.enter(step: 5) ?? ""
+        XCTAssertTrue(held.contains("If the screen already lists what the goal needs"), held)
+        XCTAssertTrue(held.contains("type the rest first"), held)
+        XCTAssertTrue(TypedGuard.reason("x").contains("tap it instead of typing more"))
+        XCTAssertTrue(held.contains("the clear action"), held)
+        XCTAssertTrue(held.contains("never a 清空"), held)
+        XCTAssertTrue(Prompts.actor.contains("never a 清空 / Clear button"), "the action list says it too")
     }
 
     func testThePointerNeverSendsATransliteration() async throws {

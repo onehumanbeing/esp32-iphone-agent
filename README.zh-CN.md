@@ -50,6 +50,7 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><img src="docs/images/highlights-zh.png" alt="1.0.2 和 1.0.3 新功能：能听到手机的声音、免费的 Jev 线路、长任务与逐步回放" width="100%"></p>
 
+- **蓝牙模式（1.0.8，固件 v0.2.7）。** 同一个固件里两种输入都有：板子可以是 iPhone 的 USB 鼠标键盘，也可以是蓝牙鼠标键盘，在 App 里切换。蓝牙模式下手机不用插线，Lightning 机型不需要相机转换器；这时板子要自己供电（USB 充电头或充电宝）。基于 [@cy41](https://github.com/cy41) 的蓝牙键鼠工作（[#94](https://github.com/onehumanbeing/esp32-iphone-agent/pull/94)）。
 - **能听到手机的声音。** 板子转发 AirPlay 音频，iPhone 本机转成文字，听力题、语音提示都能处理。[原理](https://manina.ai/zh/docs/listen?ref=github)。
 - **免费的 Jev 线路。** 简单的步骤 Jev 不到一秒就做完，其余交给大模型；Agent loop 也重做了，每步只调一次模型。
 - **长任务。** 不再 40 步就停，停下的任务可以接着跑；每次运行都能在手机上逐步回放。
@@ -95,7 +96,7 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 ```
 
 - **眼睛：AirPlay 投到板子上。** 板子开自己的 Wi-Fi 热点，在手机的「屏幕镜像」里显示为 *ESP32 Agent*。它不解码，只把 H.264 码流经 Wi-Fi（TCP，端口 7201）转给 App。蓝牙传命令和状态。手机连着板子热点时，调用模型走蜂窝数据。也可以在引导页或 设置 › 开发板 里把板子切到家里的 Wi-Fi（存在板子上）：手机和板子共用路由器，不需要蜂窝数据。板子只支持 2.4 GHz，开了客户端隔离或拦截 mDNS 的路由器会让「屏幕镜像」搜不到板子；热点模式在哪里都能用。
-- **手：USB HID。** 板子是标准 USB 鼠标和键盘。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
+- **手：USB HID 或蓝牙 HID。** 板子是标准的鼠标和键盘，走 USB 或蓝牙（在 App 里切换）。打开辅助触控（AssistiveTouch）后，鼠标控制屏幕上的指针，点击就是轻点，拖动就是滑动。
 - **大脑：App。** App 解码画面，把截图发给任意兼容 OpenAI 接口的视觉模型，由规划器和执行器决定动作：点、滑、画、输入、按键、回主屏、结束。工作时 App 在后台运行，灵动岛显示它在做什么。
 - **闭环。** 指针是相对移动的，App 记录位置并定期回角落归零；精细点击前晃一下指针、在画面里找到它并修正偏差。每个动作后等画面稳定，再告诉模型画面有没有变化。板子、热点或镜像断开时暂停，恢复后从同一步继续。
 - **复盘。** 每次运行都存在手机上，可以逐步回放，点按和滑动画在截图上。
@@ -111,11 +112,13 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 支持的板子和硬件细节见[硬件指南](https://manina.ai/zh/docs/hardware)。选板子、线材和转接头，或者设置时卡住了，见[安装设置指南](https://manina.ai/zh/esp32-iphone-agent-setup)。
 
+源码构建版的无线输入见[通用蓝牙键鼠能力](docs/bluetooth-hid.zh-CN.md)，Zectrix Note 4 的供电、电池和分区配置见[板型适配说明](docs/note4-bluetooth.zh-CN.md)。
+
 | 部件 | 说明 |
 |---|---|
 | **ESP32-S3 板子** | 测试用的是 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)（普通版，8 MB PSRAM；不是 Sense，也不是 Plus），淘宝搜 "XIAO ESP32S3"，约 40-50 元；海外可在 [Amazon](https://amzn.to/3U6QKiz)\* 购买。USB-C 口接 S3 原生 USB、带 PSRAM 的 ESP32-S3 板子都应该可以。 |
 | **USB-C 线** | 短的 USB-C 对 USB-C 线，例如 [Anker 60W，1 英尺，2 条装](https://amzn.to/4yvNyvi)\*。 |
-| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用），或者一个板子能加入的 2.4 GHz 家庭 Wi-Fi。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器。板子由手机供电。 |
+| **iPhone** | iOS 18 及以上，需要蜂窝数据（Wi-Fi 被板子热点占用），或者一个板子能加入的 2.4 GHz 家庭 Wi-Fi。USB-C 机型直接插；Lightning 机型需要 Lightning 转 USB 相机转换器，或者用蓝牙模式。走 USB 时板子由手机供电；蓝牙模式下板子要自己供电。 |
 | **视觉模型** | 任何支持图片输入、兼容 OpenAI 接口的模型：云端 API 或自己部署。 |
 | **装了 Xcode 的 Mac** | 只在刷板子、编译 App 时用一次，运行时不需要。用 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 安装 App 的话，App 这部分不需要 Xcode。 |
 
@@ -284,6 +287,8 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 [UxPlay](https://github.com/FDH2/UxPlay)（固件里的 AirPlay 接收端移植自它）·
 [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) ·
 [Arduino ESP32 core](https://github.com/espressif/arduino-esp32) 和 [TinyUSB](https://github.com/hathach/tinyusb)
+
+蓝牙模式基于 [@cy41](https://github.com/cy41) 贡献的蓝牙键鼠能力和 Zectrix Note 4 板型适配（[#94](https://github.com/onehumanbeing/esp32-iphone-agent/pull/94)），谢谢。
 
 ## 许可证
 

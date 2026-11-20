@@ -17,6 +17,11 @@ import XCTest
     /// The bar as Vision reads it on a device: one word run together, per-character boxes as wide as a cell's share
     /// (a cell's last character takes the gap), plus a search suggestion row and a stray 个 off a key.
     var barAsOneWord = false
+    /// OCR reads nothing of the candidate bar (2026-11-20: 中 and 西 "not among the candidates").
+    var barHidden = false
+    /// OCR reads nothing of the field either.
+    var fieldHidden = false
+    var looks = 0
 
     init(knowing text: String) {
         let chars = Array(text)
@@ -58,8 +63,8 @@ import XCTest
     }
 
     var seen: HanTyper.Seen {
-        var words: [(text: String, box: [Int])] = [(field + composing, [20, 280, 700, 320])]
-        let row = !composing.isEmpty ? candidates(composing) : committed ? association : []
+        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : field + composing, [20, 280, 700, 320])]
+        let row = barHidden ? [] : !composing.isEmpty ? candidates(composing) : committed ? association : []
         guard barAsOneWord else {
             for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
             return HanTyper.Seen(words: words, height: 1554)
@@ -85,7 +90,7 @@ import XCTest
     func typer(screen: Bool = true) -> HanTyper {
         HanTyper(send: { self.send($0) }, key: { self.key($0) },
                  toggle: { self.sent.append("toggle"); self.committed = false; if self.toggles { self.pinyin.toggle() } },
-                 look: { screen ? self.seen : nil })
+                 look: { self.looks += 1; return screen ? self.seen : nil })
     }
 }
 
@@ -127,6 +132,112 @@ import XCTest
         XCTAssertTrue(text.contains("龘") && text.contains("typed \"好\""), text)
     }
 
+    /// 2026-11-20: 西岸 not offered (now typed as xi'an; here the keyboard still lacks it), then 西 not read among xi's candidates. What went in stays, the
+    /// letters are cleared, and the stop says what is left to paste.
+    func testAWordTheKeyboardDoesNotOfferLeavesTheRestToPaste() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.only["xi'an"] = ["西安", "先"]
+        ime.only["xi"] = ["系", "洗"]
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertEqual(ime.field, "上海")
+        XCTAssertEqual(ime.composing, "")
+        XCTAssertEqual(stop?.rest, "西岸艺术中心")
+        XCTAssertTrue(stop?.note.contains("not typed: \"西岸艺术中心\"") == true, stop?.note ?? "nil")
+    }
+
+    func testNothingIsLeftToPasteWhenPinyinWorksAndAWordNotShownIsOwed() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        let ok = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(ok)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        // a commit that did not land: its letters cleared, the word owed with the rest
+        let bei = FakeIME(knowing: "北")
+        bei.only["bei"] = ["被", "北"]
+        let typer = bei.typer()
+        let broken = HanTyper(send: { s in if s == "2" { bei.sent.append("type 2"); bei.composing.append("2") } else { bei.send(s) } },
+                              key: typer.key, toggle: typer.toggle, look: typer.look)
+        let unsure = try await broken.attempt("北")
+        XCTAssertEqual(bei.field, "")
+        XCTAssertEqual(unsure?.rest, "北")
+        XCTAssertTrue(unsure?.note.contains("typed \"\", not typed: \"北\"") == true, unsure?.note ?? "nil")
+    }
+
+    /// 2026-11-20 device run: 上海西岸艺术中心 in four words; the field read after the first and once for the rest.
+    func testTheWholeTextGoesInWithFewReads() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
+        XCTAssertLessThanOrEqual(ime.looks, 3, "the screen before, the field after the first word, the field once for the rest")
+    }
+
+    /// The bar is never read: each first candidate is right, checked in the field, and nothing stops.
+    func testAnUnreadBarStillTypesTheFirstCandidates() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.barHidden = true
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertEqual(ime.composing, "")
+        XCTAssertFalse(ime.sent.contains("key backspace"), "\(ime.sent)")
+        XCTAssertFalse(ime.sent.contains("toggle"), "an unread bar is no reason for ctrl+space: \(ime.sent)")
+    }
+
+    /// Nothing on screen changed (2026-11-20: the field had lost focus and the keys went nowhere): the typing says so
+    /// instead of passing, and deletes nothing, no ctrl+space (the text may be in a field it cannot read).
+    func testNothingSeenOnScreenStopsWithoutDeleting() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.barHidden, ime.fieldHidden) = (true, true)
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertTrue(stop?.note.hasPrefix("nothing appeared in the field") == true, "\(String(describing: stop))")
+        XCTAssertNil(stop?.rest, "nothing to paste: it may be in already")
+        XCTAssertEqual(ime.field, "上海", "stops after the first word read back")
+        XCTAssertFalse(ime.sent.contains("key backspace") || ime.sent.contains("toggle"), "\(ime.sent)")
+    }
+
+    /// English keyboard, bar hidden: the first word's letters show in the field after space; deleted, one
+    /// ctrl+space, typed again, and the rest goes in.
+    func testAnEnglishKeyboardIsToldFromTheField() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.pinyin, ime.barHidden) = (false, true)
+        let stop = try await ime.typer().attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心")
+        XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        XCTAssertFalse(ime.sent.contains { $0.hasPrefix("type ") && $0.dropFirst(5).allSatisfy(\.isNumber) }, "no digit picks: \(ime.sent)")
+    }
+
+    /// A first candidate that is another word (西安 for xi'an) is read in the field, deleted with the words after
+    /// it, and typed again by halves.
+    func testAWrongFirstCandidateIsRepaired() async throws {
+        for hidden in [false, true] {
+            let ime = FakeIME(knowing: "上海西岸艺术中心")
+            ime.barHidden = hidden
+            ime.decoys["xi'an"] = ["西安"]
+            let stop = try await ime.typer().attempt("上海西岸艺术中心")
+            XCTAssertNil(stop, "bar hidden \(hidden)")
+            XCTAssertEqual(ime.field, "上海西岸艺术中心", "bar hidden \(hidden)")
+            XCTAssertEqual(ime.sent.filter { $0 == "key backspace" }.count, 6, "西安艺术中心 deleted: \(ime.sent)")
+        }
+    }
+
+    func testReadBackTellsAMissedWordFromAWrongOne() {
+        let words = ["西岸", "艺术", "中心"]
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西岸艺术中心", base: "", lines: ["上海西岸艺术中心"]),
+                       [.seen, .seen, .seen])
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海艺术中心", base: "", lines: ["上海艺术中心"]),
+                       [.unseen, .seen, .seen], "OCR dropped 西岸: taken as committed")
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西安艺术中心", base: "", lines: ["上海西安艺术中心"]),
+                       [.wrong("西安")])
+        XCTAssertEqual(HanTyper.readBack(words, prior: "上海", field: "上海西岸艺术中心上海博物馆", base: "上海博物馆",
+                                         lines: ["上海西岸艺术中心", "上海博物馆"]), [.seen, .seen, .seen])
+        XCTAssertEqual(HanTyper.readBack(["西岸"], prior: "上海", field: "上海上海博物", base: "上海博物", lines: ["上海", "上海博物"]),
+                       [.unseen], "a suggestion that was there before is not the field")
+        XCTAssertEqual(HanTyper.pinyinLeft("上海xin", base: "", pinyin: "zhongxin"), "xin")
+        XCTAssertNil(HanTyper.pinyinLeft("上海中心", base: "", pinyin: "zhongxin"))
+    }
+
     func testAnEnglishKeyboardIsSwitchedOnceAndTheWordRetyped() async throws {
         let ime = FakeIME(knowing: "你好")
         ime.pinyin = false
@@ -143,6 +254,9 @@ import XCTest
         XCTAssertEqual(ime.field, "")
         XCTAssertTrue(note?.contains("did not come up") == true, note ?? "nil")
         XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        (ime.pinyin, ime.field) = (false, "")
+        let stuck = try await ime.typer().attempt("你好")
+        XCTAssertEqual(stuck?.rest, "你好", "a keyboard stuck in English leaves the whole text to paste")
     }
 
     func testEnglishLettersLeftComposingOnAPinyinKeyboardAreRetypedInEnglish() async throws {

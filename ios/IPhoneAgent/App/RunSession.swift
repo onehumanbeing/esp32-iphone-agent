@@ -29,7 +29,8 @@ extension AppModel {
         lastTask = task
         agent.chatContext = ChatContext.render(threads.current.turns)
         agent.hints = intent?.checklist ?? []
-        agent.cachedPlan = resume ? nil : intent.flatMap { planCache.reload(); return planCache.entry(for: $0)?.plan }  // PlanCache
+        agent.cachedPlan = resume || intent?.reusesPlan == false ? nil  // PlanCache (Reuse Plan off: planned afresh)
+            : intent.flatMap { planCache.reload(); return planCache.entry(for: $0)?.plan }
         agent.replay = intent.map(Replay.init(intent:)) ?? Replay()
         pointer.overlayStays = Calls.isCall(task, kind: intent?.kind)
         if agent.replay.steps.isEmpty, Calls.isCall(task, kind: intent?.kind) {  // a call: the fast scripted way (Calls.script)
@@ -104,13 +105,21 @@ extension AppModel {
         }
         // The board has power but no USB host (a charger, a power bank, a hub): nothing it sends reaches this
         // iPhone. Say so now, not after the leave-app gestures fail.
-        if board.connected, board.status?.usb == "off" {
+        if board.connected, board.status?.needsUSBHost == true {
             try? await board.refreshStatus()  // the last status may be older than the plug
-            if board.connected, board.status?.usb == "off" {
+            if board.connected, board.status?.needsUSBHost == true {
                 Analytics.capture("run_blocked", ["reason": "usb_off"])
                 blocked(String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
                 return
             }
+        }
+        if board.connected && board.status?.inputState == nil {
+            blocked(String(localized: "Waiting for the mouse…"))
+            return
+        }
+        if board.status?.needsWirelessPointer == true {
+            blocked(String(localized: "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings."))
+            return
         }
         usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
         guard await calibrator.ensureCalibrated() else {
@@ -152,8 +161,10 @@ extension AppModel {
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
+        if !resume { videoHealth = VideoHealth(metrics) }
         Analytics.capture("run_started", settings.analyticsModel.merging(
-            ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream"]) { $1 })
+            ["from_intent": currentIntent != nil, "frame_mode": FrameMode.current == .snap ? "snap" : "stream",
+             "plan_cached": agent.cachedPlan != nil]) { $1 }.merging(BoardStatus.analytics(board.status)) { $1 })
         startVideo()
         FrameMode.fallback = nil  // each run starts in the chosen mode
         // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
@@ -201,6 +212,8 @@ extension AppModel {
             let frameBoundary = StartupFrameBoundary(requestedAt: requestedAt)
             step = .leaveApp
             var openedAtStart: String?
+            // No clipboard carry (Henry 2026-11-20): cmd+v into another app asks "Allow Paste" first, so typing stays
+            // the way; carryClipboard and the paste path stay for later.
             if !resume || agent.guides.isEmpty { AppGuides.shared.prefetch() }  // answered while the app opens and the first frame comes
             if let schemeApp, await openByScheme(schemeApp) {
                 openedAtStart = schemeApp
@@ -260,7 +273,7 @@ extension AppModel {
                 usedInput = false
             }
             let kind = StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board.connected,
-                                           usb: board.status?.usb, mirroring: board.status?.ap == "streaming",
+                                           status: board.status, mirroring: board.status?.ap == "streaming",
                                            inFront: !appIsBackgrounded)
             var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
             end.step = step.rawValue
@@ -268,7 +281,7 @@ extension AppModel {
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
                 "seconds": Int(now() - t0), "from_intent": currentIntent != nil, "stage": step.rawValue, "error": kind
-            ]) { $1 })
+            ]) { $1 }.merging(runHealthProps) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
             traces.write(feed.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
@@ -398,8 +411,8 @@ extension AppModel {
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
         RunMarker.clear()
-        Trial.shared.end(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
-                                firmware: board.status?.fw?.plain))  // free line
+        let plan = endLine(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
+                                  firmware: board.status?.fw?.plain))  // free line (held while the plan is judged)
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
@@ -414,7 +427,9 @@ extension AppModel {
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil,
                                                                "cached_steps": agent.cachedSteps,
-                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 })
+                                                               "plan_cached": agent.usedCachedPlan, "plan_kept": plan.step.telemetry,
+                                                               "steered": agent.steps.filter { $0["action"]?.str == "steer" }.count]) { $1 }
+                                    .merging(runHealthProps) { $1 })
         Analytics.flush()
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
@@ -434,7 +449,7 @@ extension AppModel {
         if let intent = currentIntent {
             intents.record(intent.id, RunStat(run: runID, ok: outcome == .done, seconds: seconds))
             learnIntent(intent, run: runID, steps: agent.steps, done: outcome == .done, failed: outcome == .failed,
-                        missed: agent.replay.missed)
+                        missed: agent.replay.missed, plan: plan)
         }
         threads.append(ChatTurn(ask: agent.task, run: runID, outcome: last?["action"]?.str ?? "stopped",
                                 answer: last?["answer"]?.str ?? last?["reason"]?.str ?? "",
@@ -477,8 +492,16 @@ extension AppModel {
         // The same run's review is up with the same steps: keep it. A new draft (a new id) makes the cover close and
         // present again, and a second open while the first is still animating in can leave it closed (2026-11-13:
         // the review of a stopped run showed for ~1 s, then Home).
-        if let open = review, open.runID == id, open.steps.count == run.steps.count { return }
-        review = ReviewDraft(run: run, intent: intents.intent(of: run))
+        if let open = review, reviewShown, open.runID == id, open.steps.count == run.steps.count { return }
+        let draft = ReviewDraft(run: run, intent: intents.intent(of: run))
+        guard review != nil, !reviewShown else { review = draft; return }
+        // set with no cover up (set in the background): cleared first, so the cover presents again
+        DebugLog.write("review: a review was set with no cover up; opening \(id) again")
+        review = nil
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            self?.review = draft
+        }
     }
 
     /// The model rewrites the prompt and checklist from the trace and the user's corrections.
@@ -512,7 +535,7 @@ extension AppModel {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
         runMood = confirm ? .listening : .failure
         let worded = [TouchCheck.reason: TouchCheck.advice, NoProgress.reason: NoProgress.advice]
-        let shown = worded[reason] ?? help ?? ""  // the panel words it from the reason
+        let shown = worded[reason] ?? agent.helpMessage ?? help ?? ""  // the panel words it from the reason
         let line = confirm ? String(localized: "OK to do this? \(shown)") : String(localized: "Needs your help: \(shown)")
         live.update(mood: runMood ?? .failure, step: moveCount, line: line, phase: .help, status: confirm ? .confirm : .help)
         if confirm {

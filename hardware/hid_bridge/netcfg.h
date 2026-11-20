@@ -14,6 +14,9 @@ int net_peers();                         // stations on our SoftAP, or 1 when co
 bool net_up();                           // has an IP address
 bool net_coex(const String &pref);       // Wi-Fi/BLE radio share: "bt" | "balance" (boot default) | "wifi"
 const char *net_coex_mode();
+// For the `diag` lines: the Wi-Fi channel, and the phone's signal (dBm): the first station on the hotspot, or the
+// network's AP in station mode. 0 when unknown.
+void net_radio(int *channel, int *rssi);
 // LAN lock (src/net/lan_lock.h): the owner's IPv4 (network order, 0 = none), kept in NVS for this station network
 // and forgotten when the network changes. True if it changed.
 bool net_set_owner(uint32_t ip);

@@ -5,9 +5,11 @@ struct ModelSelectionView: View {
     @Binding var selection: String
     let allowsDefault: Bool
     var onChoose: ((String) -> Void)? = nil
+    var forPlanner = false
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var customID = ""
+    @State private var customOpen = false
 
     static let routers: Set<String> = ["openrouter/free", "openrouter/auto"]
 
@@ -39,7 +41,7 @@ struct ModelSelectionView: View {
                 if allowsDefault && search.isEmpty {
                     Button("Use Default") { choose("") }
                 }
-                DisclosureGroup("Custom model") {
+                DisclosureGroup("Custom model", isExpanded: $customOpen) {
                     TextField("Model ID", text: $customID)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     Button("Use Model ID") { choose(customID.trimmingCharacters(in: .whitespacesAndNewlines)) }
@@ -47,7 +49,7 @@ struct ModelSelectionView: View {
                 }
                 if !tested.isEmpty {
                     Section("Tested") {
-                        ForEach(tested, id: \.id) { row($0.id, recommended: $0.recommended) }
+                        ForEach(tested, id: \.id) { row($0.id, recommended: forPlanner ? $0.forPlanner : $0.recommended) }
                     }
                 }
                 if settings.provider == .openRouter {
@@ -84,9 +86,9 @@ struct ModelSelectionView: View {
                     .disabled(settings.loadingModels || !settings.isConfigured)
                 }
             }
-            .task {
-                if settings.models.isEmpty && !settings.loadingModels { await settings.loadModels() }
-            }
+            .task { await settings.loadModelsIfNeeded() }
+            // no list (failed or empty): the ID field is open, so the model can still be entered (#172)
+            .onChange(of: settings.modelsError, initial: true) { _, error in if error != nil { customOpen = true } }
         }
     }
 

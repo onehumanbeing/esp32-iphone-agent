@@ -34,6 +34,39 @@ import XCTest
         XCTAssertThrowsError(try trial.headers())
     }
 
+    // MARK: - A lease left by a process killed mid-run (2026-11-20: an app install; the next start read "busy")
+
+    func testALeaseLeftByThePreviousProcessIsReleasedAtLaunch() async {
+        let trial = Trial.shared
+        defer { Trial.leftover = nil }
+        Trial.leftover = Trial.Leftover(lease: "7fa6045a-lease", leaseToken: "lt")
+        var sent: [Trial.Leftover] = []
+        await trial.releaseLeftover { sent.append($0); return URLError(.notConnectedToInternet) }
+        XCTAssertEqual(sent.map(\.lease), ["7fa6045a-lease"])
+        XCTAssertNotNil(Trial.leftover)  // never reached the gateway: kept for the next try
+        await trial.releaseLeftover { sent.append($0); return nil }
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertNil(Trial.leftover)
+        await trial.releaseLeftover { sent.append($0); return nil }
+        XCTAssertEqual(sent.count, 2)  // nothing left: nothing sent
+        Trial.leftover = Trial.Leftover(lease: "x", leaseToken: "lt")
+        await trial.releaseLeftover { _ in TrialError.refused(status: 404, reason: "lease_not_found") }
+        XCTAssertNil(Trial.leftover)  // a refusal is final
+        XCTAssertEqual(RunEnd(reason: .appRestart, stage: .running).json["reason"] as? String, "app_restart")
+    }
+
+    func testTheHeldRunIsOnRecordUntilItIsReleased() async throws {
+        let trial = Trial.shared
+        Trial.leftover = nil
+        trial.setKey("hsk_test_abc")
+        defer { trial.setKey(""); Trial.leftover = nil }
+        try await trial.begin()
+        XCTAssertNotNil(Trial.leftover?.keyRun)
+        XCTAssertEqual(Trial.leftover?.keyRun, trial.runID)
+        trial.end(RunEnd(reason: .userStop, stage: .running))
+        XCTAssertNil(Trial.leftover)
+    }
+
     func testARefusedKeyKeepsItsOwnTextAndIsFinal() {
         let invalid = LLMClient.freeLineError(status: 401, errorText: #"{"status": "refused", "reason": "key_invalid"}"#)
         XCTAssertEqual(invalid?.message, TrialError.keyRefused.localizedDescription)
@@ -108,8 +141,8 @@ import XCTest
     /// 2026-11-13: a failed start says where and why in fixed words, never the error's own text.
     func testStartupFailureKinds() {
         func kind(_ error: Error, cancelled: Bool = false, step: StartupFailure.Step = .stream, board: Bool = true,
-                  usb: String? = "on", mirroring: Bool = true, inFront: Bool = false) -> String {
-            StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board, usb: usb,
+                  status: BoardStatus = BoardStatus(usb: "ok"), mirroring: Bool = true, inFront: Bool = false) -> String {
+            StartupFailure.kind(error, cancelled: cancelled, step: step, boardConnected: board, status: status,
                                 mirroring: mirroring, inFront: inFront)
         }
         let secret = DeviceError(message: "secret task text")
@@ -118,7 +151,8 @@ import XCTest
         XCTAssertEqual(kind(TrialError.busy, step: .trialClaim), "busy")
         XCTAssertEqual(kind(TrialError.usedUp, step: .trialClaim), "trial_refused")
         XCTAssertEqual(kind(secret, board: false), "board_lost")
-        XCTAssertEqual(kind(secret, usb: "off"), "usb_off")
+        XCTAssertEqual(kind(secret, status: BoardStatus(usb: "off")), "usb_off")
+        XCTAssertEqual(kind(secret, status: BoardStatus(usb: "off", hid: "ok"), mirroring: false), "mirroring_off")
         XCTAssertEqual(kind(secret, mirroring: false), "mirroring_off")
         XCTAssertEqual(kind(secret, step: .leaveApp, inFront: true), "on_screen")
         XCTAssertEqual(kind(DeviceError(message: "timeout")), "timeout")
@@ -242,6 +276,18 @@ import XCTest
         XCTAssertTrue(LLMClient.trialUsedUp(#"{"status": "busy", "reason": "quota"}"#))
         XCTAssertFalse(LLMClient.trialUsedUp(#"{"status": "busy", "reason": "queue_full"}"#))
         XCTAssertFalse(LLMClient.trialUsedUp("daily quota"))
+    }
+
+    func testAContentFilterRefusalSaysWhyOnEveryLine() {
+        for body in [#"{"error": {"code": "sensitive_words_detected", "message": "..."}}"#,
+                     #"{"error": {"code": "data_inspection_failed"}}"#, "finish_reason content_filter"] {
+            XCTAssertTrue(LLMError.contentFiltered(body), body)
+        }
+        XCTAssertFalse(LLMError.contentFiltered(#"{"status": "busy", "reason": "all_slots_in_use"}"#))
+        let free = LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "content_filtered"}"#)
+        XCTAssertEqual(free?.message, LLMError.contentRefused, "not read as busy: Continue on the same page would fail again")
+        XCTAssertEqual(free?.kind, "content_filter")
+        XCTAssertTrue(LLMError.serverFailed("api.example.com", 500, "boom").contains("api.example.com"))
     }
 
     func testLineSideFailuresReadAsBusy() {

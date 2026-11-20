@@ -109,6 +109,48 @@ enum LoopGuard {
         + "getting closer to the goal. Choose a different way, or ask for help."
 }
 
+/// Back and forth on a screen that changes each time: LoopGuard needs the screen to come back as it was, so two
+/// taps that each reload a list (a sort and a search tab, 2026-11-17: about 150 taps in one run) were never held.
+/// Here the screen is not looked at: the same two taps in turn for `cycles` rounds (the new one included) are held
+/// once, and when the model goes on and the pair is held again, the run asks the user. A bulk delete that taps
+/// the same two spots on each row is held once too; its second answer stands until the next `cycles` rounds.
+enum PingPongGuard {
+    static let cycles = 4  // A, B four times each: 8 taps
+
+    /// The new tap when it would make the `cycles`-th round of the same two taps (or a tap and back) since the
+    /// last hold of this guard.
+    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+        guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }) else { return nil }
+        let since = steps.lastIndex(where: held).map { $0 + 1 } ?? 0
+        return alternating(sent(steps[since...]).suffix(2 * cycles - 1) + [new]) ? new : nil
+    }
+
+    /// The pair was held before and the taps went on in turn ever since: asking the model again won't help.
+    static func again(_ steps: [JObject], _ acts: [JObject]) -> Bool {
+        guard let at = steps.lastIndex(where: held), let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") })
+        else { return false }
+        return alternating(sent(steps[..<at]).suffix(2 * cycles - 1) + sent(steps[(at + 1)...]) + [new])
+    }
+
+    private static func held(_ step: JObject) -> Bool { step["action"]?.str == RepeatGuard.action && step["reason"]?.str == reason }
+    private static func sent(_ steps: ArraySlice<JObject>) -> [JObject] {
+        steps.filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }
+    }
+
+    /// At least `cycles` rounds of two different taps in turn.
+    private static func alternating(_ run: [JObject]) -> Bool {
+        func same(_ p: JObject, _ q: JObject) -> Bool { NoProgress.same([p], [q]) }
+        guard run.count >= 2 * cycles, run.allSatisfy(pair), !same(run[0], run[1]) else { return false }
+        return run.indices.allSatisfy { same(run[$0], run[$0 % 2]) }
+    }
+
+    private static func pair(_ act: JObject) -> Bool { ["tap", "back"].contains(act["action"]?.str ?? "") }
+
+    static let reason = "Not done: you have tapped the same two places in turn \(cycles) times. The screen changes, "
+        + "but you are not getting closer to the goal. Choose a different way (another element, scroll, back), or ask for help."
+    static let stuck = "stuck: tapped the same two places back and forth again after being told"
+}
+
 /// A swipe on the Home Screen pages through apps or pulls down Search: `open` starts any app from there. Held
 /// back once; a swipe from a screen edge (Control Center, Notification Center) is not.
 /// Swipe after swipe with nothing read, noted or tapped in between: what is looked for may be above, or the page
@@ -174,25 +216,26 @@ enum DoneGuard {
 
     static let reason = "Not done yet: nothing this run did has changed the screen, so what it shows was already "
         + "there when the run started (an earlier run counts for nothing here). Do the goal now; give done only if "
-        + "this screen itself answers it."
+        + "this screen itself answers it. When the goal is a question this screen or your answer already settles, "
+        + "give the same done again: a second done is taken."
 }
 
-/// A send right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters, not the
-/// words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left.
+/// A send (key enter) right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters,
+/// not the words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left. A tap
+/// is never held (2026-11-20: Amap's suggestion list already showed the place, the tap on it that listedHint asks
+/// for was held, and the run spiralled into StuckGuard for ~2 min).
 enum TypedGuard {
     static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
         guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
               let last = steps.last(where: { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }),
               last["action"]?.str == "type", last["typed"]?.str?.isEmpty == false,
               (last["text"]?.str ?? "").unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) else { return nil }
-        let name = new["action"]?.str
-        guard name == "tap" || (name == "key" && new["combo"]?.str?.lowercased() == "enter") else { return nil }
-        return new
+        return Actions.isEnter(new) ? new : nil
     }
 
     static func reason(_ left: String) -> String {
         "Not done: the last type stopped part way (\(left)), so the field may hold letters instead of the words. "
-            + "Check the field; clear it and type again if it is wrong, before sending."
+            + SendGuard.listedHint + "Else check the field; if it is wrong, \(SendGuard.clearHint) and type again, before sending."
     }
 }
 
@@ -240,6 +283,13 @@ extension AgentLoop {
         } else if LoopGuard.repeated(acts.map(\.act), after: steps, sameScreen: sameShots) != nil {
             DebugLog.write("loop guard: back and forth between two moves; asking once more")
             reason = LoopGuard.reason
+        } else if PingPongGuard.repeated(acts.map(\.act), after: steps) != nil {
+            if PingPongGuard.again(steps, acts.map(\.act)) {
+                DebugLog.write("ping-pong guard: the same two taps again after a hold; asking for help")
+                return [Planned(act: ["action": .str("fail"), "reason": .str(PingPongGuard.stuck)], shot: acts[0].shot)]
+            }
+            DebugLog.write("ping-pong guard: the same two taps in turn \(PingPongGuard.cycles) times; asking once more")
+            reason = PingPongGuard.reason
         } else if ScrollGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("scroll guard: \(ScrollGuard.after) scrolls in a row with nothing read or tapped; asking once more")
             reason = ScrollGuard.reason

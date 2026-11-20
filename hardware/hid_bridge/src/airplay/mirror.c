@@ -64,6 +64,9 @@ static struct {
   volatile float volume;
 } a;
 
+static volatile uint32_t data_conns;  // airplay_data_conns()
+uint32_t airplay_data_conns(void) { return data_conns; }
+
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 static uint32_t le32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 
@@ -349,6 +352,7 @@ static void mirror_task(void *arg) {
       m.got_codec = false;
       m.logged_no_video = false;
       m.accepted_us = m.sfd >= 0 ? esp_timer_get_time() : 0;
+      if (m.sfd >= 0) data_conns++;
       ap_log("mirror: data connection %s", m.sfd >= 0 ? "accepted" : "failed");
       continue;
     }

@@ -138,6 +138,12 @@ import UIKit
 
     /// The board is an absolute mouse (flash.sh --abs): X/Y are screen fractions, so no homing, calibration or aiming.
     @Published var absolute = false
+    /// A Bluetooth HID board: iOS ignores its Home key, so Home is the swipe up from the home bar.
+    var swipeHome = false
+    /// iPad with a Bluetooth HID board: how many reports `home` pushes up (HomeTuning), nil for the board's own.
+    var homeUp: (() -> Int?)?
+    /// Above the tracked position when going up the measured way (homeFromKnown): covers drift, a short push only.
+    static let topMarginShare = 0.04
     static let absoluteSpan = Span(w: Int(32767), h: Int(32767))
     /// Per report for a flick (home, back): ~0.1 s for the whole stroke. The board's default glide is for lists.
     static let flickStep = 2000
@@ -267,11 +273,12 @@ import UIKit
         return geometry.contains(framePoint: p) ? geometry.screenPoint(fromFrame: p) : nil
     }
 
-    /// x, y: where the pointer ended up after startCalibration() (one point, picked by the user).
-    func finishCalibration(x: Double, y: Double) {
+    /// x, y: where the pointer ended up `move` units from home (one point, picked by the user). Assumes home is at
+    /// (0, 0); the manual calibration fits the offset too when the board's own check click arrives.
+    func finishCalibration(x: Double, y: Double, move: Int = Pointer.calibrationMove) {
         (quality, aspect, pace, origin, gain) = (nil, screenAspect(), boardPace ?? pace, .zero, [])
         geometry = currentGeometry()
-        guard let s = Span(w: Double(Self.calibrationMove) / x, h: Double(Self.calibrationMove) / y) else {
+        guard let s = Span(w: Double(move) / x, h: Double(move) / y) else {
             log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
             return
         }
@@ -621,8 +628,21 @@ import UIKit
     func forgetPosition() { pos = nil }
 
     /// Slam the pointer into the top-left corner from `at` (nil: unknown). iPad: step off the top edge first when it
-    /// may rest there, or iPadOS opens Notification Center. Callers track `pos`.
-    private func home(from at: (Int, Int)?) async throws {
+    /// may rest there, or iPadOS opens Notification Center. Callers track `pos`. `measured`: with a known position, a
+    /// Bluetooth iPad may go up the measured way instead (calibration probes need the real corner: false).
+    private func home(from at: (Int, Int)?, measured: Bool = true) async throws {
+        if Self.iPadPointer, let up = homeUp?() {
+            // Bluetooth on iPad: a long push up at the top edge opens Notification Center (HomeTuning). Known
+            // position: left edge only, then up the measured way plus a margin, which pushes only briefly.
+            if measured, let at, let span, at.1 >= 0 {
+                try await device.send("home \(HomeTuning.gap) 0")
+                try await travel(0, -(at.1 + max(12, Int(Double(span.h) * Self.topMarginShare))))
+                return
+            }
+            if (at?.1 ?? 0) < Self.offTopEdge { try await device.send("move 0 \(Self.offTopEdge)") }
+            try await device.send("home \(HomeTuning.gap) \(up)")
+            return
+        }
         if Self.iPadPointer && (at?.1 ?? 0) < Self.offTopEdge {
             try await device.send("move 0 \(Self.offTopEdge)")
         }
@@ -654,7 +674,7 @@ import UIKit
         }
         let at = pos
         pos = nil
-        try await home(from: at)
+        try await home(from: at, measured: false)
         try await travel(ux, uy, paced: false)
         if let then {
             // one axis per move here too (the speed probes go along x on iPad: AutoCalibrator.calibrateSpeeds)
@@ -674,12 +694,12 @@ import UIKit
         (pos, moves) = ((0, 0), 0)
     }
 
-    /// Manual calibration: from home to (calibrationMove, calibrationMove), where the user then taps the pointer.
-    func parkForManualCalibration() async throws {
+    /// Manual calibration: from home to (move, move), where the user then taps the pointer.
+    func parkForManualCalibration(move: Int = Pointer.calibrationMove) async throws {
         try await reset()
-        guard Self.iPadPointer else { return _ = try await device.send("move \(Self.calibrationMove) \(Self.calibrationMove)") }
+        guard Self.iPadPointer else { return _ = try await device.send("move \(move) \(move)") }
         pos = nil
-        try await travel(Self.calibrationMove, Self.calibrationMove, paced: false)
+        try await travel(move, move, paced: false)
     }
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
@@ -878,5 +898,43 @@ import UIKit
     private func dy(_ y: Double) -> Int {
         if absolute { return Int((min(max(y, 0), 1) * Double(Self.absoluteSpan.h)).rounded(.toNearestOrEven)) }
         return Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven))
+    }
+}
+
+/// iPad with a Bluetooth HID board: how many reports `home` pushes up, learned per model and orientation.
+/// BLE takes a report about every 14 ms, so the pushes add up: too many and the pointer keeps pushing at the top
+/// edge until iPadOS opens Notification Center (with an app in front); too few and it stops short of the top, and
+/// every move measured from home is off. iPad Air M3, landscape, 2026-11-20: 5 reach the top from the bottom edge,
+/// 18 did not open it, 25 did. Other models, orientations and pointer speeds move both limits, so calibration
+/// adjusts it (AutoCalibrator): fewer after the panel came down, more when the probe fit puts home below the top.
+enum HomeTuning {
+    static let gap = 4                    // ms between reports; the link sets the real pace
+    static let start = 10, least = 4, most = 30, step = 3
+    static let shortOffset = 0.015        // the fit's y at 0 units: home this far below the top fell short
+
+    enum Miss: Error, Equatable {
+        case panel                        // the app left the front during homing: a system panel came down
+        case short(Double)                // the probe fit's home point, this far below the top
+    }
+
+    static func key(landscape: Bool, model: String = DeviceInfo.model) -> String {
+        "homeUp.\(model).\(landscape ? "landscape" : "portrait")"
+    }
+
+    static func value(landscape: Bool, defaults: UserDefaults = .standard) -> Int {
+        let n = defaults.integer(forKey: key(landscape: landscape))
+        return n == 0 ? start : min(max(n, least), most)
+    }
+
+    /// The count to try after a miss; nil when it is already at its bound that way.
+    static func next(after miss: Miss, from n: Int) -> Int? {
+        switch miss {
+        case .panel: return n > least ? max(least, n - max(step, n / 3)) : nil  // 25 -> 17 -> 12: quickly into the safe range
+        case .short: return n < most ? min(most, n + max(step, n / 3)) : nil
+        }
+    }
+
+    static func store(_ n: Int, landscape: Bool, defaults: UserDefaults = .standard) {
+        defaults.set(n, forKey: key(landscape: landscape))
     }
 }

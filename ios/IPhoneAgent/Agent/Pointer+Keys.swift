@@ -11,12 +11,20 @@ extension Pointer {
     /// Returns nil when all went in, else a note for the model (what did not, and what is left).
     @discardableResult
     func type(_ text: String) async throws -> String? {
-        if Scripts.needsPaste(text) { return "nothing typed: the board cannot type this script; \"\(text)\" is left" }
+        try await typeStop(text)?.note
+    }
+
+    /// `type`, with what is left to paste when the pinyin keyboard could not give a word (HanTyper.Stop.rest).
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? {
+        if Scripts.needsPaste(text) { return .init(note: "nothing typed: the board cannot type this script; \"\(text)\" is left") }
         let han = HanTyper.isHan(text)
         let typed = han ? Self.typeable(text) : Accents.plan(text).typed
         if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
         guard !typed.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII and accented Latin letters)") }
-        let layout = try await matchKeyboard(pinyin: han)
+        // Chinese: HanTyper tells the keyboard from the field after the first word's space. The on-screen keyboard
+        // is hidden with the board as a hardware keyboard: it read "English" every time, and ctrl+space on the
+        // pinyin keyboard switched it to English (2026-11-20, 5–6 s lost per type)
+        let layout = han ? .none : try await matchKeyboard(pinyin: false)
         let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
                              toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
@@ -25,9 +33,9 @@ extension Pointer {
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
-        let note = try await typer.type(text, checkLetters: han || layout == .none)
-        if let note { log("type: \(note)") }
-        return note
+        let stop = try await typer.attempt(text, checkLetters: han || layout == .none)
+        if let stop { log("type: \(stop.note)") }
+        return stop
     }
 
     /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
@@ -101,18 +109,27 @@ extension Pointer {
         await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
     }
 
-    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
+    /// "卫生纸 3卷" → "weishengzhi 3juan", "西岸" → "xi'an": Han characters to joined pinyin, accents folded, the rest dropped.
     /// `trim` false keeps spaces at the ends (a piece of a longer text).
     nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
+        var prevHan = false
         for ch in text {
             let s = String(ch)
             let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
             let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
                 .applyingTransform(.stripDiacritics, reverse: false) ?? s
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
-            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
+            if isHan {
+                let syllable = kept.replacingOccurrences(of: " ", with: "")
+                // xi'an, not xian: a syllable starting with a vowel after another Han syllable gets the pinyin
+                // keyboard's separator, else 西岸 reads as xian (先, 现) and the word is never among the candidates
+                // (2026-11-20, 上海西岸艺术中心 stopped at 西 in every run)
+                if prevHan, let first = syllable.first, "aeo".contains(first) { out += "'" }
+                out += syllable
+            } else { out += kept }
+            prevHan = isHan
         }
         return trim ? out.trimmingCharacters(in: .whitespaces) : out
     }
@@ -133,13 +150,14 @@ extension Pointer {
     /// (2026-11-11: it waited for a 0.3 s still screen after at least 0.6 s, up to 2 s; with an app that kept moving
     /// that was 2.2 s before the flick). Leaving an app shows as a big change in the first frames already.
     func homeKey() async throws {
-        if absolute { return try await homeSwipe() }
+        if absolute || swipeHome { return try await homeSwipe() }
         if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
     }
 
     func goHome(again: Bool = false) async throws {
         // An absolute mouse (#99): iOS ignored AC Home there, and an animated screen (Weather) looked like it worked.
-        if absolute { return try await homeSwipe() }
+        // A Bluetooth HID board: iOS ignores AC Home over Bluetooth too (2026-11-19).
+        if absolute || swipeHome { return try await homeSwipe() }
         let before = screen?.live == true ? screen?.frame : nil
         let sent = now()
         do {

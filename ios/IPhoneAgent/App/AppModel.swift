@@ -52,10 +52,16 @@ import UIKit
     @Published var aiConsentRun: String?
     /// The review editor on screen (after a run, a recording, or editing an intent).
     @Published var review: ReviewDraft?
+    /// The review cover is on screen. `review` set while the app was in the background (a run ending in another app)
+    /// can stay set with no cover up, and then no run opened (2026-11-20).
+    var reviewShown = false
     /// Paused for the user: why (nil = not paused), and whether they are doing it by hand right now.
     @Published var help: String?
     @Published var recovering: Recovery.Stage?  // the run is paused for a lost link (board, hotspot, mirroring)
     var recoverySince = Date()
+    var mirrorHint = MirrorHint()
+    var videoHealth = VideoHealth()  // this run's frozen video and mirroring asks, for run_ended
+    @Published var mirrorHintShown = false  // Home: restart mirroring after a long Bluetooth-mode session
     @Published var takingOver = false
     @Published var paused = false  // Pause on the Dynamic Island: the run holds before its next look
     @Published var startingAgent = false
@@ -167,6 +173,11 @@ import UIKit
         board.log = say
         board.commands.log = say
         pointer.log = say
+        // iPad over Bluetooth: how far home pushes up, as calibration has tuned it for this model and orientation
+        pointer.homeUp = { [weak self] in
+            guard let self, DeviceKind.isPad, self.board.status?.isWirelessHID == true else { return nil }
+            return HomeTuning.value(landscape: DeviceScreen.size.width > DeviceScreen.size.height)
+        }
         pointer.screenAspect = { DeviceScreen.aspect }
         pointer.currentGeometry = { [weak self] in self?.feed.geometry }  // nil on iPhone
         if DeviceKind.isPad {  // turned: the orientation's own calibration, if it has one
@@ -238,8 +249,10 @@ import UIKit
             let started = s.ap == "streaming" && self?.feed.mirroring == false
             self?.feed.mirroring = s.ap == "streaming"
             self?.pointer.absolute = s.abs == 1
+            self?.pointer.swipeHome = s.isWirelessHID
             let frozen = s.fz == 1
             if frozen != self?.feed.frozen {
+                if frozen, self?.agent.running == true { self?.videoHealth.frozen += 1 }
                 DebugLog.write(frozen ? "video: the board's GOP is full (overflows \(s.ovf ?? 0)); frozen until a keyframe"
                                       : "video: unfrozen (new keyframe)")
             }
@@ -252,9 +265,11 @@ import UIKit
             #endif
             if let up = s.up { self?.feed.boardClock(ms: up) }
             self?.metrics.status(s)
+            self?.updateMirrorHint(s)
             self?.logStatus(s)
             self?.matchMirrorDisplay(s)
-            self?.refreshLinkRecoveryDisplay()
+            if s.inputState == nil || s.needsWirelessPointer || s.needsUSBHost { self?.beginLinkRecoveryDisplay() }
+            else { self?.refreshLinkRecoveryDisplay() }
         }
         board.onLinkUp = { [weak self] in
             guard let self else { return }
@@ -276,6 +291,7 @@ import UIKit
         board.onLinkDown = { [weak self] in
             self?.pointer.boardPace = nil; self?.pointer.flickInOne = nil
             self?.pointer.absolute = false  // the board may come back with other firmware
+            self?.pointer.swipeHome = false
             self?.wifiVideo.stop()  // the board stops streaming without BLE
             self?.feed.linkLost()
             self?.startupBoardUnavailable(disconnected: true)
@@ -316,6 +332,7 @@ import UIKit
         agent.memory = MemoryStore.shared
         agent.onWrite = { [weak self] text in try await self?.putOnClipboard(text) ?? false }
         pointer.clipboard = agent.onWrite
+        agent.clipboardCount = { UIPasteboard.general.changeCount }
         AgentControl.handle = { [weak self] command in await self?.control(command) }
         live.standbyPicks = { [weak self] in self?.standbyPicks }
         AgentControl.verdict = { [weak self] run, correct in self?.runVerdict(run, correct: correct) }
@@ -406,6 +423,10 @@ import UIKit
             LocalNetworkPermission.askIfNeeded()
         }
         if metrics.suspensions > before { DebugLog.write(String(format: "app: resumed after %.0f s suspended", gap)) }
+        if let line = feed.diag.tick(at: now(), active: agent.running, hid: board.status?.hidTransport ?? "-",
+                                     via: wifiVideo.active ? "wifi" : "ble", frozen: feed.frozen) {
+            DebugLog.write(line)
+        }
         if agent.running, now() - lastStreamLog >= 10 {
             lastStreamLog = now()
             let s = board.status
@@ -481,7 +502,7 @@ import UIKit
     /// The run paused for the board (line) or goes on (nil).
     /// Board status changes go to the debug log (not every identical notify).
     private func logStatus(_ s: BoardStatus) {
-        let line = "board status: ap \(s.ap ?? "-") usb \(s.usb ?? "-") sta \(s.sta.map(String.init) ?? "-")"
+        let line = "board status: ap \(s.ap ?? "-")\(s.ap == "other" ? " (\(s.src ?? "?"))" : "") input \(s.inputState ?? "-") sta \(s.sta.map(String.init) ?? "-")"
             + " screen \(s.w.map(String.init) ?? "-")x\(s.h.map(String.init) ?? "-") rst \(s.rst ?? "-")"
         guard line != lastStatus else { return }
         let wasOnBoardWiFi = lastStatus.contains(" sta ") && !lastStatus.contains(" sta 0") && !lastStatus.contains(" sta -")

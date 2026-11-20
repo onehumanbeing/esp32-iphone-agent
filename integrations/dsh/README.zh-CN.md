@@ -17,9 +17,9 @@
 
 ## 快速上手
 
-1. **准备板子。** Seeed Studio XIAO ESP32S3（标准版，8 MB 闪存 / 8 MB PSRAM），接好天线；再准备一根短的 USB-C 数据线（Lightning 接口的 iPhone 需要 Lightning 转 USB 相机转换器）。见[硬件购买指南](https://manina.ai/zh/docs/hardware)。
+1. **准备板子。** Seeed Studio XIAO ESP32S3（标准版，8 MB 闪存 / 8 MB PSRAM），接好天线；再准备一根短的 USB-C 数据线（Lightning 接口的 iPhone XS 到 14 用蓝牙模式：板子接任意 USB 电源，不用连手机）。见[硬件购买指南](https://manina.ai/zh/docs/hardware)。
 2. **在浏览器里烧录固件**（Chrome 或 Edge，板子用 USB 连电脑）：[manina.ai/zh/install?build=testflight](https://manina.ai/zh/install?build=testflight)。需要固件 v0.2.3 或更新版本（v0.2.2 只能走蓝牙）。
-3. **配对电脑**：把板子插到 iPhone 上，三分钟内运行（电脑需要 Node.js 18+ 和 `ffmpeg`）：
+3. **配对电脑**：板子通电（USB 模式：插到 iPhone 上）后三分钟内运行（电脑需要 Node.js 18+ 和 `ffmpeg`）。蓝牙模式下，在同一个三分钟内在 iPhone 上配对板子（设置 → 辅助功能 → 触控 → 辅助触控 → 设备 → 蓝牙设备）：
 
    ```sh
    npx -y esp32agent pair

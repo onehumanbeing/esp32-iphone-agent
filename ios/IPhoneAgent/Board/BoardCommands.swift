@@ -77,6 +77,9 @@ extension BoardTransport {
         last = now(); beat = last  // fresh link: nothing to keep awake yet
     }
 
+    // Invalidate in-flight frames and relative coordinates when only the system pointer drops.
+    func inputLinkLost() { links += 1 }
+
     /// The link dropped: fail everything in flight.
     func linkDown() {
         let waiting = pending

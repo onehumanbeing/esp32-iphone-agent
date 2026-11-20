@@ -100,7 +100,7 @@ extension AgentLoop {
             let (lines, added, seconds) = try await readScreen(act["what"]?.str ?? "")
             act["think_s"] = .num(seconds)
             act["reason"] = .str("read \(lines) line\(lines == 1 ? "" : "s"), \(added) new; \(notebook.items.count) in the notebook"
-                                 + (readPastStart ? "; this screen's items are all before the goal's dates. " + Collect.listDone : ""))
+                                 + (readPastStart ? "; this screen's items are all before the goal's dates. " + listDone() : ""))
         case "note":
             let text = act["text"]?.str ?? ""
             if notebook.noted(text) {  // the same note again (2026-11-18: an order noted twice in notes.md)
@@ -166,6 +166,7 @@ extension AgentLoop {
             if let path = RunOutputs.written(result.hasPrefix("ok: ") ? String(result.dropFirst(4)) : "") {
                 liveNotes.wrote(path, files: files)
                 viewedSinceWrite = []; resultWritten = true
+                if path == autoResult?.path { autoResult = nil }  // the actor changed the app's result: it is the actor's now
             }
         case "snap":
             // with RECORD the reader keeps each item's screen beside its note: a snap only repeats it (2026-11-18:
@@ -199,11 +200,12 @@ extension AgentLoop {
     /// way `write` does it. The hop leaves the target app; when this run knows which app that is, it opens it again,
     /// keys cmd+v and reads the text back (nil: pasted and seen). Otherwise, or when the text is not seen, the actor
     /// is told to paste it itself, as before (2026-11-17: 5 runs stopped at a Japanese or Korean `type`).
+    /// A Chinese `type` never comes here (no hop mid-run: AgentLoop.pasteCarried).
     func pasteInstead(_ text: String) async throws -> String? {
         let not = "nothing typed: the board cannot type this script"
         guard let onWrite else { return "\(not), and the clipboard is not available here" }
         guard try await onWrite(text) else { return "\(not), and the text could not be put on the clipboard" }
-        let held = "\(not), so the text is on the clipboard instead: "
+        let held = "\(not), so \"\(text)\" is on the clipboard instead: "
         let paste = "tap the text field, then key cmd+v and check the result"
         guard let app = currentApp, let phone else { return held + "open the target app again, " + paste }
         guard try await phone.openApp(app) == .opened else { return held + "\(app) did not open again: open it, " + paste }
