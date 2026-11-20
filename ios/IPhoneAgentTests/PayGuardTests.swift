@@ -34,4 +34,13 @@ final class PayGuardTests: XCTestCase {
         XCTAssertTrue(PayGuard.asks(.money, mode: .payments, steps: later, label: "立即支付"), "a payment yes is for now")
         XCTAssertFalse(PayGuard.asks(.irreversible, mode: .risky, steps: later, label: "删除"), "one yes covers a bulk delete")
     }
+
+    /// A text tap counts by its words when the spot's label is something else or nothing (2026-11-20, 高德 清空).
+    func testTextTapCountsByItsWords() {
+        XCTAssertEqual(PayGuard.guarded([nil, "清空"])?.label, "清空")
+        XCTAssertEqual(PayGuard.guarded(["搜索历史", "清空"])?.kind, .irreversible)
+        XCTAssertEqual(PayGuard.guarded(["立即支付", "删除"])?.label, "立即支付", "the spot's label first")
+        XCTAssertNil(PayGuard.guarded(["搜索历史", nil]))
+        XCTAssertNil(PayGuard.guarded([nil, "搜索"]))
+    }
 }

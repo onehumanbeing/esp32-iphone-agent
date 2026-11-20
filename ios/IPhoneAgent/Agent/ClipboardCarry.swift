@@ -8,6 +8,11 @@ struct ClipboardCarry: Equatable {
     var text: String
     var changeCount: Int  // UIPasteboard.changeCount right after the write: any later write changes it
     var source: String  // "plan" or "prompt"
+    var expires = Date.distantFuture  // the write's expiry: an expired clipboard is empty, nothing to paste
+
+    /// How long the agent's clipboard writes last (local only, ClipboardHop): 10 min, longer than a run's typing
+    /// usually waits, short enough that the text does not linger on the phone after the run.
+    static let lifetime: TimeInterval = 600
 
     /// What to carry, in this order:
     /// 1. plan: the first Han `type` text of the intent's recorded steps, else of the cached plan
@@ -98,7 +103,8 @@ extension AgentLoop {
     /// pasted, the model is told to type the rest itself.
     func pasteCarried(_ text: String, stop: HanTyper.Stop) async throws -> (field: String, value: String)? {
         let why: String? = if let carried {
-            clipboardCount?() != carried.changeCount ? "clipboard changed" : carried.matches(text) ? nil : "different text"
+            clipboardCount?() != carried.changeCount ? "clipboard changed" : Date() >= carried.expires ? "clipboard expired"
+                : carried.matches(text) ? nil : "different text"
         } else { "no carried text" }
         if let why { DebugLog.write("clipboard: not pasting: \(why)"); return nil }
         guard let phone else { return nil }

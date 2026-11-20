@@ -46,17 +46,32 @@ enum PayGuard {
     static func reason(_ kind: Kind, _ label: String) -> String {
         kind == .money ? "tap “\(label)”: this pays or places an order" : "tap “\(label)”: this deletes or cannot be undone"
     }
+
+    /// The first label that pays or cannot be undone: the text under the tap's spot, then a text tap's own words,
+    /// which count even when no line is read there (2026-11-20, 高德: `tap "清空"` was placed by a fresh read of the
+    /// screen, the look's lines held no "清空" at that spot, and the search history was wiped unasked).
+    static func guarded(_ labels: [String?]) -> (kind: Kind, label: String)? {
+        for case let label? in labels {
+            let label = label.trimmingCharacters(in: .whitespaces)
+            if let found = Self.kind(label) { return (found, label) }
+        }
+        return nil
+    }
 }
 
 extension AgentLoop {
-    /// The label under the tap, from the background read of this screen when it is the one the model saw.
+    /// The label under the tap, from the background read of this screen when it is the one the model saw; for a
+    /// tap by words also those words.
     func payGuardReason(_ act: JObject, on shot: Data?) async -> String? {
-        guard act["action"]?.str == "tap", let x = act["x"]?.int, let y = act["y"]?.int, let shot else { return nil }
+        guard act["action"]?.str == "tap" else { return nil }
+        var under: String?
+        if let x = act["x"]?.int, let y = act["y"]?.int, let shot {
+            under = IntentLearner.label(at: x, y, in: await lookLines(for: shot))
+        }
         let mode = askMode ?? .current
-        let lines = await lookLines(for: shot)
-        guard let label = IntentLearner.label(at: x, y, in: lines), let kind = PayGuard.kind(label),
-              PayGuard.asks(kind, mode: mode, steps: steps, label: label) else { return nil }
-        DebugLog.write("pay guard: a tap on \"\(label)\" without confirm; asking the user")
-        return PayGuard.reason(kind, label)
+        guard let hit = PayGuard.guarded([under, act["text"]?.str]),
+              PayGuard.asks(hit.kind, mode: mode, steps: steps, label: hit.label) else { return nil }
+        DebugLog.write("pay guard: a tap on \"\(hit.label)\" without confirm; asking the user")
+        return PayGuard.reason(hit.kind, hit.label)
     }
 }

@@ -1,4 +1,5 @@
 import UIKit
+import UniformTypeIdentifiers
 
 /// The agent's `write` (and a Japanese/Korean `type`, AgentLoop.pasteInstead; a Chinese one uses ClipboardCarry):
 /// iOS ignores clipboard writes from a background app (Pointer.type), so the agent opens this
@@ -47,8 +48,19 @@ extension AppModel {
             DebugLog.write("clipboard: nothing to carry")
             return
         }
-        UIPasteboard.general.string = pick.text
-        agent.carried = ClipboardCarry(text: pick.text, changeCount: UIPasteboard.general.changeCount, source: pick.source)
+        let expires = Self.writeLocalClipboard(pick.text)
+        agent.carried = ClipboardCarry(text: pick.text, changeCount: UIPasteboard.general.changeCount, source: pick.source,
+                                       expires: expires)
         DebugLog.write(String(format: "clipboard: carried %d chars from %@ at start in %.0f ms", pick.text.count, pick.source, (now() - t0) * 1000))
+    }
+
+    /// The agent's clipboard writes stay on this iPhone and expire (ClipboardCarry.lifetime): Universal Clipboard
+    /// sent the carried text to the user's Mac, which played its paste sound (Henry 2026-11-20).
+    @discardableResult
+    static func writeLocalClipboard(_ text: String) -> Date {
+        let expires = Date().addingTimeInterval(ClipboardCarry.lifetime)
+        UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]],
+                                      options: [.localOnly: true, .expirationDate: expires])
+        return expires
     }
 }

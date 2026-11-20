@@ -90,4 +90,15 @@ import XCTest
         XCTAssertEqual(phone.calls, ["type"])
         XCTAssertTrue(result?.value.hasPrefix(SendGuard.listedHint) == true)
     }
+
+    /// The agent's clipboard write expires (local only, ClipboardCarry.lifetime): an expired one is not pasted.
+    func testNoPasteWhenTheCarriedTextExpired() async throws {
+        let phone = FakeGestures()
+        let agent = agent(phone)
+        agent.carried?.expires = Date().addingTimeInterval(-1)
+        stopped(phone)
+        let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
+        XCTAssertEqual(phone.calls, ["type"], "nothing pasted")
+        XCTAssertEqual(result?.field, "typed")
+    }
 }
