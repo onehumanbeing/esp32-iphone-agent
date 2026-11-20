@@ -70,7 +70,7 @@ extension BoardTransport {
     var boardStatus: () -> BoardStatus? = { nil }
     /// A StopWatch button, already mapped (StopWatchUI.action).
     var onButton: ((StopWatchUI.Action) -> Void)?
-    private var uiLast: StopWatchUI.Want?    // the newest screen state asked for, sent again after a reconnect
+    private var uiLast: StopWatchUI.Want? = .show(StopWatchUI.idle)  // the newest screen state, sent again after a reconnect
     private var uiWanted: StopWatchUI.Want?  // not on the board yet
     private var uiSent: String?
     private var uiTimes: [Double] = []
@@ -265,20 +265,22 @@ extension BoardTransport {
         startRefresh()
     }
 
-    /// The line on the board's screen once more, unchanged or with the new minute; finished runs and `off` are not
-    /// repeated (the screen goes back to idle by itself).
+    /// The line on the board's screen once more, unchanged or with the new minute: the board knows the app is there
+    /// (awake) while lines come. A finished run has had its 5 s on the screen by then: idle goes instead. `off` is
+    /// not repeated.
     func refreshUI() {
-        guard case .show(let state)? = uiLast, !state.finished else { return }
+        guard case .show(let state)? = uiLast else { return }
+        if state.finished { uiLast = .show(StopWatchUI.idle) }
         (uiSent, uiWanted) = (nil, uiLast)
         flushUI()
     }
 
     private func startRefresh() {
-        guard uiRefresh == nil, case .show(let state)? = uiLast, !state.finished else { return }
+        guard uiRefresh == nil, case .show? = uiLast else { return }
         uiRefresh = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
-                guard let self, case .show(let state)? = self.uiLast, !state.finished else { break }
+                guard let self, case .show? = self.uiLast else { break }
                 self.refreshUI()
             }
             self?.uiRefresh = nil
@@ -349,12 +351,19 @@ enum StopWatchUI {
 
     enum Want: Equatable { case off, show(State) }
 
+    /// No run: the app is there and the board shows its character awake (AppModel.mood: idle with a board). No picks.
+    static let idle: State = {
+        var state = State(mood: .idle, step: 0, limit: 0, line: "", phase: .standby)
+        state.picks = []
+        return state
+    }()
+
     enum Action: Equatable { case command(AgentCommand), home, run(UUID) }
 
     static func enabled(_ status: BoardStatus?) -> Bool { status?.board == "stopwatch" && status?.ui == 1 }
 
-    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, and the
-    /// local time "HH:mm" (the board has no clock).
+    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, the
+    /// local time "HH:mm" (the board has no clock) and where the eyes look (x, y; left out at 0).
     struct Payload: Encodable, Equatable {
         var c: String
         var m: String, p: String, s: Int, l: Int
@@ -362,6 +371,17 @@ enum StopWatchUI {
         var d: Int?, n: Int?
         var f: Bool
         var k: [String]?
+        var x: Double?, y: Double?
+    }
+
+    /// What the character says, as the expanded island: its words while the run goes, the line otherwise (help, done).
+    static func says(_ state: State) -> String {
+        state.phase == .running && !state.finished && !state.labelFull.isEmpty ? state.labelFull : state.line
+    }
+
+    private static func look(_ v: Double) -> Double? {
+        let r = (max(-1, min(1, v)) * 10).rounded() / 10
+        return r == 0 ? nil : r
     }
 
     /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
@@ -370,9 +390,9 @@ enum StopWatchUI {
         guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
         let picks = state.picks.map { Array($0.prefix(maxPicks)) }
         var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
-                        t: truncated(state.line.replacingOccurrences(of: "\n", with: " "), bytes: maxText),
+                        t: truncated(says(state).replacingOccurrences(of: "\n", with: " "), bytes: maxText),
                         d: state.done, n: state.total, f: state.finished,
-                        k: picks?.map { truncated($0.name, bytes: maxPick) })
+                        k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY))
         while true {
             if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
             if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }

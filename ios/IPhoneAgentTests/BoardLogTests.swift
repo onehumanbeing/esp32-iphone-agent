@@ -66,6 +66,8 @@ import XCTest
         return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
     }
 
+    private func sent(_ line: String) -> String { String(line.split(separator: " ", maxSplits: 1).last ?? "") }  // no id
+
     func testTheLineCarriesTheStateWithinItsLimits() throws {
         var state = State(mood: .acting, step: 4, limit: 300, line: String(repeating: "点开设置", count: 30), phase: .running)
         (state.done, state.total) = (3, 12)
@@ -150,11 +152,48 @@ import XCTest
         let (done, doneBoard) = make(stopwatch)
         state.finished = true
         done.showUI(state)
-        done.refreshUI()
-        done.showUI(nil)
-        done.refreshUI()
-        XCTAssertEqual(doneBoard.lines.count, 2)  // the finished line and `ui off`, neither repeated
-        XCTAssertTrue(doneBoard.lines[1].hasSuffix(" ui off"))
+        done.refreshUI()  // the outcome had its 5 s: idle, awake
+        XCTAssertEqual(doneBoard.lines.count, 2)
+        XCTAssertTrue(try json(sent(doneBoard.lines[0]))["f"] as? Bool == true)
+        XCTAssertEqual(try json(sent(doneBoard.lines[1]))["m"] as? String, "idle")
+        XCTAssertEqual(try json(sent(doneBoard.lines[1]))["p"] as? String, "standby")
+        let (off, offBoard) = make(stopwatch)
+        off.showUI(nil)
+        off.refreshUI()
+        XCTAssertEqual(offBoard.lines.count, 1)  // `ui off` once, not repeated
+        XCTAssertTrue(offBoard.lines[0].hasSuffix(" ui off"))
+    }
+
+    func testWithoutARunTheBoardGetsTheAppsIdleMoodAfterALinkUp() throws {
+        let (channel, board) = make(stopwatch)
+        channel.linkUp()
+        channel.flushUI()  // the first status says StopWatch
+        XCTAssertEqual(board.lines.count, 1)
+        let o = try json(sent(board.lines[0]))
+        XCTAssertEqual(o["m"] as? String, "idle")
+        XCTAssertEqual(o["p"] as? String, "standby")
+        XCTAssertEqual(o["k"] as? [String], [])  // no picks left over from a standby island
+        let (xiao, xiaoBoard) = make(BoardStatus(board: "xiao"))
+        xiao.linkUp()
+        xiao.flushUI()
+        XCTAssertEqual(xiaoBoard.lines, [])
+    }
+
+    func testTheBoardSaysWhatTheIslandSaysAndLooksWhereItLooks() throws {
+        var state = State(mood: .acting, step: 2, limit: 300, line: "Open Settings and find Wi-Fi", phase: .running)
+        state.labelFull = "Tapping Settings"
+        (state.lookX, state.lookY) = (0.34, -2)
+        let o = try json(try XCTUnwrap(StopWatchUI.command(.show(state), at: time)).0)
+        XCTAssertEqual(o["t"] as? String, "Tapping Settings")
+        XCTAssertEqual(o["x"] as? Double, 0.3)
+        XCTAssertEqual(o["y"] as? Double, -1)
+        state.phase = .help
+        state.line = "Enter the code"
+        (state.lookX, state.lookY) = (0, 0)
+        let help = try json(try XCTUnwrap(StopWatchUI.command(.show(state), at: time)).0)
+        XCTAssertEqual(help["t"] as? String, "Enter the code")
+        XCTAssertNil(help["x"])
+        XCTAssertNil(help["y"])
     }
 
     func testButtonsMapToCommands() {

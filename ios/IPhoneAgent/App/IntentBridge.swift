@@ -19,7 +19,8 @@ extension AppModel {
 
     /// An M5Stack StopWatch shows the Live Activity's state and its buttons drive the run (StopWatchUI).
     func wireStopWatch() {
-        live.onBoard = { [weak self] state in self?.board.commands.showUI(state) }
+        // No run (nil): the app's own mood, idle, so the board's character is awake while the app is there.
+        live.onBoard = { [weak self] state in self?.board.commands.showUI(state ?? StopWatchUI.idle) }
         board.commands.onButton = { [weak self] action in self?.stopWatchButton(action) }
     }
 
