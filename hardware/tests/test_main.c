@@ -20,6 +20,8 @@
 #include "../hid_bridge/src/net/lan_lock.h"
 #include "../hid_bridge/src/ui/sw_model.h"
 #include "../hid_bridge/src/ui/sw_face.h"
+#include "../hid_bridge/src/ui/sw_text.h"
+#include "../hid_bridge/src/ui/ima_adpcm.h"
 #include <math.h>
 
 static int fails;
@@ -751,6 +753,127 @@ static void test_sw_clock(void) {
   CHECK(!sw_alive(&c, 20000) && !sw_clock(&c, 20000, t));
 }
 
+
+// Voice on the StopWatch: hold yellow to talk, the app's answer, yellow runs it, blue drops it.
+static void test_sw_voice(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  // an app without voice (no `v`): yellow is a press, as before
+  sw_parse("{\"p\":\"standby\",\"k\":[\"a\"]}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(!u.voice && !sw_input(&c, SW_IN_YELLOW_DOWN, 100, out, sizeof out) && c.sel == 0 && !c.y_down && !sw_mic(&c));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 2000, out, sizeof out) && c.voice == SW_V_NONE);
+  sw_init(&c);
+  CHECK(sw_parse("{\"p\":\"standby\",\"v\":1,\"k\":[\"a\"]}", &u) == SW_PARSE_UI && u.voice);
+  sw_apply(&c, &u, false, 0);
+  // a short press: the pick, on release; the mic was on meanwhile, nothing recorded
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 100, out, sizeof out) && sw_mic(&c) && c.sel == -1);
+  CHECK(!sw_tick(&c, 100 + SW_HOLD_MS - 1, out, sizeof out) && c.voice == SW_V_NONE);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 300, out, sizeof out) && c.sel == 0 && !sw_mic(&c));
+  // held: listening (the selection goes), released: waiting, the app's text, yellow runs it
+  sw_input(&c, SW_IN_YELLOW_DOWN, 1000, out, sizeof out);
+  sw_tick(&c, 1000 + SW_HOLD_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_LISTEN && sw_screen(&c, 1400) == SW_SCR_VOICE && c.sel == -1 && sw_mic(&c) && !c.voice_run);
+  CHECK(sw_voice_line(&c, "heard too early", 1500) && c.voice == SW_V_LISTEN);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 4000, out, sizeof out) && c.voice == SW_V_WAIT && !sw_mic(&c));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 4100, out, sizeof out) && c.voice == SW_V_WAIT);  // waits for the text
+  sw_input(&c, SW_IN_YELLOW_UP, 4200, out, sizeof out);
+  CHECK(sw_voice_line(&c, "heard 打开微信", 5000) && c.voice == SW_V_RESULT && !strcmp(c.said, "打开微信"));
+  CHECK(sw_input(&c, SW_IN_YELLOW_DOWN, 6000, out, sizeof out) && !strcmp(out, "btn voice go") && c.voice == SW_V_SENT);
+  sw_input(&c, SW_IN_YELLOW_UP, 6100, out, sizeof out);
+  CHECK(!sw_tick(&c, 6000 + SW_VOICE_SHOW_MS, out, sizeof out) && c.voice == SW_V_NONE && sw_screen(&c, 8600) == SW_SCR_IDLE);
+  // a late `fail start`: the error shows, then goes
+  CHECK(sw_voice_line(&c, "fail start", 9000) && c.voice == SW_V_ERROR && c.voice_err == SW_VE_START);
+  sw_tick(&c, 9000 + SW_VOICE_SHOW_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_NONE);
+  // blue drops the text (and its press does nothing else), nothing heard is an error, the app's silence too
+  sw_input(&c, SW_IN_YELLOW_DOWN, 10000, out, sizeof out);
+  sw_tick(&c, 10400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 11000, out, sizeof out);
+  sw_voice_line(&c, "heard hello", 11500);
+  CHECK(sw_input(&c, SW_IN_BLUE_DOWN, 12000, out, sizeof out) && !strcmp(out, "btn voice cancel") && c.voice == SW_V_NONE);
+  CHECK(!sw_input(&c, SW_IN_BLUE_UP, 12100, out, sizeof out));
+  sw_input(&c, SW_IN_YELLOW_DOWN, 13000, out, sizeof out);
+  sw_tick(&c, 13400, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_DOWN, 13500, out, sizeof out) && !strcmp(out, "btn voice cancel") && !sw_mic(&c));  // while talking
+  sw_input(&c, SW_IN_BLUE_UP, 13600, out, sizeof out);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 14000, out, sizeof out) && c.voice == SW_V_NONE && c.sel == -1);
+  sw_apply(&c, &u, false, 14500);  // the app's lines keep coming (15 s without one: no voice)
+  sw_input(&c, SW_IN_YELLOW_DOWN, 15000, out, sizeof out);
+  sw_tick(&c, 15400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 16000, out, sizeof out);
+  CHECK(sw_voice_line(&c, "heard", 16500) && c.voice == SW_V_ERROR && c.voice_err == SW_VE_NONE);
+  CHECK(!sw_voice_line(&c, "what", 16500) && sw_voice_line(&c, "fail newcode", 16600) && c.voice_err == SW_VE_OTHER);
+  sw_tick(&c, 20000, out, sizeof out);
+  sw_parse("{\"p\":\"standby\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 20000);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 20000, out, sizeof out);
+  sw_tick(&c, 20400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 21000, out, sizeof out);
+  CHECK(!sw_tick(&c, 21000 + SW_VOICE_WAIT_MS - 1, out, sizeof out) && c.voice == SW_V_WAIT);
+  sw_tick(&c, 21000 + SW_VOICE_WAIT_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_ERROR && c.voice_err == SW_VE_TIMEOUT);
+  // the heard text waits SW_VOICE_KEEP_MS, then it is dropped and the app told
+  sw_tick(&c, 50000, out, sizeof out);
+  sw_apply(&c, &u, false, 50000);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 50000, out, sizeof out);
+  sw_tick(&c, 50400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 51000, out, sizeof out);
+  char long_text[200] = "heard ";
+  for (int i = 0; i < 50; i++) strcat(long_text, "中");  // 150 bytes: cut at 120 on a character boundary
+  sw_voice_line(&c, long_text, 51000);
+  CHECK(strlen(c.said) == 120);
+  sw_apply(&c, &u, false, 51000 + SW_VOICE_KEEP_MS - 1);
+  CHECK(sw_tick(&c, 51000 + SW_VOICE_KEEP_MS, out, sizeof out) && !strcmp(out, "btn voice cancel") && c.voice == SW_V_NONE);
+  // during a run: a short yellow still pauses (on release), a hold records for the task
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 120000);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 120000, out, sizeof out));
+  CHECK(sw_input(&c, SW_IN_YELLOW_UP, 120100, out, sizeof out) && !strcmp(out, "btn pause"));
+  sw_input(&c, SW_IN_YELLOW_DOWN, 121000, out, sizeof out);
+  sw_tick(&c, 121400, out, sizeof out);
+  CHECK(c.voice == SW_V_LISTEN && c.voice_run && sw_screen(&c, 121400) == SW_SCR_VOICE);
+}
+
+static void test_sw_text(void) {
+  for (int l = 0; l < SW_LANGS; l++)
+    for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
+  CHECK(!strcmp(sw_text(SW_EN, SWT_RUN_HINT), "Yellow: run - Blue: cancel") && !strcmp(sw_text(SW_ZH, SWT_RUN_HINT), "黄色执行 · 蓝色取消"));
+  CHECK(!strcmp(sw_text(7, SWT_SENT), "Sent") && !strcmp(sw_text(SW_EN, 999), ""));
+  for (int i = 0; i < SWT_COUNT; i++)  // English is drawn in a Latin-only font
+    for (const char *p = sw_text(SW_EN, i); *p; p++) CHECK((unsigned char)*p < 0x80);
+  CHECK(sw_lang_next(SW_EN) == SW_ZH && sw_lang_next(SW_ZH) == SW_EN && sw_lang_next(9) == SW_EN);
+  CHECK(!strcmp(sw_locale(SW_EN), "en-US") && !strcmp(sw_locale(SW_ZH), "zh-CN"));
+}
+
+static void test_ima(void) {
+  int16_t pcm[1600], back[1600];
+  uint8_t enc[800];
+  for (int i = 0; i < 1600; i++) pcm[i] = (int16_t)(8000 * sin(i * 2 * 3.14159265 * 440 / 16000) + 3000 * sin(i * 0.9));
+  ima_state e = {0, 0}, d = {0, 0};
+  CHECK(ima_encode(&e, pcm, 1600, enc) == 800);
+  ima_decode(&d, enc, 800, back);
+  CHECK(d.pred == e.pred && d.index == e.index);
+  double err = 0, sig = 0;
+  for (int i = 200; i < 1600; i++) err += (double)(pcm[i] - back[i]) * (pcm[i] - back[i]), sig += (double)pcm[i] * pcm[i];
+  CHECK(10 * log10(sig / err) > 20);  // 4 bits a sample: speech stays clear (> 20 dB SNR once it settled)
+  // a chunk decodes on its own from the state it carries
+  ima_state at = {0, 0}, mid;
+  ima_encode(&at, pcm, 800, enc);
+  mid = at;
+  ima_encode(&at, pcm + 800, 800, enc);
+  ima_decode(&mid, enc, 400, back);
+  CHECK(abs(back[799] - pcm[1599]) < 1500);
+  // the vector the app's decoder test uses (ios/IPhoneAgentTests): 8 samples from state (0, 0)
+  const int16_t v[8] = {0, 1000, 3000, 2000, -500, -4000, 100, 32000};
+  uint8_t ve[4];
+  ima_state vs = {0, 0};
+  ima_encode(&vs, v, 8, ve);
+  CHECK(ve[0] == 0x70 && ve[1] == 0x77 && ve[2] == 0xff && ve[3] == 0x75 && vs.pred == 1063 && vs.index == 52);
+}
+
 static void face_at(sw_face *f, uint32_t t) { swf_tick(f, t); }
 
 static void tap(sw_face *f, uint32_t t) {
@@ -880,6 +1003,9 @@ static void test_sw_face(void) {
 }
 
 int main(void) {
+  test_sw_voice();
+  test_sw_text();
+  test_ima();
   test_sw_clock();
   test_sw_face();
   test_sw_parse();

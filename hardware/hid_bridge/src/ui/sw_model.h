@@ -22,6 +22,7 @@ typedef struct {
   char text[SW_TEXT_MAX + 1];        // UTF-8, cut at a character boundary
   char clock[6];                     // the phone's local time "HH:MM" when the line was sent ("": not sent)
   float look_x, look_y;              // where the eyes look, -1...1 (the island's lookX / lookY)
+  bool voice;                        // `v` 1: the app takes voice (hold yellow to talk)
   bool has_picks;                    // `k` was in this line (else the last picks stay)
   uint8_t npicks;
   char picks[SW_PICKS][SW_PICK_MAX + 1];
@@ -31,9 +32,18 @@ enum sw_parsed { SW_PARSE_BAD, SW_PARSE_UI, SW_PARSE_OFF };
 int sw_parse(const char *arg, sw_ui *out);  // the argument of `ui`: a JSON object or `off`
 
 enum sw_screen { SW_SCR_IDLE, SW_SCR_RUN, SW_SCR_HELP, SW_SCR_PAUSED, SW_SCR_OK, SW_SCR_FAIL, SW_SCR_CONFIRM,
-                 SW_SCR_SHAKE, SW_SCR_STUCK };
+                 SW_SCR_SHAKE, SW_SCR_STUCK, SW_SCR_VOICE };
 enum sw_buzz { SW_BUZZ_NONE, SW_BUZZ_HELP, SW_BUZZ_OK, SW_BUZZ_FAIL };
-enum sw_input { SW_IN_YELLOW, SW_IN_BLUE_DOWN, SW_IN_BLUE_UP, SW_IN_TAP, SW_IN_SWIPE_UP, SW_IN_SHAKE };
+// SW_IN_YELLOW: a press as before voice. With an app that takes voice the board sends YELLOW_DOWN and YELLOW_UP:
+// a short press does what YELLOW did (on release), a hold records.
+enum sw_input { SW_IN_YELLOW, SW_IN_BLUE_DOWN, SW_IN_BLUE_UP, SW_IN_TAP, SW_IN_SWIPE_UP, SW_IN_SHAKE, SW_IN_YELLOW_DOWN,
+                SW_IN_YELLOW_UP };
+
+// Voice: hold yellow, talk, release; the app transcribes and answers `voice heard <text>` or `voice fail <code>`;
+// then yellow runs it (`btn voice go`), blue drops it (`btn voice cancel`).
+enum sw_voice { SW_V_NONE, SW_V_LISTEN, SW_V_WAIT, SW_V_RESULT, SW_V_SENT, SW_V_ERROR };
+enum sw_voice_err { SW_VE_NONE, SW_VE_DENIED, SW_VE_UNAVAILABLE, SW_VE_START, SW_VE_TIMEOUT, SW_VE_OTHER };
+enum { SW_SAID_MAX = 120 };
 
 enum {
   SW_STALE_MS = 15000,     // no `ui` line this long (the app repeats it every 5 s): the app is gone or suspended
@@ -44,6 +54,10 @@ enum {
   SW_RING_MS = 300,        // the stop ring shows from here on
   SW_SHAKE_MS = 1000,      // "shake to stop?" shows this long before `btn stop`
   SW_SHAKE_GAP_MS = 2000,  // one shake per this
+  SW_HOLD_MS = 350,        // yellow held this long: recording (the mic is on from the press, so no word is lost)
+  SW_VOICE_WAIT_MS = 20000,  // released and no `voice` answer this long: "no answer from the app"
+  SW_VOICE_KEEP_MS = 60000,  // the heard text waits this long for yellow or blue, then it is dropped
+  SW_VOICE_SHOW_MS = 2500,   // "sent" or an error shows this long
 };
 
 typedef struct {
@@ -61,6 +75,12 @@ typedef struct {
   uint32_t blue_at;
   bool shaking, shook;
   uint32_t shake_at;
+  bool y_down, y_voice;  // yellow is down; it went down with an app that takes voice
+  uint32_t y_at;
+  uint8_t voice, voice_err;  // sw_voice, sw_voice_err
+  bool voice_run;            // the text was heard while a task ran: yellow tells it the words
+  uint32_t voice_at;
+  char said[SW_SAID_MAX + 1];  // what the app heard
 } sw_ctl;
 
 void sw_init(sw_ctl *c);
@@ -73,6 +93,8 @@ bool sw_clock(const sw_ctl *c, uint32_t now, char out[6]);  // the phone's time 
 int sw_screen(const sw_ctl *c, uint32_t now);
 int sw_progress(const sw_ui *ui);                     // 0-1000 around the ring, -1: none
 int sw_hold(const sw_ctl *c, uint32_t now);           // 0-1000 of the blue stop hold, -1: not shown
+bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now);  // `voice heard <text>` | `voice fail <code>`
+bool sw_mic(const sw_ctl *c);                         // the mic should be on: yellow down for voice, or recording
 
 #ifdef __cplusplus
 }

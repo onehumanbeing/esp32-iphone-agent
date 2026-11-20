@@ -408,6 +408,10 @@ String board(const String &line, const String &id, char who) {
 #ifdef M5_STOPWATCH
   if (cmd == "ui" && who == FROM_APP)  // the screen (stopwatch_ui.h); unknown keys are ignored
     return stopwatch_ui_line(arg.c_str()) ? "ok" : "err usage: ui {json} | ui off";
+  if (cmd == "swpress" && who == FROM_APP)  // tests over USB serial: a StopWatch button held MS
+    return stopwatch_press(arg.c_str()) ? "ok" : "err usage: swpress yellow|blue MS";
+  if (cmd == "voice" && who == FROM_APP)  // what the app heard from the StopWatch's mic (voice_rec.h)
+    return stopwatch_voice_line(arg.c_str()) ? "ok" : "err usage: voice heard <text> | voice fail <code>";
 #endif
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle

@@ -124,6 +124,30 @@ them ignores them):
 
 Vibration: one 400 ms buzz on entering `help`, two short on success, three short on failure.
 
+Language: the board's own words (status page, hints, voice states) are English by default or Chinese; the status
+page's last row shows it, and a tap on that row or yellow while the page is open switches it (kept in NVS; flashing
+the merged image resets it). Text the app sends is shown as it comes (ASCII in a Latin font, anything else in efontCN).
+
+### StopWatch voice
+Only with an app that sends `"v":1` in its `ui` lines (older apps never do: yellow stays a press as above).
+- Yellow held 350 ms: recording (the mic is on from the press, so the first word is kept). Released earlier: the
+  short press does what yellow did before, on release. Blue while recording or after: dropped, `btn voice cancel`.
+- The mic goes to the app on the BLE `video` characteristic as voice chunks with their own u16 seq:
+  `[seq u16 LE][flags][payload]`, flags `0xC0` (bit 7 as AirPlay audio, bit 6: the board's mic; never on video)
+  plus `0x01` START or `0x02` END. START's payload is the board language's speech locale (`en-US`, `zh-CN`): the app
+  transcribes in it. Sound chunks: `[pred i16 LE][step index u8][IMA ADPCM]`, 16 kHz mono, two samples a byte, low
+  nibble first; each chunk carries the state it starts from (a lost chunk loses only itself). END: empty, after the
+  last sound. 8 KB/s; the board keeps up to 8 s of sound the link falls behind (older sound is dropped, logged).
+  No limit on the length of a recording.
+- App → board: `voice heard <text>` (UTF-8, the board shows up to 120 bytes) or `voice fail <code>`, code `none`
+  (nothing heard), `denied` (speech recognition not allowed), `unavailable` (no on-device model for the language),
+  `start` (the task did not start), anything else: a generic error. No answer 20 s after release: "no answer".
+- The text shows with "Yellow: run - Blue: cancel" (while a task runs: "tell the task"). Yellow: `btn voice go`, the
+  app runs the text as a new task or adds it to the running one; blue: `btn voice cancel`. Untouched for 60 s: dropped
+  (`btn voice cancel`).
+- USB serial tests: `swpress yellow|blue MS` holds a button; with no app on BLE the chunks are printed as
+  `vchunk <hex>` (`hardware/tools/voice_dump.py` writes them to a WAV).
+
 ## video
 Each notify: `[seq u16 LE][flags u8][payload]`, payload up to MTU-3-3 bytes.
 flags: bit0 START of access unit, bit1 END of access unit, bit2 IDR, bit3 CONFIG (payload is SPS+PPS),

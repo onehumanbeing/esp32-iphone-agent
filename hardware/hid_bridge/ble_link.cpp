@@ -100,7 +100,7 @@ static bool appWorks(const String &line) {
   return cmd != "ping" && !cmd.startsWith("log ") && cmd != "move 1 0" && cmd != "move -1 0" &&
          !cmd.startsWith("hear")  // sharing what it heard with the CLI doesn't take the phone from it
 #ifdef M5_STOPWATCH
-         && !cmd.startsWith("ui ")  // nor what the screen shows
+         && !cmd.startsWith("ui ") && !cmd.startsWith("voice ")  // nor what the screen shows
 #endif
       ;
 }

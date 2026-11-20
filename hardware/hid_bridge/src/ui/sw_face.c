@@ -279,9 +279,9 @@ uint8_t swf_haptic(sw_face *f) {
   f->haptic = 0;
   return ms;
 }
-#endif
 
 void swf_poke(sw_face *f, uint32_t now) {  // a button press while idle: the same reaction as a tap
   advance(f, now);
   tapped(f);
 }
+#endif

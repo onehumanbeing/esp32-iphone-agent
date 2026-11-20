@@ -208,6 +208,11 @@ int sw_parse(const char *arg, sw_ui *u) {
       *(key[0] == 'x' ? &u->look_x : &u->look_y) = f;
     } else if (!strcmp(key, "k")) {
       ok = picks(&r, u);
+    } else if (!strcmp(key, "v")) {
+      int w = word(&r);
+      int32_t v = 0;
+      ok = w >= 0 || num(&r, &v);
+      u->voice = w == 1 || v != 0;
     } else if (!strcmp(key, "f")) {
       int w = word(&r);
       ok = w >= 0 || num(&r, NULL);
@@ -295,33 +300,67 @@ static bool say(char *out, size_t n, const char *line) {
   return true;
 }
 
+static bool yellow(sw_ctl *c, bool running, uint32_t now, char *out, size_t n) {
+  if (running) return say(out, n, c->ui.phase == SW_PAUSED ? "unpause" : "pause");
+  if (!c->ui.npicks) return false;
+  c->sel_at = now;
+  if (c->sel < 0) {
+    c->sel = (int8_t)(c->next_pick % c->ui.npicks);
+    c->next_pick = (uint8_t)(c->sel + 1);
+    return false;
+  }
+  if (!c->confirm) { c->confirm = true; return false; }
+  snprintf(out, n, "btn run %d", c->sel);
+  c->sel = -1;
+  c->confirm = false;
+  return true;
+}
+
 bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
   bool running = sw_running(c, now);
-  if (c->shaking && (in == SW_IN_YELLOW || in == SW_IN_BLUE_DOWN)) {  // any button cancels the shake stop
+  if (c->shaking && (in == SW_IN_YELLOW || in == SW_IN_YELLOW_DOWN || in == SW_IN_BLUE_DOWN)) {  // any button cancels the shake stop
     c->shaking = false;
     if (in == SW_IN_BLUE_DOWN) c->blue_ignore = true;
     return false;
   }
   switch (in) {
     case SW_IN_YELLOW:
-      if (running) return say(out, n, c->ui.phase == SW_PAUSED ? "unpause" : "pause");
-      if (!c->ui.npicks) return false;
-      c->sel_at = now;
-      if (c->sel < 0) {
-        c->sel = (int8_t)(c->next_pick % c->ui.npicks);
-        c->next_pick = (uint8_t)(c->sel + 1);
+      return yellow(c, running, now, out, n);
+    case SW_IN_YELLOW_DOWN:
+      if (c->voice == SW_V_RESULT) {
+        snprintf(out, n, "btn voice go");
+        c->voice = SW_V_SENT;
+        c->voice_at = now;
+        return true;
+      }
+      if (c->voice == SW_V_LISTEN || c->voice == SW_V_WAIT) return false;
+      c->voice = SW_V_NONE;  // "sent" or an error is dismissed
+      c->y_voice = sw_alive(c, now) && c->ui.voice;
+      if (!c->y_voice) return yellow(c, running, now, out, n);
+      c->y_down = true;
+      c->y_at = now;
+      return false;
+    case SW_IN_YELLOW_UP:
+      if (!c->y_down) return false;
+      c->y_down = false;
+      if (c->voice == SW_V_LISTEN) {
+        c->voice = SW_V_WAIT;
+        c->voice_at = now;
         return false;
       }
-      if (!c->confirm) { c->confirm = true; return false; }
-      snprintf(out, n, "btn run %d", c->sel);
-      c->sel = -1;
-      c->confirm = false;
-      return true;
+      return yellow(c, running, now, out, n);
     case SW_IN_BLUE_DOWN:
       c->blue_down = true;
       c->blue_fired = false;
       c->blue_ignore = false;
       c->blue_at = now;
+      if (c->voice != SW_V_NONE) {  // blue drops the recording or the heard text; "sent" or an error just goes
+        bool tell = c->voice == SW_V_LISTEN || c->voice == SW_V_WAIT || c->voice == SW_V_RESULT;
+        c->voice = SW_V_NONE;
+        c->y_down = false;
+        c->blue_ignore = true;
+        return tell && say(out, n, "voice cancel");
+      }
       return false;
     case SW_IN_BLUE_UP: {
       bool was = c->blue_down && !c->blue_fired && !c->blue_ignore;
@@ -349,6 +388,23 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
 }
 
 bool sw_tick(sw_ctl *c, uint32_t now, char *out, size_t n) {
+  if (c->y_down && c->voice == SW_V_NONE && after(now, c->y_at, SW_HOLD_MS)) {
+    c->voice = SW_V_LISTEN;
+    c->voice_at = now;
+    c->voice_run = sw_running(c, now);
+    c->sel = -1;
+    c->confirm = false;
+  }
+  if (c->voice == SW_V_WAIT && after(now, c->voice_at, SW_VOICE_WAIT_MS)) {
+    c->voice = SW_V_ERROR;
+    c->voice_err = SW_VE_TIMEOUT;
+    c->voice_at = now;
+  }
+  if ((c->voice == SW_V_SENT || c->voice == SW_V_ERROR) && after(now, c->voice_at, SW_VOICE_SHOW_MS)) c->voice = SW_V_NONE;
+  if (c->voice == SW_V_RESULT && after(now, c->voice_at, SW_VOICE_KEEP_MS)) {
+    c->voice = SW_V_NONE;
+    return say(out, n, "voice cancel");
+  }
   if (c->blue_down && !c->blue_fired && !c->blue_ignore && after(now, c->blue_at, SW_STOP_MS)) {
     c->blue_fired = true;
     return say(out, n, "stop");
@@ -366,6 +422,7 @@ bool sw_tick(sw_ctl *c, uint32_t now, char *out, size_t n) {
 }
 
 int sw_screen(const sw_ctl *c, uint32_t now) {
+  if (c->voice != SW_V_NONE) return SW_SCR_VOICE;
   if (c->shaking) return SW_SCR_SHAKE;
   if (c->done && !after(now, c->done_at, SW_DONE_MS)) return c->done_kind;
   if (sw_running(c, now)) return c->ui.phase == SW_HELP ? SW_SCR_HELP : c->ui.phase == SW_PAUSED ? SW_SCR_PAUSED : SW_SCR_RUN;
@@ -385,5 +442,38 @@ int sw_hold(const sw_ctl *c, uint32_t now) {
   if (!c->blue_down || c->blue_fired || c->blue_ignore || !after(now, c->blue_at, SW_RING_MS)) return -1;
   uint32_t held = now - c->blue_at;
   return held >= SW_STOP_MS ? 1000 : (int)(held * 1000 / SW_STOP_MS);
+}
+
+bool sw_mic(const sw_ctl *c) { return (c->y_down && c->y_voice) || c->voice == SW_V_LISTEN; }
+
+static const char *const VOICE_ERRS[] = {"none", "denied", "unavailable", "start", "timeout"};
+
+bool sw_voice_line(sw_ctl *c, const char *arg, uint32_t now) {
+  if (!strncmp(arg, "heard ", 6) || !strcmp(arg, "heard")) {
+    const char *t = arg[5] ? arg + 6 : "";
+    while (*t == ' ') t++;
+    if (c->voice != SW_V_WAIT) return true;  // dropped meanwhile (blue) or too late: nothing to show
+    size_t len = strlen(t);
+    if (len > SW_SAID_MAX) {  // cut on a character boundary
+      len = SW_SAID_MAX;
+      while (len && ((unsigned char)t[len] & 0xC0) == 0x80) len--;
+    }
+    memcpy(c->said, t, len);
+    c->said[len] = 0;
+    c->voice = len ? SW_V_RESULT : SW_V_ERROR;
+    c->voice_err = SW_VE_NONE;
+    c->voice_at = now;
+    return true;
+  }
+  if (!strncmp(arg, "fail", 4) && (!arg[4] || arg[4] == ' ')) {
+    const char *code = arg[4] ? arg + 5 : "";
+    int e = lookup(code, VOICE_ERRS, 5);
+    if (c->voice == SW_V_LISTEN) return true;  // a new recording goes on: the old one's failure is stale
+    c->voice = SW_V_ERROR;  // also after "sent" (the task did not start), however late
+    c->voice_err = (uint8_t)(e < 0 ? SW_VE_OTHER : e);
+    c->voice_at = now;
+    return true;
+  }
+  return false;
 }
 #endif
