@@ -119,6 +119,7 @@ jobs:
           hardware/flash.sh --build-only
           hardware/flash.sh --ble-hid --build-only
           hardware/flash.sh --note4 --build-only
+          hardware/flash.sh --dual-hid --build-only
           python3 hardware/tests/test_build_targets.py --built-images
       - name: Build (absolute mouse)
         run: hardware/flash.sh --abs --build-only

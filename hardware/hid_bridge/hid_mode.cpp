@@ -15,6 +15,7 @@ void hid_mode_load() {
 
 bool hid_ble() { return bleMode; }
 bool hid_mode_changed() { return changed; }
+void hid_mode_told() { changed = false; }
 
 bool hid_mode_save(bool ble) {
   Preferences p;

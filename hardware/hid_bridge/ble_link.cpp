@@ -249,6 +249,7 @@ class ServerCb : public NimBLEServerCallbacks {
     if (hid_mode_changed()) {
       board_log("ble: conn %u: input mode changed, service-changed indication", ci.getConnHandle());
       server->sendServiceChangedIndication();
+      hid_mode_told();  // once: every reconnect re-sending it made iOS drop the cached services again
     }
 #endif
 #ifdef HID_TRANSPORT_BLE

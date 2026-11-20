@@ -10,7 +10,8 @@
 #endif
 void hid_mode_load();         // once, before USB.begin() and ble_begin()
 bool hid_ble();               // this boot's mode; fixed until the next restart
-bool hid_mode_changed();      // this boot is the first one after `hidmode` switched it
+bool hid_mode_changed();      // this boot is the first one after `hidmode` switched it, until the phone was told
+void hid_mode_told();         // the Service Changed indication went out: later reconnects in this boot skip it
 bool hid_mode_save(bool ble);  // takes effect at the next boot
 #elif defined(HID_TRANSPORT_BLE)
 inline bool hid_ble() { return true; }

@@ -53,8 +53,9 @@ struct BoardStatus: Codable, Equatable {
     var inputReady: Bool { inputState == "ok" }
     var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
     var needsUSBHost: Bool { !isWirelessHID && inputState == "off" }
-    // The signed feed ships only standard USB images; wait for positive identification.
-    var acceptsUSBRelease: Bool { board == nil && hid == nil && usb != nil }
+    // The signed feed ships only standard USB images; wait for positive identification. A --dual-hid board in USB
+    // mode (hidm) runs no OTA server: offering it the USB release would ask on every connection and always fail.
+    var acceptsUSBRelease: Bool { board == nil && hid == nil && hidm == nil && usb != nil }
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
 

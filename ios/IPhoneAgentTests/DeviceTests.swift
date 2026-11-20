@@ -477,6 +477,7 @@ import XCTest
         XCTAssertFalse(BoardStatus(fw: .init([0, 2, 2]), usb: "off", board: "note4").acceptsUSBRelease)
         XCTAssertFalse(BoardStatus(usb: "ok", hid: "off").acceptsUSBRelease)
         XCTAssertFalse(BoardStatus(usb: "ok", board: "another-board").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", hidm: "usb").acceptsUSBRelease)  // dual board in USB mode: no OTA server
         let usb = BoardStatus(usb: "ok")
         XCTAssertTrue(usb.acceptsUSBRelease)
         XCTAssertTrue(usb.inputReady)
