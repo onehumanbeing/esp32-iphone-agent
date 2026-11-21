@@ -438,9 +438,10 @@ static void uiTask(void *) {
     if (pairShown && (!statusUntil || !ble_pair_left_ms())) pairShown = false;
     if (sw_tick(&c, now, out, sizeof out)) send(out);
     buzzStart(buzz, sw_buzz_due(&c, now), now);  // help: again and again until answered
-    // the mic: on from yellow's press (voice_rec.h), sent once the hold is a recording, off at release or blue
+    // the mic: on once the hold is a recording (SW_HOLD_MS), off at release or blue. Not from the press: it takes ~9 KB
+    // of internal RAM, and short presses (picking, sending) left Bluetooth and mirroring ~4 KB (Henry 2026-11-22)
     if (warming && now - warmAt >= 1200) voice_release(), warming = false;
-    bool mic = sw_mic(&c);
+    bool mic = sw_mic(&c) && c.voice == SW_V_LISTEN;
     if (mic && !micOn) micOn = voice_press(sw_locale(lang));
     if (micOn && c.voice == SW_V_LISTEN && !streamed) voice_stream(), streamed = true;
     if (micOn && !mic) voice_release(), micOn = streamed = false;

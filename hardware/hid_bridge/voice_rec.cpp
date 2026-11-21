@@ -2,6 +2,7 @@
 #include "voice_rec.h"
 #include <M5Unified.h>
 #include <atomic>
+#include "freertos/idf_additions.h"
 #include "ble_link.h"
 #include "logbuf.h"
 #include "src/ui/ima_adpcm.h"
@@ -128,8 +129,10 @@ static void voiceTask(void *) {
   heap_caps_free(ring), heap_caps_free(frames), heap_caps_free(x);
   ring = frames = nullptr, x = nullptr;
   busy = false;
-  vTaskDelete(nullptr);
+  vTaskSuspend(nullptr);  // a PSRAM stack: deleted by the next press (vTaskDeleteWithCaps), never by itself
 }
+
+static TaskHandle_t task;  // the recording task, suspended at its end until the next press
 
 bool voice_press(const char *loc) {
   if (busy) return false;
@@ -141,7 +144,10 @@ bool voice_press(const char *loc) {
   if (!M5.Mic.begin()) { board_log("voice: the mic did not start"); return false; }
   strlcpy(locale, loc, sizeof locale);
   held = true, streaming = false, micDone = false, micEnded = false, busy = true;
-  if (xTaskCreatePinnedToCore(voiceTask, "voice", 3584, nullptr, 3, nullptr, 1) != pdPASS) {
+  if (task && eTaskGetState(task) == eSuspended) vTaskDeleteWithCaps(task), task = nullptr;
+  // the stack from PSRAM: internal RAM is what Bluetooth and mirroring live on (2026-11-22)
+  if (task || xTaskCreatePinnedToCoreWithCaps(voiceTask, "voice", 3584, nullptr, 3, &task, 1,
+                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
     board_log("voice: no memory for the task (internal heap %u)", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     M5.Mic.end();
     micEnded = true, busy = false;

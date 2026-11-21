@@ -19,6 +19,8 @@
 #include "lwip/sockets.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "esp_heap_caps.h"
 #include "ap_internal.h"
 #include "mdns.h"
 
@@ -215,7 +217,11 @@ bool airplay_start(const airplay_cfg *cfg) {
   for (int i = 0; i < MAX_CONNS; i++) conns[i].fd = -1;
   if (!ap_crypto_init(cfg->ed25519_seed)) return false;
   if (!ap_mdns_start()) ap_log("mdns: advertising failed");
+#ifdef M5_STOPWATCH  // its stack in PSRAM: the StopWatch's internal RAM is short (2026-11-22); this task never writes flash
+  return xTaskCreatePinnedToCoreWithCaps(server_task, "rtsp", 12 * 1024, NULL, 5, NULL, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS;
+#else
   return xTaskCreatePinnedToCore(server_task, "rtsp", 12 * 1024, NULL, 5, NULL, 0) == pdPASS;
+#endif
 }
 
 void airplay_readvertise(void) {
