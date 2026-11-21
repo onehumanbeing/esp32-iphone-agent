@@ -63,4 +63,14 @@ int main() {
   header[3] = 0x3f;
   header[32] = 0;
   assert(!usb_ota_app(header, sizeof header));  // Reject bootloaders and full-flash images.
+  header[32] = 0x32;
+  memcpy(header + 288, "ESPA:stopwatch", 15);
+  assert(!usb_ota_app(header, sizeof header) && !stopwatch_ota_app(header, sizeof header));  // 8 MiB: not its flash
+  header[3] = 0x4f;
+  assert(stopwatch_ota_app(header, sizeof header) && !usb_ota_app(header, sizeof header));
+  memcpy(header + 288, "ESPA:note4-ble\0", 16);
+  assert(!stopwatch_ota_app(header, sizeof header));  // Another 16 MiB board's image.
+  memset(header + 288, 0, 16);
+  assert(!stopwatch_ota_app(header, sizeof header));  // Unmarked legacy images are for the USB board only.
+  puts("OTA image checks passed for the USB and StopWatch channels");
 }

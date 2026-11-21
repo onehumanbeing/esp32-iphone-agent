@@ -9,6 +9,9 @@
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
 #   --note4       build BLE HID for the Note 4 (build only)
 #   --ble-hid     build BLE HID for the standard 8 MB board (build only)
+#   --stopwatch   build BLE HID for the M5Stack StopWatch, with its screen and buttons (build only, experimental).
+#                 Needs M5Unified and M5GFX 0.2.x: arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"
+#                 (without --no-deps it pulls M5GFX 0.3.0, which changed the display rotation).
 #   --dual-hid    the standard 8 MB board with USB and BLE HID in one image, chosen in the app (Settings > Board >
 #                 Input) or with `hidmode usb|ble`; docs/hid-mode-switch.md. Flashes like the USB build.
 # BLE host: h2zero NimBLE-Arduino (arduino-cli lib install "NimBLE-Arduino"); its buffer sizes live in
@@ -19,7 +22,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB"
 ports() { for p in /dev/cu.usbmodem* /dev/ttyACM*; do [[ -e $p ]] && echo "$p"; done; return 0; }
-PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build NOTE4=0 BLE_HID=0 DUAL=0 ABS=0 NAME_NEXT=0
+PORT="" DEFS="" BUILD_ONLY=0 OUTPUT=build NOTE4=0 STOPWATCH=0 BLE_HID=0 DUAL=0 ABS=0 NAME_NEXT=0
 for a in "$@"; do
   if (( NAME_NEXT )); then
     [[ $a =~ ^[A-Za-z0-9]+$ ]] || { echo "--name takes one word of letters and digits"; exit 1; }
@@ -27,6 +30,7 @@ for a in "$@"; do
   fi
   case $a in
     --note4) NOTE4=1; BLE_HID=1 ;;
+    --stopwatch) STOPWATCH=1; BLE_HID=1 ;;
     --ble-hid) BLE_HID=1 ;;
     --dual-hid) DUAL=1 ;;
     --name) NAME_NEXT=1 ;;
@@ -42,16 +46,20 @@ for a in "$@"; do
     *) PORT=$a ;;
   esac
 done
+if (( NOTE4 && STOPWATCH )); then
+  echo "--note4 and --stopwatch are different boards; pick one." >&2
+  exit 1
+fi
 if (( DUAL )); then
   if (( BLE_HID || ABS )); then
-    echo "--dual-hid is its own target for the standard 8 MB board; it cannot be combined with --ble-hid, --note4 or --abs." >&2
+    echo "--dual-hid is its own target for the standard 8 MB board; it cannot be combined with --ble-hid, --note4, --stopwatch or --abs." >&2
     exit 1
   fi
   DEFS+=" -DHID_DUAL=1 -DHID_TRANSPORT_BLE=1"; OUTPUT=build/dual-hid
 fi
 if (( ABS )); then
   if (( BLE_HID )); then
-    echo "--abs requires USB HID and cannot be combined with --ble-hid or --note4." >&2
+    echo "--abs requires USB HID and cannot be combined with --ble-hid, --note4 or --stopwatch." >&2
     exit 1
   fi
   DEFS+=" -DABS_POINTER=1"
@@ -59,6 +67,9 @@ fi
 if (( NOTE4 )); then
   FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
   DEFS+=" -DZECTRIX_NOTE4=1"; OUTPUT=build/note4
+elif (( STOPWATCH )); then
+  FQBN="esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB"
+  DEFS+=" -DM5_STOPWATCH=1"; OUTPUT=build/stopwatch
 elif (( BLE_HID )); then
   OUTPUT=build/ble-hid
 fi
