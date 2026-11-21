@@ -43,23 +43,42 @@ String fit(String s, int width) {
   return s + "…";
 }
 
-// Up to `lines` lines of at most `width` pixels, the last one cut with an ellipsis.
+// How wide a line at height y may be: `width`, narrowed to the round screen's chord there (Henry 2026-11-22: the
+// second line of a run's text was cut off by the rim).
+static int roomAt(int y, int width) {
+  int r = W / 2 - 14, dy = abs(y - CY) + 12;  // the glyphs' far edge from the centre, a margin off the rim
+  int chord = dy >= r ? 0 : 2 * (int)sqrtf((float)(r * r - dy * dy));
+  return chord < width ? chord : width;
+}
+
+// Up to `lines` lines centred on y, each as wide as the round screen allows there; the last one cut with an ellipsis.
 static void wrapped(const char *text, int y, int width, int lines, int gap) {
-  String rest = text, out[4];
+  String out[4];
   lines = lines > 4 ? 4 : lines;
   int n = 0;
-  while (rest.length() && n < lines) {
-    if (n == lines - 1 || canvas->textWidth(rest) <= width) { out[n++] = fit(rest, width); break; }
-    int cut = 0;
-    for (int i = 1; i <= (int)rest.length(); i++) {
-      if (i < (int)rest.length() && ((uint8_t)rest[i] & 0xC0) == 0x80) continue;
-      if (canvas->textWidth(rest.substring(0, i)) > width) break;
-      cut = i;
-    }
-    if (!cut) break;
-    out[n++] = rest.substring(0, cut);
-    rest = rest.substring(cut);
+  for (int want = 1; want <= lines; want++) {  // the fewest lines it fits in (more lines sit higher and lower)
+    String rest = text;
     rest.trim();
+    n = 0;
+    int top = y - (want - 1) * gap / 2;
+    while (rest.length() && n < want) {
+      int w = roomAt(top + n * gap, width);
+      if (canvas->textWidth(rest) <= w) { out[n++] = rest; rest = ""; break; }
+      if (n == want - 1) { if (want == lines) out[n++] = fit(rest, w); break; }
+      int cut = 0;
+      for (int i = 1; i <= (int)rest.length(); i++) {
+        if (i < (int)rest.length() && ((uint8_t)rest[i] & 0xC0) == 0x80) continue;
+        if (canvas->textWidth(rest.substring(0, i)) > w) break;
+        cut = i;
+      }
+      if (!cut) break;
+      int space = rest.lastIndexOf(' ', cut);  // break between words when there is a space on the line
+      if (space > cut / 2 && cut < (int)rest.length()) cut = space;
+      out[n++] = rest.substring(0, cut);
+      rest = rest.substring(cut);
+      rest.trim();
+    }
+    if (!rest.length() || want == lines) break;
   }
   int top = y - (n - 1) * gap / 2;
   for (int i = 0; i < n; i++) canvas->drawString(out[i], CX, top + i * gap);
@@ -304,7 +323,7 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       canvas->drawString(v.screen == SW_SCR_PAUSED ? took : top, CX, 62);
       face(pose, CX, CY - 30, v.screen == SW_SCR_PAUSED ? C_GREY : GLOW_INK, v.screen != SW_SCR_PAUSED);
       if (v.screen == SW_SCR_PAUSED) line(T(SWT_PAUSED), CY + 130, C_GREY);
-      else line(u.text, CY + 130, u.phase == SW_RECORDING ? C_RED : TFT_WHITE);
+      else line(u.text, CY + 135, u.phase == SW_RECORDING ? C_RED : TFT_WHITE, 3);  // up to SW_TEXT_MAX (80) bytes
       break;
     case SW_SCR_HELP:
       canvas->setTextColor(TFT_BLACK);
