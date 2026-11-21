@@ -36,6 +36,7 @@ static std::atomic<int> fakeBtn{-1};  // `swpress`: 0 yellow, 1 blue, held fakeM
 static std::atomic<uint32_t> fakeMs{0};  // the screen's language (NVS "sw"/"lang"), English by default
 
 static const int BTN_LINE = 32;
+static const uint32_t PAIR_HOLD_MS = 1500;  // blue held this long while nothing runs: pairing (Henry 2026-11-22)
 static const uint32_t SLEEP_AFTER_MS = 180000;  // no app, no touch, no button for 3 min: it falls asleep
 static const uint32_t FRAME_MS = 33, SLEEP_FRAME_MS = 66;  // ~30 fps; the sleeping face only drifts its z
 static const uint32_t DARK_FRAME_MS = 100;  // the screen off: buttons, touch and the raise still read
@@ -269,6 +270,9 @@ static void uiTask(void *) {
   char hhmm[6] = "--:--";
   clockNow(millis(), hhmm);
   board_log("stopwatch: rtc %s, time %s", M5.Rtc.isEnabled() ? "on" : "missing", hhmm);
+  bool pairShown = false, pairBack = false;  // the pairing page; the status page was open before it
+  uint32_t blueIdleAt = 0;  // an idle blue press: held PAIR_HOLD_MS pairs, released before that opens or leaves a page
+  bool blueLong = false;
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   // The codec's mic gives only zeros for ~0.85 s after its first start since power-on (measured 2026-11-21), later
@@ -334,8 +338,9 @@ static void uiTask(void *) {
     bool pokeIdle = !running && !c.ui.npicks;  // yellow with nothing to pick: it reacts
     bool paired = hidLinked || appLinked;
     static bool wasPaired;
-    if (paired && !wasPaired && statusUntil && ble_pair_left_ms()) {  // linked while pairing: buzz, show it, then close
+    if (paired && !wasPaired && pairShown) {  // linked while pairing: buzz, show it on the status page, then close
       buzzPulse(buzz, 60, now);
+      pairShown = false;
       statusUntil = now + 3000;
     }
     wasPaired = paired;
@@ -348,7 +353,13 @@ static void uiTask(void *) {
       board_log("stopwatch: screen mirroring on");
     }
     wasMirror = mirror;
-    if (!paired && !running && !statusUntil && yDown) {  // no phone yet: yellow opens the status page, where blue pairs (Henry 2026-11-21)
+    if (pairShown && yDown) {  // yellow on the pairing page: cancel it, back to where it was opened (Henry 2026-11-22)
+      ble_pair_close();
+      pairShown = false;
+      statusUntil = pairBack ? now + 5000 : 0;
+      eatY = true;
+      yDown = false;
+    } else if (!paired && !running && !statusUntil && yDown) {  // no phone yet: yellow opens the status page, where blue pairs (Henry 2026-11-21)
       statusUntil = now + 8000;
       eatY = true;  // its release starts nothing
       yDown = false;
@@ -369,13 +380,22 @@ static void uiTask(void *) {
     if (warned && bDown) {  // blue on an alert: hidden until another comes, nothing sent
       sww_hide(&warn);
       c.blue_ignore = true;
-    } else if (statusUntil && !paired && bDown) {  // blue on the status page without a phone: a pairing window
-      ble_pair_open();
-      statusUntil = now + ble_pair_left_ms();  // the page stays, with the countdown, until it closes or a phone links
-      c.blue_ignore = true;
-    } else if (!running && !voiceBefore && bDown) {  // blue while nothing runs: the status page, on and off (Henry 2026-11-20)
-      statusUntil = statusUntil ? 0 : now + 5000;
+    } else if (!running && !voiceBefore && bDown) {  // blue while nothing runs: held, pairing; short, a page (Henry 2026-11-22)
+      blueIdleAt = now | 1, blueLong = false;
       c.blue_ignore = true;  // no `home`, no `stop` from this press
+    }
+    if (blueIdleAt && !blueLong && !bUp && now - blueIdleAt >= PAIR_HOLD_MS) {  // held: a pairing window, its page
+      blueLong = true;
+      if (!pairShown) pairBack = statusUntil != 0;
+      ble_pair_open();
+      pairShown = true;
+      statusUntil = now + ble_pair_left_ms();  // the page stays, with the countdown, until it closes or a phone links
+      buzzPulse(buzz, 40, now);
+    }
+    if (blueIdleAt && bUp) {
+      if (!blueLong && pairShown) pairShown = false, statusUntil = pairBack ? now + 5000 : 0;  // back; the window stays
+      else if (!blueLong) statusUntil = statusUntil ? 0 : now + 5000;  // the status page, on and off
+      blueIdleAt = 0;
     }
     if (got || M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.Touch.getCount()) activeAt = now;
     int screen = sw_screen(&c, now);
@@ -391,7 +411,7 @@ static void uiTask(void *) {
     for (int i = 0; !skipTouch && i < M5.Touch.getCount(); i++) {
       auto &t = M5.Touch.getDetail(i);
       if (i == 0 && t.isPressed()) down = true, tx = t.x, ty = t.y;
-      if (t.wasClicked() && statusUntil && abs(t.y - (STATUS_Y + STATUS_LANG * STATUS_GAP)) < STATUS_GAP / 2 + 6) {
+      if (t.wasClicked() && statusUntil && !pairShown && abs(t.y - (STATUS_Y + STATUS_LANG * STATUS_GAP)) < STATUS_GAP / 2 + 6) {
         setLang(sw_lang_next(lang));  // a tap on the language row
         statusUntil = now + 5000;
         continue;
@@ -415,6 +435,7 @@ static void uiTask(void *) {
       }
     }
     if (statusUntil && (running || c.voice != SW_V_NONE || (int32_t)(now - statusUntil) >= 0)) statusUntil = 0;
+    if (pairShown && (!statusUntil || !ble_pair_left_ms())) pairShown = false;
     if (sw_tick(&c, now, out, sizeof out)) send(out);
     buzzStart(buzz, sw_buzz_due(&c, now), now);  // help: again and again until answered
     // the mic: on from yellow's press (voice_rec.h), sent once the hold is a recording, off at release or blue
@@ -466,6 +487,7 @@ static void uiTask(void *) {
     if (!clockNow(now, v.clock)) sw_clock(&c, now, v.clock);
     if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
     v.pair = (ble_pair_left_ms() + 999) / 1000;
+    v.pairing = pairShown;
     v.connecting = btConnecting, v.wifi = wifiPhone, v.mirror = (uint8_t)mirrorState;
     v.charging = charging >= 0;
     v.charge = charging < 0 || battery >= 100 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
