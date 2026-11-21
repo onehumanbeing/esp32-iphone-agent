@@ -9,15 +9,17 @@
 #include "logbuf.h"
 
 // GOP since the latest IDR. A still screen gets an IDR only every few minutes (iOS 26: maybe once per mirroring
-// session), so room for ~27 min of AUs at 5 fps (P-frames of a still screen are tiny). When it fills, it freezes
+// session), so room for ~30 min of AUs at 6 fps (P-frames of a still screen are tiny). When it fills, it freezes
 // (gop.h): a stream that is in step goes on from the tail below, everyone else needs the next IDR (status fz).
 #ifndef GOP_CAP_KB
 #define GOP_CAP_KB 4096  // flash.sh --small-gop: 256, to test a frozen GOP within minutes
 #endif
 const size_t GOP_CAP = GOP_CAP_KB * 1024;
-const int MAX_AUS = 8192;
+// AUs, not bytes, filled first: a still screen still sends ~6 small P-frames a second (~380 B each), so 8192 froze the
+// GOP after ~23 min at 3.1 MB (2026-11-22, iPhone X on iOS 16). Room for the bytes to fill first (+128 KB PSRAM).
+const int MAX_AUS = 16384;
 const size_t TAIL_CAP = 512 * 1024;     // the newest AUs after a frozen GOP (a ring), to go on from or resume in
-const int TAIL_AUS = 1024;
+const int TAIL_AUS = 2048;               // ~380 B a still-screen AU: 1024 filled before the 512 KB
 const size_t SCRATCH_CAP = 512 * 1024;   // largest access unit we forward
 const size_t MAX_CHUNK = 512;
 
