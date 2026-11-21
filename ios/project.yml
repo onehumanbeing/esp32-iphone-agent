@@ -2,7 +2,7 @@ name: IPhoneAgent
 options:
   developmentLanguage: en
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "16.4"
 configFiles:
   Debug: Config/Shared.xcconfig
   Release: Config/Shared.xcconfig

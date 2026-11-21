@@ -36,7 +36,7 @@ struct UsageStatsSection: View {
         if Analytics.available {
             Section {
                 Toggle("Share anonymous usage stats", isOn: $on)
-                    .onChange(of: on) { _, value in Analytics.consentChanged(value) }
+                    .onValueChange(of: on) { _, value in Analytics.consentChanged(value) }
             } footer: {
                 Text("Helps improve setup and runs: which setup steps finish, run results, step counts and timings, the model provider, model speed and token counts, app and iOS version, and crash reports. Never your tasks, screenshots, model replies, keys or addresses.")
             }
@@ -75,7 +75,7 @@ struct ConsentSheet: View {
                 UsageStatsSection()
                 SendConsentFooter(policy: AboutView.privacyPolicy)
             }
-            .listSectionSpacing(Space.l)
+            .sectionSpacing(Space.l)
             .navigationTitle("Your Data")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -118,7 +118,7 @@ struct PrivacySettingsView: View {
         }
         .navigationTitle("Privacy")
         .onAppear { runs.reload() }
-        .onChange(of: picked) { package = nil }
+        .onValueChange(of: picked) { package = nil }
     }
 
     @ViewBuilder private var export: some View {

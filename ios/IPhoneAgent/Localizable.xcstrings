@@ -8347,6 +8347,16 @@
         }
       }
     },
+    "No Results" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无结果"
+          }
+        }
+      }
+    },
     "Refresh the list or enter a model ID below." : {
       "localizations" : {
         "zh-Hans" : {

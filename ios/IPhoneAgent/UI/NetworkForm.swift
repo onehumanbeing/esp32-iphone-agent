@@ -48,7 +48,7 @@ struct LanForm: View {
         }
         .font(.footnote).foregroundStyle(.secondary)
         .task { await prefill() }
-        .onChange(of: ssid) { _, name in
+        .onValueChange(of: ssid) { _, name in
             if let saved = WiFiPasswords.get(name), !saved.isEmpty { pass = saved; remember = true }
         }
     }

@@ -71,7 +71,7 @@ struct ProviderSelectionView: View {
             }
             .overlay {
                 if configuredOnly, presets.isEmpty, settings.customEndpoints.isEmpty {
-                    ContentUnavailableView("No Configured Providers", systemImage: "key",
+                    UnavailableView("No Configured Providers", systemImage: "key",
                                            description: Text("Add an API key to a provider to see it here."))
                 }
             }

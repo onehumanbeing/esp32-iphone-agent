@@ -10,7 +10,7 @@ struct IntentDetailView: View {
     @State private var exporting = false
     @State private var draft: String?  // the instruction while it is being typed
     @FocusState private var typing: Bool
-    @State private var selection: TextSelection?
+    @State private var selection: Any?  // a TextSelection (iOS 18); typed Any so the view builds on iOS 16
     @State private var checking = false  // Replan running after an edit
     @State private var proposal: Replan.Proposal?
     @State private var renaming: String?  // the name while the rename alert is open
@@ -51,10 +51,9 @@ struct IntentDetailView: View {
                 Section {
                     // Edited in place (Henry 2026-11-13): tap the words and type; the first [blank] is selected, so
                     // typing replaces it. Saved when the keyboard goes away or the page closes.
-                    TextField("Instruction", text: Binding(get: { draft ?? item.prompt }, set: { draft = $0 }),
-                              selection: $selection, axis: .vertical)
+                    instructionField(item)
                         .focused($typing)
-                        .onChange(of: typing) { _, on in on ? selectBlank(item) : savePrompt(item) }
+                        .onValueChange(of: typing) { _, on in on ? selectBlank(item) : savePrompt(item) }
                     // Follows the words ("Call …" turns it on) until switched by hand; on: always the call routine.
                     Toggle(isOn: Binding(get: { Calls.isCall(draft ?? item.prompt, kind: item.kind) },
                                          set: { on in var copy = item; copy.kind = on ? "call" : "task"; intents.upsert(copy) })) {
@@ -151,7 +150,7 @@ struct IntentDetailView: View {
                 Button("Delete", role: .destructive) { intents.delete(id); dismiss() }
             }
         } else {
-            ContentUnavailableView("Intent deleted", systemImage: "trash")
+            UnavailableView("Intent deleted", systemImage: "trash")
         }
     }
 
@@ -159,11 +158,23 @@ struct IntentDetailView: View {
         LabeledContent(title) { Text(verbatim: value ?? "–").monospacedDigit() }
     }
 
+    /// iOS 16 has no text selection: the field opens with the caret at the end instead of the blank selected.
+    @ViewBuilder private func instructionField(_ item: SavedTask) -> some View {
+        let text = Binding(get: { draft ?? item.prompt }, set: { draft = $0 })
+        if #available(iOS 18.0, *) {
+            TextField("Instruction", text: text,
+                      selection: Binding(get: { selection as? TextSelection }, set: { selection = $0 }), axis: .vertical)
+        } else {
+            TextField("Instruction", text: text, axis: .vertical)
+        }
+    }
+
     /// The first template blank ("[who]") selected, so what is typed replaces it.
     private func selectBlank(_ item: SavedTask) {
         let text = draft ?? item.prompt
         guard let range = IntentStore.blanks.compactMap({ text.range(of: $0) }).min(by: { $0.lowerBound < $1.lowerBound })
         else { return }
+        guard #available(iOS 18.0, *) else { return }
         Task { selection = TextSelection(range: range) }  // after the field took focus, or it puts the caret back
     }
 

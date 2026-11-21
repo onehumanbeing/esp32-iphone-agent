@@ -64,7 +64,7 @@ struct RecordSheet: View {
                     if lastRun == nil { Text("Run a task first, then save it here.") }
                 }
             }
-            .contentMargins(.top, Space.s, for: .scrollContent)
+            .scrollContentMargins(.top, Space.s)
             .navigationTitle("New Intent")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }

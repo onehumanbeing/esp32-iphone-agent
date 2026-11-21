@@ -8,9 +8,11 @@ struct AgentActivityBundle: WidgetBundle {
     var body: some Widget {
         AgentLiveActivity()
         AgentStatusWidget()
-        RunLastIntentControl()
-        QuickTaskControl()
-        StopAgentControl()
+        if #available(iOS 18.0, *) {
+            RunLastIntentControl()
+            QuickTaskControl()
+            StopAgentControl()
+        }
     }
 }
 
@@ -51,7 +53,7 @@ struct AgentLiveActivity: Widget {
                         if s.phase == .running && (s.waitingSince == nil || s.finished) {
                             StepBar(state: s)
                         }
-                        if !s.finished { Buttons(state: s).controlSize(.small) }
+                        if !s.finished { Buttons(state: s, run: context.attributes.runID).controlSize(.small) }
                         if s.asksVerdict && !context.isStale { VerdictButtons(run: context.attributes.runID) }
                     }
                 }
@@ -154,11 +156,11 @@ private struct VerdictButtons: View {
     let run: String
     var body: some View {
         HStack(spacing: 8) {
-            Button(intent: RunVerdictIntent(run: run, correct: true)) {
+            IntentButton(intent: RunVerdictIntent(run: run, correct: true), fallback: AgentActivityAttributes.url(run: run)) {
                 Label("Correct", systemImage: "hand.thumbsup.fill").frame(maxWidth: .infinity)
             }
             .tint(.green)
-            Button(intent: RunVerdictIntent(run: run, correct: false)) {
+            IntentButton(intent: RunVerdictIntent(run: run, correct: false), fallback: AgentActivityAttributes.url(run: run)) {
                 Label("Wrong", systemImage: "hand.thumbsdown.fill").frame(maxWidth: .infinity)
             }
             .tint(.gray)
@@ -169,23 +171,26 @@ private struct VerdictButtons: View {
 
 private struct Buttons: View {
     let state: AgentActivityAttributes.ContentState
+    let run: String
+    /// iOS 16 can't run an intent from here: the buttons open the run (Stop and Pause are on its page).
+    private var open: URL { AgentActivityAttributes.url(run: run) }
     var body: some View {
         HStack(spacing: 8) {
             switch state.phase {
             case .help:
-                Button(intent: ContinueAgentIntent()) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: ContinueAgentIntent(), fallback: open) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
                     .tint(.green)
-                Button(intent: SkipStepIntent()) { Label("Skip", systemImage: "forward.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: SkipStepIntent(), fallback: open) { Label("Skip", systemImage: "forward.fill").frame(maxWidth: .infinity) }
                     .tint(.gray)
-                Button(intent: StopAgentIntent()) { Image(systemName: "stop.fill") }.tint(.red)
+                IntentButton(intent: StopAgentIntent(), fallback: open) { Image(systemName: "stop.fill") }.tint(.red)
             case .countdown, .recording:
-                Button(intent: StopRecordingIntent()) {
+                IntentButton(intent: StopRecordingIntent(), fallback: open) {
                     Label("Finish Recording", systemImage: "stop.fill").frame(maxWidth: .infinity)
                 }
                 .tint(.red)
             case .standby:
                 ForEach(state.picks ?? [], id: \.self) { pick in
-                    Button(intent: RunSavedIntentIntent(intent: SavedIntentEntity(pick))) {
+                    IntentButton(intent: RunSavedIntentIntent(intent: SavedIntentEntity(pick)), fallback: AgentActivityAttributes.quickURL) {
                         Label { Text(verbatim: pick.name).lineLimit(1) } icon: { Image(systemName: pick.symbol) }
                             .frame(maxWidth: .infinity)
                     }
@@ -196,20 +201,20 @@ private struct Buttons: View {
                 }
                 .buttonStyle(.borderedProminent).tint(.blue)
             case .running:
-                Button(intent: PauseAgentIntent()) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: PauseAgentIntent(), fallback: open) { Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity) }
                     .tint(.gray)
                 Link(destination: AgentActivityAttributes.quickURL) { Image(systemName: "text.bubble") }
                     .buttonStyle(.borderedProminent).tint(.blue)
                     .accessibilityLabel(Text("Add to the task"))
-                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: StopAgentIntent(), fallback: open) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             case .resuming:
-                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: StopAgentIntent(), fallback: open) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             case .paused:
-                Button(intent: UnpauseAgentIntent()) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: UnpauseAgentIntent(), fallback: open) { Label("Continue", systemImage: "play.fill").frame(maxWidth: .infinity) }
                     .tint(.green)
-                Button(intent: StopAgentIntent()) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                IntentButton(intent: StopAgentIntent(), fallback: open) { Label("Stop", systemImage: "stop.fill").frame(maxWidth: .infinity) }
                     .tint(.red)
             }
         }
@@ -289,7 +294,7 @@ private struct LockScreenView: View {
                     if s.phase == .running {
                         StepBar(state: s)
                     }
-                    Buttons(state: s).controlSize(.small)
+                    Buttons(state: s, run: context.attributes.runID).controlSize(.small)
                 }
             }
         }
