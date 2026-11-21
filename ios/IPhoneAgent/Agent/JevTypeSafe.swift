@@ -120,21 +120,23 @@ enum JevRules {
         "\(goal)\nPlan:\n\(plan.isEmpty ? "(none)" : plan)\nRecent actions:\n\(history ?? "(none)")"
     }
 
-    /// The systemone body; the screenshot goes in assets.
+    static let boxNow = "box_now"
+
+    /// The systemone body, as the server's (step.ts buildStepRequest): goal, plan and recent actions in the state
+    /// beside the screenshot (in assets); the due plan step (for OPEN / TYPE text and the final-action check), the
+    /// operation, and one Box for the element to tap now.
     static func request(goal: String, steps: [Step], image: Data, model: String) -> [String: Any] {
         let ref = "screenshot-1"
         var criteria = Dictionary(uniqueKeysWithValues: steps.map { ("step \($0.key)", $0.text) })
         criteria["done"] = "The goal is visibly complete."
         criteria["other"] = "Something the plan does not cover."
-        var questions: [String: Any] = [
+        let questions: [String: Any] = [
             "step": ["type": "choice", "criteria": criteria, "instructions": ["goal": goal, "rules": stepRules]],
-            "operation": ["type": "choice", "criteria": operations,
-                          "instructions": ["goal": goal, "rules": [rules, "The operation for the plan step to perform now."]]],
+            "operation": ["type": "choice", "criteria": operations, "instructions": [
+                "goal": goal, "rules": "Which operation should the agent do now on this \(DeviceKind.name) screen to advance the goal?"]],
+            boxNow: ["type": "box", "instructions": "In `screenshot`, the element to tap now for the next step of the goal."],
         ]
-        for step in steps {
-            questions["box_\(step.key)"] = ["type": "box", "instructions": "In `screenshot`, the element to tap for: \(step.text)"]
-        }
-        return ["model": model, "state": ["screenshot": ref], "questions": questions,
+        return ["model": model, "state": ["task": goal + "\n\n" + rules, "screenshot": ref], "questions": questions,
                 "assets": [ref: ["type": "image", "format": "jpg", "data_base64": image.base64EncodedString()]]]
     }
 
@@ -222,7 +224,7 @@ enum JevRules {
         guard jevOps.contains(op.choice) else { return no("op_not_allowed") }
         var box: [String: Double]?
         if op.choice == "TAP" {
-            guard let b = validBox(a["box_\(key!)"]) else { return no("no_box") }
+            guard let b = validBox(a[boxNow] ?? a["box_\(key!)"]) else { return no("no_box") }
             box = b.box
             prob = min(prob, b.confidence)
             if matches(finalAction, text) { return no("final_action") }
