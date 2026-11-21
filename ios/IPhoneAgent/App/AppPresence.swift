@@ -415,7 +415,11 @@ extension AppModel {
             defer { homeHint = hint }
             // iOS asks "在“美团外卖”中打开？" for a scheme: the board taps 打开 / Open (Henry 2026-11-17: tapped by
             // hand each time). Only a prompt line that is just that word, read on the mirrored screen.
-            if !away, await tapOpenPrompt() { away = (try? await waitForBackground(3)) ?? false }
+            schemePrompted = false
+            if !away, await tapOpenPrompt() {
+                schemePrompted = true
+                away = (try? await waitForBackground(3)) ?? false
+            }
             if !away { away = (try? await waitForBackground(1.2)) ?? false }
             DebugLog.write(String(format: "open %@ by scheme: %@ (%.0f ms)", app, away ? "opened" : "did not leave", (now() - began) * 1000))
             Analytics.capture("app_left", ["method": "scheme", "away": away, "ms": Int((now() - began) * 1000)])

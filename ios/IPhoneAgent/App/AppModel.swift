@@ -72,6 +72,8 @@ import UIKit
     @Published var toast: Toast?
     struct Toast: Equatable { let id = UUID(); let text: String }
     @Published var departing = false  // the character's take-off before a run
+    /// The last openByScheme went through iOS's "Open in …?" prompt (only an app's first scheme open).
+    var schemePrompted = false
     @Published var quickAsk = false  // QuickAskSheet: the island's New Task, the Control Center control
     var startupTask: Task<Void, Never>?
     var returningInput = false

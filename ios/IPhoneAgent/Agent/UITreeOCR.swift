@@ -39,8 +39,10 @@ enum UITreeOCR {
 
     /// `cells`: a word that is a run of Han characters is cut into the candidate-bar cells it spans (HanTyper.cells):
     /// Vision reads the pinyin keyboard's tight candidate bar as one word ("北方北方人北房被杯背倍北").
+    /// `fast`: Vision's fast level, for a quick look for one known word (a replayed step's label). In the background
+    /// iOS gives Vision no GPU, and an accurate read took ~13 s on an iPhone X (2026-11-22). Latin text only.
     static func lines(_ image: CGImage, languages: [String]? = chinese, whole: Bool = false,
-                      cells: Bool = false) async -> [(text: String, box: [Int])] {
+                      cells: Bool = false, fast: Bool = false) async -> [(text: String, box: [Int])] {
         let w = Double(image.width), h = Double(image.height)
         func pixels(_ b: CGRect) -> [Int] {  // normalized, origin bottom-left
             [Int(b.minX * w), Int((1 - b.maxY) * h), Int(b.maxX * w), Int((1 - b.minY) * h)]
@@ -77,8 +79,9 @@ enum UITreeOCR {
                 }
                 done.resume(returning: lines)
             }
-            request.recognitionLevel = .accurate
+            request.recognitionLevel = fast ? .fast : .accurate
             if let languages { request.recognitionLanguages = languages } else { request.automaticallyDetectsLanguage = true }
+            if fast { request.recognitionLanguages = ["en-US"] }  // the fast level reads Latin scripts only
             request.usesLanguageCorrection = false
             pending.set(request)
             DispatchQueue.global(qos: .userInitiated).async {

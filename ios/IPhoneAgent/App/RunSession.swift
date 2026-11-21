@@ -239,9 +239,10 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
-            if openedAtStart != nil {
+            if openedAtStart != nil, schemePrompted {
                 // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
-                // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first.
+                // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first. Only after the
+                // prompt (an app's first scheme open): every other open cost 3.4 s for nothing (Henry 2026-11-22).
                 await feed.settled(quiet: 0.4, least: 1, most: 3)
                 mark("screen still after the scheme open")
             }
