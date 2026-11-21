@@ -5,6 +5,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
     [SW_EN] = {
         [SWT_BATTERY] = "Battery ", [SWT_BATTERY_NONE] = "Battery --",
         [SWT_BT_ON] = "Bluetooth: phone linked", [SWT_BT_OFF] = "Bluetooth: not linked",
+        [SWT_PAIR_HINT] = "Blue: pair a phone", [SWT_PAIRING] = "Pairing - %u:%02u",
         [SWT_APP_ON] = "App connected", [SWT_APP_OFF] = "App not connected",
         [SWT_FIRMWARE] = "Firmware ", [SWT_LANGUAGE] = "Language: English",
         [SWT_PAUSED] = "Paused - yellow resumes", [SWT_HELP] = "Needs your help",
@@ -29,6 +30,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
     [SW_ZH] = {
         [SWT_BATTERY] = "电量 ", [SWT_BATTERY_NONE] = "电量 --",
         [SWT_BT_ON] = "蓝牙 已连接手机", [SWT_BT_OFF] = "蓝牙 未连接",
+        [SWT_PAIR_HINT] = "蓝键 配对手机", [SWT_PAIRING] = "配对中 %u:%02u",
         [SWT_APP_ON] = "App 已连接", [SWT_APP_OFF] = "App 未连接",
         [SWT_FIRMWARE] = "固件 ", [SWT_LANGUAGE] = "语言 中文",
         [SWT_PAUSED] = "已暂停 · 黄键继续", [SWT_HELP] = "需要你帮忙",

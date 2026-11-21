@@ -170,6 +170,15 @@ static void voicePage(const sw_ctl &c, const swf_pose &pose, int level) {
 }
 
 static void statusPage(const View &v) {
+  if (v.pair && !v.hid) {  // pairing (Henry 2026-11-21): the window's countdown on the rim, waves going out under it
+    uint32_t t = millis();
+    for (int k = 0; k < 3; k++) {
+      float p = ((t + k * 600) % 1800) / 1800.0f;
+      uint8_t a = (uint8_t)(255 * (1 - p));
+      canvas->fillArc(CX, CY, 176 + (int)(p * 40), 179 + (int)(p * 40), 0, 360, lgfx::color565(a, a * 176 / 255, 0));
+    }
+    ring((int)(v.pair * 1000L / 180), C_AMBER, C_DIM, 224, 232);
+  }
   canvas->setTextColor(TFT_WHITE);
   font(&fonts::Font4);
   canvas->drawString(v.clock[0] ? v.clock : "--:--", CX, 80);
@@ -177,14 +186,18 @@ static void statusPage(const View &v) {
   if (v.battery) snprintf(bat, sizeof bat, "%s%u%%", T(SWT_BATTERY), v.battery);
   else strlcpy(bat, T(SWT_BATTERY_NONE), sizeof bat);
   snprintf(fw, sizeof fw, "%s%s", T(SWT_FIRMWARE), FW_VERSION);
-  const char *rows[] = {bat, T(v.hid ? SWT_BT_ON : SWT_BT_OFF), T(v.alive ? SWT_APP_ON : SWT_APP_OFF), fw, boardName,
+  char pairing[40];
+  snprintf(pairing, sizeof pairing, T(SWT_PAIRING), v.pair / 60, v.pair % 60);
+  const char *rows[] = {bat, v.pair && !v.hid ? pairing : T(v.hid ? SWT_BT_ON : SWT_BT_OFF), T(v.alive ? SWT_APP_ON : SWT_APP_OFF), fw, boardName,
                         T(SWT_LANGUAGE)};
   for (int i = 0; i < 6; i++) {
     bool ok = i == 1 ? v.hid : i == 2 ? v.alive : true;
-    canvas->setTextColor(i == 4 ? C_GREY : i == STATUS_LANG ? C_AMBER : ok ? (i == 1 || i == 2 ? C_GREEN : TFT_WHITE) : C_GREY);
+    canvas->setTextColor(i == 1 && v.pair && !v.hid ? C_AMBER : i == 4 ? C_GREY : i == STATUS_LANG ? C_AMBER
+                         : ok ? (i == 1 || i == 2 ? C_GREEN : TFT_WHITE) : C_GREY);
     fontFor(rows[i]);
     canvas->drawString(fit(rows[i], 330), CX, STATUS_Y + i * STATUS_GAP);
   }
+  if (!v.hid && !v.pair) line(T(SWT_PAIR_HINT), H - 70, C_GREY, 1);
 }
 
 // A lost link the user has to fix (sw_warn.h): what happened, what to do, the board's name where it is picked.

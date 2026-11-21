@@ -30,6 +30,8 @@ int ble_peers();         // connected centrals
 
 // For cli_link.cpp (slot = the peer's connection slot).
 bool ble_pair_window_open();
+void ble_pair_open();          // a new pairing window, bonds kept (the StopWatch's blue on its status page)
+uint32_t ble_pair_left_ms();   // what is left of it, 0 when closed
 uint16_t ble_cli_mtu(int slot);
 bool ble_cli_subscribed(int slot);
 bool ble_cli_notify(int slot, const uint8_t *p, size_t n, bool video, uint32_t timeout_ms);

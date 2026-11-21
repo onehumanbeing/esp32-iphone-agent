@@ -31,6 +31,7 @@ struct View {
   int8_t charge;   // charging: the ring's pulse step (0..15), -1 not charging
   uint8_t low;     // the low-battery banner: the battery % (0 none)
   uint8_t warn;    // SW_SCR_WARN: the alert (sw_warn_code)
+  uint16_t pair;   // the status page: seconds left of a pairing window opened with blue (0 none)
   sw_ui ui;
 };
 static const int STATUS_Y = 140, STATUS_GAP = 42, STATUS_LANG = 5;  // the language row: a tap there switches

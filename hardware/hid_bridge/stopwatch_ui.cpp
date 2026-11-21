@@ -9,6 +9,7 @@
 #include "src/ui/sw_text.h"
 #include "src/ui/sw_power.h"
 #include "src/ui/sw_warn.h"
+#include "ble_link.h"
 #include "voice_rec.h"
 #include "stopwatch_draw.h"
 using namespace sw;
@@ -324,7 +325,18 @@ static void uiTask(void *) {
     if (eatT && !touching) eatT = false;
     bool voiceBefore = c.voice != SW_V_NONE || c.sel >= 0, legacy = !(alive && c.ui.voice) && !c.y_down;
     bool pokeIdle = !running && !c.ui.npicks;  // yellow with nothing to pick: it reacts
-    if (statusUntil && yDown) {  // yellow on the status page: the other language (Henry 2026-11-21)
+    bool paired = hidLinked || appLinked;
+    static bool wasPaired;
+    if (paired && !wasPaired && statusUntil && ble_pair_left_ms()) {  // linked while pairing: buzz, show it, then close
+      buzzPulse(buzz, 60, now);
+      statusUntil = now + 3000;
+    }
+    wasPaired = paired;
+    if (!paired && !running && !statusUntil && yDown) {  // no phone yet: yellow opens the status page, where blue pairs (Henry 2026-11-21)
+      statusUntil = now + 8000;
+      eatY = true;  // its release starts nothing
+      yDown = false;
+    } else if (statusUntil && yDown) {  // yellow on the status page: the other language (Henry 2026-11-21)
       setLang(sw_lang_next(lang));
       statusUntil = now + 5000;
     } else {
@@ -340,6 +352,10 @@ static void uiTask(void *) {
     bool warned = sww_shown(&warn) && !voiceBefore;
     if (warned && bDown) {  // blue on an alert: hidden until another comes, nothing sent
       sww_hide(&warn);
+      c.blue_ignore = true;
+    } else if (statusUntil && !paired && bDown) {  // blue on the status page without a phone: a pairing window
+      ble_pair_open();
+      statusUntil = now + ble_pair_left_ms();  // the page stays, with the countdown, until it closes or a phone links
       c.blue_ignore = true;
     } else if (!running && !voiceBefore && bDown) {  // blue while nothing runs: the status page, on and off (Henry 2026-11-20)
       statusUntil = statusUntil ? 0 : now + 5000;
@@ -432,7 +448,8 @@ static void uiTask(void *) {
     v.elapsed = sw_elapsed(&c, now);
     // the time: the status page's, and under the face when it sleeps or no app is there (the RTC; the app's `c` else)
     if (!clockNow(now, v.clock)) sw_clock(&c, now, v.clock);
-    if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
+    if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;
+    v.pair = (ble_pair_left_ms() + 999) / 1000;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
     v.charge = charging < 0 || battery >= 100 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
     v.low = low;
     v.ui = c.ui;

@@ -716,6 +716,12 @@ void ble_unpair() {
 
 // Hooks for cli_link.cpp.
 bool ble_pair_window_open() { return millis() - pairOpened < PAIR_WINDOW_MS; }
+// A board on its own battery is rarely just powered on when a phone comes to pair (Henry 2026-11-21): open it again.
+void ble_pair_open() {
+  pairOpened = millis();
+  board_log("ble: pairing window open for %lu s", PAIR_WINDOW_MS / 1000);
+}
+uint32_t ble_pair_left_ms() { return ble_pair_window_open() ? PAIR_WINDOW_MS - (millis() - pairOpened) : 0; }
 
 uint16_t ble_cli_mtu(int slot) {
   int h = slot >= 0 && slot < MAX_PEERS ? peers[slot] : -1;

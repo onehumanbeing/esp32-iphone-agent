@@ -11,6 +11,7 @@ enum sw_text_id {
   SWT_BATTERY,      // "%u" follows
   SWT_BATTERY_NONE,
   SWT_BT_ON, SWT_BT_OFF,
+  SWT_PAIR_HINT, SWT_PAIRING,  // the status page without a phone: blue opens pairing; its countdown (%u:%02u)
   SWT_APP_ON, SWT_APP_OFF,
   SWT_FIRMWARE,     // the version follows
   SWT_LANGUAGE,     // the status page's language row: tap it (or yellow) to switch
