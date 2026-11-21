@@ -17,6 +17,7 @@
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#include "freertos/idf_additions.h"
 #include "mbedtls/aes.h"
 #include "../video/gop.h"
 #include "keystream.h"
@@ -298,6 +299,8 @@ static void audio_packet(void) {
   ap_cfg.on_audio(ev == AP_GATE_START ? AIRPLAY_AUDIO_START : AIRPLAY_AUDIO_FRAME, frame, rtp.len, rtp.ts);
 }
 
+static TaskHandle_t ext_task;  // the mirror task when its stack is in PSRAM (start_task)
+
 static void mirror_task(void *arg) {
   uint8_t hdr[128], ntp[32] = {0x80, 0xd2, 0x00, 0x07}, scratch[128];
   uint8_t *payload = NULL;
@@ -397,7 +400,8 @@ static void mirror_task(void *arg) {
   m.held_set = m.held_ready = false;
   mbedtls_aes_free(&m.aes);
   m.done = true;
-  vTaskDelete(NULL);
+  if (ext_task) vTaskSuspend(NULL);  // a PSRAM stack: deleted by the next start (vTaskDeleteWithCaps), never by itself
+  else vTaskDelete(NULL);
 }
 
 static void derive(const char *label, uint64_t id, const uint8_t aeskey[16], uint8_t out[16]) {
@@ -408,9 +412,22 @@ static void derive(const char *label, uint64_t id, const uint8_t aeskey[16], uin
   memcpy(out, h, 16);
 }
 
+// The mirror task, stack in internal RAM; when that is too short (the StopWatch, 2026-11-22: screen, mic, Bluetooth and
+// the Wi-Fi link leave ~15 KB, and every mirroring setup failed), the stack comes from PSRAM instead.
+static bool start_task(void) {
+  if (xTaskCreatePinnedToCore(mirror_task, "mirror", 8 * 1024, NULL, 6, NULL, 0) == pdPASS) return true;
+  ap_log("mirror: no internal RAM for the task (free %u, largest %u), stack in PSRAM",
+         (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+  return xTaskCreatePinnedToCoreWithCaps(mirror_task, "mirror", 8 * 1024, NULL, 6, &ext_task, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS;
+}
+
 bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remote_ip, uint16_t timing_rport) {
   uint8_t key[16];
   ap_mirror_stop();
+  if (ext_task && m.done) {  // the last session's PSRAM-stack task, suspended at its end
+    vTaskDeleteWithCaps(ext_task);
+    ext_task = NULL;
+  }
   derive("AirPlayStreamKey", stream_id, aeskey, key);
   derive("AirPlayStreamIV", stream_id, aeskey, m.iv0);
   memset(m.ks, 0, sizeof m.ks);
@@ -436,7 +453,9 @@ bool ap_mirror_start(const uint8_t aeskey[16], uint64_t stream_id, uint32_t remo
   a.buf = heap_caps_malloc(AUDIO_PACKET_MAX, MALLOC_CAP_SPIRAM);  // NULL: packets are drained, not forwarded
   m.run = true;
   m.done = false;
-  if (m.lfd < 0 || xTaskCreatePinnedToCore(mirror_task, "mirror", 8 * 1024, NULL, 6, NULL, 0) != pdPASS) {
+  if (m.lfd < 0) ap_log("mirror: no socket for port %d (internal RAM free %u)", AP_MIRROR_PORT,
+                        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  if (m.lfd < 0 || (ext_task && !m.done) || !start_task()) {
     m.run = false;
     m.done = true;
     close_fd(&m.lfd);
