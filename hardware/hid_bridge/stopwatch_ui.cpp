@@ -272,7 +272,7 @@ static void uiTask(void *) {
   board_log("stopwatch: rtc %s, time %s", M5.Rtc.isEnabled() ? "on" : "missing", hhmm);
   bool pairShown = false, pairBack = false;  // the pairing page; the status page was open before it
   uint32_t blueIdleAt = 0;  // an idle blue press: held PAIR_HOLD_MS pairs, released before that opens or leaves a page
-  bool blueLong = false;
+  bool blueIdle = false, blueLong = false;
   uint32_t batteryAt = millis(), statusUntil = 0, statAt = millis(), frames = 0, drawMs = 0, drawMax = 0;
   char out[BTN_LINE];
   // The codec's mic gives only zeros for ~0.85 s after its first start since power-on (measured 2026-11-21), later
@@ -381,10 +381,10 @@ static void uiTask(void *) {
       sww_hide(&warn);
       c.blue_ignore = true;
     } else if (!running && !voiceBefore && bDown) {  // blue while nothing runs: held, pairing; short, a page (Henry 2026-11-22)
-      blueIdleAt = now | 1, blueLong = false;
+      blueIdle = true, blueIdleAt = now, blueLong = false;
       c.blue_ignore = true;  // no `home`, no `stop` from this press
     }
-    if (blueIdleAt && !blueLong && !bUp && now - blueIdleAt >= PAIR_HOLD_MS) {  // held: a pairing window, its page
+    if (blueIdle && !blueLong && !bUp && now - blueIdleAt >= PAIR_HOLD_MS) {  // held: a pairing window, its page
       blueLong = true;
       if (!pairShown) pairBack = statusUntil != 0;
       ble_pair_open();
@@ -392,10 +392,10 @@ static void uiTask(void *) {
       statusUntil = now + ble_pair_left_ms();  // the page stays, with the countdown, until it closes or a phone links
       buzzPulse(buzz, 40, now);
     }
-    if (blueIdleAt && bUp) {
+    if (blueIdle && bUp) {
       if (!blueLong && pairShown) pairShown = false, statusUntil = pairBack ? now + 5000 : 0;  // back; the window stays
       else if (!blueLong) statusUntil = statusUntil ? 0 : now + 5000;  // the status page, on and off
-      blueIdleAt = 0;
+      blueIdle = false;
     }
     if (got || M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.Touch.getCount()) activeAt = now;
     int screen = sw_screen(&c, now);
