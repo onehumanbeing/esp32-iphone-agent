@@ -432,8 +432,8 @@ static void uiTask(void *) {
     v.elapsed = sw_elapsed(&c, now);
     // the time: the status page's, and under the face when it sleeps or no app is there (the RTC; the app's `c` else)
     if (!clockNow(now, v.clock)) sw_clock(&c, now, v.clock);
-    if (v.screen != SW_SCR_STATUS && !(v.screen == SW_SCR_IDLE && (mood == SW_SLEEPING || !alive))) v.clock[0] = 0;
-    v.charge = charging < 0 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
+    if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
+    v.charge = charging < 0 || battery >= 100 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
     v.low = low;
     v.ui = c.ui;
     // the screen's power: anything new on it is activity; a run, help, voice, a pick or the status page keep it on
