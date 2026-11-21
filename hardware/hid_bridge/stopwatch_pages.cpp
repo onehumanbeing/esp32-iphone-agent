@@ -355,7 +355,9 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       break;
     default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
       face(pose, CX, CY - 10, GLOW_INK, true);
-      if (c.sel < 0 && !u.npicks) statusDots(v);
+      // all linked: only the character; the states are on the status page (blue). Until then, the dots (Henry 2026-11-21)
+      bool linked = v.hid && v.alive && v.wifi && v.mirror == 2;
+      if (c.sel < 0 && !u.npicks && !linked) statusDots(v);
       font(&fonts::efontCN_24);
       if (v.clock[0] && c.sel < 0) {  // asleep or without the app: the time (the RTC, set from the phone)
         font(&fonts::Font7);
@@ -380,12 +382,12 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
         snprintf(b, sizeof b, T(SWT_CHARGING), v.battery);
         fontFor(b);
         canvas->setTextColor(C_GREEN);
-        canvas->drawString(b, CX, H - 70);
+        if (!linked) canvas->drawString(b, CX, H - 70);  // linked: the ring alone, the level is on the status page
       } else if (!v.hid) {
         fontFor(boardName);
         canvas->setTextColor(C_DIM);
         canvas->drawString(fit(boardName, 300), CX, H - 70);  // what to look for in the phone's Bluetooth list
-      } else if (v.battery && v.battery < 15) {
+      } else if (v.battery && v.battery < 15 && !linked) {  // linked: the low-battery banner still comes
         char b[8];
         snprintf(b, sizeof b, "%u%%", v.battery);
         canvas->setTextColor(C_RED);
