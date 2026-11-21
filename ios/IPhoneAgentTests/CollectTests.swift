@@ -184,13 +184,27 @@ final class WaitForTests: XCTestCase {
 
     /// 2026-11-19: an order card aimed under the tab bar opened 神券; a tab the THINK names is still tapped.
     func testTabBarGuardHoldsTapsOnUnnamedTabs() {
-        let lines: [(text: String, box: [Int])] = [("神券", [400, 1880, 470, 1910]), ("示例店", [100, 1700, 300, 1740])]
+        let lines: [(text: String, box: [Int])] = [("首页", [90, 1880, 160, 1910]), ("神券", [400, 1880, 470, 1910]),
+                                                   ("订单", [620, 1880, 690, 1910]), ("我的", [840, 1880, 910, 1910]),
+                                                   ("示例店", [100, 1700, 300, 1740])]
         let card: JObject = ["action": .str("tap"), "x": .int(488), "y": .int(943), "thought": .str("open the next order 示例店")]
         XCTAssertNotNil(TabBarGuard.held(card, lines: lines, w: 1000, h: 2000))
         var tab = card; tab["thought"] = .str("go to the 神券 tab")
         XCTAssertNil(TabBarGuard.held(tab, lines: lines, w: 1000, h: 2000))
         var high = card; high["y"] = .int(860)
         XCTAssertNil(TabBarGuard.held(high, lines: lines, w: 1000, h: 2000), "above the tab bar")
+    }
+
+    /// 2026-11-21: a short word low on the screen is not a tab bar. Notes' compose next to its search field, and the
+    /// Phone search button beside its pill (three labels close together, under half the width), were held.
+    func testTabBarGuardNeedsARowOfTabs() {
+        let notes: [(text: String, box: [Int])] = [("搜索", [80, 1880, 150, 1910])]
+        let compose: JObject = ["action": .str("tap"), "x": .int(200), "y": .int(945), "thought": .str("new note")]
+        XCTAssertNil(TabBarGuard.held(compose, lines: notes, w: 1000, h: 2000), "one word: no tab bar")
+        let phone: [(text: String, box: [Int])] = [("通话", [220, 1880, 290, 1910]), ("通讯录", [370, 1880, 470, 1910]),
+                                                   ("拨号键盘", [540, 1880, 680, 1910])]
+        let search: JObject = ["action": .str("tap"), "x": .int(700), "y": .int(945), "thought": .str("open search")]
+        XCTAssertNil(TabBarGuard.held(search, lines: phone, w: 1000, h: 2000), "the pill is under half the width")
     }
 
     func testAnItemBeforeTheGoalsDatesEndsTheList() {
