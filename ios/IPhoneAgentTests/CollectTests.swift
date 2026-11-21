@@ -205,6 +205,15 @@ final class WaitForTests: XCTestCase {
                                                    ("拨号键盘", [540, 1880, 680, 1910])]
         let search: JObject = ["action": .str("tap"), "x": .int(700), "y": .int(945), "thought": .str("open search")]
         XCTAssertNil(TabBarGuard.held(search, lines: phone, w: 1000, h: 2000), "the pill is under half the width")
+        // the search glyph read as one sign at the end of a full-width row: an icon, not a tab
+        let wide: [(text: String, box: [Int])] = [("通话", [80, 1880, 150, 1910]), ("通讯录", [330, 1880, 430, 1910]),
+                                                  ("拨号键盘", [560, 1880, 700, 1910]), ("Q", [880, 1880, 910, 1910])]
+        let glyph: JObject = ["action": .str("tap"), "x": .int(895), "y": .int(945), "thought": .str("open search")]
+        XCTAssertNil(TabBarGuard.held(glyph, lines: wide, w: 1000, h: 2000))
+        let me: [(text: String, box: [Int])] = [("首页", [80, 1880, 150, 1910]), ("市集", [280, 1880, 350, 1910]),
+                                                ("消息", [640, 1880, 710, 1910]), ("我", [870, 1880, 900, 1910])]
+        let tab: JObject = ["action": .str("tap"), "x": .int(885), "y": .int(945), "thought": .str("open the profile")]
+        XCTAssertNotNil(TabBarGuard.held(tab, lines: me, w: 1000, h: 2000), "a one-character tab is still a tab")
     }
 
     func testAnItemBeforeTheGoalsDatesEndsTheList() {

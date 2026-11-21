@@ -58,6 +58,9 @@ enum TabBarGuard {
         let short = lines.compactMap { l -> (text: String, b: [Double])? in
             let t = l.text.trimmingCharacters(in: .whitespaces), b = l.box.map(Double.init)
             guard !t.isEmpty, t.count <= 4, b.count == 4, b[1] >= TapText.tabBar * H - 0.02 * H else { return nil }
+            // one sign that is not a CJK character is an icon read as text (the Phone search button's magnifier,
+            // 2026-11-21); a one-character tab such as 我 stays
+            if t.count == 1, !t.unicodeScalars.allSatisfy({ (0x4E00...0x9FFF).contains($0.value) }) { return nil }
             return (t, b)
         }
         let hit = short.first { l in  // the label and its icon above it, about one tab wide
