@@ -132,6 +132,8 @@ extension AppNames {
          ["linkedin://"]),
         (["Uber", "Uber", "优步"],
          ["uber://"]),
+        (["Fiverr", "Fiverr"],
+         ["fiverrapp://"]),  // the app's Info.plist (2026-11-22, iPhone X)
         (["Amazon", "Amazon", "亚马逊", "amazon shopping"],
          ["com.amazon.mobile.shopping://"]),
         (["PayPal", "PayPal", "贝宝"],

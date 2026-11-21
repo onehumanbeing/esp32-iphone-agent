@@ -1233,4 +1233,51 @@ import XCTest
         XCTAssertFalse(boundary.accepts(capturedAt: 9, backgroundEnteredAt: 11))  // a new app visit supersedes it
     }
 
+
+    // AssistiveTouch Home on old iPhones (2026-11-22): the floating button found by its picture, Home by where iOS
+    // puts the menu.
+    private func screen(button at: CGPoint?, alpha: Double = 1, ring: CGPoint? = nil) -> CGImage {
+        let w = 750, h = 1624, k = AssistiveButton.size, scale = 5  // 150 px across, scaled 5×
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+        ctx.setFillColor(gray: 0.95, alpha: 1); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.setFillColor(gray: 0.2, alpha: 1); ctx.fill(CGRect(x: 40, y: 200, width: 670, height: 30))  // a text bar
+        if let ring {  // a round button with a light centre (a play button looked like the button to the old test)
+            let c = CGPoint(x: ring.x * Double(w), y: (1 - ring.y) * Double(h))
+            ctx.setFillColor(gray: 0.3, alpha: 1); ctx.fillEllipse(in: CGRect(x: c.x - 50, y: c.y - 50, width: 100, height: 100))
+            ctx.setFillColor(gray: 1, alpha: 1); ctx.fillEllipse(in: CGRect(x: c.x - 20, y: c.y - 20, width: 40, height: 40))
+        }
+        if let at {
+            let raw = Data(base64Encoded: AssistiveButton.templateBase64)!
+            for ty in 0..<k { for tx in 0..<k {
+                ctx.setFillColor(gray: Double(raw[ty * k + tx]) / 255, alpha: alpha)
+                let x = at.x * Double(w) + Double((tx - k / 2) * scale), y = (1 - at.y) * Double(h) - Double((ty - k / 2) * scale)
+                ctx.fill(CGRect(x: x - 2.5, y: y - 2.5, width: Double(scale), height: Double(scale)))
+            } }
+        }
+        return ctx.makeImage()!
+    }
+
+    func testAssistiveButtonFound() {
+        for at in [CGPoint(x: 0.89, y: 0.78), CGPoint(x: 0.89, y: 0.05), CGPoint(x: 0.123, y: 0.456)] {
+            for alpha in [1.0, 0.4] {  // solid, and faded as when idle
+                let spot = AssistiveButton.find(screen(button: at, alpha: alpha, ring: CGPoint(x: 0.5, y: 0.6)))
+                XCTAssertEqual(spot?.x ?? 0, at.x, accuracy: 0.02, "\(at) \(alpha)")
+                XCTAssertEqual(spot?.y ?? 0, at.y, accuracy: 0.02, "\(at) \(alpha)")
+            }
+        }
+        XCTAssertNil(AssistiveButton.find(screen(button: nil, ring: CGPoint(x: 0.5, y: 0.6))))  // a look-alike mid-screen
+        XCTAssertNil(AssistiveButton.find(screen(button: nil)))
+    }
+
+    func testAssistiveHomeSpotFollowsTheMenu() {
+        let x = CGSize(width: 375, height: 812)  // iPhone X; Home measured on screenshots with the menu open
+        for (button, home) in [(CGPoint(x: 0.893, y: 0.148), CGPoint(x: 0.578, y: 0.367)),
+                               (CGPoint(x: 0.893, y: 0.351), CGPoint(x: 0.578, y: 0.447)),
+                               (CGPoint(x: 0.884, y: 0.947), CGPoint(x: 0.578, y: 0.828))] {
+            let spot = AssistiveButton.homeSpot(button: button, screen: x)
+            XCTAssertEqual(spot.x, home.x, accuracy: 0.02)
+            XCTAssertEqual(spot.y, home.y, accuracy: 0.02)
+        }
+    }
 }

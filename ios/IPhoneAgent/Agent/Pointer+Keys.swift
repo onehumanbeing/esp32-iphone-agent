@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import UIKit
 
 /// Typing and keys through the board's keyboard: text, key combos and the Home key.
 extension Pointer {
@@ -155,6 +156,7 @@ extension Pointer {
     }
 
     func goHome(again: Bool = false) async throws {
+        if AssistiveButton.oldIPhone, try await assistiveHome() { return }
         // An absolute mouse (#99): iOS ignored AC Home there, and an animated screen (Weather) looked like it worked.
         // A Bluetooth HID board: iOS ignores AC Home over Bluetooth too (2026-11-19).
         if absolute || swipeHome { return try await homeSwipe() }
@@ -265,5 +267,145 @@ enum SearchPill {
         guard let jpeg, let image = Vision.image(jpeg) else { return false }
         let size = CGSize(width: image.width, height: image.height)
         return label(await UITreeOCR.lines(image), size: size).map { covers($0, p) } ?? false
+    }
+}
+
+// MARK: - Home through the AssistiveTouch menu (iPhones on iOS 16 and older)
+
+extension Pointer {
+    /// Opens the AssistiveTouch menu and taps its Home. false: no button on screen, or no Home in the menu (closed
+    /// again). iPhone X on iOS 16.7 (2026-11-22): five home-bar strokes from the board's mouse, none went Home; the
+    /// menu's Home did at once. A mouse on an iPhone needs AssistiveTouch, so its button is on screen.
+    func assistiveHome() async throws -> Bool {
+        guard let screen else { return false }
+        // 2026-11-22: the run left the app before the first frame came (the stream was frozen), found no button and
+        // fell back to the home-bar flick, which never works here. Wait for a frame; else the last spot it was seen at.
+        if !screen.live || screen.frame == nil { _ = await screen.fresh(since: now() - 1, timeout: 6) }
+        var spot: CGPoint?
+        let looked = now()
+        if screen.live, let jpeg = screen.frame {
+            spot = await Vision.off({ Vision.image(jpeg).flatMap(AssistiveButton.find) })
+        }
+        if let spot { AssistiveButton.lastSpot = spot }
+        guard let spot = spot ?? AssistiveButton.lastSpot else {
+            log("home: no AssistiveTouch button found on screen")
+            return false
+        }
+        try await tap(Double(spot.x), Double(spot.y))
+        // AirPlay leaves the menu out of the mirrored screen (2026-11-22: no new frame for 17 s after it opened), so
+        // its Home is where iOS puts it: the menu centred on the button, kept on screen.
+        let home = AssistiveButton.homeSpot(button: spot, screen: await MainActor.run { UIScreen.main.bounds.size })
+        try await Task.sleep(nanoseconds: 400_000_000)  // the menu opens with an animation
+        try await tap(Double(home.x), Double(home.y))
+        log(String(format: "home: AssistiveTouch (%.2f, %.2f, found in %.0f ms) › Home (%.2f, %.2f)", spot.x, spot.y,
+                   (now() - looked) * 1000, home.x, home.y))
+        return true
+    }
+}
+
+/// The AssistiveTouch button, found with no model (Henry 2026-11-22: the user drags it anywhere, and it fades when
+/// idle): normalised cross-correlation with a 31×31 picture of it at 150 px across the screen, at three sizes. It does
+/// not care about brightness or contrast, so the faded button matches like the solid one. On iPhone X screenshots the
+/// button scored 0.88-1.0 (faded on light apps, solid, over a Home Screen icon, at the top and bottom edge), the best
+/// other spot 0.52 (a round play button scored highest with the earlier ring test). Only spots at an edge count.
+enum AssistiveButton {
+    /// iPhones on iOS 16 and older go Home this way; newer ones and iPads keep the home-bar flick.
+    @MainActor static var oldIPhone: Bool {
+        ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 17 && UIDevice.current.userInterfaceIdiom == .phone
+    }
+    /// Where the button was last seen: it stays put unless the user drags it.
+    @MainActor static var lastSpot: CGPoint?
+    static let width = 150
+    static let minScore: Float = 0.7
+    static let size = 31
+    /// The solid button, 31×31 gray bytes (base64) cut from an iPhone X screenshot scaled to 150 px across.
+    static let templateBase64 = "///////////////////////////////////////////////////////////////////////////////////////////////////9"
+        + "9u7r7/j+/////////////////////////////uu7hF9OSVBljsby////////////////////////8KhTLiYmJiYmJicyYbr3////"
+        + "///////////////+22stJiYmJicoJyYmJiYygun/////////////////1FMmJiYrOEhRU1BFNSkmJilq5v//////////////4lgm"
+        + "JSc5VmNpbm9taGFRNCYlJ3Pw////////////93wnJShEYW2AjI+Qj4p8al48JiUrnf3//////////8EzJSZBY3WNl7HL08erlIpw"
+        + "XzklJUPc//////////hwJSUzX3OPpuH8////+dadjG1ZLSUnlP7////////cPSUnTWmKo+z////////+35mEZkIlJVXw////////"
+        + "tiolLl13k9b///////////3DkHBWKSU21f///////5QlJThkhKD0////////////55d8Xy8lKrr///////6CJSU+Z4mt/P//////"
+        + "//////SfgmI0JSer///////+gSUlPmeJrv3////////////1oIJiNCUnqv///////5ElJTlkhaL2////////////6ph9XzAlKrf/"
+        + "//////+wKSUvX3qU3P///////////sqRcVgqJTTR////////1zklJ1BrjKny/////////+edh2dGJSVP7P////////VmJSU3YXeQ"
+        + "r+v+/////eKkjnBcLyUmiv3/////////ti8lJ0dleo+dv9ng1biYjXRiPSYlPNT///////////NtJiUpSmNxhY6Sk5GNgm1hQicl"
+        + "KY77////////////10olJSlAW2ZscnVya2RXOiclJmLq//////////////7ERSYmJi4/T1dZV008LCYmJ1na////////////////"
+        + "/ctYKSYmJicpKiknJiYmLGze////////////////////5o9DKSYmJiYmJiYrTaPw///////////////////////83aJqSz46P1B0"
+        + "r+f+////////////////////////////+evg3OHu+///////////////////////////////////////////////////////////"
+        + "/////////////////////////////////////////////////////////////////////////////////w=="
+    static let template: [Float] = {
+        let bytes = Data(base64Encoded: templateBase64) ?? Data()
+        var t = bytes.map { Float($0) / 255 }
+        let mean = t.reduce(0, +) / Float(max(t.count, 1))
+        let sd = (t.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Float(max(t.count, 1))).squareRoot()
+        for i in t.indices { t[i] = (t[i] - mean) / max(sd, 1e-6) }
+        return t
+    }()
+
+    static func find(_ image: CGImage) -> CGPoint? {
+        let k = size, n = Float(k * k)
+        guard template.count == k * k, image.width > 0 else { return nil }
+        var best: (score: Float, spot: CGPoint)?
+        for scale in [0.85, 1.0, 1.15] {  // the button scaled, by scaling the screen the other way
+            let w = Int((Double(width) / scale).rounded())
+            let h = Int((Double(image.height) * Double(w) / Double(image.width)).rounded())
+            guard h > k, let px = gray(image, w, h) else { continue }
+            // sums of the pixels and their squares up to each corner: any window's mean and spread at once
+            let iw = w + 1
+            var s1 = [Double](repeating: 0, count: iw * (h + 1)), s2 = s1
+            for y in 0..<h {
+                var r1 = 0.0, r2 = 0.0
+                for x in 0..<w {
+                    let v = Double(px[y * w + x]); r1 += v; r2 += v * v
+                    s1[(y + 1) * iw + x + 1] = s1[y * iw + x + 1] + r1
+                    s2[(y + 1) * iw + x + 1] = s2[y * iw + x + 1] + r2
+                }
+            }
+            func box(_ s: [Double], _ x: Int, _ y: Int) -> Double {
+                s[(y + k) * iw + x + k] - s[y * iw + x + k] - s[(y + k) * iw + x] + s[y * iw + x]
+            }
+            px.withUnsafeBufferPointer { p in template.withUnsafeBufferPointer { t in
+                for y in 0...(h - k) { for x in 0...(w - k) {
+                    let mean = box(s1, x, y) / Double(n)
+                    let sd = Float((max(box(s2, x, y) / Double(n) - mean * mean, 0)).squareRoot())
+                    guard sd > 0.02 else { continue }  // a flat patch
+                    var dot: Float = 0
+                    for ty in 0..<k {
+                        let row = (y + ty) * w + x, trow = ty * k
+                        for tx in 0..<k { dot += p[row + tx] * t[trow + tx] }
+                    }
+                    let score = dot / n / sd  // the template's mean is 0, so the window's mean drops out
+                    let spot = CGPoint(x: (Double(x) + Double(k) / 2) / Double(w), y: (Double(y) + Double(k) / 2) / Double(h))
+                    if score > (best?.score ?? minScore), atEdge(spot) { best = (score, spot) }
+                } }
+            } }
+        }
+        return best?.spot
+    }
+
+    /// Left alone, the button always rests against an edge of the screen; a round icon mid-screen can look much like
+    /// it (a dark disc with a white play mark scored 0.81).
+    static func atEdge(_ p: CGPoint) -> Bool { p.x <= 0.14 || p.x >= 0.86 || p.y <= 0.08 || p.y >= 0.92 }
+
+    private static func gray(_ image: CGImage, _ w: Int, _ h: Int) -> [Float]? {
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let data = ctx.data else { return nil }
+        let px = data.bindMemory(to: UInt8.self, capacity: w * h)
+        return (0..<(w * h)).map { Float(px[$0]) / 255 }
+    }
+
+    /// Where Home is once the menu opened for the button at `button` (0-1) on a portrait screen `screen` points large.
+    /// The default six-item menu (~292×293 pt) is centred on the button and kept 12 pt from the sides and 71 pt from
+    /// top and bottom; Home is 79 pt below its centre. Measured on an iPhone X with the button at the top, middle and
+    /// bottom of the right edge (2026-11-22).
+    static func homeSpot(button: CGPoint, screen: CGSize) -> CGPoint {
+        let (mw, mh, side, edge, below) = (292.0, 293.0, 12.0, 71.0, 79.0)
+        func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { lo > hi ? (lo + hi) / 2 : min(max(v, lo), hi) }
+        let cx = clamp(button.x * screen.width, side + mw / 2, screen.width - side - mw / 2)
+        let cy = clamp(button.y * screen.height, edge + mh / 2, screen.height - edge - mh / 2)
+        return CGPoint(x: cx / screen.width, y: (cy + below) / screen.height)
     }
 }

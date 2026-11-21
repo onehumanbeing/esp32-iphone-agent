@@ -239,6 +239,12 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
+            if openedAtStart != nil {
+                // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
+                // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first.
+                await feed.settled(quiet: 0.4, least: 1, most: 3)
+                mark("screen still after the scheme open")
+            }
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
                 step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
