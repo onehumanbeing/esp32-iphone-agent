@@ -36,7 +36,12 @@ static int code(ima_state *s, int sample) {
 
 size_t ima_encode(ima_state *s, const int16_t *pcm, size_t n, uint8_t *out) {
   if (s->index > 88) s->index = 88;
-  for (size_t i = 0; i + 1 < n; i += 2) out[i / 2] = (uint8_t)(code(s, pcm[i]) | code(s, pcm[i + 1]) << 4);
+  for (size_t i = 0; i + 1 < n; i += 2) {
+    // two statements: the operands of | have no order in C, and gcc coded the second sample first (CI 2026-11-22)
+    int lo = code(s, pcm[i]);
+    int hi = code(s, pcm[i + 1]);
+    out[i / 2] = (uint8_t)(lo | hi << 4);
+  }
   return n / 2;
 }
 
