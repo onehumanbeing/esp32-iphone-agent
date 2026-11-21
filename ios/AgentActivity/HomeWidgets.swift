@@ -26,7 +26,7 @@ struct AgentStatusWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: SharedState.kind, provider: AgentProvider()) { entry in
             AgentWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .widgetBackground()
         }
         .configurationDisplayName(AppName.current)
         .description("See whether the agent is ready and run your saved intents.")
@@ -90,7 +90,7 @@ struct AgentWidgetView: View {
             } else {
                 VStack(spacing: 6) {
                     ForEach(snap.intents.prefix(4)) { item in
-                        Button(intent: RunSavedIntentIntent(intent: SavedIntentEntity(item))) {
+                        IntentButton(intent: RunSavedIntentIntent(intent: SavedIntentEntity(item)), fallback: AgentActivityAttributes.quickURL) {
                             Label { Text(verbatim: item.name).lineLimit(1) } icon: { Image(systemName: item.symbol) }
                                 .font(.caption.weight(.medium))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -134,6 +134,7 @@ struct AgentWidgetView: View {
 }
 
 /// Control Center: run the last intent; stop the agent.
+@available(iOS 18.0, *)  // Control Center controls: iOS 18
 struct RunLastIntentControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "RunLastIntent") {
@@ -147,6 +148,7 @@ struct RunLastIntentControl: ControlWidget {
 }
 
 /// Control Center (or the Action button): the quick task sheet, to type a task or pick an intent.
+@available(iOS 18.0, *)  // Control Center controls: iOS 18
 struct QuickTaskControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "QuickTask") {
@@ -159,6 +161,7 @@ struct QuickTaskControl: ControlWidget {
     }
 }
 
+@available(iOS 18.0, *)  // Control Center controls: iOS 18
 struct StopAgentControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "StopAgent") {
@@ -171,18 +174,21 @@ struct StopAgentControl: ControlWidget {
     }
 }
 
+@available(iOS 17.0, *)
 #Preview("Small", as: .systemSmall) {
     AgentStatusWidget()
 } timeline: {
     AgentEntry(date: .now, snapshot: .preview)
 }
 
+@available(iOS 17.0, *)
 #Preview("Medium", as: .systemMedium) {
     AgentStatusWidget()
 } timeline: {
     AgentEntry(date: .now, snapshot: .preview)
 }
 
+@available(iOS 17.0, *)
 #Preview("Lock Screen", as: .accessoryRectangular) {
     AgentStatusWidget()
 } timeline: {

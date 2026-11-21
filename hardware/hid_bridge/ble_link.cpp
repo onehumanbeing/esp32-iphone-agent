@@ -99,7 +99,11 @@ static bool appWorks(const String &line) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(sp + 1);
   return cmd != "ping" && !cmd.startsWith("log ") && cmd != "move 1 0" && cmd != "move -1 0" &&
-         !cmd.startsWith("hear");  // sharing what it heard with the CLI doesn't take the phone from it
+         !cmd.startsWith("hear")  // sharing what it heard with the CLI doesn't take the phone from it
+#ifdef M5_STOPWATCH
+         && !cmd.startsWith("ui ") && !cmd.startsWith("voice ") && !cmd.startsWith("picks ") && !cmd.startsWith("answer")  // nor what the screen shows
+#endif
+      ;
 }
 
 #if DEBUG_SERIAL
@@ -740,6 +744,17 @@ void ble_unpair() {
 
 // Hooks for cli_link.cpp.
 bool ble_pair_window_open() { return millis() - pairOpened < PAIR_WINDOW_MS; }
+// A board on its own battery is rarely just powered on when a phone comes to pair (Henry 2026-11-21): open it again.
+void ble_pair_open() {
+  pairOpened = millis();
+  board_log("ble: pairing window open for %lu s", PAIR_WINDOW_MS / 1000);
+}
+// Yellow on the pairing page (Henry 2026-11-22): the window shuts now; bonded phones still reconnect.
+void ble_pair_close() {
+  pairOpened = millis() - PAIR_WINDOW_MS;
+  board_log("ble: pairing window closed");
+}
+uint32_t ble_pair_left_ms() { return ble_pair_window_open() ? PAIR_WINDOW_MS - (millis() - pairOpened) : 0; }
 
 uint16_t ble_cli_mtu(int slot) {
   int h = slot >= 0 && slot < MAX_PEERS ? peers[slot] : -1;

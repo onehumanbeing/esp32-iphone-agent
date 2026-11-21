@@ -2,7 +2,7 @@ name: IPhoneAgent
 options:
   developmentLanguage: en
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "16.4"
 configFiles:
   Debug: Config/Shared.xcconfig
   Release: Config/Shared.xcconfig
@@ -55,7 +55,7 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationPortraitUpsideDown]
         NSBluetoothAlwaysUsageDescription: The app talks to its USB board over Bluetooth to see the screen and move the pointer.
         NSLocalNetworkUsageDescription: The app receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.
-        NSSpeechRecognitionUsageDescription: With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.
+        NSSpeechRecognitionUsageDescription: With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls. With an M5Stack StopWatch board, it also turns what you say into the board into a task, the same way.
         NSSpeechRecognitionUsageDescription~ipad: With Listen to iPad audio on, the app turns the sound your iPad plays while mirroring into text, on this iPad, so the agent can follow videos and calls.
         NSBonjourServices: [_esp32agent._tcp, _handsy-harness._tcp]
         NSAppTransportSecurity:

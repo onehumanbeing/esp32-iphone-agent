@@ -52,18 +52,22 @@ struct FirmwareReminder {
     }
 
     var busy: Bool { phase == .downloading || phase == .sending || phase == .restarting }
-    var usesUSBRelease: Bool { app.board.connected && app.board.status?.acceptsUSBRelease == true }
+    /// The connected board's release channel (BoardStatus.releaseTarget): the USB board's, or a StopWatch's own.
+    var target: String? { app.board.connected ? app.board.status?.releaseTarget : nil }
+    var updatable: Bool { target != nil }
+    /// The release found is for this board's channel (another board may have been connected when it was looked up).
+    private var releaseFits: Bool { release?.channel == target }
     var current: FirmwareVersion { Firmware.version(of: app.board.status) }
-    var available: Bool { usesUSBRelease && (release.map { $0.ver > current && $0.fits(app: AppUpdate.current) } ?? false) }
+    var available: Bool { updatable && releaseFits && (release.map { $0.ver > current && $0.fits(app: AppUpdate.current) } ?? false) }
     /// A newer firmware is out but needs a newer app: the app update is offered instead (AppUpdateBanner).
     var needsNewerApp: Bool {
-        usesUSBRelease && (release.map { $0.ver > current && !$0.fits(app: AppUpdate.current) } ?? false)
+        updatable && releaseFits && (release.map { $0.ver > current && !$0.fits(app: AppUpdate.current) } ?? false)
     }
     /// Older than this app works with.
-    var belowMinimum: Bool { usesUSBRelease && current < Firmware.required }
+    var belowMinimum: Bool { updatable && current < Firmware.required }
     /// Behind the newest release and able to take it over Wi-Fi: asked for on every connection, can be skipped.
     var outdated: Bool {
-        usesUSBRelease && FirmwareReminder.outdated(current, latest: release) && !needsNewerApp
+        updatable && releaseFits && FirmwareReminder.outdated(current, latest: release) && !needsNewerApp
     }
     /// The sheet opens by itself, titled Board Update Required.
     var required: Bool { belowMinimum || outdated }
@@ -75,18 +79,18 @@ struct FirmwareReminder {
     /// Why Update can't start now, if it can't.
     var blocker: String? {
         if !app.board.connected { return String(localized: "Connect the board first.") }
-        guard usesUSBRelease else { return String(localized: "Firmware updates in this app are for the USB board only.") }
+        guard updatable else { return String(localized: "Firmware updates in this app are for the USB board only.") }
         if current < Firmware.firstOTA { return String(localized: "This board needs one update over USB first (hardware/flash.sh).") }
         if taskRunning { return String(localized: "Wait until the task or recording ends.") }
         return nil
     }
 
     func check() async {
-        guard usesUSBRelease, !checking, !busy else { return }
+        guard let target, !checking, !busy else { return }
         checking = true
         checkError = nil
         defer { checking = false }
-        do { (release, manifest) = try await Firmware.latest() } catch { checkError = error.localizedDescription }
+        do { (release, manifest) = try await Firmware.latest(for: target) } catch { checkError = error.localizedDescription }
         DebugLog.write("firmware: check: latest \(release?.version ?? "none") from \(manifest?.absoluteString ?? "-"), board "
             + "\(app.board.status?.fw?.description ?? "no fw") connected \(app.board.connected), available \(available), "
             + "required \(required), outdated \(outdated) (skipped \(reminder.skipped))\(checkError.map { ", error: " + $0 } ?? "")")
@@ -132,7 +136,7 @@ struct FirmwareReminder {
     }
 
     func install() {
-        guard !busy, blocker == nil, let release, let manifest else { return }
+        guard !busy, blocker == nil, releaseFits, let release, let manifest else { return }
         Task { await run(release, manifest: manifest) }
     }
 
@@ -196,6 +200,9 @@ struct FirmwareReminder {
             progress = 0
             guard let (ip, token) = await boardAddress(within: 20) else { continue }
             do {
+                // Other boards than the USB one (a StopWatch) listen only once asked: their RAM can't hold the
+                // update task all the time (ota.h)
+                if let target, target != Firmware.usbTarget { try await app.board.commands.send("ota on", timeout: 5) }
                 let started = now()
                 DebugLog.write("firmware: try \(n): sending \(image.count) bytes to \(ip) (BLE \(app.board.connected ? "up" : "down"))")
                 try await Firmware.push(image, md5: release.md5, host: ip, token: token,
@@ -221,7 +228,7 @@ struct FirmwareReminder {
     private func boardAddress(within seconds: Double) async -> (String, String)? {
         let end = now() + seconds
         while now() < end {
-            if app.board.connected && !usesUSBRelease { return nil }
+            if app.board.connected && !updatable { return nil }
             if app.board.connected, let ip = app.board.net?.ip, let token = app.board.net?.vtok,
                !ip.isEmpty, ip != "0.0.0.0", !token.isEmpty { address = (ip, token) }
             if let address { return address }

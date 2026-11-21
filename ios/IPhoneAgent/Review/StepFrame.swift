@@ -121,7 +121,7 @@ struct ActionOverlay: View {
         }
         .allowsHitTesting(false)
         .onAppear { if active { play() } }
-        .onChange(of: active) { _, on in if on { play() } }
+        .onValueChange(of: active) { _, on in if on { play() } }
     }
 
     /// Draws the action in each time its step comes up.

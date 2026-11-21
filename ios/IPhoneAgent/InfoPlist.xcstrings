@@ -39,13 +39,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls."
+            "value" : "With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls. With an M5Stack StopWatch board, it also turns what you say into the board into a task, the same way."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开“收听手机声音”后，本 App 会在这台 iPhone 上把投屏时手机播放的声音转成文字，让 Agent 能听懂视频和通话内容。"
+            "value" : "打开“收听手机声音”后，本 App 会在这台 iPhone 上把投屏时手机播放的声音转成文字，让 Agent 能听懂视频和通话内容。使用 M5Stack StopWatch 板子时，也会同样在本机把你对板子说的话转成任务。"
           }
         }
       }

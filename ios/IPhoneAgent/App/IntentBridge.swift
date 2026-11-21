@@ -17,6 +17,56 @@ extension AppModel {
         else if !settings.standbyIsland { live.endStandby() }
     }
 
+    /// An M5Stack StopWatch shows the Live Activity's state and its buttons drive the run (StopWatchUI).
+    func wireStopWatch() {
+        // No run (nil): the app's own mood, idle, so the board's character is awake while the app is there.
+        live.onBoard = { [weak self] state in self?.board.commands.showUI(state ?? StopWatchUI.idle) }
+        board.commands.onButton = { [weak self] action in self?.stopWatchButton(action) }
+        voice.onResult = { [weak self] result in self?.board.commands.sendVoice(result) }
+        // the newest intents first (IntentStore inserts at the top), ready to run
+        board.commands.quickIntents = { [weak self] in
+            (self?.intents.items ?? []).filter { !$0.unfilled && $0.builtin == nil }
+                .map { StandbyPick(id: $0.id, name: $0.name, symbol: $0.symbol) }
+        }
+    }
+
+    func stopWatchButton(_ action: StopWatchUI.Action) {
+        let idle = !agent.running && !startingAgent && !recorder.busy && !calibrator.busy
+        switch action {
+        case .command(let command):
+            Task { await control(command) }
+        case .home:
+            // Only while nothing else drives the pointer; mid-run the agent decides where it goes.
+            guard idle, board.connected, pointer.calibrated else {
+                return DebugLog.write("stopwatch: home ignored (busy or not calibrated)")
+            }
+            Task {
+                do { try await pointer.goHome() } catch { DebugLog.write("stopwatch: home failed: \(error.localizedDescription)") }
+            }
+        case .run(let id):
+            guard idle, intents.item(id) != nil else { return DebugLog.write("stopwatch: run ignored (busy or intent gone)") }
+            Task { _ = await handle(.runSaved(id)) }
+        case .voice(let go):
+            guard go else { return voice.cancel() }
+            guard let text = voice.take() else { return board.commands.sendVoice(.failed("none")) }
+            Task { await runSpoken(text) }
+        }
+    }
+
+    /// Words said into the StopWatch: they join the running task (as Siri's do), else they start a new one.
+    private func runSpoken(_ text: String) async {
+        if agent.running {
+            if !steer(text, from: "stopwatch") { board.commands.sendVoice(.failed("start")) }
+            return
+        }
+        guard !startingAgent, !recorder.busy, !calibrator.busy else { return board.commands.sendVoice(.failed("start")) }
+        let said = await runFromIntent(text, intent: nil)
+        if !agent.running {
+            DebugLog.write("stopwatch: voice task did not start: \(said)")
+            board.commands.sendVoice(.failed("start"))
+        }
+    }
+
     /// A task from the quick sheet (the island's New Task): it runs on the screen the user came from.
     func runHere(_ task: String, intent: SavedTask?) async {
         if !appIsBackgrounded, board.connected, pointer.calibrated, await backToPrevious() {

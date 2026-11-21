@@ -1,0 +1,10 @@
+/* Siri and Shortcuts phrases (AppShortcutsProvider). A .strings file: iOS 16 reads no .xcstrings here. */
+
+"${applicationName} status" = "${applicationName}状态";
+"Ask ${applicationName} to do something" = "让${applicationName}做件事";
+"Calibrate ${applicationName}" = "校准${applicationName}";
+"Give ${applicationName} a task" = "给${applicationName}一个任务";
+"Is ${applicationName} ready" = "${applicationName}准备好了吗";
+"Run ${applicationName} intent ${intent}" = "用${applicationName}运行${intent}";
+"Run ${intent} with ${applicationName}" = "让${applicationName}运行${intent}";
+"Stop ${applicationName}" = "停止${applicationName}";

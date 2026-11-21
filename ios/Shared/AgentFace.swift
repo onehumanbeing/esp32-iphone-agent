@@ -34,8 +34,8 @@ struct AgentFace: View {
             Group {
                 if animated && !reduceMotion {
                     TimelineView(.animation(minimumInterval: 1 / 30)) { t in
-                        FaceTicks.count += 1
-                        return face(s, t: t.date.timeIntervalSinceReferenceDate)
+                        let _ = (FaceTicks.count += 1)  // a statement in the builder (iOS 16 has no plain-closure overload)
+                        face(s, t: t.date.timeIntervalSinceReferenceDate)
                     }
                 } else {
                     face(s, t: 0)
@@ -45,7 +45,7 @@ struct AgentFace: View {
             .frame(width: g.size.width, height: g.size.height)
         }
         .aspectRatio(showsTab ? 1 / 1.12 : 1, contentMode: .fit)
-        .onChange(of: mood) { _, m in react(to: m) }
+        .onValueChange(of: mood) { _, m in react(to: m) }
         .accessibilityElement()
         .accessibilityLabel(Text(verbatim: AppName.current))
         .accessibilityValue(Text(LocalizedStringKey(mood.rawValue)))

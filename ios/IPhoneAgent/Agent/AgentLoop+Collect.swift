@@ -15,13 +15,26 @@ enum Collect {
         case limit = "the page limit"
         case feed = "a recommendations feed starts (the list's own end)"
         case past = "the list reached items before the goal's dates"
+        case enough = "the number the goal asks for is read"
+    }
+
+    /// `collect WHAT [max N]`: max is the actor's, when the goal asks for the first N items (2026-11-22: "the first
+    /// 20 services" paged through 25 screens and 109 items in 6 minutes).
+    static func parse(_ text: String) -> (what: String, max: Int?) {
+        var what = text.trimmingCharacters(in: .whitespaces)
+        var max: Int?
+        if let m = what.firstMatch(of: #/\s*\(?\s*max\s*[:=]?\s*(\d+)\s*\)?\s*$/#.ignoresCase()), let n = Int(m.1), n > 0 {
+            max = n
+            what = String(what[..<m.range.lowerBound])
+        }
+        return (what.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")), max)
     }
 
     /// What to do after the stop: the list's end may only load more on a tap; past the goal's dates it is done.
     /// `done`: what the actor is told once the list is done (AgentLoop.listDone()).
     static func next(_ end: End, done: String) -> String {
         switch end {
-        case .past: return ". " + done
+        case .past, .enough: return ". " + done
         case .still: return ". If the list's last row offers more (a row to tap to load more items), tap it and collect again; else " + done.prefix(1).lowercased() + done.dropFirst()
         default: return ""
         }
@@ -47,7 +60,8 @@ enum Collect {
     }
 
     /// After one more screen: whether to stop, and why. `added`: new items on it; `moved`: the scroll before it moved.
-    static func end(page: Int, dryRun: Int, moved: Bool) -> End? {
+    static func end(page: Int, dryRun: Int, moved: Bool, added: Int = 0, max: Int? = nil) -> End? {
+        if let max, added >= max { return .enough }
         if !moved { return .still }
         if dryRun >= dry { return .dry }
         return page >= pages ? .limit : nil
@@ -57,7 +71,7 @@ enum Collect {
 extension AgentLoop {
     func collect(_ act: inout JObject) async throws {
         guard let phone else { throw LLMError(message: "no phone") }
-        let what = act["what"]?.str ?? ""
+        let (what, max) = Collect.parse(act["what"]?.str ?? "")
         var (page, dryRun, added, seconds) = (0, 0, 0, 0.0)
         var end = Collect.End.limit
         var moved = true
@@ -66,7 +80,7 @@ extension AgentLoop {
             (page, added, seconds) = (page + 1, added + new, seconds + s)
             dryRun = new == 0 ? dryRun + 1 : 0
             if readPastStart { end = .past; listRead = true; break }
-            if let stop = Collect.end(page: page, dryRun: dryRun, moved: moved) { end = stop; break }
+            if let stop = Collect.end(page: page, dryRun: dryRun, moved: moved, added: added, max: max) { end = stop; break }
             if await feedShown() != nil { end = .feed; break }
             try await gate?()  // a pause or stop between screens
             let before = screen?.frame

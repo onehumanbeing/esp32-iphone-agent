@@ -10,11 +10,8 @@ struct PlanEditView: View {
         if let sandbox = FileSandbox.insideAgentData(folder) {
             PlanEditChat(app: app, folder: folder, draft: draft, sandbox: sandbox)
         } else {
-            ContentUnavailableView {
-                Label("This folder can't be edited", systemImage: "folder")
-            } description: {
-                Text("Plans stay inside this app's files.")
-            }
+            UnavailableView("This folder can't be edited", systemImage: "folder",
+                       description: Text("Plans stay inside this app's files."))
         }
     }
 }

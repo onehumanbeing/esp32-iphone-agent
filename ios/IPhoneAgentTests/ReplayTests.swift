@@ -85,6 +85,10 @@ import UIKit
         XCTAssertEqual(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "文件传输助手", x: 300, y: 350)]), "文件传输助手")
         XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "far", x: 800, y: 900)]))
         XCTAssertNil(IntentLearner.label(at: 287, 345, in: [DemoAnalysis.Line(text: "x", x: 290, y: 350)]), "one character names nothing")
+        // a search bar's words start at the left: the tap is inside their box, the logo above is nearer by centre
+        let bar = DemoAnalysis.Line(text: "Search services", x: 330, y: 150, halfW: 130, halfH: 12)
+        let logo = DemoAnalysis.Line(text: "ffverr.", x: 500, y: 95, halfW: 60, halfH: 15)
+        XCTAssertEqual(IntentLearner.label(at: 500, 148, in: [logo, bar]), "Search services")
         XCTAssertEqual(Replay.decide(.init(action: ["action": .str("open"), "app": .str("WeChat")], sure: true, frame: nil), screen: b), .perform)
     }
 
@@ -99,6 +103,17 @@ import UIKit
         store.clearReference(item.id)
         XCTAssertNil(store.item(item.id)?.steps, "back to no steps")
         XCTAssertNil(store.item(item.id)?.refRun)
+    }
+
+    func testADeletedRunLeavesTheIntentsHistory() {
+        let store = IntentStore(defaults: UserDefaults(suiteName: "forget-" + UUID().uuidString)!)
+        let item = SavedTask(name: "n", prompt: "p")
+        store.upsert(item)
+        store.record(item.id, RunStat(run: "r1", ok: false, seconds: 3))
+        store.record(item.id, RunStat(run: "r2", ok: true, seconds: 5))
+        store.forget(run: "r1")
+        XCTAssertEqual(store.item(item.id)?.runs.map(\.run), ["r2"])
+        XCTAssertEqual(store.item(item.id)?.successRate, 1)
     }
 
     func testLearnedStepsCanBeUndone() {

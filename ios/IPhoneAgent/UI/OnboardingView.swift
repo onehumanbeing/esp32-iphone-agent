@@ -49,8 +49,8 @@ struct OnboardingView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }  // always pinned, whatever the page's height
         .background(Palette.grouped.ignoresSafeArea())
         .animation(.spring(response: 0.45, dampingFraction: 0.9), value: page)
-        .onChange(of: page, initial: true) { _, now in Analytics.capture("setup_page", ["page": "\(now)"]) }
-        .onChange(of: pageDone) { _, done in
+        .onValueChange(of: page, initial: true) { _, now in Analytics.capture("setup_page", ["page": "\(now)"]) }
+        .onValueChange(of: pageDone) { _, done in
             guard done, page != .welcome, page != .brain else { return }
             let from = page
             Task {
@@ -281,7 +281,7 @@ struct CheckRow: View {
                     Image(systemName: done ? "checkmark.circle.fill" : active ? "circle.dotted" : "circle")
                         .font(.title3)
                         .foregroundStyle(done ? Palette.ok : active ? Color.accentColor : Color(uiColor: .tertiaryLabel))
-                        .symbolEffect(.pulse, options: .repeating, isActive: active && !done)
+                        .pulsing(active && !done)
                 }
             }
             .frame(width: 24, height: 22)

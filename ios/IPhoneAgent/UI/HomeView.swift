@@ -52,13 +52,13 @@ struct HomeView: View {
                     intentSection
                 }
             }
-            .onChange(of: agent.running) { _, running in
+            .onValueChange(of: agent.running) { _, running in
                 if running { scroll.scrollTo("agent-top", anchor: .top) }
             }
-            .onChange(of: app.help) { _, help in
+            .onValueChange(of: app.help) { _, help in
                 if help != nil { scroll.scrollTo("agent-help", anchor: .top) }
             }
-            .onChange(of: recorder.recording) { _, recording in
+            .onValueChange(of: recorder.recording) { _, recording in
                 if recording { scroll.scrollTo("recording", anchor: .top) }
             }
             .listStyle(.insetGrouped)
@@ -94,7 +94,7 @@ struct HomeView: View {
                         // The circle alone was not read as "record" (Henry, 2026-11-15): a caption under it says so.
                         VStack(spacing: 1) {
                             Image(systemName: recorder.recording ? "record.circle.fill" : "record.circle")
-                                .symbolEffect(.pulse, options: .repeating, isActive: recorder.recording)
+                                .pulsing(recorder.recording)
                             Text(recorder.recording ? "Recording" : "Record").font(.caption2.weight(.medium))
                         }
                         .foregroundStyle(recorder.recording ? Color.red : Color.primary)
@@ -166,7 +166,7 @@ struct HomeView: View {
                 }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: app.toast)
-            .onChange(of: app.toast) { _, toast in
+            .onValueChange(of: app.toast) { _, toast in
                 if toast != nil { withAnimation(.linear(duration: 0.4)) { shakes += 1 } }
             }
             .alert("Save as intent", isPresented: $naming) {

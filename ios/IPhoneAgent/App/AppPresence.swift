@@ -19,13 +19,15 @@ extension AppModel {
     func leaveApp() async throws -> Bool {
         let began = now()
         var used: AppDeparture.Method?
-        let away = try await AppDeparture(isBackground: { self.appIsBackgrounded },
+        var departure = AppDeparture(isBackground: { self.appIsBackgrounded },
                                isConnected: { self.board.connected }, attempt: { method in
             used = method
             switch method {
             case .homeKey: _ = try await self.board.commands.send("homescreen", timeout: 3)
             case .shortcut: _ = try await self.board.commands.send("key cmd+h", timeout: 3)
             case .swipe: try await self.pointer.homeSwipe()
+            case .assistive:
+                if !(try await self.pointer.assistiveHome()) { throw DeviceError(message: "no AssistiveTouch Home") }
             }
         }, waitForBackground: { try await self.waitForBackground($0, stopOnBoardLoss: true) },
            waitForConnection: {
@@ -36,7 +38,11 @@ extension AppModel {
             if error is BoardTimeout || !self.board.connected {
                 self.startupBoardUnavailable(disconnected: !self.board.connected)
             }
-        }, log: DebugLog.write).leave()
+        }, log: DebugLog.write)
+        // iOS 16 and older: the home-bar flick, the Home key and Cmd+H over the board never leave the app (2026-11-22,
+        // iPhone X), so only the AssistiveTouch menu, tried twice
+        if AssistiveButton.oldIPhone { departure.methods = [.assistive, .assistive] }
+        let away = try await departure.leave()
         // Which gesture really sends the app home, and how fast (a slow one shows the app switcher first).
         Analytics.capture("app_left", ["method": used?.rawValue ?? "none", "away": away,
                                        "ms": Int((now() - began) * 1000)])
@@ -409,7 +415,11 @@ extension AppModel {
             defer { homeHint = hint }
             // iOS asks "在“美团外卖”中打开？" for a scheme: the board taps 打开 / Open (Henry 2026-11-17: tapped by
             // hand each time). Only a prompt line that is just that word, read on the mirrored screen.
-            if !away, await tapOpenPrompt() { away = (try? await waitForBackground(3)) ?? false }
+            schemePrompted = false
+            if !away, await tapOpenPrompt() {
+                schemePrompted = true
+                away = (try? await waitForBackground(3)) ?? false
+            }
             if !away { away = (try? await waitForBackground(1.2)) ?? false }
             DebugLog.write(String(format: "open %@ by scheme: %@ (%.0f ms)", app, away ? "opened" : "did not leave", (now() - began) * 1000))
             Analytics.capture("app_left", ["method": "scheme", "away": away, "ms": Int((now() - began) * 1000)])

@@ -11,6 +11,7 @@ extension AppModel {
             throw DeviceError(message: String(localized: "Stop the run before deleting it."))
         }
         try runs.delete(run)
+        intents.forget(run: run.id)
         if review?.runID == run.id { review = nil }
         live.dismiss(runID: run.id)
         if run.id == runID {

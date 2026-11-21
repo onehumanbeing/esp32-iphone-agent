@@ -60,16 +60,7 @@ struct CalibrateButton: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .keyframeAnimator(initialValue: 0.0, trigger: wiggles) { view, angle in
-                    view.rotationEffect(.degrees(angle))
-                } keyframes: { _ in
-                    KeyframeTrack {
-                        SpringKeyframe(-12, duration: 0.1)
-                        SpringKeyframe(10, duration: 0.12)
-                        SpringKeyframe(-6, duration: 0.12)
-                        SpringKeyframe(0, duration: 0.2)
-                    }
-                }
+                .wiggle(wiggles)
                 .accessibilityLabel(Text("Calibrate"))
                 .accessibilityHint(Text("Calibrates the pointer on a grid; takes a few seconds."))
             }
@@ -80,6 +71,26 @@ struct CalibrateButton: View {
                 }
             }
             .transition(.scale.combined(with: .opacity))
+        }
+    }
+}
+
+private extension View {
+    /// A short wiggle each time `trigger` changes (keyframes, iOS 17); iOS 16 does not wiggle.
+    @ViewBuilder func wiggle(_ trigger: Int) -> some View {
+        if #available(iOS 17.0, *) {
+            keyframeAnimator(initialValue: 0.0, trigger: trigger) { view, angle in
+                view.rotationEffect(.degrees(angle))
+            } keyframes: { _ in
+                KeyframeTrack {
+                    SpringKeyframe(-12, duration: 0.1)
+                    SpringKeyframe(10, duration: 0.12)
+                    SpringKeyframe(-6, duration: 0.12)
+                    SpringKeyframe(0, duration: 0.2)
+                }
+            }
+        } else {
+            self
         }
     }
 }

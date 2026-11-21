@@ -50,17 +50,24 @@ enum DemoAnalysis {
     }
 
     struct Line { let text: String; let x: Int, y: Int
+        /// Half the line's box (0-1000 units); 0 = only its centre is known.
+        var halfW = 0, halfH = 0
+        /// From a spot to the line's box (0 inside it); `rows` weighs the vertical gap that many times.
+        func distance(_ px: Int, _ py: Int, rows: Double = 1) -> Double {
+            hypot(Double(max(abs(px - x) - halfW, 0)), rows * Double(max(abs(py - y) - halfH, 0)))
+        }
         var listed: String { "\"\(text.prefix(30))\" at \(x) \(y)" }
     }
 
     /// OCR lines of a screen, centres in 0-1000, top to bottom (at most `limit`).
-    static func texts(_ jpeg: Data, limit: Int = 30) async -> [Line] {
+    static func texts(_ jpeg: Data, limit: Int = 30, fast: Bool = false) async -> [Line] {
         guard let img = Vision.image(jpeg) else { return [] }
         let w = Double(img.width), h = Double(img.height)
-        let found: [(text: String, box: [Int])] = await UITreeOCR.lines(img)
+        let found: [(text: String, box: [Int])] = await UITreeOCR.lines(img, fast: fast)
         return found.prefix(limit).map { line -> Line in
             let b = line.box.map(Double.init)
-            return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000))
+            return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000),
+                        halfW: Int((b[2] - b[0]) / 2 / w * 1000), halfH: Int((b[3] - b[1]) / 2 / h * 1000))
         }
     }
 
@@ -69,7 +76,8 @@ enum DemoAnalysis {
         let w = Double(max(tree.w, 1)), h = Double(max(tree.h, 1))
         return tree.lines.prefix(limit).map { line -> Line in
             let b = line.box.map(Double.init)
-            return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000))
+            return Line(text: line.text, x: Int((b[0] + b[2]) / 2 / w * 1000), y: Int((b[1] + b[3]) / 2 / h * 1000),
+                        halfW: Int((b[2] - b[0]) / 2 / w * 1000), halfH: Int((b[3] - b[1]) / 2 / h * 1000))
         }
     }
 

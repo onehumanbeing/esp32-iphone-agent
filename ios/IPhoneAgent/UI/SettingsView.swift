@@ -77,7 +77,7 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.standbyIsland) {
                         SettingsLabel(title: "Standby in Dynamic Island", symbol: "capsule", color: .blue)
                     }
-                    .onChange(of: settings.standbyIsland) { app.refreshStandby() }
+                    .onValueChange(of: settings.standbyIsland) { app.refreshStandby() }
                     Toggle(isOn: $blurScreens) {
                         SettingsLabel(title: "Blur screens in reviews", symbol: "eye.slash", color: .gray)
                     }
@@ -273,7 +273,7 @@ extension BoardSettingsView {
         } message: {
             Text("The board restarts and reconnects in a few seconds. Start Screen Mirroring again afterwards.")
         }
-        .onChange(of: board.status?.hidm) { _, now in
+        .onValueChange(of: board.status?.hidm) { _, now in
             if let target = inputSwitch, now == target { inputSwitch = nil }
         }
     }

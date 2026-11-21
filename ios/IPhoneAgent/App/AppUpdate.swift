@@ -72,7 +72,7 @@ struct AppUpdateGate: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task { await update.check() }
-            .onChange(of: scene) { _, phase in if phase == .active { Task { await update.check() } } }
+            .onValueChange(of: scene) { _, phase in if phase == .active { Task { await update.check() } } }
             .sheet(isPresented: $update.presented) { AppUpdateSheet(update: update) }
     }
 }

@@ -139,6 +139,8 @@ hardware/flash.sh            # 可选参数：[串口] [--debug]
 ```
 
 一定要用 `flash.sh` 编译：它会带上 `hardware/hid_bridge/nimble_cfg.h` 里的蓝牙缓冲区配置。
+实验性的 M5Stack StopWatch 固件（`hardware/flash.sh --stopwatch --build-only`）还需要
+`arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`。
 
 没有 Mac 或不想装工具链？也可以用 Chrome 或 Edge 通过 USB [在网页上刷固件](https://manina.ai/zh/install)。
 
@@ -286,6 +288,7 @@ Debug 版 App，`harness/fw.sh` 编译固件并拷进 App，由 App 装到板子
 
 [UxPlay](https://github.com/FDH2/UxPlay)（固件里的 AirPlay 接收端移植自它）·
 [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) ·
+[M5Unified](https://github.com/m5stack/M5Unified) 和 [M5GFX](https://github.com/m5stack/M5GFX)（StopWatch 固件）·
 [Arduino ESP32 core](https://github.com/espressif/arduino-esp32) 和 [TinyUSB](https://github.com/hathach/tinyusb)
 
 蓝牙模式基于 [@cy41](https://github.com/cy41) 贡献的蓝牙键鼠能力和 Zectrix Note 4 板型适配（[#94](https://github.com/onehumanbeing/esp32-iphone-agent/pull/94)），谢谢。

@@ -80,6 +80,117 @@ Send priority: replies and status are queued and always go out before further vi
 a P-frame more than 800 ms old is skipped and the stream resumes at the next IDR (a slow link degrades to
 IDR-only instead of building latency).
 
+## StopWatch screen (M5Stack StopWatch, experimental)
+`hardware/flash.sh --stopwatch --build-only` builds BLE HID for the M5Stack StopWatch (round 466×466 screen, two
+buttons, touch, vibration, IMU). Its status carries `"board":"stopwatch","ui":1`; the app talks to the screen only
+on such a board. Without an app that does (an older one), it is a plain Bluetooth mouse and keyboard with the character
+asleep on screen.
+
+App → board: `ui <json>` (answers `ok`; `err usage: …` when it is not a JSON object) or `ui off` (the app is gone: idle).
+Every line is the whole state, except `k`, which stays until the app sends another. Unknown keys and values are ignored.
+
+| Key | Value |
+|---|---|
+| `m` | mood: `sleeping`, `idle`, `listening`, `thinking`, `acting`, `success`, `failure`, `dizzy`, `content`, `wink` |
+| `p` | phase: `running`, `help`, `countdown`, `recording`, `paused`, `resuming`, `standby` |
+| `s`, `l` | step and step limit (a grey `s/l` counter when `d`/`n` are missing) |
+| `d`, `n` | optional done and total: the island's green ring and `d/n` |
+| `t` | what the character says (the island's words while running, else the line), UTF-8, up to 80 bytes |
+| `c` | the phone's local time `HH:MM` (the status page's clock; the board has none set) |
+| `e` | seconds since the run began (at `f`: its length); the board counts on between lines. Shown with the step count at the top, and "N steps - m:ss" at the finish |
+| `h` | 1: the help is a confirm (pay, delete); blue skips the step |
+| `v` | 1: the app takes the board's voice (hold yellow) |
+| `z` | the phone's local time: seconds since 1970 as if UTC (UTC + the time zone's offset). The board sets its RTC from it (when 3 s or more off) |
+| `w` | a paused run's lost link the user has to fix: `mirror` (Screen Mirroring), `locked` (the iPhone), `hid` (the Bluetooth pointer); missing: none |
+| `x`, `y` | where the eyes look, -1…1 (the island's look; missing: 0) |
+| `f` | `true`: the task finished (`m` `failure`: failed) |
+| `k` | standby picks: up to 3 intent names of up to 24 bytes |
+
+The screen is the app's character (`hardware/hid_bridge/src/ui/sw_face.c`, a port of `AgentFace` and `PokeableFace`).
+Idle it is awake while `ui` lines come (the app sends its idle mood, `p` `standby`, every 5 s) and asleep without
+them (15 s), after `ui off` or when the phone's link drops. Idle pokes as in the app: tap happy, double tap wink,
+3 quick taps or a shake dizzy, long press petting, drag: the eyes follow the finger. A run shows its mood, the line
+and, with a count, the green ring; `help` turns the screen amber. A run whose lines stop for 15 s while the link
+stays shows the island's "×" eyes (iOS suspended the app). A finished task shows the outcome for 5 s. Blue held
+0.8 s while nothing runs: a status page for 5 s (battery, Bluetooth, app, firmware, name). `ui` lines do not count
+as the app using the board (the CLI is not kept out by them).
+
+Board → app: unprompted reply lines `btn <verb> [arg]`, like the `app` relay (no request id; an app that does not know
+them ignores them):
+
+| Line | When |
+|---|---|
+| `btn pause` / `btn unpause` | yellow button while a task runs (`unpause` when `p` is `paused`) |
+| `btn run <i>` | yellow button in idle: the 1st press selects a pick (a tap moves to the next), the 2nd asks "确认发送？", the 3rd sends; 3 s without a press cancels. `i` is 0-based into the last `k` |
+| `btn home` | blue button, released within 0.5 s |
+| `btn stop` | blue button held 2 s (a ring counts down, an earlier release cancels), or a shake while a task runs (1 s warning; any button cancels) |
+| `btn continue` | tap on the screen, or yellow, while `p` is `help` |
+| `btn skip` | blue released within 0.5 s during a confirm (`h` 1) |
+| `btn takeover` | swipe up while a task runs |
+
+Vibration: a 400 ms buzz on entering `help`, again every 3 s for a minute and every 15 s after that until the
+help is answered (the screen stays amber); two short on success, three short on failure.
+
+Help: `h` 1 in the `ui` line marks a confirm (pay, delete): "OK to go on?". Yellow (or a tap) sends `btn continue`;
+blue, released within 0.5 s, sends `btn skip` for a confirm and `btn stop` for other help; swipe up `btn takeover`.
+
+Alerts: a new `w`, or the board's Bluetooth HID dropping while a run or the app's lines were going (board-local),
+buzzes once (400 ms) and shows what happened, what to do on the iPhone and the board's name where it is picked;
+blue hides it (nothing sent) until another comes; it goes when `w` goes or Bluetooth is back. Older apps send no `w`.
+
+Clock: the RTC, set from `z`, keeps the time without the app (and over resets). The idle face shows HH:MM under
+it while asleep or without the app; the status page shows it too (else the app's `c`). No `z` ever: no clock.
+
+Firmware update: the status's `"ota":1` says the StopWatch takes the app's Update Board from its own release
+channel (`firmware/stopwatch/firmware.json`, signed with `target=stopwatch`; `hardware/tools/fw_release.py --target
+stopwatch`). Its Wi-Fi listener (TCP 7300, ota.h, same protocol as the USB board) is off until the app sends `ota on`
+(`ok`, or `err low memory, try again` under 11 KB of free internal RAM); it closes 120 s after the last session. The
+board takes only an image marked `ESPA:stopwatch` for 16 MiB flash; a USB board's image is refused, and the reverse.
+
+Screen power (board-local, no app line): with no run, voice, pick, status page or help on screen, it dims after
+20 s without a press, touch, wrist raise or anything new on screen, and goes off after 60 s. A press or touch while
+it is off only wakes it (nothing is sent); a wrist raise (the IMU's gravity turning 35° or more) wakes it too.
+Plugged in: a pulsing ring with "Charging N%" on the idle face. Unplugged, the battery falling under 15 % and again
+under 5 %: a long buzz and a red "Battery low N%" banner for 4 s (once each, again after charging 3 % or more above).
+
+Language: the board's own words (status page, hints, voice states) are English by default or Chinese; the status
+page's last row shows it, and a tap on that row or yellow while the page is open switches it (kept in NVS; flashing
+the merged image resets it). Text the app sends is shown as it comes (ASCII in a Latin font, anything else in efontCN).
+
+### StopWatch quick intents
+App → board `picks ["name", ...]` (up to 5 names of up to 24 bytes, newest first; `[]`: none), answered `ok`
+(`err usage` when not a JSON array). Once it came, the `k` of `ui` lines is ignored until `ui off` (an older app's `k`
+counts again). Idle yellow selects the first (shown under the face with "i/n"), a tap moves to the next, yellow again
+asks to confirm, yellow a third time sends `btn run <i>` (0-based into the last `picks`); blue drops the selection;
+6 s without a press cancels. The app sends the list when it changes and every 3 minutes; older firmware answers `err`
+and the app keeps sending `k`.
+
+### StopWatch answer
+After a task finished with done, the app sends its answer: `answer <text>`, then `answer+ <more>` for the rest (each
+within one write). The board keeps 600 bytes (cut on a character) and shows them over idle, 5 lines a page with
+"i/n": a tap or yellow turns the page, blue closes it, a new run ends it. The finish's two short buzzes stay as they
+were. `err no screen` before the screen task runs.
+
+### StopWatch voice
+Only with an app that sends `"v":1` in its `ui` lines (older apps never do: yellow stays a press as above).
+- Yellow held 350 ms: recording (the mic is on from the press, so the first word is kept). Released earlier: the
+  short press does what yellow did before, on release. Blue while recording or after: dropped, `btn voice cancel`.
+- The mic goes to the app on the BLE `video` characteristic as voice chunks with their own u16 seq:
+  `[seq u16 LE][flags][payload]`, flags `0xC0` (bit 7 as AirPlay audio, bit 6: the board's mic; never on video)
+  plus `0x01` START or `0x02` END. START's payload is the board language's speech locale (`en-US`, `zh-CN`): the app
+  transcribes in it. Sound chunks: `[pred i16 LE][step index u8][IMA ADPCM]`, 16 kHz mono, two samples a byte, low
+  nibble first; each chunk carries the state it starts from (a lost chunk loses only itself). END: empty, after the
+  last sound. 8 KB/s; the board keeps up to 8 s of sound the link falls behind (older sound is dropped, logged).
+  No limit on the length of a recording.
+- App → board: `voice heard <text>` (UTF-8, the board shows up to 120 bytes) or `voice fail <code>`, code `none`
+  (nothing heard), `denied` (speech recognition not allowed), `unavailable` (no on-device model for the language),
+  `start` (the task did not start), anything else: a generic error. No answer 20 s after release: "no answer".
+- The text shows with "Yellow: run - Blue: cancel" (while a task runs: "tell the task"). Yellow: `btn voice go`, the
+  app runs the text as a new task or adds it to the running one; blue: `btn voice cancel`. Untouched for 60 s: dropped
+  (`btn voice cancel`).
+- USB serial tests: `swpress yellow|blue MS` holds a button; with no app on BLE the chunks are printed as
+  `vchunk <hex>` (`hardware/tools/voice_dump.py` writes them to a WAV).
+
 ## video
 Each notify: `[seq u16 LE][flags u8][payload]`, payload up to MTU-3-3 bytes.
 flags: bit0 START of access unit, bit1 END of access unit, bit2 IDR, bit3 CONFIG (payload is SPS+PPS),

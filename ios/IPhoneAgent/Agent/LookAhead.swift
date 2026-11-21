@@ -144,7 +144,7 @@ extension AgentLoop {
     var canSpeculate: Bool {
         speculate && !inventory.needed && FrameMode.current != .snap && !StepWaits.moving && !roundDroppedByPause
             && !JevGate.hold && steering.isEmpty && !connectionChanged(since: acceptedLookLinks)
-            && (checkpointModel == nil || checkpoints.reason(steps) == nil)
+            && checkpointReason == nil
     }
 
     func prepareFrame(_ jpeg: Data?) {

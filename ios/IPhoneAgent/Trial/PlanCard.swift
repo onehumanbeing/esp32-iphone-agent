@@ -203,8 +203,8 @@ struct HandsyKeyOffer: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background { Color.clear.sheet(item: $shown) { HandsyKeySheet(offered: $0.key) } }
-            .onChange(of: trial.offeredKey) { present() }
-            .onChange(of: scene) { present() }
+            .onValueChange(of: trial.offeredKey) { present() }
+            .onValueChange(of: scene) { present() }
     }
 
     private func present() {

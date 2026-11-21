@@ -44,6 +44,9 @@
 #ifdef HID_DUAL
 #include "hid_dual.h"
 #endif
+#ifdef M5_STOPWATCH
+#include "stopwatch_ui.h"
+#endif
 
 const int STEP = 10;      // pointer speed per report while moving (any direction, see pace.h)
 const int ABS_STEP = 245;      // of 32767, per STEP_MS while dragging with `abs`: the relative mouse's speed
@@ -405,6 +408,18 @@ String board(const String &line, const String &id, char who) {
     }
     return "ok " + net_json(false);
   }
+#ifdef M5_STOPWATCH
+  if (cmd == "ui" && who == FROM_APP)  // the screen (stopwatch_ui.h); unknown keys are ignored
+    return stopwatch_ui_line(arg.c_str()) ? "ok" : "err usage: ui {json} | ui off";
+  if (cmd == "swpress" && who == FROM_APP)  // tests over USB serial: a StopWatch button held MS
+    return stopwatch_press(arg.c_str()) ? "ok" : "err usage: swpress yellow|blue MS";
+  if ((cmd == "answer" || cmd == "answer+") && who == FROM_APP)  // a done task's answer, in parts (stopwatch_ui.h)
+    return stopwatch_answer_line(arg.c_str(), cmd == "answer+") ? "ok" : "err no screen";
+  if (cmd == "picks" && who == FROM_APP)  // the quick intents: yellow picks one (stopwatch_ui.h)
+    return stopwatch_picks_line(arg.c_str()) ? "ok" : "err usage: picks [\"name\", ...]";
+  if (cmd == "voice" && who == FROM_APP)  // what the app heard from the StopWatch's mic (voice_rec.h)
+    return stopwatch_voice_line(arg.c_str()) ? "ok" : "err usage: voice heard <text> | voice fail <code>";
+#endif
   if (cmd == "app" || cmd == "log") {  // debug relay: Mac -> app ("app run ...") and app -> Mac ("log ...")
     ble_reply(cmd + " " + arg);         // every peer sees it; each side ignores lines it doesn't handle
     if (cmd == "log") Serial.println("log " + arg);  // and a Mac on USB serial
@@ -435,6 +450,13 @@ String board(const String &line, const String &id, char who) {
     return "ok";
   }
   if (cmd == "result") return recentReply(arg, who);
+#ifdef M5_STOPWATCH
+  if (cmd == "ota") {  // the app's Update Board: start the Wi-Fi listener now (ota.h, ota_open)
+    if (arg != "on") return "err usage: ota on";
+    const char *why = ota_open();
+    return *why ? String("err ") + why : String("ok");
+  }
+#endif
   if (cmd == "logs") return board_log_page(arg);  // the RAM log, a page at a time (logbuf.h)
   if (cmd == "vdbg") return "ok " + video_debug();  // why a frozen screen stays frozen (video_link.cpp)
   if (cmd == "crash") return String("ok rst ") + resetReason() + ", last dump: " + lastCrash;
@@ -665,6 +687,9 @@ void setup() {
   ble_begin(String(BOARD_NAME_TEXT " ") + board_suffix());
   startAirplay();
   xTaskCreatePinnedToCore(statusTask, "status", 4096, NULL, 1, NULL, 1);
+#ifdef M5_STOPWATCH
+  stopwatch_ui_start((String(BOARD_NAME_TEXT " ") + board_suffix()).c_str());
+#endif
   board_log("boot %s fw %s: free internal heap %u (largest %u), PSRAM %u, reset %s\n", receiverName.c_str(), FW_VERSION,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
@@ -688,6 +713,15 @@ void loop() {
     ESP.restart();
   }
   net_poll();
+#ifdef M5_STOPWATCH
+  // The screen's buttons, as unprompted reply lines like the `app` relay; the app ignores what it doesn't know.
+  stopwatch_ui_link(ble_hid_ready(), ble_app_connected());
+  stopwatch_ui_net(ble_peers() > 0 && !ble_app_connected() && !ble_hid_ready(), net_peers() > 0, airplay_state());
+  for (char b[32]; stopwatch_ui_next(b, sizeof b);) {
+    ble_reply(b);
+    Serial.println(b);
+  }
+#endif
   bool cli = cli_slot() >= 0;
   // A gesture cut off mid-way must not leave the button held (long press); only the side that went holds it.
   bool app = ble_app_connected(), appActive = ble_app_active();

@@ -58,6 +58,7 @@ import Foundation
     init(mock: Bool = false) {
         self.mock = mock
         super.init()
+        commands.boardStatus = { [weak self] in self?.currentStatus }
         pairedID = UserDefaults.standard.string(forKey: Self.pairedKey).flatMap(UUID.init)
         commands.transport = self
         if mock { return }
@@ -344,6 +345,7 @@ import Foundation
         statusRevision += 1
         status = merged
         onStatus?(merged)
+        commands.flushUI()  // StopWatchUI: nothing for other boards
     }
 
     private func mockReply(_ line: String) {

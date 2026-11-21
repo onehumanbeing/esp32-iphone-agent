@@ -1,0 +1,10 @@
+/* Siri and Shortcuts phrases (AppShortcutsProvider). A .strings file: iOS 16 reads no .xcstrings here. */
+
+"${applicationName} status" = "${applicationName} status";
+"Ask ${applicationName} to do something" = "Ask ${applicationName} to do something";
+"Calibrate ${applicationName}" = "Calibrate ${applicationName}";
+"Give ${applicationName} a task" = "Give ${applicationName} a task";
+"Is ${applicationName} ready" = "Is ${applicationName} ready";
+"Run ${applicationName} intent ${intent}" = "Run ${applicationName} intent ${intent}";
+"Run ${intent} with ${applicationName}" = "Run ${intent} with ${applicationName}";
+"Stop ${applicationName}" = "Stop ${applicationName}";

@@ -239,6 +239,13 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
+            if openedAtStart != nil, schemePrompted {
+                // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
+                // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first. Only after the
+                // prompt (an app's first scheme open): every other open cost 3.4 s for nothing (Henry 2026-11-22).
+                await feed.settled(quiet: 0.4, least: 1, most: 3)
+                mark("screen still after the scheme open")
+            }
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
                 step = .trialClaim
                 try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
@@ -359,6 +366,7 @@ extension AppModel {
         runMood = .thinking
         paused = false
         runStarted = Date()
+        board.commands.runTimes = (runStarted, nil)  // the StopWatch's timer
         runUsage = ModelUsage()
         if !early {
             live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
@@ -417,6 +425,8 @@ extension AppModel {
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil
         help = nil
+        board.commands.uiConfirm = false
+        board.commands.uiWarn = nil
         takingOver = false
         recovering = nil
         notifier.clearHelp()
@@ -424,6 +434,7 @@ extension AppModel {
         let last = agent.steps.last
         let outcome = Outcome(last: last?["action"]?.str, running: false)
         let seconds = Date().timeIntervalSince(runStarted)
+        board.commands.runTimes = (runStarted, Date())
         Analytics.capture("run_ended", runUsage.props.merging(["outcome": "\(outcome)", "steps": moveCount,
                                                                "seconds": Int(seconds), "from_intent": currentIntent != nil,
                                                                "cached_steps": agent.cachedSteps,
@@ -434,6 +445,9 @@ extension AppModel {
         DebugLog.write("run usage: \(runUsage.summaryLine)")
         runMood = outcome.mood
         live.end((outcome.mood, last.map(StepText.line) ?? ""), asksVerdict: outcome == .done)
+        if outcome == .done, let answer = last?["answer"]?.str ?? last?["message"]?.str, !answer.isEmpty {
+            board.commands.sendAnswer(answer)  // a StopWatch shows it (StopWatchUI); other boards: nothing
+        }
         runs.reload()
         let summary = String(localized: "\(moveCount) steps · \(seconds.durationText)")
         switch outcome {
@@ -533,6 +547,7 @@ extension AppModel {
     /// whose buttons answer it) and wait for their choice.
     func needsHelp(_ reason: String, confirm: Bool = false) async -> AgentLoop.HelpChoice {
         help = reason.isEmpty ? String(localized: "I'm stuck on this step.") : reason
+        board.commands.uiConfirm = confirm  // the StopWatch: blue skips a confirm, stops otherwise
         runMood = confirm ? .listening : .failure
         let worded = [TouchCheck.reason: TouchCheck.advice, NoProgress.reason: NoProgress.advice]
         let shown = worded[reason] ?? agent.helpMessage ?? help ?? ""  // the panel words it from the reason
@@ -550,6 +565,7 @@ extension AppModel {
 
     func answerHelp(_ choice: AgentLoop.HelpChoice) {
         guard let wait = helpWait else { return }
+        board.commands.uiConfirm = false
         resumeAsked = now()  // Continue tapped in this app: the run sends it away before looking again
         helpWait = nil
         help = nil

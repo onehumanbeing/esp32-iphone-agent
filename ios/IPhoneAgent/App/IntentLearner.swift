@@ -119,9 +119,11 @@ enum IntentLearner {
         return changed ? result : nil
     }
 
-    /// The text at a tap's spot: the nearest OCR line within `reach`.
+    /// The text at a tap's spot: the OCR line nearest it within `reach`, by its box, not its centre (2026-11-22: a tap
+    /// on a search bar whose words start at the left learned the logo above it, "ffverr."). A row's words sit beside
+    /// the spot more often than above or below it (bars, list rows), so the vertical gap counts twice.
     static func label(at x: Int, _ y: Int, in lines: [DemoAnalysis.Line]) -> String? {
-        func distance(_ l: DemoAnalysis.Line) -> Double { hypot(Double(l.x - x), Double(l.y - y)) }
+        func distance(_ l: DemoAnalysis.Line) -> Double { l.distance(x, y, rows: 2) }
         guard let near = lines.min(by: { distance($0) < distance($1) }), distance(near) <= reach else { return nil }
         let text = near.text.trimmingCharacters(in: .whitespaces)
         // One character ("x", an icon's glyph read as text) names nothing: the replay would find it anywhere
@@ -336,6 +338,11 @@ enum PlanJudge {
         var lines = ["Task: \(task)", "Plan:\n\(plan.prefix(2000))",
                      "Run: \(Outcome(last: end, running: false)) after \(moves.count) step(s), ended with \(end)"
                      + (why.isEmpty ? "" : ": \(why.prefix(300))")]
+        if let first = steps.first, first["action"]?.str == "open", first["auto"] == .bool(true), let app = first["app"]?.str {
+            // the judge said "the plan misses opening Fiverr" on runs the app had started in Fiverr (2026-11-22)
+            lines.append("Before the plan, the app itself opened \(app)\(first["via"]?.str == "scheme" ? " (by its link)" : ""); "
+                         + "a plan need not open it.")
+        }
         if end == "stopped" {
             lines.append(steps.dropLast().last?["action"]?.str == "help" ? "It was stopped at a needs-help pause." : "The user stopped it.")
         }
