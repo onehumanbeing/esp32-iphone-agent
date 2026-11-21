@@ -46,7 +46,7 @@ struct PlanEditChat: View {
                     }
                     .padding(.vertical, Space.m)
                 }
-                .onChange(of: session.turns.count) { _, _ in scroll(proxy) }
+                .onValueChange(of: session.turns.count) { _, _ in scroll(proxy) }
             }
         }
         .background(Palette.background)
@@ -75,10 +75,10 @@ struct PlanEditChat: View {
         } message: {
             Text(verbatim: session.error ?? "")
         }
-        .onChange(of: session.proposal) { _, proposal in
+        .onValueChange(of: session.proposal) { _, proposal in
             if proposal != nil { shownProposal = proposal }
         }
-        .onChange(of: session.error) { _, error in
+        .onValueChange(of: session.error) { _, error in
             showingError = error != nil
         }
     }

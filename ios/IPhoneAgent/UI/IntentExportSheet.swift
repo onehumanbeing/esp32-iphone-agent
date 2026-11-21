@@ -58,7 +58,7 @@ struct IntentExportSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .onAppear(perform: prepare)
-            .onChange(of: screenshots) { prepare() }
+            .onValueChange(of: screenshots) { prepare() }
         }
     }
 

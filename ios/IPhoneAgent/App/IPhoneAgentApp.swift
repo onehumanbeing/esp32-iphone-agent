@@ -95,7 +95,7 @@ struct RootView: View {
                 if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
             }
         }
-        .onChange(of: scene) { old, new in
+        .onValueChange(of: scene) { old, new in
             DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
             DeviceScreen.sceneActive = new == .active
             if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground

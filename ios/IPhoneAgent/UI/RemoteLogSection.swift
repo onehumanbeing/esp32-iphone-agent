@@ -24,6 +24,6 @@ struct RemoteLogSection: View {
         } footer: {
             Text("For debugging your own iPhone: when both are set, the app checks this server about every 30 seconds while it is open or a run is going and, when asked, uploads the end of its text debug log, with keys and tokens removed. Never screenshots. Leave empty to turn it off.")
         }
-        .onChange(of: config) { config.save() }
+        .onValueChange(of: config) { config.save() }
     }
 }

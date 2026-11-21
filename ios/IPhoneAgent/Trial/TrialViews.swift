@@ -44,7 +44,7 @@ struct TrialPanel: View {
                 .font(.footnote).foregroundStyle(.secondary)
             SecureField("Manina AI key", text: $key, prompt: Text("Manina AI key (optional)"))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .onChange(of: key) { _, new in trial.setKey(new) }
+                .onValueChange(of: key) { _, new in trial.setKey(new) }
             Text("With a Manina AI key, runs use your plan instead of the free runs.")
                 .font(.footnote).foregroundStyle(.secondary)
             #if HANDSY_STORE
