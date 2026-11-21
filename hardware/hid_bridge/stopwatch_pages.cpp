@@ -169,31 +169,86 @@ static void voicePage(const sw_ctl &c, const swf_pose &pose, int level) {
   }
 }
 
+// Under the idle face: Bluetooth, Wi-Fi, Mirroring, each with a dot, green when up, amber on the way (Henry 2026-11-21)
+static void statusDots(const View &v) {
+  const int ids[] = {SWT_DOT_BT, SWT_DOT_WIFI, SWT_DOT_MIRROR};
+  const uint16_t col[] = {v.hid ? C_GREEN : v.connecting || v.pair ? C_AMBER : C_DIM, v.wifi ? C_GREEN : C_DIM,
+                          v.mirror == 2 ? C_GREEN : v.mirror ? C_AMBER : C_DIM};
+  font(&fonts::efontCN_24);
+  for (int i = 0; i < 3; i++) {
+    int x = CX + (i - 1) * 110, y = CY + 128;
+    canvas->fillSmoothCircle(x, y - 14, 6, col[i]);
+    canvas->setTextColor(col[i] == C_DIM ? C_GREY : col[i]);
+    canvas->drawString(T(ids[i]), x, y + 6);
+  }
+}
+
+// Pairing, opened with blue on the status page: big waves across the screen, the countdown on the rim, the
+// board's name to pick in the app, and "connecting" once a phone is on the way.
+static void pairingPage(const View &v) {
+  uint32_t t = millis();
+  for (int k = 0; k < 4; k++) {
+    float p = ((t + k * 500) % 2000) / 2000.0f;
+    uint8_t a = (uint8_t)(200 * (1 - p));
+    int r = 40 + (int)(p * 175);
+    canvas->fillArc(CX, CY, r, r + 4, 0, 360, lgfx::color565(a, a * 176 / 255, 0));
+  }
+  ring((int)(v.pair * 1000L / 180), C_AMBER, C_DIM, 222, 232);
+  const char *title = v.connecting ? T(SWT_BT_CONNECTING) : T(SWT_PAIR_TITLE);
+  canvas->setTextColor(C_AMBER);
+  fontFor(title, 3);
+  canvas->drawString(fit(title, 340), CX, CY - 90);
+  line(T(SWT_PAIR_HOW), CY - 20, TFT_WHITE, 2, 320);
+  fontFor(boardName, 2);
+  canvas->setTextColor(C_AMBER);
+  canvas->drawString(fit(boardName, 330), CX, CY + 50);
+  char left[24];
+  snprintf(left, sizeof left, T(SWT_PAIR_LEFT), v.pair / 60, v.pair % 60);
+  font(&fonts::efontCN_24);
+  canvas->setTextColor(C_GREY);
+  canvas->drawString(left, CX, CY + 120);
+}
+
+// The status page's battery (Henry 2026-11-21: it matters): a battery drawn to its level, the percent beside it,
+// green over 50 %, amber over 15 %, red under; a bolt while charging.
+static void batteryBadge(const View &v, int y) {
+  uint16_t col = !v.battery ? C_GREY : v.battery > 50 ? C_GREEN : v.battery > 15 ? C_AMBER : C_RED;
+  int x = CX - 78;
+  canvas->drawRoundRect(x, y - 15, 56, 30, 6, col);
+  canvas->fillRoundRect(x + 56, y - 6, 5, 12, 2, col);
+  if (v.battery) canvas->fillRoundRect(x + 4, y - 11, 48 * v.battery / 100 < 3 ? 3 : 48 * v.battery / 100, 22, 3, col);
+  char pct[16];
+  if (v.battery) snprintf(pct, sizeof pct, "%u%%%s", v.battery, v.charging ? " +" : "");
+  else strlcpy(pct, "--", sizeof pct);
+  font(&fonts::Font4);
+  canvas->setTextColor(col);
+  canvas->setTextDatum(lgfx::textdatum_t::middle_left);
+  canvas->drawString(pct, x + 72, y);
+  canvas->setTextDatum(lgfx::textdatum_t::middle_center);
+}
+
 static void statusPage(const View &v) {
-  if (v.pair && !v.hid) {  // pairing (Henry 2026-11-21): the window's countdown on the rim, waves going out under it
-    uint32_t t = millis();
-    for (int k = 0; k < 3; k++) {
-      float p = ((t + k * 600) % 1800) / 1800.0f;
-      uint8_t a = (uint8_t)(255 * (1 - p));
-      canvas->fillArc(CX, CY, 176 + (int)(p * 40), 179 + (int)(p * 40), 0, 360, lgfx::color565(a, a * 176 / 255, 0));
-    }
-    ring((int)(v.pair * 1000L / 180), C_AMBER, C_DIM, 224, 232);
+  if (v.pair && !v.hid) {  // pairing: its own page, not one row (Henry 2026-11-21: the row was easy to miss)
+    pairingPage(v);
+    return;
   }
   canvas->setTextColor(TFT_WHITE);
   font(&fonts::Font4);
-  canvas->drawString(v.clock[0] ? v.clock : "--:--", CX, 80);
-  char bat[32], fw[32];
-  if (v.battery) snprintf(bat, sizeof bat, "%s%u%%", T(SWT_BATTERY), v.battery);
-  else strlcpy(bat, T(SWT_BATTERY_NONE), sizeof bat);
+  canvas->drawString(v.clock[0] ? v.clock : "--:--", CX, 58);
+  batteryBadge(v, 100);
+  char fw[32], pairing[40];
   snprintf(fw, sizeof fw, "%s%s", T(SWT_FIRMWARE), FW_VERSION);
-  char pairing[40];
   snprintf(pairing, sizeof pairing, T(SWT_PAIRING), v.pair / 60, v.pair % 60);
-  const char *rows[] = {bat, v.pair && !v.hid ? pairing : T(v.hid ? SWT_BT_ON : SWT_BT_OFF), T(v.alive ? SWT_APP_ON : SWT_APP_OFF), fw, boardName,
+  // each row: its text and its colour (green on, amber on the way, grey off)
+  const char *bt = v.hid ? T(SWT_BT_ON) : v.connecting ? T(SWT_BT_CONNECTING) : v.pair ? pairing : T(SWT_BT_OFF);
+  uint16_t btc = v.hid ? C_GREEN : v.connecting || v.pair ? C_AMBER : C_GREY;
+  const char *rows[] = {bt, T(v.alive ? SWT_APP_ON : SWT_APP_OFF), T(v.wifi ? SWT_WIFI_ON : SWT_WIFI_OFF),
+                        T(v.mirror == 2 ? SWT_MIRROR_ON : v.mirror ? SWT_MIRROR_WAIT : SWT_MIRROR_OFF), fw, boardName,
                         T(SWT_LANGUAGE)};
-  for (int i = 0; i < 6; i++) {
-    bool ok = i == 1 ? v.hid : i == 2 ? v.alive : true;
-    canvas->setTextColor(i == 1 && v.pair && !v.hid ? C_AMBER : i == 4 ? C_GREY : i == STATUS_LANG ? C_AMBER
-                         : ok ? (i == 1 || i == 2 ? C_GREEN : TFT_WHITE) : C_GREY);
+  const uint16_t colors[] = {btc, v.alive ? C_GREEN : C_GREY, v.wifi ? C_GREEN : C_GREY,
+                             v.mirror == 2 ? C_GREEN : v.mirror ? C_AMBER : C_GREY, TFT_WHITE, C_GREY, C_AMBER};
+  for (int i = 0; i < 7; i++) {
+    canvas->setTextColor(colors[i]);
     fontFor(rows[i]);
     canvas->drawString(fit(rows[i], 330), CX, STATUS_Y + i * STATUS_GAP);
   }
@@ -300,6 +355,7 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
       break;
     default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
       face(pose, CX, CY - 10, GLOW_INK, true);
+      if (c.sel < 0 && !u.npicks) statusDots(v);
       font(&fonts::efontCN_24);
       if (v.clock[0] && c.sel < 0) {  // asleep or without the app: the time (the RTC, set from the phone)
         font(&fonts::Font7);

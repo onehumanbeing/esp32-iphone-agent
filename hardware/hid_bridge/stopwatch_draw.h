@@ -29,12 +29,15 @@ struct View {
   int32_t elapsed;  // the run's seconds (-1: none)
   char clock[6];
   int8_t charge;   // charging: the ring's pulse step (0..15), -1 not charging
+  bool charging;   // on a charger (also when full)
   uint8_t low;     // the low-battery banner: the battery % (0 none)
   uint8_t warn;    // SW_SCR_WARN: the alert (sw_warn_code)
+  bool connecting, wifi;  // a Bluetooth link not yet paired; a phone on the board's Wi-Fi
+  uint8_t mirror;  // AirPlay: 0 off, 1 starting, 2 on
   uint16_t pair;   // the status page: seconds left of a pairing window opened with blue (0 none)
   sw_ui ui;
 };
-static const int STATUS_Y = 140, STATUS_GAP = 42, STATUS_LANG = 5;  // the language row: a tap there switches
+static const int STATUS_Y = 148, STATUS_GAP = 34, STATUS_LANG = 6;  // the language row: a tap there switches
 void draw(const View &v, const sw_ctl &c, const swf_pose &pose);
 static const int ANSWER_ROWS = 5, ANSWER_GAP = 38, ANSWER_W = 360, ANSWER_LINES = 64;
 extern char *answerText;  // the done task's answer (PSRAM)

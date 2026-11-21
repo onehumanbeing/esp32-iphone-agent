@@ -712,6 +712,7 @@ void loop() {
 #ifdef M5_STOPWATCH
   // The screen's buttons, as unprompted reply lines like the `app` relay; the app ignores what it doesn't know.
   stopwatch_ui_link(ble_hid_ready(), ble_app_connected());
+  stopwatch_ui_net(ble_peers() > 0 && !ble_app_connected() && !ble_hid_ready(), net_peers() > 0, airplay_state());
   for (char b[32]; stopwatch_ui_next(b, sizeof b);) {
     ble_reply(b);
     Serial.println(b);

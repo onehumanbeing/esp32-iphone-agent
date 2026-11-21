@@ -23,7 +23,8 @@ static sw_ui pending;
 static bool hasPending, pendingOff;
 static QueueHandle_t buttons;  // `btn` lines for loop()
 static std::atomic<uint8_t> battery{0};
-static std::atomic<bool> hidLinked{false}, appLinked{false};
+static std::atomic<bool> hidLinked{false}, appLinked{false}, btConnecting{false}, wifiPhone{false};
+static std::atomic<int> mirrorState{0};
 char boardName[32];  // stopwatch_draw.h
 // The app's other lines for the task (latest wins), in PSRAM: `voice ...`, `picks [...]`, `answer ...`.
 enum { L_VOICE, L_PICKS, L_ANSWER, L_KINDS };
@@ -64,6 +65,12 @@ void stopwatch_begin() {
 }
 
 uint8_t stopwatch_battery() { return battery; }
+
+void stopwatch_ui_net(bool connecting, bool wifi, int mirror) {
+  btConnecting = connecting;
+  wifiPhone = wifi;
+  mirrorState = mirror;
+}
 
 void stopwatch_ui_link(bool hid, bool app) {
   hidLinked = hid;
@@ -332,6 +339,15 @@ static void uiTask(void *) {
       statusUntil = now + 3000;
     }
     wasPaired = paired;
+    // Screen Mirroring up: the character hops and the board buzzes, so the user knows it is ready (Henry 2026-11-21)
+    static int wasMirror;
+    int mirror = mirrorState;
+    if (mirror == 2 && wasMirror != 2) {
+      swf_poke(&f, now);
+      buzzPulse(buzz, 60, now);
+      board_log("stopwatch: screen mirroring on");
+    }
+    wasMirror = mirror;
     if (!paired && !running && !statusUntil && yDown) {  // no phone yet: yellow opens the status page, where blue pairs (Henry 2026-11-21)
       statusUntil = now + 8000;
       eatY = true;  // its release starts nothing
@@ -448,8 +464,10 @@ static void uiTask(void *) {
     v.elapsed = sw_elapsed(&c, now);
     // the time: the status page's, and under the face when it sleeps or no app is there (the RTC; the app's `c` else)
     if (!clockNow(now, v.clock)) sw_clock(&c, now, v.clock);
-    if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;
-    v.pair = (ble_pair_left_ms() + 999) / 1000;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
+    if (v.screen != SW_SCR_STATUS) v.clock[0] = 0;  // the time only on the status page (blue), never on the face (Henry 2026-11-21)
+    v.pair = (ble_pair_left_ms() + 999) / 1000;
+    v.connecting = btConnecting, v.wifi = wifiPhone, v.mirror = (uint8_t)mirrorState;
+    v.charging = charging >= 0;
     v.charge = charging < 0 || battery >= 100 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
     v.low = low;
     v.ui = c.ui;
