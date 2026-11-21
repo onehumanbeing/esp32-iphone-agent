@@ -431,4 +431,14 @@ final class NotebookBlockTests: XCTestCase {
         XCTAssertFalse(ModelRequestFailure.cutOff(LLMError(message: "x", status: 500)))
         XCTAssertEqual(RunPolicy.unattended(repairMirroring: false).fallback(reason: "3 errors in a row", confirm: false, restarts: 0), .restart)
     }
+
+    func testMaxStopsAtTheGoalsCount() {
+        XCTAssertEqual(Collect.parse(#""title, rating, price" max 20"#).what, "title, rating, price")
+        XCTAssertEqual(Collect.parse(#"title, rating, price" max 20"#).max, 20)  // the leading quote already gone
+        XCTAssertNil(Collect.parse("order totals").max)
+        XCTAssertEqual(Collect.parse("order totals").what, "order totals")
+        XCTAssertEqual(Collect.end(page: 3, dryRun: 0, moved: true, added: 21, max: 20), .enough)
+        XCTAssertNil(Collect.end(page: 3, dryRun: 0, moved: true, added: 19, max: 20))
+        XCTAssertNil(Collect.end(page: 3, dryRun: 0, moved: true, added: 40))  // no max: on until the list says stop
+    }
 }

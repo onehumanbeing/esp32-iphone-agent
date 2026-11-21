@@ -304,10 +304,10 @@ extension Pointer {
 }
 
 /// The AssistiveTouch button, found with no model (Henry 2026-11-22: the user drags it anywhere, and it fades when
-/// idle): normalised cross-correlation with a 31×31 picture of it at 150 px across the screen, at three sizes. It does
-/// not care about brightness or contrast, so the faded button matches like the solid one. On iPhone X screenshots the
-/// button scored 0.88-1.0 (faded on light apps, solid, over a Home Screen icon, at the top and bottom edge), the best
-/// other spot 0.52 (a round play button scored highest with the earlier ring test). Only spots at an edge count.
+/// idle): normalised cross-correlation with a picture of it at 150 px across the screen, at three sizes. It does not
+/// care about brightness or contrast, so the faded button matches like the solid one. On 7 iPhone X screenshots the
+/// button scored 0.77-1.0 (faded on light apps and over a switch, solid, over a Home Screen icon, at the top and
+/// bottom edge), any other spot at an edge at most 0.44. Only spots at an edge count.
 enum AssistiveButton {
     /// iPhones on iOS 16 and older go Home this way; newer ones and iPads keep the home-bar flick.
     @MainActor static var oldIPhone: Bool {
@@ -316,7 +316,7 @@ enum AssistiveButton {
     /// Where the button was last seen: it stays put unless the user drags it.
     @MainActor static var lastSpot: CGPoint?
     static let width = 150
-    static let minScore: Float = 0.7
+    static let minScore: Float = 0.6
     static let size = 31
     /// The solid button, 31×31 gray bytes (base64) cut from an iPhone X screenshot scaled to 150 px across.
     static let templateBase64 = "///////////////////////////////////////////////////////////////////////////////////////////////////9"
@@ -332,52 +332,50 @@ enum AssistiveButton {
         + "/ctYKSYmJicpKiknJiYmLGze////////////////////5o9DKSYmJiYmJiYrTaPw///////////////////////83aJqSz46P1B0"
         + "r+f+////////////////////////////+evg3OHu+///////////////////////////////////////////////////////////"
         + "/////////////////////////////////////////////////////////////////////////////////w=="
-    static let template: [Float] = {
+    /// Only the part within `radius` of the centre counts: the faded button lets what is behind it through, and
+    /// the corners of the 31×31 square are background (with them, the button over a switch scored 0.60 and the best
+    /// other spot at an edge 0.57; within 11 px: 0.77 against 0.44).
+    static let radius = 11.0
+    /// The template within `radius`: offsets from the centre and zero-mean, unit-spread values.
+    static let template: [(dx: Int, dy: Int, v: Float)] = {
         let bytes = Data(base64Encoded: templateBase64) ?? Data()
-        var t = bytes.map { Float($0) / 255 }
-        let mean = t.reduce(0, +) / Float(max(t.count, 1))
-        let sd = (t.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Float(max(t.count, 1))).squareRoot()
-        for i in t.indices { t[i] = (t[i] - mean) / max(sd, 1e-6) }
-        return t
+        guard bytes.count == size * size else { return [] }
+        let c = size / 2
+        var cells: [(dx: Int, dy: Int, v: Float)] = []
+        for y in 0..<size { for x in 0..<size where Double((x - c) * (x - c) + (y - c) * (y - c)).squareRoot() <= radius {
+            cells.append((x - c, y - c, Float(bytes[y * size + x]) / 255))
+        } }
+        let n = Float(cells.count)
+        let mean = cells.reduce(0) { $0 + $1.v } / n
+        let sd = (cells.reduce(0) { $0 + ($1.v - mean) * ($1.v - mean) } / n).squareRoot()
+        return cells.map { ($0.dx, $0.dy, ($0.v - mean) / max(sd, 1e-6)) }
     }()
 
     static func find(_ image: CGImage) -> CGPoint? {
-        let k = size, n = Float(k * k)
-        guard template.count == k * k, image.width > 0 else { return nil }
+        guard !template.isEmpty, image.width > 0 else { return nil }
+        let c = size / 2, n = Float(template.count)
         var best: (score: Float, spot: CGPoint)?
         for scale in [0.85, 1.0, 1.15] {  // the button scaled, by scaling the screen the other way
             let w = Int((Double(width) / scale).rounded())
             let h = Int((Double(image.height) * Double(w) / Double(image.width)).rounded())
-            guard h > k, let px = gray(image, w, h) else { continue }
-            // sums of the pixels and their squares up to each corner: any window's mean and spread at once
-            let iw = w + 1
-            var s1 = [Double](repeating: 0, count: iw * (h + 1)), s2 = s1
-            for y in 0..<h {
-                var r1 = 0.0, r2 = 0.0
-                for x in 0..<w {
-                    let v = Double(px[y * w + x]); r1 += v; r2 += v * v
-                    s1[(y + 1) * iw + x + 1] = s1[y * iw + x + 1] + r1
-                    s2[(y + 1) * iw + x + 1] = s2[y * iw + x + 1] + r2
-                }
-            }
-            func box(_ s: [Double], _ x: Int, _ y: Int) -> Double {
-                s[(y + k) * iw + x + k] - s[y * iw + x + k] - s[(y + k) * iw + x] + s[y * iw + x]
-            }
-            px.withUnsafeBufferPointer { p in template.withUnsafeBufferPointer { t in
-                for y in 0...(h - k) { for x in 0...(w - k) {
-                    let mean = box(s1, x, y) / Double(n)
-                    let sd = Float((max(box(s2, x, y) / Double(n) - mean * mean, 0)).squareRoot())
-                    guard sd > 0.02 else { continue }  // a flat patch
-                    var dot: Float = 0
-                    for ty in 0..<k {
-                        let row = (y + ty) * w + x, trow = ty * k
-                        for tx in 0..<k { dot += p[row + tx] * t[trow + tx] }
+            guard h > size, let px = gray(image, w, h) else { continue }
+            let offsets = template.map { $0.dy * w + $0.dx }, values = template.map(\.v)
+            px.withUnsafeBufferPointer { p in offsets.withUnsafeBufferPointer { o in values.withUnsafeBufferPointer { t in
+                for y in c..<(h - c) { for x in c..<(w - c) {
+                    let spot = CGPoint(x: (Double(x) + 0.5) / Double(w), y: (Double(y) + 0.5) / Double(h))
+                    guard atEdge(spot) else { continue }
+                    let at = y * w + x
+                    var sum: Float = 0, squares: Float = 0, dot: Float = 0
+                    for i in 0..<o.count {
+                        let v = p[at + o[i]]
+                        sum += v; squares += v * v; dot += v * t[i]
                     }
+                    let mean = sum / n, sd = max(squares / n - mean * mean, 0).squareRoot()
+                    guard sd > 0.02 else { continue }  // a flat patch
                     let score = dot / n / sd  // the template's mean is 0, so the window's mean drops out
-                    let spot = CGPoint(x: (Double(x) + Double(k) / 2) / Double(w), y: (Double(y) + Double(k) / 2) / Double(h))
-                    if score > (best?.score ?? minScore), atEdge(spot) { best = (score, spot) }
+                    if score > (best?.score ?? minScore) { best = (score, spot) }
                 } }
-            } }
+            } } }
         }
         return best?.spot
     }
