@@ -68,7 +68,7 @@ struct LocalFilesView: View {
         .deletable(atRoot ? nil : relative, in: sandbox, folder: true, asked: $deletingFolder)
         .task(id: directory) { await load() }
         .onAppear(perform: reload)  // back from a folder or file that was deleted inside
-        .onChange(of: developer) { reload() }
+        .onValueChange(of: developer) { reload() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], onCompletion: imported)
         .sheet(item: $shareURL) { ShareSheet(items: [$0]) }
         .sheet(isPresented: $editingPlan) {

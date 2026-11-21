@@ -15,11 +15,7 @@ struct TextFileEditor: View {
     var body: some View {
         Group {
             if let failure, original.isEmpty {
-                ContentUnavailableView {
-                    Label("Can't edit this file", systemImage: "doc")
-                } description: {
-                    Text(verbatim: failure)
-                } actions: {
+                UnavailableView("Can't edit this file", systemImage: "doc", description: Text(verbatim: failure)) {
                     ShareLink(item: file) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             } else {

@@ -13,8 +13,8 @@ struct FirmwareGate: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task(id: updater.usesUSBRelease) { if updater.usesUSBRelease { await updater.boardConnected() } }
-            .onChange(of: scene) { _, phase in if phase == .active { updater.ask() } }
-            .onChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
+            .onValueChange(of: scene) { _, phase in if phase == .active { updater.ask() } }
+            .onValueChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
             .sheet(isPresented: $updater.presented) { FirmwareSheet(app: app, updater: updater, board: board) }
     }
 }

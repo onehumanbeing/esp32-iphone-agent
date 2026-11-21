@@ -63,9 +63,9 @@ struct ModelSelectionView: View {
                     ProgressView("Loading models…")
                 } else if visible.isEmpty && tested.isEmpty {
                     if search.isEmpty {
-                        ContentUnavailableView("No models loaded", systemImage: "list.bullet",
+                        UnavailableView("No models loaded", systemImage: "list.bullet",
                                                description: Text("Refresh the list or enter a model ID below."))
-                    } else { ContentUnavailableView.search(text: search) }
+                    } else { EmptySearch(text: search) }
                 }
                 if let error = settings.modelsError {
                     Text(verbatim: error).font(.footnote).foregroundStyle(.secondary)
@@ -88,7 +88,7 @@ struct ModelSelectionView: View {
             }
             .task { await settings.loadModelsIfNeeded() }
             // no list (failed or empty): the ID field is open, so the model can still be entered (#172)
-            .onChange(of: settings.modelsError, initial: true) { _, error in if error != nil { customOpen = true } }
+            .onValueChange(of: settings.modelsError, initial: true) { _, error in if error != nil { customOpen = true } }
         }
     }
 

@@ -80,8 +80,8 @@ struct ConnectPage: View {
             if !board.connected && !MockMode.on { DemoOffer() }
         }
         .onAppear { board.scan(); autoPair() }
-        .onChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
-        .onChange(of: board.found) { autoPair() }
+        .onValueChange(of: board.state) { _, s in if s == .poweredOn { board.scan() } }
+        .onValueChange(of: board.found) { autoPair() }
         .task(id: board.connected) { stuck = false; stuck = await BoardRepairHint.wait(connected: board.connected) }
     }
 
@@ -324,7 +324,7 @@ struct SeePage: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onValueChange(of: scenePhase) { _, phase in
             if phase == .active { sharing = Hotspot.sharing; Task { await app.refreshHotspot() } }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: app.manualHotspot?.ssid)

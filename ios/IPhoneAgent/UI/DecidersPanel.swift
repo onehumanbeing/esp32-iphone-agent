@@ -39,8 +39,8 @@ struct DecidersPanel: View {
             }
         }
         .onAppear { deciders = .load(freeLine: freeLine) }
-        .onChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
-        .onChange(of: deciders) { deciders.save(freeLine: freeLine) }
+        .onValueChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
+        .onValueChange(of: deciders) { deciders.save(freeLine: freeLine) }
         .sheet(isPresented: $editingModel, onDismiss: reload) { ModelFieldsSheet(settings: settings) }
         .sheet(isPresented: $editingJev, onDismiss: reload) { JevFieldsSheet() }
     }
@@ -60,7 +60,7 @@ struct DecidersPanel: View {
                 SendConsentCard(settings: settings, model: pending.model, jev: pending.jev) { consentRevision += 1 }
             }
         }
-        .coordinateSpace(.named("deciders"))  // on the container: the dragged row itself moves
+        .namedCoordinateSpace("deciders")  // on the container: the dragged row itself moves
     }
 
     private func row(_ decider: Decider) -> some View {

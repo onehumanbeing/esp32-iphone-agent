@@ -70,7 +70,7 @@ struct JevFieldsSheet: View {
             .navigationTitle("Jev")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .onChange(of: apiKey) { Keychain.set(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), for: JevConfig.keychainAccount)
+            .onValueChange(of: apiKey) { Keychain.set(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), for: JevConfig.keychainAccount)
                 DebugLog.redact([apiKey]) }
         }
     }

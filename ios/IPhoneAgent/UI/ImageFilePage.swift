@@ -16,11 +16,7 @@ struct ImageFilePage: View {
                     .padding(.horizontal, Space.l)
                     .accessibilityLabel(Text(verbatim: file.lastPathComponent))
             } else {
-                ContentUnavailableView {
-                    Label("Can't show this image", systemImage: "photo")
-                } description: {
-                    Text("You can still share the file.")
-                }
+                UnavailableView("Can't show this image", systemImage: "photo", description: Text("You can still share the file."))
             }
             Spacer(minLength: 0)
         }
