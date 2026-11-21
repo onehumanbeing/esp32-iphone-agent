@@ -49,12 +49,16 @@ typedef struct {
 // Advertises over mDNS and starts the RTSP server task. Call once Wi-Fi is up (any mode).
 bool airplay_start(const airplay_cfg *cfg);
 int airplay_state(void);  // AIRPLAY_IDLE / _CONNECTED / _STREAMING
+// The hardware model of the device whose SETUP started the mirror stream ("iPad15,3"), "" when none.
+const char *airplay_source(void);
 // The board joined a home network without a restart: advertise over mDNS again (a new responder). The one set up for
 // the hotspot was not found there (2026-11-17). Going back to the hotspot restarts the board instead (netcfg.cpp).
 void airplay_readvertise(void);
 // Display advertised in /info from the next mirroring session on.
 void airplay_set_display(uint16_t width, uint16_t height, uint8_t max_fps);
 airplay_audio_stats airplay_audio(void);
+// Mirror data connections accepted since boot: one per mirroring session, more if the sender reconnected.
+uint32_t airplay_data_conns(void);
 
 #ifdef __cplusplus
 }

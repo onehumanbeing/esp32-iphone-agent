@@ -4,6 +4,27 @@ import XCTest
 
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
+    func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)
+        var needsPointer = true
+        agent.link = { Recovery.Link(connected: true, sta: 1, ap: "streaming", frameAt: now(), needsPointer: needsPointer) }
+        var stages: [Recovery.Part] = []
+        agent.onRecover = { stage in
+            if let stage {
+                stages.append(stage.part)
+                needsPointer = false
+            }
+        }
+        var restored = false
+        agent.restore = { restored = true }
+        let waited = try await agent.waitForScreen(poll: 0.01, deadline: now() + 2)
+        XCTAssertNotNil(waited)
+        XCTAssertEqual(stages, [.pointer])
+        XCTAssertTrue(restored)
+        XCTAssertTrue(phone.calls.isEmpty)
+    }
+
     func testReconnectDuringHTTPDiscardsOldCoordinatesAndRestoresBeforeLookingAgain() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         let device = try XCTUnwrap(phone.device as? FakeDevice)
@@ -725,7 +746,15 @@ import XCTest
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     var typeNote: String?
     func type(_ text: String) async throws -> String? { calls.append("type"); return typeNote }
-    func key(_ combo: String) async throws { calls.append("key") }
+    var typeRest: String?  // with typeNote: what the typer says may be pasted (HanTyper.Stop.rest)
+    var onType: (() -> Void)?  // e.g. the screen changes once pinyin went out
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? {
+        calls.append("type")
+        onType?()
+        return typeNote.map { HanTyper.Stop(note: $0, rest: typeRest) }
+    }
+    var keys: [String] = []
+    func key(_ combo: String) async throws { calls.append("key"); keys.append(combo) }
     var homeAgain: [Bool] = []
     func goHome(again: Bool) async throws { calls.append("home"); homeAgain.append(again) }
     var openResult = OpenResult.opened

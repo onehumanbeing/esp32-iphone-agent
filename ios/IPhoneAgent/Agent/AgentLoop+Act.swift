@@ -32,7 +32,7 @@ extension AgentLoop {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
             + " (the search is still on screen): open it by the name this \(DeviceKind.name) shows, in its language"
-        case .notOpened?: out += "; \(app) did not open (Return on its top hit did nothing):"
+        case .notOpened?: out += "; \(app) did not open (Spotlight stayed up after tapping its row and Return):"
             + " if Spotlight still lists it, tap its icon there"
         case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
             + " tap back (top left) or its tabs to reach the page you need"
@@ -88,15 +88,35 @@ extension AgentLoop {
             let text = a["text"]?.str ?? ""
             if Scripts.needsPaste(text) {  // the board can't type it
                 let note = try await pasteInstead(text)
+                typeStats.pasted(note, pinyin: false)
                 sendGuard.typed(text, missing: note == nil ? nil : text)
                 return note.map { ("typed", $0) } ?? ("result", "pasted (the board cannot type this script)")
             }
-            let note = try await phone.type(text)
-            sendGuard.typed(text, missing: note.flatMap(SendGuard.missing))
-            return note.map { ("typed", $0) }
+            // the text carried on the clipboard since the start (ClipboardCarry): pasted first, pinyin only when the
+            // paste is not read back
+            if carriedWhyNot(text) == nil, try await pasteCarriedFirst(text) {
+                return ("result", "typed: pasted from the clipboard, which held this text; read back: the field holds all of it")
+            }
+            let stop = try await phone.typeStop(text)
+            // the pinyin keyboard did not offer a word (2026-11-20: 西 not read among xi's candidates, 上海 typed and
+            // 西岸艺术中心 not): the text carried on the clipboard since the start is pasted when it is this text
+            // (ClipboardCarry); never a hop back to this app. Otherwise the model types the rest itself.
+            if let stop, let rest = stop.rest, !rest.isEmpty {
+                DebugLog.write("type: the pinyin keyboard stopped part way (\(rest.count) chars left)")
+                // tried once more after a paste-first not seen: the read may have missed it, the field holds pinyin now
+                if let pasted = try await pasteCarried(text, stop: stop) {
+                    typeStats.pasted(pasted.field == "result" ? nil : "text is not seen", pinyin: true)
+                    return pasted
+                }
+                typeStats.pasted("not pasted", pinyin: true)
+                sendGuard.typed(text, missing: rest)
+                return ("typed", SendGuard.listedHint + stop.note + "; type the rest yourself, in shorter pieces")
+            }
+            sendGuard.typed(text, missing: stop.flatMap { SendGuard.missing($0.note) })
+            return stop.map { ("typed", SendGuard.listedHint + $0.note) }
         case "say":  // the Live Speech field: typed, then return speaks it (never the clipboard: it asks first)
             // part of it not typed: not spoken either, half a sentence would go into the call
-            if let missed = try await phone.type(a["text"]?.str ?? "") { return ("typed", missed + "; not said: clear the field and say it again") }
+            if let missed = try await phone.type(a["text"]?.str ?? "") { return ("typed", missed + "; not said: \(SendGuard.clearHint) and say it again") }
             try await phone.key("enter")
             return nil
         case "clear":
@@ -325,6 +345,13 @@ struct SendGuard {
     private(set) var pending: String?  // the last complete `type`, not yet entered
     private(set) var sent: [String: Int] = [:]  // text -> the step that entered it
     private var heldIncomplete = false, heldRepeat: String?
+    /// How to empty a field the agent typed into: its own `clear` action (keyboard deletes). A 清空 / Clear button on
+    /// screen stops the run at the pay guard (2026-11-20: tapped to undo half a typed name, the user had to stop it).
+    static let clearHint = "empty the field with the clear action (never a 清空 / Clear button on screen)"
+    /// First thing a part-way `type` tells the model: the app's suggestions often list the target already (2026-11-20:
+    /// 西岸艺术中心 sat under the field while the run went on typing). Starts a note, ends with a space.
+    static let listedHint = "If the screen already lists what the goal needs (a suggestion or result under the field),"
+        + " tap it instead of typing more. "
 
     /// The part a `type` note says is missing (`not typed: "..."`). Every note is a problem (a word cleared, symbols
     /// wrong, nothing typed): "" when it does not say what is missing (the whole text is then taken as unsure).
@@ -354,8 +381,8 @@ struct SendGuard {
     mutating func enter(step: Int) -> String? {
         if let missing, !heldIncomplete {
             heldIncomplete = true
-            return "not sent: the field holds only part of the text (not typed: \"\(missing)\"). Type the rest first,"
-                + " or clear the field; key enter again to send it as it is"
+            return "not sent: the field holds only part of the text (not typed: \"\(missing)\"). " + Self.listedHint
+                + "Else type the rest first, or \(Self.clearHint) and type it all again; key enter again to send it as it is"
         }
         if let text = pending, let at = sent[text], heldRepeat != text {
             heldRepeat = text

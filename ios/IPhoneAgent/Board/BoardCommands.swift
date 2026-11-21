@@ -66,6 +66,34 @@ extension BoardTransport {
     private var pending: [Int: CheckedContinuation<BoardReply, Error>] = [:]
     private var last = 0.0, beat = 0.0
     var onTiming: ((String, Double) -> Void)?  // command name, ms
+    /// The connected board's status (BoardLink): the StopWatch screen and buttons are only for a board that has them.
+    var boardStatus: () -> BoardStatus? = { nil }
+    /// A StopWatch button, already mapped (StopWatchUI.action).
+    var onButton: ((StopWatchUI.Action) -> Void)?
+    private var uiLast: StopWatchUI.Want? = .show(StopWatchUI.idle)  // the newest screen state, sent again after a reconnect
+    private var uiWanted: StopWatchUI.Want?  // not on the board yet
+    private var uiSent: String?
+    private var uiTimes: [Double] = []
+    private var uiRetry: Task<Void, Never>?
+    private var uiRefresh: Task<Void, Never>?
+    var clock: () -> Date = { Date() }      // the `c` key's local time
+    private(set) var uiPicks: [UUID] = []    // the standby picks of the last `ui` line the board got, for `btn run <i>`
+    /// The StopWatch's quick intents (the newest 5, yellow picks one): set by the app. Sent as a `picks` line when
+    /// they change and every 3 minutes; a board that answers it gets no `k` in `ui` lines any more.
+    var quickIntents: () -> [StandbyPick] = { [] }
+    private var quickSent: (names: [String], at: Double)?
+    private var quickBusy = false
+    private(set) var quickOn = false
+    /// The run's start and (once ended) end, for the StopWatch's timer (`e`); nil: no run yet.
+    var runTimes: (start: Date, end: Date?)?
+    /// The run's help is a confirm (pay, delete…): the StopWatch's blue skips the step instead of stopping the run.
+    var uiConfirm = false {
+        didSet { if uiConfirm != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
+    }
+    /// What the user has to fix for the run to go on (StopWatchUI.warning): the StopWatch buzzes and says it.
+    var uiWarn: String? {
+        didSet { if uiWarn != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
+    }
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
 
@@ -75,7 +103,12 @@ extension BoardTransport {
     func linkUp() {
         links += 1
         last = now(); beat = last  // fresh link: nothing to keep awake yet
+        (uiSent, uiWanted) = (nil, uiLast)  // flushUI sends it once the status says StopWatch
+        (quickSent, quickOn) = (nil, false)
     }
+
+    // Invalidate in-flight frames and relative coordinates when only the system pointer drops.
+    func inputLinkLost() { links += 1 }
 
     /// The link dropped: fail everything in flight.
     func linkDown() {
@@ -88,6 +121,7 @@ extension BoardTransport {
         let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("app ") { return onAppCommand?(String(text.dropFirst(4))) ?? () }
         if text.hasPrefix("log ") { return }  // our own log lines, relayed to the harness
+        if text.hasPrefix("btn ") { return button(String(text.dropFirst(4))) }
         if text.hasPrefix("blog ") {  // the board's AirPlay log: "blog <board ms> <line>"
             let parts = text.dropFirst(5).split(separator: " ", maxSplits: 1)
             return DebugLog.write("board: " + (parts.count > 1 ? String(parts[1]) : ""))
@@ -219,6 +253,124 @@ extension BoardTransport {
         return true
     }
 
+    // MARK: - StopWatch screen and buttons
+
+    /// The run's state for the StopWatch screen (nil: `ui off`). Fire-and-forget: only the newest state is kept,
+    /// sent when it changed, at most 2 a second, and later (every 0.5 s) while the link is busy. A run or standby
+    /// goes again every 5 s (refreshUI): the screen falls back to idle after 10 s without a line. Other boards: nothing.
+    func showUI(_ state: AgentActivityAttributes.ContentState?) {
+        let want = state.map(StopWatchUI.Want.show) ?? .off
+        (uiLast, uiWanted) = (want, want)
+        flushUI()
+    }
+
+    /// Called on every status too: the first status after a link-up says whether this board is a StopWatch.
+    func flushUI() {
+        flushPicks()
+        guard var want = uiWanted, connected, let transport, StopWatchUI.enabled(boardStatus()) else { return }
+        if quickOn, case .show(var state) = want { state.picks = nil; want = .show(state) }  // `picks` has them
+        let prefix = "\(nextID) "
+        let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
+        let elapsed = runTimes.map { Int(max(0, ($0.end ?? clock()).timeIntervalSince($0.start))) }
+        guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed,
+                                                               warn: uiWarn)
+        else { return uiWanted = nil }
+        // the same line but for its clock (`z` ticks every second) is not sent again: the 5 s refresh carries the time
+        let key = body.replacingOccurrences(of: #","z":\d+"#, with: "", options: .regularExpression)
+        guard key != uiSent else { return uiWanted = nil }
+        let t = now()
+        uiTimes = uiTimes.filter { t - $0 < 1 }
+        guard uiTimes.count < 2, transport.writeIfIdle(prefix + body) else { return retryUI() }
+        nextID += 1
+        uiTimes.append(t)
+        (uiSent, uiWanted) = (key, nil)
+        if let picks, !quickOn { uiPicks = picks }
+        startRefresh()
+    }
+
+    /// The line on the board's screen once more, unchanged or with the new minute: the board knows the app is there
+    /// (awake) while lines come. A finished run has had its 5 s on the screen by then: idle goes instead. `off` is
+    /// not repeated.
+    func refreshUI() {
+        guard case .show(let state)? = uiLast else { return }
+        if state.finished { uiLast = .show(StopWatchUI.idle) }
+        (uiSent, uiWanted) = (nil, uiLast)
+        flushUI()
+    }
+
+    private func startRefresh() {
+        guard uiRefresh == nil, case .show? = uiLast else { return }
+        uiRefresh = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, case .show? = self.uiLast else { break }
+                self.refreshUI()
+            }
+            self?.uiRefresh = nil
+        }
+    }
+
+    /// The quick intents to a StopWatch: when they changed, or 3 minutes after the last time. Older firmware answers
+    /// `err`: it keeps the standby picks of the `ui` line.
+    func flushPicks() {
+        guard connected, !quickBusy, StopWatchUI.enabled(boardStatus()) else { return }
+        let picks = Array(quickIntents().prefix(StopWatchUI.maxQuick))
+        let names = picks.map { StopWatchUI.truncated($0.name, bytes: StopWatchUI.maxPick) }
+        if let sent = quickSent, sent.names == names, now() - sent.at < 180 { return }
+        guard let data = try? JSONEncoder().encode(names), let json = String(data: data, encoding: .utf8) else { return }
+        quickBusy = true
+        Task {
+            defer { quickBusy = false }
+            do {
+                try await send("picks " + json)
+                (quickSent, quickOn, uiPicks) = ((names, now()), true, picks.map(\.id))
+            } catch {
+                quickSent = (names, now())  // older firmware: try again in 3 minutes, `k` meanwhile
+                if quickOn { (quickOn, uiSent) = (false, nil) }
+            }
+        }
+    }
+
+    private func retryUI() {
+        guard uiRetry == nil else { return }
+        uiRetry = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.uiRetry = nil
+            self?.flushUI()
+        }
+    }
+
+    /// What the phone made of the StopWatch's voice, for its screen. Only to a StopWatch.
+    func sendVoice(_ result: BoardVoice.Result) {
+        guard StopWatchUI.enabled(boardStatus()), let transport else { return }
+        let line = StopWatchUI.voiceLine(result, max: transport.maxWrite - "\(nextID) ".utf8.count - 4)
+        Task {
+            do { try await send(line) } catch { DebugLog.write("stopwatch: \(line.prefix(20)) not sent: \(error.localizedDescription)") }
+        }
+    }
+
+    /// A done task's answer for the StopWatch's screen (it pages through it; blue closes it). Only to a StopWatch.
+    func sendAnswer(_ text: String) {
+        guard StopWatchUI.enabled(boardStatus()), let transport else { return }
+        let lines = StopWatchUI.answerLines(text, room: transport.maxWrite - "\(nextID) ".utf8.count - 4)
+        guard !lines.isEmpty else { return }
+        Task {
+            for line in lines {
+                do { try await send(line) } catch { return DebugLog.write("stopwatch: answer not sent: \(error.localizedDescription)") }
+            }
+        }
+    }
+
+    /// `btn <verb> [arg]`, sent by the board on its own. Only a StopWatch's are heard.
+    private func button(_ text: String) {
+        guard StopWatchUI.enabled(boardStatus()) else { return }
+        guard let action = StopWatchUI.action(text, picks: uiPicks) else {
+            return DebugLog.write("stopwatch: button ignored: \(text.prefix(30))")
+        }
+        DebugLog.write("stopwatch: button \(text.prefix(30))")
+        onButton?(action)
+    }
+
     private func fail(_ id: Int, _ error: Error) {
         pending.removeValue(forKey: id)?.resume(throwing: error)
     }
@@ -255,3 +407,161 @@ extension BoardTransport {
 }
 
 func now() -> Double { Date().timeIntervalSince1970 }
+
+/// M5Stack StopWatch: its screen shows the run (the Live Activity's state, `ui <json>`) and its buttons send
+/// `btn <verb> [arg]`. Only a board whose status says so (board "stopwatch", ui 1) gets or is heard on any of it.
+enum StopWatchUI {
+    typealias State = AgentActivityAttributes.ContentState
+    static let maxLine = 200, maxText = 80, maxPick = 24, maxPicks = 3, maxQuick = 5
+
+    enum Want: Equatable { case off, show(State) }
+
+    /// No run: the app is there and the board shows its character awake (AppModel.mood: idle with a board). No picks.
+    static let idle: State = {
+        var state = State(mood: .idle, step: 0, limit: 0, line: "", phase: .standby)
+        state.picks = []
+        return state
+    }()
+
+    /// voice: yellow (true, run the heard text) or blue (false, drop it) after the board showed it (BoardVoice).
+    enum Action: Equatable { case command(AgentCommand), home, run(UUID), voice(Bool) }
+
+    static func enabled(_ status: BoardStatus?) -> Bool { status?.board == "stopwatch" && status?.ui == 1 }
+
+    /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, the
+    /// local time "HH:mm" (the board has no clock), where the eyes look (x, y; left out at 0) and v 1: this app takes
+    /// the board's voice (hold yellow, BoardVoice). Older firmware ignores keys it does not know.
+    struct Payload: Encodable, Equatable {
+        var c: String
+        var m: String, p: String, s: Int, l: Int
+        var t: String?
+        var d: Int?, n: Int?
+        var f: Bool
+        var k: [String]?
+        var x: Double?, y: Double?
+        var v = 1
+        var h: Int?  // 1: the help is a confirm
+        var e: Int?  // seconds since the run began; at the finish, its length
+        var w: String?  // a lost link the user has to fix: mirror, locked, hid
+        var z: Int?     // the phone's local time, seconds since 1970 read as UTC: the board sets its clock from it
+    }
+
+    static func localSeconds(_ time: Date, zone: TimeZone = .current) -> Int {
+        Int(time.timeIntervalSince1970) + zone.secondsFromGMT(for: time)
+    }
+
+    /// A paused run's lost link, for the StopWatch's alert (`w`): only what the user can fix from the watch's words.
+    static func warning(_ part: Recovery.Part) -> String? {
+        switch part {
+        case .mirroring, .frames: return "mirror"
+        case .locked: return "locked"
+        case .pointer: return "hid"
+        case .board, .cable, .hotspot: return nil
+        }
+    }
+
+    /// What the character says, as the expanded island: its words while the run goes, the line otherwise (help, done).
+    static func says(_ state: State) -> String {
+        state.phase == .running && !state.finished && !state.labelFull.isEmpty ? state.labelFull : state.line
+    }
+
+    private static func look(_ v: Double) -> Double? {
+        let r = (max(-1, min(1, v)) * 10).rounded() / 10
+        return r == 0 ? nil : r
+    }
+
+    /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
+    /// Too long: the text gets shorter, then goes, then the picks go.
+    static func command(_ want: Want, max: Int = maxLine, at time: Date = Date(), confirm: Bool = false,
+                        elapsed: Int? = nil, warn: String? = nil) -> (String, [UUID]?)? {
+        guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
+        let picks = state.picks.map { Array($0.prefix(maxPicks)) }
+        var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
+                        t: truncated(says(state).replacingOccurrences(of: "\n", with: " "), bytes: maxText),
+                        d: state.done, n: state.total, f: state.finished,
+                        k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY),
+                        h: confirm && state.phase == .help ? 1 : nil,
+                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn, z: localSeconds(time))
+        while true {
+            if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
+            if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }
+            else if p.t != nil { p.t = nil }
+            else if p.k != nil { p.k = nil }
+            else { return nil }
+        }
+    }
+
+    static func clock(_ time: Date) -> String {
+        let t = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return String(format: "%02d:%02d", t.hour ?? 0, t.minute ?? 0)
+    }
+
+    private static func line(_ p: Payload) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return (try? encoder.encode(p)).flatMap { String(data: $0, encoding: .utf8) }.map { "ui " + $0 }
+    }
+
+    /// The board keeps this much of a done task's answer (SW_ANSWER_MAX, about 6 pages); the app has all of it.
+    static let maxAnswer = 600
+
+    /// `answer <part>` then `answer+ <part>`: the text in whole characters, each line within `room` bytes.
+    static func answerLines(_ text: String, room: Int) -> [String] {
+        var rest = truncated(text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces), bytes: maxAnswer)
+        var lines: [String] = []
+        while !rest.isEmpty {
+            let prefix = lines.isEmpty ? "answer " : "answer+ "
+            let part = truncated(rest, bytes: Swift.max(1, room - prefix.utf8.count))
+            guard !part.isEmpty else { break }
+            lines.append(prefix + part)
+            rest = String(rest.dropFirst(part.count))
+        }
+        return lines
+    }
+
+    /// The board shows this much of what was heard (SW_SAID_MAX); the app keeps all of it to run.
+    static let maxSaid = 120
+
+    /// `voice heard <text>` or `voice fail <code>` for the board, within `max` bytes.
+    static func voiceLine(_ result: BoardVoice.Result, max: Int) -> String {
+        switch result {
+        case .heard(let text):
+            let prefix = "voice heard "
+            return prefix + truncated(text.replacingOccurrences(of: "\n", with: " "),
+                                      bytes: Swift.max(0, Swift.min(maxSaid, max - prefix.utf8.count)))
+        case .failed(let code): return "voice fail " + code
+        }
+    }
+
+    /// The longest prefix of whole characters within `bytes` UTF-8 bytes.
+    static func truncated(_ text: String, bytes: Int) -> String {
+        var out = "", used = 0
+        for c in text {
+            used += c.utf8.count
+            if used > bytes { break }
+            out.append(c)
+        }
+        return out
+    }
+
+    /// `<verb> [arg]` after "btn ". `run <i>`: the i-th (from 0) of the picks the board was last sent.
+    static func action(_ text: String, picks: [UUID]) -> Action? {
+        let parts = text.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
+        switch parts.first {
+        case "stop": return .command(.stop)
+        case "pause": return .command(.pause)
+        case "unpause": return .command(.unpause)
+        case "continue": return .command(.resume)
+        case "skip": return .command(.skip)
+        case "takeover": return .command(.takeOver)
+        case "home": return .home
+        case "voice":
+            guard parts.count > 1, ["go", "cancel"].contains(parts[1]) else { return nil }
+            return .voice(parts[1] == "go")
+        case "run":
+            guard parts.count > 1, let i = Int(parts[1]), picks.indices.contains(i) else { return nil }
+            return .run(picks[i])
+        default: return nil
+        }
+    }
+}

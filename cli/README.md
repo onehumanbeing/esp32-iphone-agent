@@ -3,8 +3,9 @@
 English · [简体中文](README.zh-CN.md)
 
 Command line and MCP server that let a computer (and the coding agent on it: Claude Code, Codex) see and drive an
-iPhone through an ESP32 Agent board. The board is plugged into the iPhone as its USB mouse and keyboard and receives
-its AirPlay screen mirroring; the computer reaches it over Bluetooth, or over Wi-Fi when both are on the same network, next to the iOS app. Commands and JSON output
+iPhone through an ESP32 Agent board. The board is the iPhone's mouse and keyboard, plugged into it over USB or, in
+Bluetooth mode, paired as its Bluetooth mouse and keyboard (any USB power will do), and receives its AirPlay screen
+mirroring; the computer reaches it over Bluetooth, or over Wi-Fi when both are on the same network, next to the iOS app. Commands and JSON output
 follow [mobilecli](https://github.com/mobile-next/mobilecli).
 
 ## Install
@@ -20,7 +21,9 @@ brew / apt / dnf / winget). Later: `esp32agent upgrade`.
 
 ## Pair
 
-1. Plug the board into the iPhone. Within 3 minutes: `esp32agent pair`.
+1. Power the board (USB mode: plug it into the iPhone). Within 3 minutes of it powering up: `esp32agent pair`.
+   In Bluetooth mode, pair the board on the iPhone in the same window (Settings > Accessibility > Touch >
+   AssistiveTouch > Devices > Bluetooth Devices).
 2. On the iPhone: Control Center > Screen Mirroring > ESP32 Agent.
 3. `esp32agent screenshot` should now write a PNG of the phone's screen.
 

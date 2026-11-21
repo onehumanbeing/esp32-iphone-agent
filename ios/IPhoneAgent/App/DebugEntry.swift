@@ -62,7 +62,7 @@ struct ModelLaunchConfiguration {
 ///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
 ///   iphoneagent://display?try=1040x720,1440x1000   (Debug: advertise each size for one mirroring session, log what
 ///                                                  iOS streams, then go back to the default; ?reset=1 stops)
-/// or launch arguments: -run "<task>", -calibrate, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
+/// or launch arguments: -run "<task>", -calibrate, -manualcal, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
 /// The URL commands exist in Debug builds only: in a release any web page could open them.
@@ -119,7 +119,7 @@ extension AppModel {
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
         switch name {
         case "run" where !rest.isEmpty: debugCommand("run", task: rest)
-        case "calibrate", "stop", "snap": debugCommand(name)
+        case "calibrate", "stop", "snap", "manualcal": debugCommand(name)
         case "bench": debugCommand("bench", kb: Int(rest) ?? 256)
         case "status": say(statusSummary)
         case "audio": say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard()))  // the phone audio the agent hears
@@ -179,7 +179,7 @@ extension AppModel {
     /// One line: board, mirroring, calibration, model and run.
     var statusSummary: String {
         let s = board.status
-        let boardText = board.connected ? "connected usb \(s?.usb ?? "-") ap \(s?.ap ?? "-") sta \(s?.sta.map(String.init) ?? "-")"
+        let boardText = board.connected ? "connected input \(s?.inputState ?? "-") ap \(s?.ap ?? "-") sta \(s?.sta.map(String.init) ?? "-")"
             : "not connected"
         let mirror = feed.live ? String(format: "live %.2f", feed.aspect) : "off"
         let cal = pointer.absolute ? "absolute" : pointer.span.map { "\($0.w)x\($0.h) " + (pointer.quality.map { String(format: "±%.1f%%", $0 * 100) } ?? "?") }
@@ -249,6 +249,7 @@ extension AppModel {
         #endif
         if let task = value(after: "-run") { debugCommand("run", task: task) }
         if args.contains("-calibrate") { debugCommand("calibrate") }
+        if args.contains("-manualcal") { debugCommand("manualcal") }  // "Tap the pointer yourself" on the board
         if args.contains("-stop") { debugCommand("stop") }
         if args.contains("-pause") || args.contains("-continue") {  // harness/ctl.sh: hold the run while the Mac looks into a step
             if !agent.running { DebugLog.write("run: not running") }
@@ -283,6 +284,9 @@ extension AppModel {
             case "calibrate":
                 guard await waitReady(mirroring: false) else { return say("debug: board not ready in 30 s") }
                 calibrator.calibrate()
+            case "manualcal":
+                guard await waitReady(mirroring: false) else { return say("debug: board not ready in 30 s") }
+                calibrator.debugManual()
             case "bench":
                 guard await waitReady(mirroring: false) else { return say("debug: board not ready in 30 s") }
                 await bench(kb: kb)
@@ -388,13 +392,25 @@ extension AppModel {
     private func harnessHID(_ commands: String) {
         Task { [weak self] in
             guard let self else { return }
-            guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            // `hidmode` (a --dual-hid board) needs only the link: in BLE mode before the pointer pairs, the input
+            // is never ready, and this is how it goes back to USB.
+            if commands.hasPrefix("hidmode") {
+                let deadline = now() + 30
+                while !board.connected && now() < deadline { try? await Task.sleep(nanoseconds: 500_000_000) }
+                guard board.connected else { return say("harness hid: board not ready in 30 s") }
+            } else {
+                guard await waitReady(mirroring: false) else { return say("harness hid: board not ready in 30 s") }
+            }
             var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String
                 if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
                     try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
                     reply = "ok"
+                } else if command == "homeup" || command.hasPrefix("homeup ") {  // HomeTuning for this orientation
+                    let landscape = DeviceScreen.size.width > DeviceScreen.size.height
+                    if let n = Int(command.dropFirst(7)) { HomeTuning.store(n, landscape: landscape) }
+                    reply = "home pushes up \(HomeTuning.value(landscape: landscape)) (\(landscape ? "landscape" : "portrait"))"
                 } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
@@ -436,7 +452,7 @@ extension AppModel {
         let deadline = now() + timeout
         while now() < deadline {
             let s = board.status
-            if board.connected && s?.usb == "ok" && (!mirroring || s?.ap == "streaming") { return true }
+            if board.connected && s?.inputReady == true && (!mirroring || s?.ap == "streaming") { return true }
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return false

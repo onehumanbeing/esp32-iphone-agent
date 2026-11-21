@@ -6,6 +6,7 @@ struct TestedModel: Equatable {
     let id: String
     var extraBody = "{}"
     var recommended = false
+    var forPlanner = false  // the one to pick as Planner model (Advanced), badged there instead of `recommended`
 }
 
 /// Per provider, best first. Only models that scored usable on real screens are listed.
@@ -18,7 +19,9 @@ enum TestedModels {
         case .qwen:
             return [TestedModel(id: "qwen3.8-flash", extraBody: #"{"enable_thinking": false}"#, recommended: true)]
         case .gemini:
+            // Gemini 4 Hydrogen, no thinking (2026-11-20 benchmark): planner pick, p50 4.5 s a step
             return [TestedModel(id: "gemini-3.8-flash", extraBody: #"{"reasoning_effort": "none"}"#, recommended: true),
+                    TestedModel(id: "gemini-4-hydrogen", extraBody: #"{"reasoning_effort": "none"}"#, forPlanner: true),
                     TestedModel(id: "gemini-3.5-flash-lite", extraBody: #"{"reasoning_effort": "minimal"}"#)]
         case .openRouter:
             return ["qwen/qwen3.8-flash", "z-ai/glm-4.5v", "qwen/qwen3.8-27b", "qwen/qwen3.6-35b-a3b", "qwen/qwen3.5-35b-a3b"]

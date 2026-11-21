@@ -39,6 +39,7 @@ final class PromptTests: XCTestCase {
         XCTAssertEqual(phone, files + Prompts.language)
         XCTAssertTrue(phone.hasPrefix("You operate an iPhone through a mouse pointer,"))
         XCTAssertTrue(phone.contains("Never tap the Dynamic Island"))
+        XCTAssertTrue(phone.contains("tap Open (打开). It asks only the first time"), "the scheme's open prompt")
         XCTAssertFalse(phone.contains("iPad"))
         XCTAssertFalse(phone.contains("<!--"))
         XCTAssertEqual(Prompts.reader(for: .phone), Prompts.load("reader"))

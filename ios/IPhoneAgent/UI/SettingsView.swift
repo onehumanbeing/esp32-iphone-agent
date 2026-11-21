@@ -77,7 +77,7 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.standbyIsland) {
                         SettingsLabel(title: "Standby in Dynamic Island", symbol: "capsule", color: .blue)
                     }
-                    .onChange(of: settings.standbyIsland) { app.refreshStandby() }
+                    .onValueChange(of: settings.standbyIsland) { app.refreshStandby() }
                     Toggle(isOn: $blurScreens) {
                         SettingsLabel(title: "Blur screens in reviews", symbol: "eye.slash", color: .gray)
                     }
@@ -245,12 +245,99 @@ struct DeveloperView: View {
     }
 }
 
+extension BoardSettingsView {
+    /// A board that carries both inputs (--dual-hid): USB or Bluetooth mouse and keyboard. Switching restarts it.
+    @ViewBuilder func inputSection(_ mode: String) -> some View {
+        Section {
+            Picker("Input", selection: Binding(get: { inputSwitch ?? mode }, set: { if $0 != mode { inputAsk = $0 } })) {
+                Text("USB").tag("usb")
+                Text("Bluetooth").tag("ble")
+            }
+            .disabled(inputSwitch != nil || !board.connected)
+            if inputSwitch != nil {
+                HStack { Text("Restarting the board…"); Spacer(); ProgressView() }
+            }
+            if let inputError { Text(inputError).font(.footnote).foregroundStyle(.red) }
+        } header: {
+            Text("Input")
+        } footer: {
+            Text(mode == "ble"
+                 ? "The board is a Bluetooth mouse and keyboard: pair it once in Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices. Its USB-C port only powers it."
+                 : "The board is this \(DeviceKind.name)'s USB mouse and keyboard: plug it into its USB-C port.")
+        }
+        .confirmationDialog(inputAsk == "ble" ? "Use Bluetooth for the mouse?" : "Use USB for the mouse?",
+                            isPresented: Binding(get: { inputAsk != nil }, set: { if !$0 { inputAsk = nil } }),
+                            titleVisibility: .visible) {
+            Button("Switch") { if let target = inputAsk { switchInput(to: target) } }
+            Button("Cancel", role: .cancel) { inputAsk = nil }
+        } message: {
+            Text("The board restarts and reconnects in a few seconds. Start Screen Mirroring again afterwards.")
+        }
+        .onValueChange(of: board.status?.hidm) { _, now in
+            if let target = inputSwitch, now == target { inputSwitch = nil }
+        }
+    }
+
+    private func switchInput(to target: String) {
+        inputAsk = nil
+        inputError = nil
+        inputSwitch = target
+        bluetoothSteps = target == "ble"
+        Task {
+            do {
+                try await BluetoothSteps.switchInput(to: target, on: board)
+                try? await Task.sleep(nanoseconds: 45_000_000_000)  // restarts in ~5 s; give up waiting after 45
+                if inputSwitch == target { inputSwitch = nil }
+            } catch {
+                inputSwitch = nil
+                bluetoothSteps = false
+                inputError = String(localized: "The board did not switch: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+/// What to do after the board switches to Bluetooth, shown once right after the switch (Settings or setup). Each
+/// step ticks itself from the status: the board back with `hidm` ble, mirroring on, and `hid` ok once iOS pairs the
+/// Bluetooth mouse (the app's own connection stays paired through the restart).
+struct BluetoothSteps: View {
+    @ObservedObject var board: BoardLink
+
+    static func switchInput(to target: String, on board: BoardLink) async throws {
+        DebugLog.write("board input: switching to \(target)")
+        _ = try await board.commands.send("hidmode \(target)")
+    }
+
+    var body: some View {
+        let s = board.connected ? board.status : nil
+        let back = s?.hidm == "ble"
+        let mirroring = back && s?.ap == "streaming"  // after the restart, not the old session
+        let mouse = back && s?.hid == "ok"
+        let name = board.name.isEmpty ? BoardName.current : board.name
+        VStack(alignment: .leading, spacing: 0) {
+            CheckRow(title: "The board restarts as a Bluetooth mouse", done: back, active: !back, waiting: !back,
+                     detail: "Power it from any USB charger: it no longer needs this \(DeviceKind.name)'s port.")
+            Divider().padding(.vertical, Space.s)
+            CheckRow(title: "Start Screen Mirroring again", done: mirroring, active: back && !mirroring,
+                     detail: mirroring ? nil : "Swipe down from the top-right corner and tap Screen Mirroring › \(BoardName.current).")
+            Divider().padding(.vertical, Space.s)
+            CheckRow(title: "Pair the Bluetooth mouse", done: mouse, active: back && !mouse, waiting: back && !mouse,
+                     detail: mouse ? nil : "In Settings › Accessibility › Touch, turn on AssistiveTouch, then under Devices › Bluetooth Devices tap \(name). Once per \(DeviceKind.name); the app itself stays paired.")
+        }
+    }
+}
+
 /// Settings › Model: base URL and key (placeholders only), Test Connection, and an Advanced disclosure with
 /// the model override (empty = first model from GET {base}/models), per-role models and request tweaks.
 struct BoardSettingsView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
     @State private var lanSheet = false
+    @State private var inputAsk: String?       // usb | ble, waiting for the confirmation
+    @State private var inputSwitch: String?    // usb | ble, sent; the board restarts into it
+    @State private var inputError: String?
+    @State private var bluetoothSteps = false  // switched to Bluetooth here: the steps after it, ticked as they happen
+    @State private var stuck = false  // not connected for a while: BoardRepairHint
 
     var body: some View {
         List {
@@ -265,10 +352,12 @@ struct BoardSettingsView: View {
                 }
                 .padding(.vertical, Space.xs)
                 if board.connected, let s = board.status {
-                    ValueRow(title: "Mouse", value: s.usb ?? "–")
+                    ValueRow(title: "Mouse", value: s.inputState ?? "–")
                     ValueRow(title: "Mirroring", value: s.ap ?? "–")
                 }
             }
+            if let mode = board.status?.hidm, board.connected || inputSwitch != nil { inputSection(mode) }
+            if bluetoothSteps { Section { BluetoothSteps(board: board) } }
             if board.pairedID == nil || !board.connected {
                 Section {
                     ForEach(board.found.filter { $0.id != board.pairedID }) { f in
@@ -284,6 +373,7 @@ struct BoardSettingsView: View {
                         }
                     }
                     .disabled(board.scanning)
+                    BoardRepairHint(board: board, stuck: stuck)
                 } header: {
                     Text("Nearby")
                 }
@@ -345,6 +435,7 @@ struct BoardSettingsView: View {
         .navigationTitle("Board")
         .navigationBarTitleDisplayMode(.inline)
         .task { await app.refreshHotspot() }
+        .task(id: board.connected) { stuck = false; stuck = await BoardRepairHint.wait(connected: board.connected) }
     }
 }
 

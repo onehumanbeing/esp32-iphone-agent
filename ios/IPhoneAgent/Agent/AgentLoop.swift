@@ -8,6 +8,8 @@ import Foundation
     func drag(_ points: [CGPoint], hold: Bool) async throws
     /// nil: all of it went in; else what did not (Pointer.type).
     func type(_ text: String) async throws -> String?
+    /// `type`, with what is left to paste when the pinyin keyboard could not give a word (HanTyper.Stop.rest).
+    func typeStop(_ text: String) async throws -> HanTyper.Stop?
     func key(_ combo: String) async throws
     func clearField() async throws -> String?  // nil: the focused field is empty (FieldClearer)
     /// again: the previous step was Home too and changed little (Pointer.goHome).
@@ -29,6 +31,7 @@ extension Gestures {
     func landing(_ x: Double, _ y: Double) async -> CGPoint? { nil }  // fakes and boards that can't see the pointer
     func pointerSeen(near p: CGPoint) async -> Bool? { nil }
     func homeKey() async throws { try await goHome(again: false) }  // fakes
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? { try await type(text).map { .init(note: $0) } }  // fakes
 }
 
 /// See-think-act loop, one model call per step, like a coding agent's CLI loop: the model sees the goal, its own
@@ -102,6 +105,7 @@ extension Gestures {
     var eachDone = Set<String>()  // cards each has already opened this run
     var cache = ActionCache()  // taps that follow the same tap each time, done by code (ActionCache)
     var cachedSteps = 0
+    var typeStats = TypeStats()  // pinyin stops and paste fallbacks this run, for run_ended
     var steering: [String] = []  // words the user added while the run goes, for the next round (AgentLoop+Steer)
     /// A saved intent's recorded steps, done without the model while the screen matches (Replay).
     var replay = Replay()
@@ -129,6 +133,7 @@ extension Gestures {
     var fileView: String?  // the last long `file` result (a listing, a file's text), for the next round only
     var viewedSinceWrite: Set<String> = []  // paths `file view` read since the run last wrote a file
     var resultWritten = false  // a `file` write that worked this run (the README, a table)
+    var autoResult: (path: String, text: String)?  // the result the app saved from the notebook (saveListResult)
     /// A saved plan for this run (PlanCache), set before start: the first round goes to the actor with it.
     var cachedPlan: String?
     private(set) var usedCachedPlan = false
@@ -160,8 +165,13 @@ extension Gestures {
     var limitHit: String?
     /// Puts text on the clipboard for `write` (the app hops to the front to do it). True = ready to paste.
     var onWrite: ((String) async throws -> Bool)?
+    /// The text put on the clipboard at the run's start (ClipboardCarry), and the clipboard's changeCount now.
+    var carried: ClipboardCarry?
+    var clipboardCount: (() -> Int)?
     /// "Needs your help": asked when the actor gives up or errors repeat; nil = end the run as before.
     var onHelp: ((String) async -> HelpChoice)?
+    /// The words for the user while help is asked, when the reason is only for the record (errorsReason).
+    private(set) var helpMessage: String?
     private var helpAsked = 0
     /// Connection revision of the accepted/restored look; a reconnect invalidates its actions.
     var acceptedLookLinks: Int?
@@ -204,6 +214,9 @@ extension Gestures {
     var mirrorSuspicious = false
     /// The run's own reasons to ask (the help panel words them for people).
     static let stepLimitReason = "step limit reached", stallReason = "the screen did not change"
+    /// The end of a fail step's reason after `maxFailures` failed rounds ("3 errors in a row"): the run's record,
+    /// RunPolicy and Trial match it; the user reads ModelRequestFailure.streakMessage.
+    static let errorsReason = "errors in a row"
     /// Before a risky step (paying, sending, deleting, account settings) the actor asks; nil or the setting
     /// off = it goes on by itself. Continue = do it, Skip = don't, Stop = end the run.
     var onConfirm: ((String) async -> HelpChoice)?
@@ -242,7 +255,7 @@ extension Gestures {
         if !resuming {
             self.task = task; plan = ""; steps = []; shots = [:]
             recorder.task?.cancel(); recorder = RecorderState()
-            notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
+            notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; autoResult = nil; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
             filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
             limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
@@ -255,7 +268,7 @@ extension Gestures {
         pointerAt = .zero
         (touchCheck, progress, checkpoints) = (TouchCheck(), NoProgress(), Checkpoints())
         steering = []
-        if !resume { (cache, cachedSteps, eachChecked, eachDone) = (ActionCache(), 0, [], []) }
+        if !resume { (cache, cachedSteps, eachChecked, eachDone, typeStats) = (ActionCache(), 0, [], [], TypeStats()) }
         (seenLines, recordAudits) = (SeenLines(), 0)
         inventory = Inventory(task: task, until: replay.until != nil)
         lastActed = 0
@@ -347,7 +360,7 @@ extension Gestures {
     /// lost link before Recovery.limit.
     func waitForScreen(poll: Double = 0.5, forceRestore: Bool = false,
                        deadline: Double? = nil) async throws -> Double? {
-        guard let screen, forceRestore || !screen.live else { return nil }
+        guard let screen, forceRestore || !screen.live || link?().inputGone == true else { return nil }
         let deadline = deadline ?? now() + recoveryLimit
         var recovery = Recovery(at: now(), limit: max(0, deadline - now()))
         var shown: Recovery.Stage?
@@ -392,7 +405,7 @@ extension Gestures {
 
     func connectionChanged(since revision: Int?) -> Bool {
         guard let device = phone?.device else { return false }
-        return !device.connected || revision.map { device.links != $0 } == true
+        return !device.connected || link?().inputGone == true || revision.map { device.links != $0 } == true
     }
 
     /// iPad: the screen rotated or the mirrored shape changed since `revision` (never on iPhone: no geometry).
@@ -569,6 +582,7 @@ extension Gestures {
 
     func run() async {
         var failures = 0, stalls = 0, rounds = 0
+        var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         do {
             if startsOnHome, !scripting, !steps.contains(where: { Actions.gestures.contains($0["action"]?.str ?? "") || $0["action"]?.str == "resumed" }),
@@ -650,11 +664,26 @@ extension Gestures {
                         continue
                     }
                     modelBackoffs = 0
-                    record(nil, ["action": .str("hiccup"), "reason": .str(String(error.localizedDescription.prefix(300)))])
+                    let cutOff = ModelRequestFailure.cutOff(error)
+                    record(nil, ["action": .str("hiccup"), "kind": .str(ModelRequestFailure.kind(error)),
+                                 "reason": .str(cutOff ? ModelRequestFailure.cutOffHiccup : String(error.localizedDescription.prefix(300)))])
                     let linkLost = error is DeviceError && screen?.live == false  // the next look waits for it (waitForScreen)
                     failures += linkLost ? 0 : 1  // a lost link is not the agent's fault
+                    if failures == 1 { cutOffs = 0 }
+                    if cutOff, !linkLost { cutOffs += 1 }
+                    if failures >= maxFailures, workComplete() {
+                        // 2026-11-20: 25 rides collected and saved, then the closing reply was cut three times and
+                        // the run ended in help although the work was done. Now it ends as done, the result kept.
+                        DebugLog.write("errors: \(failures) in a row after the work was complete; the run ends as done")
+                        var act: JObject = ["action": .str("done"), "answer": .str(""),
+                                            "reason": .str("the model failed \(failures) times in a row after the work was complete: the result is saved")]
+                        attachNotebook(&act)
+                        record(nil, act)
+                        return finish()
+                    }
                     if failures >= maxFailures {
-                        record(nil, ["action": .str("fail"), "reason": .str("\(failures) errors in a row")])
+                        record(nil, ["action": .str("fail"), "reason": .str("\(failures) \(Self.errorsReason)"),
+                                     "message": .str(ModelRequestFailure.streakMessage(failures, cutOff: cutOffs >= failures))])
                         switch try await askForHelp() {
                         case .stop: return finish()
                         case .goOn: failures = 0
@@ -734,7 +763,11 @@ extension Gestures {
             guard onHelp != nil, helpAsked < 2 else { return .stop }
         } else if onHelp == nil { return .stop }
         let reason = steps.last?["reason"]?.str ?? ""
-        record(nil, ["action": .str("help"), "reason": .str(reason)])
+        helpMessage = steps.last?["message"]?.str
+        defer { helpMessage = nil }
+        var help: JObject = ["action": .str("help"), "reason": .str(reason)]
+        if let helpMessage { help["message"] = .str(helpMessage) }
+        record(nil, help)
         let (choice, automatic) = await chooseHelp(reason)
         try Task.checkCancellation()
         switch choice {
@@ -1092,7 +1125,7 @@ extension Gestures {
         let prompt = actorUserPrompt()
         if let early = try await takeSpeculative(prompt) { return early }
         var reply = ""
-        let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)
+        let checkpoint = checkpointReason
         // An unparseable reply is asked again at temperature 0 with the format first: a warmer retry was worse
         // (2026-11-17 gateway records: 16% off-format at 0, 41% at 0.4-0.8).
         for attempt in 0..<3 {

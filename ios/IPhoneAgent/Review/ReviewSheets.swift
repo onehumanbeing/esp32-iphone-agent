@@ -76,9 +76,8 @@ struct OptimizeSheet: View {
                         Section("After") { words(result.prompt, result.hints, muted: false) }
                     }
                 } else if let failure {
-                    ContentUnavailableView {
-                        Label("Could not optimize", systemImage: "exclamationmark.triangle")
-                    } description: { Text(verbatim: failure) } actions: {
+                    UnavailableView("Could not optimize", systemImage: "exclamationmark.triangle",
+                               description: Text(verbatim: failure)) {
                         Button("Try Again") { Task { await run() } }
                     }
                 } else {

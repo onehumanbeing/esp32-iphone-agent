@@ -100,6 +100,29 @@ import XCTest
         XCTAssertTrue(store.runs.isEmpty)
     }
 
+    /// Runs tab › Delete All Runs: every run but the one in progress goes; Delete Failed Runs keeps the done ones too.
+    func testBulkDeleteRemovesAllButTheActiveRun() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lasts = ["20261120-100000": "done", "20261120-100100": "error", "20261120-100200": "stopped", "20261120-100300": "error"]
+        for (name, last) in lasts {
+            let folder = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data("{\"kind\":\"task\",\"task\":\"t\"}\n{\"kind\":\"step\",\"action\":\"\(last)\"}\n".utf8)
+                .write(to: folder.appendingPathComponent("steps.jsonl"))
+        }
+        let store = RunStore(traces: TraceStore(root: root))
+        store.reload()
+        let active = "20261120-100300"  // in progress: its swipe is disabled, so bulk delete skips it too
+
+        let failed = AppModel.bulkDeletable(store.runs, failedOnly: true) { $0.id != active }
+        XCTAssertEqual(failed.map(\.id), ["20261120-100100"])
+
+        for run in AppModel.bulkDeletable(store.runs, failedOnly: false, canDelete: { $0.id != active }) { try store.delete(run) }
+        store.reload()
+        XCTAssertEqual(store.runs.map(\.id), [active])
+    }
+
     func testFailedDiskRemovalKeepsRunVisibleAndReportsError() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -136,6 +159,30 @@ import XCTest
         XCTAssertEqual(card.storedRun?.id, stored.id)
         XCTAssertNil(RunCardSnapshot.select(running: false, liveTask: "Deleted task", liveSteps: oldSteps,
                                            liveFrame: Data([1]), storedRun: nil))
+    }
+
+    func testDeletingLastRunCardsRunHidesTheCard() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let traces = TraceStore(root: root)
+        for (folder, task) in [("20260101-090000", "Older run"), ("20260101-100000", "Last run")] {
+            traces.open(root.appendingPathComponent(folder))
+            traces.write(kind: "task", ["task": .str(task)])
+        }
+        let id = "20260101-100000"
+        let store = RunStore(traces: traces)
+        store.reload()
+        let card = try XCTUnwrap(RunCardSnapshot.select(running: false, liveTask: "", liveSteps: [], liveFrame: nil,
+                                                       storedRun: store.run(id)))
+        let target = try XCTUnwrap(card.storedRun)
+        XCTAssertEqual(target.id, id)
+
+        try store.delete(target)
+
+        XCTAssertNil(store.run(id))
+        XCTAssertEqual(store.runs.map(\.task), ["Older run"])
+        XCTAssertNil(RunCardSnapshot.select(running: false, liveTask: "", liveSteps: [], liveFrame: nil,
+                                           storedRun: store.run(id)))
     }
 
     func testActiveRunCardUsesLiveProgressAndOffersNoStoredDeleteTarget() throws {
@@ -182,6 +229,14 @@ import XCTest
         store.remove("docs")
         store.remove("wiki")
         XCTAssertTrue(store.imported.isEmpty)
+    }
+
+    /// Manina AI Search without a key: the switch stays as the user left it, but the tool is not in use.
+    func testManinaSearchNeedsAKey() {
+        let store = ToolStore(defaults: UserDefaults(suiteName: "tools-" + UUID().uuidString)!)
+        XCTAssertTrue(store.enabled.contains(ToolStore.handsy.id), "on by default")
+        XCTAssertFalse(store.usable(ToolStore.handsy, keyed: false))
+        XCTAssertTrue(store.usable(ToolStore.handsy, keyed: true))
     }
 
     func testPruneKeepsNewestAndReferencedRunsAndFitsTheBudget() throws {

@@ -108,6 +108,7 @@ extension AgentLoop {
         let collected = (notebook.isEmpty ? "" : "\n\n" + notebook.summary())  // looked-up text and files show without notes too
             + (lookedUp.isEmpty ? "" : "\n\nLooked up:\n" + lookedUp.suffix(3).joined(separator: "\n\n"))
             + (fileView.map { "\n\nYour files:\n" + $0 } ?? "")
+            + (autoResult.map { "\n\n" + Collect.saved($0.path, items: notebook.items.count) + "." } ?? "")  // not cut like a history line
         let guide = guided.map { "\n\nGuide for \($0.names.joined(separator: " / ")):\n" + ($0.text ?? "") }.joined()
         let sound = heard?() ?? ""
         return "Goal: \(task)\(steeredSection)\(guide)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
@@ -143,7 +144,7 @@ extension AgentLoop {
     var canSpeculate: Bool {
         speculate && !inventory.needed && FrameMode.current != .snap && !StepWaits.moving && !roundDroppedByPause
             && !JevGate.hold && steering.isEmpty && !connectionChanged(since: acceptedLookLinks)
-            && (checkpointModel == nil || checkpoints.reason(steps) == nil)
+            && checkpointReason == nil
     }
 
     func prepareFrame(_ jpeg: Data?) {

@@ -30,10 +30,14 @@ struct BoardStatus: Codable, Equatable {
     var psram: Int?
     var abs: Int?      // 1: an absolute mouse (flash.sh --abs); in every status, so missing means a relative one
     var usb: String?   // ok | asleep | off
+    var board: String? // Board model; absent on stock USB firmware.
+    var hid: String?   // BLE HID on this connection: ok once paired and subscribed.
+    var hidm: String?  // usb | ble: the input this --dual-hid board uses now, switched with `hidmode`; nil: fixed
     var net: String?   // ap | sta | none
     var ip: String?
     var sta: Int?
-    var ap: String?    // idle | connected | streaming
+    var ap: String?    // idle | connected | streaming; "other" here when another device mirrors (seen(by:))
+    var src: String?   // the mirroring sender's hardware model ("iPad15,3"), "" when none; nil: older firmware
     var w: Int?, h: Int?
     var kbps: Double?, fps: Double?, idr: Int?, gop: Int?
     var vage: Int?     // ms since the board's last frame from AirPlay (firmware 0.2.1+)
@@ -42,18 +46,52 @@ struct BoardStatus: Codable, Equatable {
     var ble: BLE?
     var udp: UDP?
     var own: Int?      // LAN lock (LanAuth): 1 = on a home network with an owner, only it may mirror; nil = no lock
+    var ui: Int?       // 1: the board has a screen that shows the run (`ui` lines, StopWatchUI); nil: no screen
+    var ota: Int?      // 1: a StopWatch that takes its own release channel (the listener starts on `ota on`)
+
+    var isWirelessHID: Bool { hid != nil }
+    /// Mouse and keyboard go over Bluetooth now: a Bluetooth board, or a --dual-hid one switched to it.
+    var bleInput: Bool { hidm.map { $0 == "ble" } ?? isWirelessHID }
+    /// The link the mouse and keyboard go over now: "usb" or "ble".
+    var hidTransport: String { hidm ?? (isWirelessHID ? "ble" : "usb") }
+    // A named board must report its input capability: its USB port may only supply power.
+    var inputState: String? { hid ?? (board == nil ? usb : nil) }
+    var inputReady: Bool { inputState == "ok" }
+    var needsWirelessPointer: Bool { isWirelessHID && !inputReady }
+    var needsUSBHost: Bool { !isWirelessHID && inputState == "off" }
+    // The signed feed ships only standard USB images; wait for positive identification. A --dual-hid board in USB
+    // mode (hidm) runs no OTA server: offering it the USB release would ask on every connection and always fail.
+    var acceptsUSBRelease: Bool { board == nil && hid == nil && hidm == nil && usb != nil }
+    /// The release channel this board takes (Firmware.usbTarget or its own, as its image's marker); nil: none.
+    var releaseTarget: String? {
+        if acceptsUSBRelease { return Firmware.usbTarget }
+        return board == "stopwatch" && ota == 1 ? "stopwatch" : nil
+    }
 
     static func decode(_ data: Data) -> BoardStatus? { try? JSONDecoder().decode(BoardStatus.self, from: data) }
+
+    /// The status as this device sees it: another device's mirroring (an iPhone still mirroring while the iPad
+    /// connects, 2026-11-19) is not this one's screen, so it reads "other", never "streaming". An unknown sender
+    /// (older firmware, or before SETUP) counts as this device, as before.
+    func seen(by model: String) -> BoardStatus {
+        guard let src, !src.isEmpty, src != model, let ap, ap != "idle" else { return self }
+        var s = self
+        s.ap = "other"
+        return s
+    }
 
     /// A small MTU makes the board notify a reduced object (up, usb, net, ap, ble.mtu); a `status` read returns
     /// the full one. Newer fields win, missing ones keep their last value.
     func merged(with n: BoardStatus) -> BoardStatus {
         var m = n
+        m.board = n.board ?? board; m.hid = n.hid ?? hid; m.hidm = n.hidm ?? hidm
         m.fw = n.fw ?? fw
         m.tchunk = n.tchunk ?? tchunk
         m.up = n.up ?? up; m.rst = n.rst ?? rst; m.heap = n.heap ?? heap; m.psram = n.psram ?? psram
         // abs is not carried over (m.abs stays n.abs): a board flashed back to the relative mouse must not keep it
         m.usb = n.usb ?? usb; m.net = n.net ?? net; m.ip = n.ip ?? ip; m.sta = n.sta ?? sta; m.ap = n.ap ?? ap
+        m.src = n.src ?? src
+        m.ui = n.ui ?? ui
         m.w = n.w ?? w; m.h = n.h ?? h; m.kbps = n.kbps ?? kbps; m.fps = n.fps ?? fps; m.idr = n.idr ?? idr
         m.gop = n.gop ?? gop; m.vage = n.vage ?? vage; m.ovf = n.ovf ?? ovf; m.fz = n.fz ?? fz
         let a = ble ?? BLE(), b = n.ble ?? BLE()

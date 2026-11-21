@@ -89,6 +89,23 @@ struct LLMError: LocalizedError {
         String(localized: "Manina AI's AI service is busy or didn't answer, so this run was paused. Tap Continue in a moment to pick up where it left off.")
     }
 
+    /// The AI service's content filter refused the request (2026-11-17: HTTP 500 sensitive_words_detected on a page
+    /// of trending headlines). The same screen would be refused again, so the run stops and says why.
+    static var contentRefused: String {
+        String(localized: "The AI service refused this screen, most likely because its content filter blocks words on it (news headlines and trending lists often trigger it). The run was paused. Leave this page, then tap Continue, or use another AI service.")
+    }
+
+    /// Any other server error from the user's own AI service: shown as it is, with what it usually means.
+    static func serverFailed(_ host: String, _ status: Int, _ text: String) -> String {
+        String(localized: "The AI service \(host) failed (HTTP \(status)), usually a passing problem on its side. Tap Continue in a moment. If it fails again on the same screen, the service may be refusing what is on it. Its reply: \(text)")
+    }
+
+    /// The error text of a request the provider's content filter refused (any provider's wording, any status).
+    nonisolated static func contentFiltered(_ errorText: String) -> Bool {
+        let text = errorText.lowercased()
+        return ["sensitive_words", "content_filter", "data_inspection_failed", "content_policy", "moderation"].contains { text.contains($0) }
+    }
+
     /// The free line ended this run (its lease): the run stops instead of retrying.
     static let trialRunEnded = LLMError(message: lineBusy, status: 503, kind: "trial_run_ended")
     /// The same when the run's time ran out: said as it is, not as a busy service (a run at 30 min, 2026-11-18).
@@ -228,6 +245,7 @@ struct LLMError: LocalizedError {
             // 5xx: Cloudflare's 520-524 too (2026-11-17: one 520 paused a run that a retry 3 s later carried on)
             for attempt in 0..<2 where status == 429 || (500...599).contains(status) && status != 501 {
                 if status == 429 && Self.dailyLimit(errorText) { break }
+                if LLMError.contentFiltered(errorText) { break }  // the same screen is refused again
                 // the lease's time at its end: the gateway may extend it a moment later (2026-11-18: a run stopped
                 // as "time limit" one second before the gateway gave it 30 more minutes), so once more after 2 s
                 let atLeaseEnd = attempt == 0 && Self.busyReason(errorText) == "lease_time_exhausted"
@@ -252,6 +270,12 @@ struct LLMError: LocalizedError {
                 throw refused
             }
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
+            if LLMError.contentFiltered(errorText) {
+                throw LLMError(message: LLMError.contentRefused, status: status, kind: "content_filter")
+            }
+            if status >= 500 {
+                throw LLMError(message: LLMError.serverFailed(baseURL.host ?? "", status, String(errorText.prefix(300))), status: status)
+            }
             throw LLMError(message: "LLM HTTP \(status): \(errorText.prefix(300))", status: status)
         }
         result.total = now() - started
@@ -320,6 +344,9 @@ struct LLMError: LocalizedError {
             ended.reason = reason ?? "http_\(status)"
             return ended
         }
+        if reason == "content_filtered" || LLMError.contentFiltered(errorText) {
+            return LLMError(message: LLMError.contentRefused, status: status, kind: "content_filter", reason: reason ?? "content_filtered")
+        }
         guard status >= 500 else { return nil }
         return LLMError(message: LLMError.lineBusy, status: status, reason: reason ?? "http_\(status)")
     }
@@ -366,7 +393,7 @@ struct LLMError: LocalizedError {
     /// The model ids from GET {base}/models (OpenAI list format: {"data": [{"id": ...}]}), in the endpoint's order.
     static func models(baseURL: String, apiKey: String) async throws -> [String] {
         var seen = Set<String>()
-        return try await listing(baseURL: baseURL, apiKey: apiKey).compactMap { ($0["id"] ?? $0["name"]) as? String }
+        return try await listing(baseURL: baseURL, apiKey: apiKey).compactMap { ($0["id"] ?? $0["name"] ?? $0["model"]) as? String }
             .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
@@ -400,8 +427,11 @@ struct LLMError: LocalizedError {
         guard (200..<300).contains(status) else {
             throw LLMError(message: "GET /models: HTTP \(status) \(String(decoding: data.prefix(200), as: UTF8.self))")
         }
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return (json?["data"] as? [[String: Any]]) ?? (json?["models"] as? [[String: Any]]) ?? []
+        // {"data": [{"id"}]} (OpenAI), {"models": [...]}, a bare array, or lists of plain ids
+        let json = try? JSONSerialization.jsonObject(with: data)
+        let dict = json as? [String: Any]
+        let items = (dict?["data"] ?? dict?["models"] ?? json) as? [Any] ?? []
+        return items.compactMap { $0 as? [String: Any] ?? ($0 as? String).map { ["id": $0] } }
     }
 
     private func post(_ body: [String: Any], maxTokens: Int, started: Double, requestID: String) async throws

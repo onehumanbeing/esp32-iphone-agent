@@ -25,6 +25,21 @@ import XCTest
         return Run(id: id, folder: root, task: "Save my orders", date: Date(), steps: steps)
     }
 
+    func testASharedTraceCarriesTheDebugLogAndTheAppVersion() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("share-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("{}\n".utf8).write(to: folder.appendingPathComponent("steps.jsonl"))
+        DebugLog.write("share test line")
+        let zip = try TraceStore.zipForSharing(folder)
+        let data = try Data(contentsOf: zip)
+        XCTAssertGreaterThan(data.count, 0)
+        for name in ["steps.jsonl", "about.txt"] {  // zip local headers carry the plain file names
+            XCTAssertNotNil(data.range(of: Data(name.utf8)), name)
+        }
+        XCTAssertTrue(TraceStore.about.hasPrefix("app "))
+        XCTAssertTrue(TraceStore.about.contains("model "))
+    }
+
     func testFilesComeFromOkFileAndSnapSteps() throws {
         try touch("orders/README.md")  // written as results/orders/… before 2026-11-17, moved to the top since
         try touch("orders/page-01.jpg")

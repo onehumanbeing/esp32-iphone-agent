@@ -66,11 +66,15 @@ struct RootView: View {
             Text(verbatim: DiagnosticReport.contents.map { "• " + $0 }.joined(separator: "\n"))
         }
         .fullScreenCover(item: $app.review) { draft in
-            if draft.showSaveOnOpen {
-                SaveIntentSheet(draft: draft, intents: app.intents) { app.review = nil }
-            } else {
-                ReviewView(draft: draft, app: app)
+            Group {
+                if draft.showSaveOnOpen {
+                    SaveIntentSheet(draft: draft, intents: app.intents) { app.review = nil }
+                } else {
+                    ReviewView(draft: draft, app: app)
+                }
             }
+            .onAppear { app.reviewShown = true }
+            .onDisappear { app.reviewShown = false }
         }
         .background {
             Color.clear.fullScreenCover(item: $app.setupPage) { page in
@@ -91,8 +95,9 @@ struct RootView: View {
                 if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }
             }
         }
-        .onChange(of: scene) { old, new in
+        .onValueChange(of: scene) { old, new in
             DebugLog.write("scene: \(Self.name(old)) -> \(Self.name(new))")
+            DeviceScreen.sceneActive = new == .active
             if new == .active || new == .inactive { app.refreshStandby() }  // starts only from the foreground
             #if DEBUG
             if new == .active { DevInbox.run() }

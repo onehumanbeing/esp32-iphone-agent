@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import UIKit
 
 /// Typing and keys through the board's keyboard: text, key combos and the Home key.
 extension Pointer {
@@ -11,12 +12,20 @@ extension Pointer {
     /// Returns nil when all went in, else a note for the model (what did not, and what is left).
     @discardableResult
     func type(_ text: String) async throws -> String? {
-        if Scripts.needsPaste(text) { return "nothing typed: the board cannot type this script; \"\(text)\" is left" }
+        try await typeStop(text)?.note
+    }
+
+    /// `type`, with what is left to paste when the pinyin keyboard could not give a word (HanTyper.Stop.rest).
+    func typeStop(_ text: String) async throws -> HanTyper.Stop? {
+        if Scripts.needsPaste(text) { return .init(note: "nothing typed: the board cannot type this script; \"\(text)\" is left") }
         let han = HanTyper.isHan(text)
         let typed = han ? Self.typeable(text) : Accents.plan(text).typed
         if typed != text { DebugLog.write("type: \(text.count) chars as \"\(typed)\"") }
         guard !typed.isEmpty else { throw DeviceError(message: "nothing typeable in that text (the board types ASCII and accented Latin letters)") }
-        let layout = try await matchKeyboard(pinyin: han)
+        // Chinese: HanTyper tells the keyboard from the field after the first word's space. The on-screen keyboard
+        // is hidden with the board as a hardware keyboard: it read "English" every time, and ctrl+space on the
+        // pinyin keyboard switched it to English (2026-11-20, 5–6 s lost per type)
+        let layout = han ? .none : try await matchKeyboard(pinyin: false)
         let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
                              toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
@@ -25,9 +34,9 @@ extension Pointer {
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
-        let note = try await typer.type(text, checkLetters: han || layout == .none)
-        if let note { log("type: \(note)") }
-        return note
+        let stop = try await typer.attempt(text, checkLetters: han || layout == .none)
+        if let stop { log("type: \(stop.note)") }
+        return stop
     }
 
     /// English text on a pinyin keyboard comes out as unconfirmed pinyin, and Chinese on an English one as plain
@@ -101,18 +110,27 @@ extension Pointer {
         await screen.settled(quiet: 0.2, least: 0.4, most: 1.5)
     }
 
-    /// "卫生纸 3卷" → "weishengzhi 3juan": Han characters to joined pinyin, accents folded, the rest dropped.
+    /// "卫生纸 3卷" → "weishengzhi 3juan", "西岸" → "xi'an": Han characters to joined pinyin, accents folded, the rest dropped.
     /// `trim` false keeps spaces at the ends (a piece of a longer text).
     nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
+        var prevHan = false
         for ch in text {
             let s = String(ch)
             let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
             let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
                 .applyingTransform(.stripDiacritics, reverse: false) ?? s
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
-            if isHan { out += kept.replacingOccurrences(of: " ", with: "") } else { out += kept }
+            if isHan {
+                let syllable = kept.replacingOccurrences(of: " ", with: "")
+                // xi'an, not xian: a syllable starting with a vowel after another Han syllable gets the pinyin
+                // keyboard's separator, else 西岸 reads as xian (先, 现) and the word is never among the candidates
+                // (2026-11-20, 上海西岸艺术中心 stopped at 西 in every run)
+                if prevHan, let first = syllable.first, "aeo".contains(first) { out += "'" }
+                out += syllable
+            } else { out += kept }
+            prevHan = isHan
         }
         return trim ? out.trimmingCharacters(in: .whitespaces) : out
     }
@@ -133,13 +151,15 @@ extension Pointer {
     /// (2026-11-11: it waited for a 0.3 s still screen after at least 0.6 s, up to 2 s; with an app that kept moving
     /// that was 2.2 s before the flick). Leaving an app shows as a big change in the first frames already.
     func homeKey() async throws {
-        if absolute { return try await homeSwipe() }
+        if absolute || swipeHome { return try await homeSwipe() }
         if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
     }
 
     func goHome(again: Bool = false) async throws {
+        if AssistiveButton.oldIPhone, try await assistiveHome() { return }
         // An absolute mouse (#99): iOS ignored AC Home there, and an animated screen (Weather) looked like it worked.
-        if absolute { return try await homeSwipe() }
+        // A Bluetooth HID board: iOS ignores AC Home over Bluetooth too (2026-11-19).
+        if absolute || swipeHome { return try await homeSwipe() }
         let before = screen?.live == true ? screen?.frame : nil
         let sent = now()
         do {
@@ -247,5 +267,143 @@ enum SearchPill {
         guard let jpeg, let image = Vision.image(jpeg) else { return false }
         let size = CGSize(width: image.width, height: image.height)
         return label(await UITreeOCR.lines(image), size: size).map { covers($0, p) } ?? false
+    }
+}
+
+// MARK: - Home through the AssistiveTouch menu (iPhones on iOS 16 and older)
+
+extension Pointer {
+    /// Opens the AssistiveTouch menu and taps its Home. false: no button on screen, or no Home in the menu (closed
+    /// again). iPhone X on iOS 16.7 (2026-11-22): five home-bar strokes from the board's mouse, none went Home; the
+    /// menu's Home did at once. A mouse on an iPhone needs AssistiveTouch, so its button is on screen.
+    func assistiveHome() async throws -> Bool {
+        guard let screen else { return false }
+        // 2026-11-22: the run left the app before the first frame came (the stream was frozen), found no button and
+        // fell back to the home-bar flick, which never works here. Wait for a frame; else the last spot it was seen at.
+        if !screen.live || screen.frame == nil { _ = await screen.fresh(since: now() - 1, timeout: 6) }
+        var spot: CGPoint?
+        let looked = now()
+        if screen.live, let jpeg = screen.frame {
+            spot = await Vision.off({ Vision.image(jpeg).flatMap(AssistiveButton.find) })
+        }
+        if let spot { AssistiveButton.lastSpot = spot }
+        guard let spot = spot ?? AssistiveButton.lastSpot else {
+            log("home: no AssistiveTouch button found on screen")
+            return false
+        }
+        try await tap(Double(spot.x), Double(spot.y))
+        // AirPlay leaves the menu out of the mirrored screen (2026-11-22: no new frame for 17 s after it opened), so
+        // its Home is where iOS puts it: the menu centred on the button, kept on screen.
+        let home = AssistiveButton.homeSpot(button: spot, screen: await MainActor.run { UIScreen.main.bounds.size })
+        try await Task.sleep(nanoseconds: 400_000_000)  // the menu opens with an animation
+        try await tap(Double(home.x), Double(home.y))
+        log(String(format: "home: AssistiveTouch (%.2f, %.2f, found in %.0f ms) › Home (%.2f, %.2f)", spot.x, spot.y,
+                   (now() - looked) * 1000, home.x, home.y))
+        return true
+    }
+}
+
+/// The AssistiveTouch button, found with no model (Henry 2026-11-22: the user drags it anywhere, and it fades when
+/// idle): normalised cross-correlation with a picture of it at 150 px across the screen, at three sizes. It does not
+/// care about brightness or contrast, so the faded button matches like the solid one. On 7 iPhone X screenshots the
+/// button scored 0.77-1.0 (faded on light apps and over a switch, solid, over a Home Screen icon, at the top and
+/// bottom edge), any other spot at an edge at most 0.44. Only spots at an edge count.
+enum AssistiveButton {
+    /// iPhones on iOS 16 and older go Home this way; newer ones and iPads keep the home-bar flick.
+    @MainActor static var oldIPhone: Bool {
+        ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 17 && UIDevice.current.userInterfaceIdiom == .phone
+    }
+    /// Where the button was last seen: it stays put unless the user drags it.
+    @MainActor static var lastSpot: CGPoint?
+    static let width = 150
+    static let minScore: Float = 0.6
+    static let size = 31
+    /// The solid button, 31×31 gray bytes (base64) cut from an iPhone X screenshot scaled to 150 px across.
+    static let templateBase64 = "///////////////////////////////////////////////////////////////////////////////////////////////////9"
+        + "9u7r7/j+/////////////////////////////uu7hF9OSVBljsby////////////////////////8KhTLiYmJiYmJicyYbr3////"
+        + "///////////////+22stJiYmJicoJyYmJiYygun/////////////////1FMmJiYrOEhRU1BFNSkmJilq5v//////////////4lgm"
+        + "JSc5VmNpbm9taGFRNCYlJ3Pw////////////93wnJShEYW2AjI+Qj4p8al48JiUrnf3//////////8EzJSZBY3WNl7HL08erlIpw"
+        + "XzklJUPc//////////hwJSUzX3OPpuH8////+dadjG1ZLSUnlP7////////cPSUnTWmKo+z////////+35mEZkIlJVXw////////"
+        + "tiolLl13k9b///////////3DkHBWKSU21f///////5QlJThkhKD0////////////55d8Xy8lKrr///////6CJSU+Z4mt/P//////"
+        + "//////SfgmI0JSer///////+gSUlPmeJrv3////////////1oIJiNCUnqv///////5ElJTlkhaL2////////////6ph9XzAlKrf/"
+        + "//////+wKSUvX3qU3P///////////sqRcVgqJTTR////////1zklJ1BrjKny/////////+edh2dGJSVP7P////////VmJSU3YXeQ"
+        + "r+v+/////eKkjnBcLyUmiv3/////////ti8lJ0dleo+dv9ng1biYjXRiPSYlPNT///////////NtJiUpSmNxhY6Sk5GNgm1hQicl"
+        + "KY77////////////10olJSlAW2ZscnVya2RXOiclJmLq//////////////7ERSYmJi4/T1dZV008LCYmJ1na////////////////"
+        + "/ctYKSYmJicpKiknJiYmLGze////////////////////5o9DKSYmJiYmJiYrTaPw///////////////////////83aJqSz46P1B0"
+        + "r+f+////////////////////////////+evg3OHu+///////////////////////////////////////////////////////////"
+        + "/////////////////////////////////////////////////////////////////////////////////w=="
+    /// Only the part within `radius` of the centre counts: the faded button lets what is behind it through, and
+    /// the corners of the 31×31 square are background (with them, the button over a switch scored 0.60 and the best
+    /// other spot at an edge 0.57; within 11 px: 0.77 against 0.44).
+    static let radius = 11.0
+    /// The template within `radius`: offsets from the centre and zero-mean, unit-spread values.
+    static let template: [(dx: Int, dy: Int, v: Float)] = {
+        let bytes = Data(base64Encoded: templateBase64) ?? Data()
+        guard bytes.count == size * size else { return [] }
+        let c = size / 2
+        var cells: [(dx: Int, dy: Int, v: Float)] = []
+        for y in 0..<size { for x in 0..<size where Double((x - c) * (x - c) + (y - c) * (y - c)).squareRoot() <= radius {
+            cells.append((x - c, y - c, Float(bytes[y * size + x]) / 255))
+        } }
+        let n = Float(cells.count)
+        let mean = cells.reduce(0) { $0 + $1.v } / n
+        let sd = (cells.reduce(0) { $0 + ($1.v - mean) * ($1.v - mean) } / n).squareRoot()
+        return cells.map { ($0.dx, $0.dy, ($0.v - mean) / max(sd, 1e-6)) }
+    }()
+
+    static func find(_ image: CGImage) -> CGPoint? {
+        guard !template.isEmpty, image.width > 0 else { return nil }
+        let c = size / 2, n = Float(template.count)
+        var best: (score: Float, spot: CGPoint)?
+        for scale in [0.85, 1.0, 1.15] {  // the button scaled, by scaling the screen the other way
+            let w = Int((Double(width) / scale).rounded())
+            let h = Int((Double(image.height) * Double(w) / Double(image.width)).rounded())
+            guard h > size, let px = gray(image, w, h) else { continue }
+            let offsets = template.map { $0.dy * w + $0.dx }, values = template.map(\.v)
+            px.withUnsafeBufferPointer { p in offsets.withUnsafeBufferPointer { o in values.withUnsafeBufferPointer { t in
+                for y in c..<(h - c) { for x in c..<(w - c) {
+                    let spot = CGPoint(x: (Double(x) + 0.5) / Double(w), y: (Double(y) + 0.5) / Double(h))
+                    guard atEdge(spot) else { continue }
+                    let at = y * w + x
+                    var sum: Float = 0, squares: Float = 0, dot: Float = 0
+                    for i in 0..<o.count {
+                        let v = p[at + o[i]]
+                        sum += v; squares += v * v; dot += v * t[i]
+                    }
+                    let mean = sum / n, sd = max(squares / n - mean * mean, 0).squareRoot()
+                    guard sd > 0.02 else { continue }  // a flat patch
+                    let score = dot / n / sd  // the template's mean is 0, so the window's mean drops out
+                    if score > (best?.score ?? minScore) { best = (score, spot) }
+                } }
+            } } }
+        }
+        return best?.spot
+    }
+
+    /// Left alone, the button always rests against an edge of the screen; a round icon mid-screen can look much like
+    /// it (a dark disc with a white play mark scored 0.81).
+    static func atEdge(_ p: CGPoint) -> Bool { p.x <= 0.14 || p.x >= 0.86 || p.y <= 0.08 || p.y >= 0.92 }
+
+    private static func gray(_ image: CGImage, _ w: Int, _ h: Int) -> [Float]? {
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let data = ctx.data else { return nil }
+        let px = data.bindMemory(to: UInt8.self, capacity: w * h)
+        return (0..<(w * h)).map { Float(px[$0]) / 255 }
+    }
+
+    /// Where Home is once the menu opened for the button at `button` (0-1) on a portrait screen `screen` points large.
+    /// The default six-item menu (~292×293 pt) is centred on the button and kept 12 pt from the sides and 71 pt from
+    /// top and bottom; Home is 79 pt below its centre. Measured on an iPhone X with the button at the top, middle and
+    /// bottom of the right edge (2026-11-22).
+    static func homeSpot(button: CGPoint, screen: CGSize) -> CGPoint {
+        let (mw, mh, side, edge, below) = (292.0, 293.0, 12.0, 71.0, 79.0)
+        func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { lo > hi ? (lo + hi) / 2 : min(max(v, lo), hi) }
+        let cx = clamp(button.x * screen.width, side + mw / 2, screen.width - side - mw / 2)
+        let cy = clamp(button.y * screen.height, edge + mh / 2, screen.height - edge - mh / 2)
+        return CGPoint(x: cx / screen.width, y: (cy + below) / screen.height)
     }
 }

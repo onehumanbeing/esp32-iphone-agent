@@ -28,6 +28,24 @@ import XCTest
         XCTAssertNil(c.asked)
     }
 
+    func testRevisitedScreenGoesToThePlannerOnTheThirdTime() {
+        func tap(_ x: Int) -> JObject { ["action": .str("tap"), "x": .int(x), "y": .int(500), "shot": .bool(true)] }
+        let note: JObject = ["action": .str("note"), "text": .str("x")]
+        // screens by step index: 0 A, 1 B, 2 A, 3 B, 4 A
+        let screens = ["A", "B", "A", "B", "A"]
+        let same = { (i: Int, j: Int) in screens[i] == screens[j] }
+        let steps = [tap(1), tap(2), tap(3), tap(4), tap(5)]
+        XCTAssertTrue(Checkpoints.revisited(steps, from: 0, same: same), "A for the third time")
+        XCTAssertFalse(Checkpoints.revisited(Array(steps.prefix(3)), from: 0, same: same), "only twice")
+        XCTAssertFalse(Checkpoints.revisited(steps, from: 1, same: same), "counted from the last checkpoint")
+        var noted = steps
+        noted.insert(note, at: 3)  // a notebook row between the second and third A: the run got somewhere
+        let notedSame = { (i: Int, j: Int) in (i == 3 || j == 3) ? false : screens[i < 3 ? i : i - 1] == screens[j < 3 ? j : j - 1] }
+        XCTAssertFalse(Checkpoints.revisited(noted, from: 0, same: notedSame))
+        let all = Array(repeating: tap(1), count: 5)
+        XCTAssertFalse(Checkpoints.revisited(all, from: 0, same: { _, _ in false }), "new screens each time")
+    }
+
     private func agent(actor: FakeModel, planner: FakeModel?) -> AgentLoop {
         let screen = FakeScreen()
         let a = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)

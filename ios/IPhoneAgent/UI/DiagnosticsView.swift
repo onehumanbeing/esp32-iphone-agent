@@ -70,6 +70,7 @@ struct DiagnosticsView: View {
                 row("Heap", board.status?.heap.map { "\($0 / 1024) KB" } ?? "–")
                 row("PSRAM", board.status?.psram.map { "\($0 / 1024) KB" } ?? "–")
                 row("USB", board.status?.usb ?? "–")
+                if board.status?.isWirelessHID == true { row("Bluetooth HID", board.status?.hid ?? "–") }
                 row("Network", "\(board.status?.net ?? "–") \(board.status?.ip ?? "")")
             }
             if app.lanMode {
@@ -126,7 +127,7 @@ struct DiagnosticsView: View {
     }
 
     private func export() {
-        do { shareURL = try TraceStore.zip(app.traces.root) } catch { app.say("export: \(error.localizedDescription)") }
+        do { shareURL = try TraceStore.zipForSharing(app.traces.root) } catch { app.say("export: \(error.localizedDescription)") }
     }
 
     private func row(_ k: LocalizedStringKey, _ v: String) -> some View { ValueRow(title: k, value: v) }

@@ -64,6 +64,7 @@ final class StubProtocol: URLProtocol {
         }
         XCTAssertEqual(all.filter { $0.1.recommended }.map(\.1.id).sorted(), ["gemini-3.8-flash", "qwen3.8-flash"])
         XCTAssertEqual(ModelProvider.allCases.filter(\.recommended), [.gemini, .qwen])
+        XCTAssertEqual(all.filter { $0.1.forPlanner }.map(\.1.id), ["gemini-4-hydrogen"])  // badged in Planner model
     }
 
     func testRecommendedProviderPreselectsItsTestedModel() {

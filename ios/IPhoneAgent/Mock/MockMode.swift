@@ -30,7 +30,7 @@ extension AppModel {
                 if self.settings.onboarded && !self.board.connected { self.mockReady() }  // setup skipped with "Later"
                 if self.board.connected {
                     if self.mockMirroring && self.feed.frame == nil { self.showMockFrame() }
-                    self.board.mockStatus(Self.status(up: up, n: n, mirroring: self.mockMirroring))
+                    self.board.updateStatus(Self.status(up: up, n: n, mirroring: self.mockMirroring))
                 }
                 self.metrics.videoBytes(Int.random(in: 38_000...46_000))
                 for _ in 0..<5 { self.metrics.frameDecoded(ms: Double.random(in: 3.5...6)) }
@@ -57,7 +57,7 @@ extension AppModel {
         mockMirroring = true
         modelOK = true
         if feed.frame == nil { showMockFrame() }
-        board.mockStatus(Self.status(up: 812_000, n: 0, mirroring: true))
+        board.updateStatus(Self.status(up: 812_000, n: 0, mirroring: true))
         if !pointer.calibrated { pointer.mockCalibrated(quality: 0.006) }
     }
 

@@ -18,6 +18,13 @@
 #include "mdns.h"  // stubs/: the host stand-in for ESP-IDF mdns
 #include "../hid_bridge/src/airplay/ap_internal.h"
 #include "../hid_bridge/src/net/lan_lock.h"
+#include "../hid_bridge/src/ui/sw_model.h"
+#include "../hid_bridge/src/ui/sw_face.h"
+#include "../hid_bridge/src/ui/sw_text.h"
+#include "../hid_bridge/src/ui/ima_adpcm.h"
+#include "../hid_bridge/src/ui/sw_power.h"
+#include "../hid_bridge/src/ui/sw_warn.h"
+#include <math.h>
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -269,6 +276,10 @@ void cli_random(uint8_t *p, size_t n) {
 
 // docs/cli-protocol.md vectors (cli/testdata/vectors.json, made with Python's cryptography).
 static void test_cli_proto(void) {
+  // Wi-Fi fits the full audio, board and HID status; small MTUs need the compact report.
+  CHECK(cli_ctrl_room(1463) >= 519 && cli_ctrl_room(1463) == BOARD_STATUS_CAP - 1);
+  CHECK(cli_ctrl_room(517) == 496 && cli_ctrl_room(247) == 226 && cli_ctrl_room(185) == 164);
+  CHECK(cli_ctrl_room(23) == 2 && cli_ctrl_room(0) == 0);
   uint8_t b_priv[32], c_pub[32], b_pub[32], k[32], want[32], id[16], mac[16], cn[16], bn[16], c2b[16], b2c[16];
   hex("65666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081828384", b_priv);
   hex("07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c", c_pub);
@@ -611,7 +622,580 @@ static void test_lan_lock(void) {
   lan_set_station(false);
 }
 
+// The StopWatch's `ui` lines and buttons (src/ui/sw_model.h, docs/ble-protocol.md "StopWatch screen").
+static void test_sw_parse(void) {
+  sw_ui u;
+  CHECK(sw_parse("{\"m\":\"thinking\",\"p\":\"help\",\"s\":3,\"l\":20,\"t\":\"打开设置\",\"d\":1,\"n\":4,\"f\":false,\"x\":{\"a\":[1,{}]}}", &u) == SW_PARSE_UI);
+  CHECK(u.mood == SW_THINKING && u.phase == SW_HELP && u.step == 3 && u.limit == 20 && u.done == 1 && u.total == 4);
+  CHECK(!u.finished && !strcmp(u.text, "打开设置") && !u.has_picks);
+  CHECK(sw_progress(&u) == 250);
+  CHECK(sw_parse(" off ", &u) == SW_PARSE_OFF);
+  CHECK(sw_parse("offx", &u) == SW_PARSE_BAD && sw_parse("", &u) == SW_PARSE_BAD && sw_parse("{\"m\":", &u) == SW_PARSE_BAD);
+  CHECK(sw_parse("{\"m\":\"x\"} junk", &u) == SW_PARSE_BAD);
+  CHECK(sw_parse("{}", &u) == SW_PARSE_UI && u.mood == SW_IDLE && u.phase == SW_RUNNING && sw_progress(&u) == -1);
+  CHECK(sw_parse("{\"m\":\"new-mood\",\"p\":7,\"s\":2.9,\"l\":4,\"f\":true}", &u) == SW_PARSE_UI);  // unknown values ignored
+  CHECK(u.mood == SW_IDLE && u.phase == SW_RUNNING && u.step == 2 && u.finished && sw_progress(&u) == 500);
+  // escapes, a surrogate pair, control characters as spaces, and the 80-byte cut on a character boundary
+  CHECK(sw_parse("{\"t\":\"a\\\"b\\n\\u4e2d\\ud83d\\ude00\"}", &u) == SW_PARSE_UI && !strcmp(u.text, "a\"b 中\xF0\x9F\x98\x80"));
+  char line[400] = "{\"t\":\"";
+  for (int i = 0; i < 30; i++) strcat(line, "中");  // 90 bytes
+  strcat(line, "\"}");
+  CHECK(sw_parse(line, &u) == SW_PARSE_UI && strlen(u.text) == 78);
+  CHECK(sw_parse("{\"k\":[\"Order coffee\",\"每日签到\",\"c\",\"d\"]}", &u) == SW_PARSE_UI);
+  CHECK(u.has_picks && u.npicks == 4 && !strcmp(u.picks[1], "每日签到") && !strcmp(u.picks[3], "d"));
+  CHECK(sw_parse("{\"k\":[]}", &u) == SW_PARSE_UI && u.has_picks && u.npicks == 0);
+  CHECK(sw_parse("{\"k\":[\"abcdefghijklmnopqrstuvwxyz\"]}", &u) == SW_PARSE_UI && strlen(u.picks[0]) == 24);
+}
+
+static void test_sw_buttons(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  // no app: idle; blue short press is still `btn home`, yellow with no picks does nothing
+  CHECK(sw_screen(&c, 0) == SW_SCR_IDLE && !sw_running(&c, 0));
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 10, out, sizeof out));
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 10, out, sizeof out) && sw_input(&c, SW_IN_BLUE_UP, 200, out, sizeof out) && !strcmp(out, "btn home"));
+  // blue held: the ring from 300 ms, `btn stop` at 2 s while still held, nothing on release
+  sw_input(&c, SW_IN_BLUE_DOWN, 1000, out, sizeof out);
+  CHECK(sw_hold(&c, 1100) == -1 && sw_hold(&c, 2000) == 500);
+  CHECK(!sw_tick(&c, 2999, out, sizeof out) && sw_tick(&c, 3000, out, sizeof out) && !strcmp(out, "btn stop"));
+  CHECK(sw_hold(&c, 3001) == -1 && !sw_input(&c, SW_IN_BLUE_UP, 3100, out, sizeof out));
+  // released between 0.5 and 2 s: cancelled
+  sw_input(&c, SW_IN_BLUE_DOWN, 4000, out, sizeof out);
+  CHECK(!sw_input(&c, SW_IN_BLUE_UP, 5000, out, sizeof out) && !sw_tick(&c, 7000, out, sizeof out));
+
+  // standby picks: select, confirm, send; the picks stay across lines without `k`
+  sw_parse("{\"p\":\"standby\",\"k\":[\"a\",\"b\",\"c\"]}", &u);
+  CHECK(sw_apply(&c, &u, false, 10000) == SW_BUZZ_NONE && !sw_running(&c, 10000));
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 10100, out, sizeof out) && c.sel == 0 && sw_screen(&c, 10100) == SW_SCR_IDLE);
+  CHECK(!sw_input(&c, SW_IN_TAP, 10200, out, sizeof out) && c.sel == 1);  // a tap moves to the next one
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 10300, out, sizeof out) && sw_screen(&c, 10300) == SW_SCR_CONFIRM);
+  CHECK(sw_input(&c, SW_IN_YELLOW, 10400, out, sizeof out) && !strcmp(out, "btn run 1") && c.sel == -1);
+  // SW_PICK_MS without a press cancels; the next press goes on from the last pick
+  sw_input(&c, SW_IN_YELLOW, 11000, out, sizeof out);
+  CHECK(c.sel == 2);
+  sw_tick(&c, 11000 + SW_PICK_MS - 1, out, sizeof out);
+  CHECK(c.sel == 2);
+  sw_tick(&c, 11000 + SW_PICK_MS, out, sizeof out);
+  CHECK(c.sel == -1);
+  sw_apply(&c, &u, false, 14000);
+  sw_input(&c, SW_IN_YELLOW, 14100, out, sizeof out);
+  CHECK(c.sel == 0);
+
+  // running: the selection goes, yellow pauses, help buzzes once, tap continues, swipe up takes over
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"s\":1,\"l\":10}", &u);
+  CHECK(sw_apply(&c, &u, false, 15000) == SW_BUZZ_NONE && sw_running(&c, 15000) && c.sel == -1 && c.ui.npicks == 3);
+  CHECK(sw_screen(&c, 15000) == SW_SCR_RUN && sw_progress(&c.ui) == 100);
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 15010, out, sizeof out));  // waits for a second press
+  CHECK(!sw_tick(&c, 15010 + SW_DOUBLE_MS - 1, out, sizeof out));
+  CHECK(sw_tick(&c, 15010 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn pause"));
+  CHECK(!sw_input(&c, SW_IN_TAP, 15100, out, sizeof out));
+  sw_parse("{\"p\":\"paused\"}", &u);
+  sw_apply(&c, &u, false, 15420);
+  CHECK(sw_screen(&c, 15420) == SW_SCR_PAUSED);
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 15430, out, sizeof out) && sw_tick(&c, 15430 + SW_DOUBLE_MS, out, sizeof out) &&
+        !strcmp(out, "btn unpause"));
+  sw_parse("{\"p\":\"help\",\"t\":\"Need a code\"}", &u);
+  CHECK(sw_apply(&c, &u, false, 16000) == SW_BUZZ_HELP && sw_screen(&c, 16000) == SW_SCR_HELP);
+  CHECK(sw_apply(&c, &u, false, 16500) == SW_BUZZ_NONE);  // the same phase again: no second buzz
+  CHECK(sw_input(&c, SW_IN_TAP, 16600, out, sizeof out) && !strcmp(out, "btn continue"));
+  CHECK(sw_input(&c, SW_IN_SWIPE_UP, 16700, out, sizeof out) && !strcmp(out, "btn takeover"));
+  // shake: 1 s warning then stop; a button cancels; one per 2 s
+  sw_input(&c, SW_IN_SHAKE, 17000, out, sizeof out);
+  CHECK(sw_screen(&c, 17000) == SW_SCR_SHAKE && !sw_tick(&c, 17999, out, sizeof out));
+  CHECK(sw_tick(&c, 18000, out, sizeof out) && !strcmp(out, "btn stop") && sw_screen(&c, 18000) == SW_SCR_HELP);
+  sw_apply(&c, &u, false, 18100);
+  sw_input(&c, SW_IN_SHAKE, 18500, out, sizeof out);
+  CHECK(sw_screen(&c, 18500) != SW_SCR_SHAKE);  // within 2 s of the last one
+  sw_input(&c, SW_IN_SHAKE, 19000, out, sizeof out);
+  CHECK(sw_screen(&c, 19000) == SW_SCR_SHAKE);
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 19100, out, sizeof out) && !sw_input(&c, SW_IN_BLUE_UP, 19200, out, sizeof out));
+  CHECK(!sw_tick(&c, 20500, out, sizeof out) && sw_screen(&c, 20500) == SW_SCR_HELP);
+  // no `ui` for 15 s mid-run: the island's stuck face (not running: a shake does nothing), until the app is gone
+  CHECK(sw_running(&c, 33099) && !sw_running(&c, 33100) && sw_screen(&c, 33100) == SW_SCR_STUCK && !sw_alive(&c, 33100));
+  sw_input(&c, SW_IN_SHAKE, 33200, out, sizeof out);
+  CHECK(sw_screen(&c, 33200) == SW_SCR_STUCK);
+
+  // finished: check (two buzzes) or cross (three) for 5 s, once per task
+  sw_parse("{\"m\":\"success\",\"f\":true}", &u);
+  CHECK(sw_apply(&c, &u, false, 40000) == SW_BUZZ_OK && sw_screen(&c, 40000) == SW_SCR_OK && !sw_running(&c, 40000));
+  CHECK(sw_apply(&c, &u, false, 41000) == SW_BUZZ_NONE);
+  sw_tick(&c, 45000, out, sizeof out);
+  CHECK(sw_screen(&c, 45000) == SW_SCR_IDLE);
+  sw_parse("{\"m\":\"acting\"}", &u);
+  sw_apply(&c, &u, false, 46000);
+  sw_parse("{\"m\":\"failure\",\"f\":true}", &u);
+  CHECK(sw_apply(&c, &u, false, 47000) == SW_BUZZ_FAIL && sw_screen(&c, 47000) == SW_SCR_FAIL);
+  // `ui off`: idle, picks gone; a help line straight after buzzes
+  sw_apply(&c, NULL, true, 48000);
+  CHECK(sw_screen(&c, 48000) == SW_SCR_IDLE && c.ui.npicks == 0);
+  sw_parse("{\"p\":\"help\"}", &u);
+  CHECK(sw_apply(&c, &u, false, 49000) == SW_BUZZ_HELP);
+  // the millisecond clock wrapping does not end a run early
+  sw_init(&c);
+  sw_apply(&c, &u, false, 0xFFFFF000u);
+  CHECK(sw_running(&c, 0x1000) && !sw_running(&c, 0xFFFFF000u + SW_STALE_MS));
+}
+
+// The phone's time and the island's look in `ui` lines; awake while the lines come.
+static void test_sw_clock(void) {
+  sw_ui u;
+  sw_ctl c;
+  char t[6];
+  CHECK(sw_parse("{\"c\":\"23:58\",\"x\":0.5,\"y\":-3,\"p\":\"standby\"}", &u) == SW_PARSE_UI);
+  CHECK(!strcmp(u.clock, "23:58") && u.look_x == 0.5f && u.look_y == -1);
+  CHECK(sw_parse("{\"c\":\"24:00\"}", &u) == SW_PARSE_UI && !u.clock[0]);
+  CHECK(sw_parse("{\"c\":\"9:05\"}", &u) == SW_PARSE_UI && !u.clock[0]);
+  CHECK(sw_parse("{\"x\":\"a\"}", &u) == SW_PARSE_UI && u.look_x == 0);  // not a number: skipped
+  sw_init(&c);
+  CHECK(!sw_alive(&c, 0) && !sw_clock(&c, 0, t));
+  sw_parse("{\"c\":\"23:58\",\"p\":\"standby\"}", &u);
+  sw_apply(&c, &u, false, 1000);
+  CHECK(sw_alive(&c, 1000) && !sw_running(&c, 1000) && sw_screen(&c, 1000) == SW_SCR_IDLE);
+  CHECK(sw_clock(&c, 60999, t) && !strcmp(t, "23:58") && sw_clock(&c, 121000, t) && !strcmp(t, "00:00"));
+  CHECK(!sw_alive(&c, 1000 + SW_STALE_MS) && sw_screen(&c, 1000 + SW_STALE_MS) == SW_SCR_IDLE);  // asleep, not stuck
+  sw_apply(&c, NULL, true, 20000);
+  CHECK(!sw_alive(&c, 20000) && !sw_clock(&c, 20000, t));
+}
+
+
+// Voice on the StopWatch: hold yellow to talk, the app's answer, yellow runs it, blue drops it.
+static void test_sw_voice(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  // an app without voice (no `v`): yellow is a press, as before
+  sw_parse("{\"p\":\"standby\",\"k\":[\"a\"]}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(!u.voice && !sw_input(&c, SW_IN_YELLOW_DOWN, 100, out, sizeof out) && c.sel == 0 && !c.y_down && !sw_mic(&c));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 2000, out, sizeof out) && c.voice == SW_V_NONE);
+  sw_init(&c);
+  CHECK(sw_parse("{\"p\":\"standby\",\"v\":1,\"k\":[\"a\"]}", &u) == SW_PARSE_UI && u.voice);
+  sw_apply(&c, &u, false, 0);
+  // a short press: the pick, on release; the mic was on meanwhile, nothing recorded
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 100, out, sizeof out) && sw_mic(&c) && c.sel == -1);
+  CHECK(!sw_tick(&c, 100 + SW_HOLD_MS - 1, out, sizeof out) && c.voice == SW_V_NONE);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 300, out, sizeof out) && c.sel == 0 && !sw_mic(&c));
+  // held: listening (the selection goes), released: waiting, the app's text, yellow runs it
+  sw_input(&c, SW_IN_YELLOW_DOWN, 1000, out, sizeof out);
+  sw_tick(&c, 1000 + SW_HOLD_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_LISTEN && sw_screen(&c, 1400) == SW_SCR_VOICE && c.sel == -1 && sw_mic(&c) && !c.voice_run);
+  CHECK(sw_voice_line(&c, "heard too early", 1500) && c.voice == SW_V_LISTEN);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 4000, out, sizeof out) && c.voice == SW_V_WAIT && !sw_mic(&c));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 4100, out, sizeof out) && c.voice == SW_V_WAIT);  // waits for the text
+  sw_input(&c, SW_IN_YELLOW_UP, 4200, out, sizeof out);
+  CHECK(sw_voice_line(&c, "heard 打开微信", 5000) && c.voice == SW_V_RESULT && !strcmp(c.said, "打开微信"));
+  CHECK(sw_input(&c, SW_IN_YELLOW_DOWN, 6000, out, sizeof out) && !strcmp(out, "btn voice go") && c.voice == SW_V_SENT);
+  sw_input(&c, SW_IN_YELLOW_UP, 6100, out, sizeof out);
+  CHECK(!sw_tick(&c, 6000 + SW_VOICE_SHOW_MS, out, sizeof out) && c.voice == SW_V_NONE && sw_screen(&c, 8600) == SW_SCR_IDLE);
+  // a late `fail start`: the error shows, then goes
+  CHECK(sw_voice_line(&c, "fail start", 9000) && c.voice == SW_V_ERROR && c.voice_err == SW_VE_START);
+  sw_tick(&c, 9000 + SW_VOICE_SHOW_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_NONE);
+  // blue drops the text (and its press does nothing else), nothing heard is an error, the app's silence too
+  sw_input(&c, SW_IN_YELLOW_DOWN, 10000, out, sizeof out);
+  sw_tick(&c, 10400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 11000, out, sizeof out);
+  sw_voice_line(&c, "heard hello", 11500);
+  CHECK(sw_input(&c, SW_IN_BLUE_DOWN, 12000, out, sizeof out) && !strcmp(out, "btn voice cancel") && c.voice == SW_V_NONE);
+  CHECK(!sw_input(&c, SW_IN_BLUE_UP, 12100, out, sizeof out));
+  sw_input(&c, SW_IN_YELLOW_DOWN, 13000, out, sizeof out);
+  sw_tick(&c, 13400, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_DOWN, 13500, out, sizeof out) && !strcmp(out, "btn voice cancel") && !sw_mic(&c));  // while talking
+  sw_input(&c, SW_IN_BLUE_UP, 13600, out, sizeof out);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 14000, out, sizeof out) && c.voice == SW_V_NONE && c.sel == -1);
+  sw_apply(&c, &u, false, 14500);  // the app's lines keep coming (15 s without one: no voice)
+  sw_input(&c, SW_IN_YELLOW_DOWN, 15000, out, sizeof out);
+  sw_tick(&c, 15400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 16000, out, sizeof out);
+  CHECK(sw_voice_line(&c, "heard", 16500) && c.voice == SW_V_ERROR && c.voice_err == SW_VE_NONE);
+  CHECK(!sw_voice_line(&c, "what", 16500) && sw_voice_line(&c, "fail newcode", 16600) && c.voice_err == SW_VE_OTHER);
+  sw_tick(&c, 20000, out, sizeof out);
+  sw_parse("{\"p\":\"standby\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 20000);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 20000, out, sizeof out);
+  sw_tick(&c, 20400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 21000, out, sizeof out);
+  CHECK(!sw_tick(&c, 21000 + SW_VOICE_WAIT_MS - 1, out, sizeof out) && c.voice == SW_V_WAIT);
+  sw_tick(&c, 21000 + SW_VOICE_WAIT_MS, out, sizeof out);
+  CHECK(c.voice == SW_V_ERROR && c.voice_err == SW_VE_TIMEOUT);
+  // the heard text waits SW_VOICE_KEEP_MS, then it is dropped and the app told
+  sw_tick(&c, 50000, out, sizeof out);
+  sw_apply(&c, &u, false, 50000);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 50000, out, sizeof out);
+  sw_tick(&c, 50400, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW_UP, 51000, out, sizeof out);
+  char long_text[200] = "heard ";
+  for (int i = 0; i < 50; i++) strcat(long_text, "中");  // 150 bytes: cut at 120 on a character boundary
+  sw_voice_line(&c, long_text, 51000);
+  CHECK(strlen(c.said) == 120);
+  sw_apply(&c, &u, false, 51000 + SW_VOICE_KEEP_MS - 1);
+  CHECK(sw_tick(&c, 51000 + SW_VOICE_KEEP_MS, out, sizeof out) && !strcmp(out, "btn voice cancel") && c.voice == SW_V_NONE);
+  // during a run: a short yellow still pauses (on release), a hold records for the task
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 120000);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 120000, out, sizeof out));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 120100, out, sizeof out));
+  CHECK(sw_tick(&c, 120100 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn pause"));
+  sw_input(&c, SW_IN_YELLOW_DOWN, 121000, out, sizeof out);
+  sw_tick(&c, 121400, out, sizeof out);
+  CHECK(c.voice == SW_V_LISTEN && c.voice_run && sw_screen(&c, 121400) == SW_SCR_VOICE);
+  {
+    sw_ctl d;
+    sw_init(&d);
+    sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"s\":1,\"l\":10}", &u);
+    sw_apply(&d, &u, false, 15500);
+  // two short presses, yellow or blue, close together: stop, and no pause or home after it
+  CHECK(!sw_input(&d, SW_IN_YELLOW, 15600, out, sizeof out) && sw_input(&d, SW_IN_YELLOW, 15800, out, sizeof out) &&
+        !strcmp(out, "btn stop"));
+  CHECK(!sw_tick(&d, 16300, out, sizeof out));
+  CHECK(!sw_input(&d, SW_IN_BLUE_DOWN, 16400, out, sizeof out) && !sw_input(&d, SW_IN_BLUE_UP, 16500, out, sizeof out));
+  CHECK(sw_input(&d, SW_IN_YELLOW, 16700, out, sizeof out) && !strcmp(out, "btn stop"));
+  CHECK(!sw_input(&d, SW_IN_BLUE_DOWN, 17000, out, sizeof out) && !sw_input(&d, SW_IN_BLUE_UP, 17100, out, sizeof out));
+  CHECK(sw_tick(&d, 17100 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn home"));  // one blue alone: home
+  }
+}
+
+// Quick intents: the app's `picks` line (the newest 5), yellow selects, a tap moves on, blue drops the selection.
+static void test_sw_picks(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"p\":\"standby\",\"k\":[\"old\"]}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(sw_picks_line(&c, "[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\"]") == 5 && c.ui.npicks == 5 && !strcmp(c.ui.picks[4], "e"));
+  CHECK(sw_picks_line(&c, "a") == -1 && sw_picks_line(&c, "[1] x") == -1 && c.ui.npicks == 5);
+  sw_apply(&c, &u, false, 100);  // `k` no longer counts once `picks` came
+  CHECK(c.ui.npicks == 5 && !strcmp(c.ui.picks[0], "a"));
+  sw_input(&c, SW_IN_YELLOW, 200, out, sizeof out);
+  for (int i = 0; i < 4; i++) sw_input(&c, SW_IN_TAP, 300 + i, out, sizeof out);
+  CHECK(c.sel == 4);
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 400, out, sizeof out) && c.sel == -1 && !sw_input(&c, SW_IN_BLUE_UP, 450, out, sizeof out));
+  sw_input(&c, SW_IN_YELLOW, 500, out, sizeof out);
+  sw_input(&c, SW_IN_YELLOW, 600, out, sizeof out);
+  CHECK(sw_screen(&c, 600) == SW_SCR_CONFIRM && sw_input(&c, SW_IN_YELLOW, 700, out, sizeof out) && !strcmp(out, "btn run 0"));
+  CHECK(sw_picks_line(&c, "[]") == 0 && c.ui.npicks == 0);
+  sw_apply(&c, NULL, true, 800);  // the app gone: an older app's `k` counts again
+  sw_apply(&c, &u, false, 900);
+  CHECK(c.ui.npicks == 1 && !strcmp(c.ui.picks[0], "old"));
+}
+
+// A finished task's answer: it shows over idle, yellow or a tap turns its pages, blue closes it, a new run ends it.
+static void test_sw_answer(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"m\":\"success\",\"f\":true,\"v\":1}", &u);
+  sw_apply(&c, &u, false, 0);
+  sw_answer(&c);
+  c.pages = 3;
+  CHECK(sw_screen(&c, 0) == SW_SCR_ANSWER && sw_screen(&c, 9000) == SW_SCR_ANSWER);  // past the 5 s check too
+  CHECK(!sw_input(&c, SW_IN_TAP, 100, out, sizeof out) && c.page == 1);
+  sw_input(&c, SW_IN_YELLOW_DOWN, 200, out, sizeof out);
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 300, out, sizeof out) && c.page == 2);
+  sw_input(&c, SW_IN_TAP, 400, out, sizeof out);
+  CHECK(c.page == 0);
+  CHECK(!sw_input(&c, SW_IN_BLUE_DOWN, 500, out, sizeof out) && !c.answer && !sw_input(&c, SW_IN_BLUE_UP, 600, out, sizeof out));
+  CHECK(sw_screen(&c, 600) == SW_SCR_OK);
+  sw_answer(&c);
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\"}", &u);
+  sw_apply(&c, &u, false, 700);
+  CHECK(!c.answer && sw_screen(&c, 700) == SW_SCR_RUN);
+}
+
+// Help and confirm: the buzz again every 3 s for a minute, then every 15 s, until answered; yellow goes on, blue
+// stops (help) or skips the step (confirm).
+static void test_sw_help(void) {
+  sw_ctl c;
+  sw_ui u;
+  char out[48];
+  sw_init(&c);
+  sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"v\":1}", &u);
+  sw_apply(&c, &u, false, 0);
+  CHECK(sw_buzz_due(&c, 5000) == SW_BUZZ_NONE);
+  CHECK(sw_parse("{\"p\":\"help\",\"h\":1,\"v\":1}", &u) == SW_PARSE_UI && u.confirm);
+  CHECK(sw_apply(&c, &u, false, 1000) == SW_BUZZ_HELP);
+  CHECK(sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS - 1) == SW_BUZZ_NONE && sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS) == SW_BUZZ_HELP);
+  CHECK(sw_buzz_due(&c, 1000 + SW_HELP_REPEAT_MS + 1) == SW_BUZZ_NONE);
+  uint32_t t = 1000 + SW_HELP_FAST_MS + 1000;
+  for (uint32_t at = 7000; at < t; at += 1000) sw_apply(&c, &u, false, at), sw_buzz_due(&c, at);  // the lines keep coming
+  CHECK(sw_buzz_due(&c, t + SW_HELP_REPEAT_MS) == SW_BUZZ_NONE);
+  sw_apply(&c, &u, false, t + 10000);
+  CHECK(sw_buzz_due(&c, t + SW_HELP_SLOW_MS) == SW_BUZZ_HELP);
+  sw_apply(&c, &u, false, t + 16000);
+  sw_input(&c, SW_IN_BLUE_DOWN, t + 16000, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_UP, t + 16100, out, sizeof out) && !strcmp(out, "btn skip"));
+  sw_input(&c, SW_IN_YELLOW_DOWN, t + 16200, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_YELLOW_UP, t + 16300, out, sizeof out) && !strcmp(out, "btn continue"));
+  sw_parse("{\"p\":\"help\"}", &u);
+  sw_apply(&c, &u, false, t + 16400);
+  sw_input(&c, SW_IN_BLUE_DOWN, t + 16500, out, sizeof out);
+  CHECK(sw_input(&c, SW_IN_BLUE_UP, t + 16600, out, sizeof out) && !strcmp(out, "btn stop"));
+  CHECK(sw_input(&c, SW_IN_YELLOW, t + 16700, out, sizeof out) && !strcmp(out, "btn continue"));
+  sw_parse("{\"p\":\"running\"}", &u);
+  sw_apply(&c, &u, false, t + 17000);
+  CHECK(sw_buzz_due(&c, t + 40000) == SW_BUZZ_NONE);  // answered: quiet
+}
+
+// The run's time: counting on between the app's lines while it runs, frozen at the finish.
+static void test_sw_elapsed(void) {
+  sw_ctl c;
+  sw_ui u;
+  char d[12];
+  sw_init(&c);
+  CHECK(sw_elapsed(&c, 0) == -1);
+  sw_parse("{\"p\":\"running\",\"e\":62}", &u);
+  CHECK(u.elapsed == 62);
+  sw_apply(&c, &u, false, 1000);
+  CHECK(sw_elapsed(&c, 1000) == 62 && sw_elapsed(&c, 4500) == 65);
+  sw_parse("{\"m\":\"success\",\"f\":true,\"e\":70}", &u);
+  sw_apply(&c, &u, false, 9000);
+  CHECK(sw_elapsed(&c, 30000) == 70);
+  sw_parse("{\"p\":\"standby\"}", &u);
+  sw_apply(&c, &u, false, 31000);
+  CHECK(sw_elapsed(&c, 31000) == -1);
+  sw_duration(65, d);
+  CHECK(!strcmp(d, "1:05"));
+  sw_duration(3725, d);
+  CHECK(!strcmp(d, "1:02:05"));
+  sw_duration(-3, d);
+  CHECK(!strcmp(d, "0:00"));
+}
+
+// Screen power: dim, off, on again; a wrist turn wakes it, lying still or shaking does not.
+static void test_sw_power(void) {
+  sw_power p;
+  swp_init(&p, 0);
+  CHECK(swp_level(&p, SWP_DIM_MS - 1, false) == SWP_ON && swp_level(&p, SWP_DIM_MS, false) == SWP_DIM);
+  CHECK(swp_level(&p, SWP_OFF_MS, false) == SWP_OFF && swp_level(&p, SWP_OFF_MS, true) == SWP_ON);
+  swp_active(&p, 70000);
+  CHECK(swp_level(&p, 70001, false) == SWP_ON);
+  uint32_t t = 100000;
+  for (int i = 0; i < 60; i++, t += 33) CHECK(!swp_motion(&p, 0, 0, 1, t));  // flat on a table
+  for (int i = 0; i < 30; i++, t += 33) CHECK(!swp_motion(&p, 0.05f, 0, 1.4f, t));  // a bump, still face up
+  for (int i = 0; i < 10; i++, t += 33) CHECK(!swp_motion(&p, 3, 1, 0, t));  // a shake: not read
+  bool raised = false;
+  uint32_t at = 0;
+  for (int i = 0; i < 20 && !raised; i++, t += 33) raised = swp_motion(&p, 0, 0.8f, 0.6f, t), at = t;  // turned ~53 degrees
+  CHECK(raised && swp_level(&p, at, false) == SWP_ON && at - 100000 < 4000);
+  for (int i = 0; i < 40; i++, t += 33) CHECK(!swp_motion(&p, 0, 0.8f, 0.6f, t));  // held there: once
+
+  // the battery: one warning under 15 %, one under 5 %, none while charging, again after charging back up
+  swp_init(&p, 0);
+  CHECK(swp_battery(&p, 40, false) == 0 && swp_battery(&p, 14, true) == 0 && swp_battery(&p, 14, false) == SWP_LOW);
+  CHECK(swp_battery(&p, 13, false) == 0 && swp_battery(&p, 16, false) == 0 && swp_battery(&p, 14, false) == 0);
+  CHECK(swp_battery(&p, 4, false) == SWP_EMPTY && swp_battery(&p, 3, false) == 0);
+  CHECK(swp_battery(&p, 9, false) == 0 && swp_battery(&p, 4, false) == SWP_EMPTY);  // 5 % again after 8 %+
+  CHECK(swp_battery(&p, 60, false) == 0 && swp_battery(&p, 12, false) == SWP_LOW && swp_battery(&p, -1, false) == 0);
+}
+
+static void test_sw_warn(void) {
+  sw_ui u;
+  CHECK(sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"w\":\"mirror\"}", &u) == SW_PARSE_UI && !strcmp(u.warn, "mirror"));
+  CHECK(sw_parse("{\"m\":\"acting\"}", &u) == SW_PARSE_UI && !u.warn[0] && u.local == 0);
+  CHECK(sw_parse("{\"m\":\"idle\",\"z\":1795252800}", &u) == SW_PARSE_UI && u.local == 1795252800LL);
+  CHECK(sw_parse("{\"m\":\"idle\",\"z\":42}", &u) == SW_PARSE_UI && u.local == 0);
+  CHECK(sw_warn_parse("mirror") == SW_W_MIRROR && sw_warn_parse("locked") == SW_W_LOCKED && sw_warn_parse("hid") == SW_W_HID);
+  CHECK(sw_warn_parse("wifi") == SW_W_NONE && sw_warn_parse("") == SW_W_NONE && sw_warn_parse(NULL) == SW_W_NONE);
+  sw_warn w;
+  sww_init(&w);
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && !sww_shown(&w));  // no Bluetooth at boot: no alert
+  CHECK(!sww_update(&w, SW_W_NONE, true, false));
+  CHECK(sww_update(&w, SW_W_MIRROR, true, true) && sww_shown(&w) == SW_W_MIRROR);  // once
+  CHECK(!sww_update(&w, SW_W_MIRROR, true, true) && sww_shown(&w) == SW_W_MIRROR);
+  sww_hide(&w);
+  CHECK(!sww_update(&w, SW_W_MIRROR, true, true) && !sww_shown(&w));  // blue: hidden while it lasts
+  CHECK(sww_update(&w, SW_W_LOCKED, true, true) && sww_shown(&w) == SW_W_LOCKED);  // another: shown again
+  CHECK(!sww_update(&w, SW_W_NONE, true, true) && !sww_shown(&w));  // fixed: gone
+  CHECK(sww_update(&w, SW_W_NONE, false, true) && sww_shown(&w) == SW_W_HID);  // Bluetooth dropped while in use
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && sww_shown(&w) == SW_W_HID);  // stays until it is back
+  CHECK(!sww_update(&w, SW_W_NONE, true, false) && !sww_shown(&w));
+  CHECK(!sww_update(&w, SW_W_NONE, false, false) && !sww_shown(&w));  // dropped while unused: nothing
+}
+
+static void test_sw_text(void) {
+  for (int l = 0; l < SW_LANGS; l++)
+    for (int i = 0; i < SWT_COUNT; i++) CHECK(sw_text(l, i) && sw_text(l, i)[0]);
+  CHECK(!strcmp(sw_text(SW_EN, SWT_RUN_HINT), "Yellow: run - Blue: cancel") && !strcmp(sw_text(SW_ZH, SWT_RUN_HINT), "黄色执行 · 蓝色取消"));
+  CHECK(!strcmp(sw_text(7, SWT_SENT), "Sent") && !strcmp(sw_text(SW_EN, 999), ""));
+  for (int i = 0; i < SWT_COUNT; i++)  // English is drawn in a Latin-only font
+    for (const char *p = sw_text(SW_EN, i); *p; p++) CHECK((unsigned char)*p < 0x80);
+  CHECK(sw_lang_next(SW_EN) == SW_ZH && sw_lang_next(SW_ZH) == SW_EN && sw_lang_next(9) == SW_EN);
+  CHECK(!strcmp(sw_locale(SW_EN), "en-US") && !strcmp(sw_locale(SW_ZH), "zh-CN"));
+}
+
+static void test_ima(void) {
+  int16_t pcm[1600], back[1600];
+  uint8_t enc[800];
+  for (int i = 0; i < 1600; i++) pcm[i] = (int16_t)(8000 * sin(i * 2 * 3.14159265 * 440 / 16000) + 3000 * sin(i * 0.9));
+  ima_state e = {0, 0}, d = {0, 0};
+  CHECK(ima_encode(&e, pcm, 1600, enc) == 800);
+  ima_decode(&d, enc, 800, back);
+  CHECK(d.pred == e.pred && d.index == e.index);
+  double err = 0, sig = 0;
+  for (int i = 200; i < 1600; i++) err += (double)(pcm[i] - back[i]) * (pcm[i] - back[i]), sig += (double)pcm[i] * pcm[i];
+  CHECK(10 * log10(sig / err) > 20);  // 4 bits a sample: speech stays clear (> 20 dB SNR once it settled)
+  // a chunk decodes on its own from the state it carries
+  ima_state at = {0, 0}, mid;
+  ima_encode(&at, pcm, 800, enc);
+  mid = at;
+  ima_encode(&at, pcm + 800, 800, enc);
+  ima_decode(&mid, enc, 400, back);
+  CHECK(abs(back[799] - pcm[1599]) < 1500);
+  // the vector the app's decoder test uses (ios/IPhoneAgentTests): 8 samples from state (0, 0)
+  const int16_t v[8] = {0, 1000, 3000, 2000, -500, -4000, 100, 32000};
+  uint8_t ve[4];
+  ima_state vs = {0, 0};
+  ima_encode(&vs, v, 8, ve);
+  CHECK(ve[0] == 0x70 && ve[1] == 0x77 && ve[2] == 0xff && ve[3] == 0x75 && vs.pred == 1063 && vs.index == 52);
+}
+
+static void face_at(sw_face *f, uint32_t t) { swf_tick(f, t); }
+
+static void tap(sw_face *f, uint32_t t) {
+  swf_touch(f, true, 233, 233, 466, 466, t);
+  swf_touch(f, false, 233, 233, 466, 466, t + 80);
+}
+
+// The character, as the app's AgentFace and PokeableFace (src/ui/sw_face.h).
+static void test_sw_face(void) {
+  sw_face f;
+  swf_pose p;
+  swf_init(&f, 1.6f, 0);
+  swf_mood(&f, SW_IDLE, false, 0, 0,0);
+  // idle: blinks every 4.3 s, breathes, looks left at 6-7 s of each 9 s
+  face_at(&f, 1000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && p.blink == 1 && p.breathe != 1 && p.gaze_x == 0 && p.sx == 1 && p.dy == 0);
+  face_at(&f, 4365);
+  swf_pose_at(&f, &p);
+  CHECK(p.blink < 0.2f);
+  face_at(&f, 6500);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_x < 0);
+  // tap: happy and squished, a light buzz, back to idle after 0.7 s
+  tap(&f, 10000);
+  CHECK(swf_haptic(&f) > 0 && swf_haptic(&f) == 0);
+  face_at(&f, 10150);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS && p.sx > 1.02f && p.sy < 0.95f);
+  face_at(&f, 10779);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS);
+  face_at(&f, 10781);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  face_at(&f, 12000);
+  swf_pose_at(&f, &p);
+  CHECK(fabsf(p.sx - 1) < 0.01f && fabsf(p.dy) < 0.5f);  // springs settled
+  // double tap within 0.35 s: wink and a jump
+  tap(&f, 20000);
+  tap(&f, 20250);
+  face_at(&f, 20390);  // the first tap's squash still pulls the lift back, as in the app
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_WINK && p.dy < -10);
+  face_at(&f, 21200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  // three taps within 1.2 s: dizzy for 1.3 s, shakes it off, then the real mood
+  tap(&f, 30000);
+  tap(&f, 30500);
+  tap(&f, 31000);
+  face_at(&f, 31500);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_DIZZY && p.tilt > 4);
+  face_at(&f, 32400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);  // shaking it off
+  face_at(&f, 33200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && f.override == -1 && p.tilt == 0);
+  // long press: petting (content), soft buzzes every 0.65 s while held, back after release
+  swf_touch(&f, true, 233, 233, 466, 466, 40000);
+  face_at(&f, 40399);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  face_at(&f, 40401);
+  CHECK(swf_haptic(&f) > 0);
+  face_at(&f, 41000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_CONTENT && p.sx > 1.03f && p.tilt > 2);
+  face_at(&f, 41100);
+  CHECK(swf_haptic(&f) > 0);
+  swf_touch(&f, false, 233, 233, 466, 466, 42000);
+  face_at(&f, 42300);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_CONTENT);
+  face_at(&f, 42400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+  // drag: the eyes look at the finger, the body leans after it (at most 22 points), springs back on release
+  swf_touch(&f, true, 233, 233, 466, 466, 50000);
+  swf_touch(&f, true, 433, 233, 466, 466, 50100);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_LISTENING && p.gaze_x > 0.8f && p.dx > 20 && p.dx <= 22 && p.tilt > 7);
+  swf_touch(&f, true, 133, 433, 466, 466, 50200);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_x < -0.3f && p.gaze_y > 0.8f && p.dx < 0);
+  swf_touch(&f, false, 133, 433, 466, 466, 50300);
+  face_at(&f, 52000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE && fabsf(p.dx) < 0.5f && p.gaze_x == 0);
+  // a run: a tap only glances up; the app's mood reacts (acting hops, failure shakes); the island's look
+  swf_mood(&f, SW_ACTING, true, 0.5f, -0.5f,60000);
+  face_at(&f, 60100);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_ACTING && p.dy < -5);
+  face_at(&f, 61000);
+  swf_pose_at(&f, &p);
+  CHECK(fabsf(p.gaze_x - 0.5f) < 0.02f && fabsf(p.gaze_y + 0.5f) < 0.02f);
+  tap(&f, 62000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_ACTING && p.gaze_y < -0.7f);
+  face_at(&f, 62700);
+  swf_pose_at(&f, &p);
+  CHECK(p.gaze_y > -0.6f);
+  swf_mood(&f, SW_FAILURE, true, 0, 0,62750);
+  face_at(&f, 62790);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_FAILURE && p.dx > 2);
+  // a shake while idle: dizzy; not during a run
+  swf_dizzy(&f, 63000);
+  CHECK(f.override == -1);
+  swf_mood(&f, SW_IDLE, false, 0, 0,63500);
+  swf_dizzy(&f, 64000);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_DIZZY);
+  // the millisecond clock wrapping keeps the timers
+  swf_init(&f, 1.6f, 0xFFFFFF00u);
+  swf_mood(&f, SW_IDLE, false, 0, 0,0xFFFFFF00u);
+  tap(&f, 0xFFFFFF00u);
+  face_at(&f, 0x200);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_SUCCESS);
+  face_at(&f, 0x400);
+  swf_pose_at(&f, &p);
+  CHECK(p.mood == SW_IDLE);
+}
+
 int main(void) {
+  test_sw_power();
+  test_sw_warn();
+  test_sw_elapsed();
+  test_sw_help();
+  test_sw_answer();
+  test_sw_picks();
+  test_sw_voice();
+  test_sw_text();
+  test_ima();
+  test_sw_clock();
+  test_sw_face();
+  test_sw_parse();
+  test_sw_buttons();
   test_lan_lock();
   test_heard();
   test_audio_packets();

@@ -44,11 +44,17 @@ struct FirmwareRelease: Codable, Equatable {
     var sig: String?    // base64 Ed25519 over `signed` (only a Debug harness build may come without, HarnessOTA.swift)
     var notes: String?
     var min_app: String?  // the oldest app that may install it (an older one is asked to update itself first)
+    var target: String?   // another board's channel ("stopwatch"), signed with it; nil: the USB board's
 
     var ver: FirmwareVersion { FirmwareVersion(version) ?? FirmwareVersion([0]) }
     /// This app may install it: no `min_app`, or this app is that version or newer.
     func fits(app: FirmwareVersion) -> Bool { min_app.flatMap(FirmwareVersion.init).map { app >= $0 } ?? true }
-    var signed: Data { Data("esp32agent-firmware\nversion=\(version)\nsize=\(size)\nsha256=\(sha256)\nmd5=\(md5)".utf8) }
+    var signed: Data {
+        Data(("esp32agent-firmware\nversion=\(version)\nsize=\(size)\nsha256=\(sha256)\nmd5=\(md5)"
+              + (target.map { "\ntarget=\($0)" } ?? "")).utf8)
+    }
+    /// The channel it belongs to: a USB release carries no target.
+    var channel: String { target ?? Firmware.usbTarget }
 }
 
 enum Firmware {
@@ -66,6 +72,12 @@ enum Firmware {
     static let required = FirmwareVersion([0, 2, 0])
     /// The first firmware that takes updates over Wi-Fi; older boards need hardware/flash.sh over USB.
     static let firstOTA = FirmwareVersion([0, 0, 2])
+    /// The USB board's channel (its image marker ESPA:usb-8m): firmware.json at the sources. Other boards' releases
+    /// sit in a folder named after their target next to it (stopwatch/firmware.json), signed with the target.
+    static let usbTarget = "usb-8m"
+    static func sources(for target: String) -> [URL] {
+        target == usbTarget ? sources : sources.map { $0.deletingLastPathComponent().appendingPathComponent("\(target)/firmware.json") }
+    }
     static let publicKey = Data(base64Encoded: "DfqjOJal/fdCPhpWbNJv1q2OdszGMXxExGH1qTzmO8k=")!
     static let port: UInt16 = 7300
     /// Boards from before OTA don't report `fw`.
@@ -106,11 +118,11 @@ enum Firmware {
     }
 
     /// The newest signed release among the sources, and where its manifest came from.
-    static func latest(session: URLSession = .shared) async throws -> (FirmwareRelease, URL) {
+    static func latest(for target: String = usbTarget, session: URLSession = .shared) async throws -> (FirmwareRelease, URL) {
         var found: [(FirmwareRelease, URL)] = []
         var lastError: Error?
-        if let data = try? Data(contentsOf: local), let r = signedRelease(data) { found.append((r, local)) }
-        for url in sources {
+        if let data = try? Data(contentsOf: local), let r = signedRelease(data), r.channel == target { found.append((r, local)) }
+        for url in sources(for: target) {
             do {
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
                 request.setValue("ESP32Agent", forHTTPHeaderField: "User-Agent")
@@ -118,6 +130,7 @@ enum Firmware {
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw Failure("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)") }
                 let r = try JSONDecoder().decode(FirmwareRelease.self, from: data)
                 guard verify(r) else { throw Failure(String(localized: "The firmware release isn't signed by \(AppName.current).")) }
+                guard r.channel == target else { throw Failure("a release for \(r.channel), not \(target)") }
                 found.append((r, response.url ?? url))
                 break  // the first source that answers is enough
             } catch {
@@ -133,7 +146,7 @@ enum Firmware {
 
     /// The image, from the cache when it was downloaded before; always checked against the signed manifest.
     static func image(_ r: FirmwareRelease, manifest: URL, session: URLSession = .shared) async throws -> Data {
-        let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("firmware-\(r.version).bin")
+        let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent(r.target.map { "firmware-\($0)-\(r.version).bin" } ?? "firmware-\(r.version).bin")
         if let data = try? Data(contentsOf: cache), matches(data, r) { return data }
         guard let url = URL(string: r.url, relativeTo: manifest)?.absoluteURL else { throw Failure("bad firmware url") }
         let data: Data

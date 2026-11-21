@@ -8,7 +8,10 @@
 // reply or an ATT write response never queues behind more than ~2 KB of video. It also leaves MBUF_RESERVE host
 // blocks free, and never sends while a reply or status is waiting.
 #include "ble_link.h"
+#include "ble_hid.h"
+#include "hid_mode.h"
 #include <atomic>
+#include <utility>
 #include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <NimBLEDevice.h>
@@ -50,6 +53,15 @@ const uint32_t ADV_CYCLE_MS = 1000, ADV_CLI_MS = 250;
 
 enum { CH_REPLY, CH_STATUS, CH_VIDEO, CH_CLI, CH_COUNT };
 
+struct Command {
+#ifdef HID_TRANSPORT_BLE
+  uint32_t hidSession;
+#endif
+  char origin;
+  uint32_t recv;  // millis() when it came in, so a slow reply can say where its time went
+  char line[CMD_MAX - 1];
+};
+
 struct Text {
   char dest;  // FROM_APP or FROM_CLI: whose reply this is
   uint16_t len;
@@ -61,15 +73,21 @@ static NimBLEServer *server;
 static NimBLECharacteristic *chars[CH_COUNT], *netChar, *cliIn, *cliInNR;
 static QueueHandle_t cmdQueue, replyQueue;
 static SemaphoreHandle_t statusLock;
-static Text statusText, cliStatus;
+static Text statusText;
+static String cliStatus;
 static bool statusDirty, cliStatusDirty;
 static volatile uint32_t connAt[MAX_PEERS];
 static std::atomic<int> ctrlPending;  // replies queued or sending + a status waiting; video yields to them
 static volatile int peers[MAX_PEERS] = {-1, -1};
 static volatile bool subscribed[MAX_PEERS][CH_COUNT];
+#ifdef HID_TRANSPORT_BLE
+static std::atomic<int> trustedPhone[MAX_PEERS] = {-1, -1};
+static bool hidSubscribed[MAX_PEERS];  // Only accessed by NimBLE subscription, authentication and disconnect callbacks.
+#endif
 static uint32_t winStart, winBytes;  // touched by the video task only
 static volatile uint32_t kbps;
 static std::atomic<uint32_t> drops, replyDrops;
+static std::atomic<uint32_t> videoNotifies, videoBytes, notifyWaits, maxNotifyWait;  // ble_diag
 static volatile uint32_t lastCmdMs;  // last `cmd` write: replies are expected, keep video's share small
 static volatile uint32_t appSeenMs;  // last command from the app that drives the phone
 // An app that only pings (every 2 s, in the background too) and logs is idle and lets the CLI in; its next real
@@ -81,7 +99,11 @@ static bool appWorks(const String &line) {
   int sp = line.indexOf(' ');
   String cmd = sp < 0 ? line : line.substring(sp + 1);
   return cmd != "ping" && !cmd.startsWith("log ") && cmd != "move 1 0" && cmd != "move -1 0" &&
-         !cmd.startsWith("hear");  // sharing what it heard with the CLI doesn't take the phone from it
+         !cmd.startsWith("hear")  // sharing what it heard with the CLI doesn't take the phone from it
+#ifdef M5_STOPWATCH
+         && !cmd.startsWith("ui ") && !cmd.startsWith("voice ") && !cmd.startsWith("picks ") && !cmd.startsWith("answer")  // nor what the screen shows
+#endif
+      ;
 }
 
 #if DEBUG_SERIAL
@@ -109,6 +131,13 @@ static bool encrypted(int h) {
   return h >= 0 && ble_gap_conn_find(h, &d) == 0 && d.sec_state.encrypted;
 }
 
+static bool appLink(int handle) {
+#ifdef HID_TRANSPORT_BLE
+  if (hid_ble()) return ble_hid_allows(handle);
+#endif
+  return encrypted(handle);
+}
+
 static int slotOf(int h) {
   for (int i = 0; i < MAX_PEERS; i++)
     if (peers[i] == h) return i;
@@ -125,6 +154,24 @@ static int slotFor(int h) {
   }
   return i;
 }
+
+#ifdef HID_TRANSPORT_BLE
+bool ble_hid_trusted(int handle) {
+  ble_gap_conn_desc link;
+  if (handle < 0 || ble_gap_conn_find(handle, &link) != 0 || link.our_ota_addr.type != BLE_ADDR_PUBLIC ||
+      !link.sec_state.bonded || !link.sec_state.encrypted) return false;
+  for (const auto &phone : trustedPhone) if (phone.load() == handle) return true;
+  return false;
+}
+
+void ble_hid_subscribe(uint16_t handle, bool on) {
+  int slot = on ? slotFor(handle) : slotOf(handle);
+  if (slot < 0) return;
+  hidSubscribed[slot] = on;
+  if (on) ble_hid_claim(handle, true);
+  else ble_hid_disconnected(handle);
+}
+#endif
 
 static int peerCount() {
   int n = 0;
@@ -171,6 +218,11 @@ class ServerCb : public NimBLEServerCallbacks {
   void onDisconnect(NimBLEServer *s, NimBLEConnInfo &ci, int reason) override {
     int i = slotOf(ci.getConnHandle());
     if (i >= 0) {
+#ifdef HID_TRANSPORT_BLE
+      trustedPhone[i] = -1;
+      hidSubscribed[i] = false;
+      ble_hid_disconnected(ci.getConnHandle());
+#endif
       for (int c = 0; c < CH_COUNT; c++) subscribed[i][c] = false;
       peers[i] = -1;
       cli_reset(i);
@@ -187,11 +239,32 @@ class ServerCb : public NimBLEServerCallbacks {
     logConn("security", ci);
     if (!ci.isEncrypted()) return;
     NimBLEAddress a = ci.getIdAddress();
-    if (isKnown(a)) return;
-    if (millis() - pairOpened < PAIR_WINDOW_MS && knownCount < 8) { known[knownCount++] = a; return; }
-    BLE_LOG("conn %u: new phone outside the pairing window, refused\n", ci.getConnHandle());
-    NimBLEDevice::deleteBond(a);
-    server->disconnect(ci.getConnHandle());
+    if (!isKnown(a)) {
+      if (millis() - pairOpened >= PAIR_WINDOW_MS || knownCount >= 8) {
+        BLE_LOG("conn %u: new phone outside the pairing window, refused\n", ci.getConnHandle());
+        NimBLEDevice::deleteBond(a);
+        server->disconnect(ci.getConnHandle());
+        return;
+      }
+      known[knownCount++] = a;
+    }
+#ifdef HID_DUAL
+    // First boot in a new input mode: the HID service at the end of the table came or went. Tell the bonded
+    // phone to read the table again (the app's own services keep their handles: they come first).
+    if (hid_mode_changed()) {
+      board_log("ble: conn %u: input mode changed, service-changed indication", ci.getConnHandle());
+      server->sendServiceChangedIndication();
+      hid_mode_told();  // once: every reconnect re-sending it made iOS drop the cached services again
+    }
+#endif
+#ifdef HID_TRANSPORT_BLE
+    // A restored subscription can arrive before encryption. Bind the trusted phone only after both.
+    int slot = hid_ble() ? slotFor(ci.getConnHandle()) : -1;
+    if (slot >= 0) {
+      trustedPhone[slot] = ci.getConnHandle();
+      ble_hid_claim(ci.getConnHandle(), hidSubscribed[slot]);
+    }
+#endif
   }
 };
 
@@ -201,12 +274,27 @@ class CharCb : public NimBLECharacteristicCallbacks {
     if (c == cliIn || c == cliInNR) { cli_on_frame(slotFor(ci.getConnHandle()), raw.data(), raw.length()); return; }
     String v(raw.c_str(), raw.length());
     if (!ci.isEncrypted()) return;
+#ifdef HID_TRANSPORT_BLE
+    if (hid_ble() && !ble_hid_allows(ci.getConnHandle())) return;
+#endif
     if (c == netChar) { net_request(v); return; }
     v.trim();
     if (appWorks(v)) appSeenMs = millis() | 1;
     ble_push_cmd(FROM_APP, v.c_str(), v.length());
   }
   void onRead(NimBLECharacteristic *c, NimBLEConnInfo &ci) override {
+#ifdef HID_TRANSPORT_BLE
+    if (hid_ble() && !ble_hid_allows(ci.getConnHandle())) {
+      c->setValue("{}");
+      return;
+    }
+    if (c == chars[CH_STATUS]) {
+      xSemaphoreTake(statusLock, portMAX_DELAY);
+      c->setValue(reinterpret_cast<const uint8_t *>(statusText.s), statusText.len);
+      xSemaphoreGive(statusLock);
+      return;
+    }
+#endif
     if (c != netChar) return;
     String j = net_json();
     c->setValue((const uint8_t *)j.c_str(), j.length());
@@ -252,11 +340,19 @@ static bool notifyOne(int slot, int ch, const uint8_t *p, size_t n, uint32_t sta
   for (;;) {
     int h = peers[slot];
     // CLI frames are sealed (cli_link.cpp) and go to the CLI's own plain link; everything else needs encryption
-    if (h < 0 || !subscribed[slot][ch] || (ch != CH_CLI && !encrypted(h))) return false;
+    if (h < 0 || !subscribed[slot][ch]) return false;
+    if (ch != CH_CLI && !appLink(h)) return false;
     if (!(video && (ctrlPending > 0 || !ctrlRoom(n))) && os_msys_num_free() >= need) {
       os_mbuf *om = ble_hs_mbuf_from_flat(p, n);
       int rc = om ? ble_gatts_notify_custom(h, chars[ch]->getHandle(), om) : BLE_HS_ENOMEM;  // om consumed
-      if (rc == 0) return true;
+      if (rc == 0) {
+        uint32_t waited = millis() - start;
+        if (waited) {
+          notifyWaits++;
+          if (waited > maxNotifyWait) maxNotifyWait = waited;
+        }
+        return true;
+      }
       if (rc != BLE_HS_ENOMEM) {
         BLE_LOG("notify ch %d conn %d failed rc=%d\n", ch, h, rc);
         return false;
@@ -280,6 +376,7 @@ static bool notifyRaw(int ch, const uint8_t *p, size_t n, uint32_t timeout_ms) {
 
 static void sendText(int ch, const Text &t, uint32_t timeout_ms) {
   size_t room = ble_mtu() - 3;
+  if (ch == CH_STATUS && t.len > room) return;  // If the MTU shrank, wait for the next complete status.
   if (!notifyRaw(ch, (const uint8_t *)t.s, t.len < room ? t.len : room, timeout_ms) && ch == CH_REPLY &&
       anySubscribed(CH_REPLY)) {
     replyDrops++;
@@ -327,10 +424,10 @@ static void txTask(void *) {
     }
     if (cliDue) {
       xSemaphoreTake(statusLock, portMAX_DELAY);
-      t = cliStatus;
+      String sending(std::move(cliStatus));
       cliStatusDirty = false;
       xSemaphoreGive(statusLock);
-      cli_send_ctrl('s', t.s, t.len, STATUS_TIMEOUT_MS);
+      cli_send_ctrl('s', sending.c_str(), sending.length(), STATUS_TIMEOUT_MS);
       ctrlPending--;
     }
     dropIdlePlainLinks();
@@ -344,6 +441,9 @@ static void toText(Text &t, const String &s) {
 }
 
 static NimBLEAdvertisementData appAdv, cliAdv;
+#ifdef HID_TRANSPORT_BLE
+static NimBLEAdvertisementData appScan, cliScan;
+#endif
 static SemaphoreHandle_t advLock;
 static AdvId advNow = ADV_NONE;
 
@@ -374,7 +474,11 @@ static void advertise() {
     if (active) adv->stop();
     advNow = ADV_NONE;
     if (want != ADV_NONE && NimBLEDevice::setOwnAddrType(want == ADV_CLI ? BLE_OWN_ADDR_RANDOM : BLE_OWN_ADDR_PUBLIC) &&
-        adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) && adv->start())
+        adv->setAdvertisementData(want == ADV_CLI ? cliAdv : appAdv) &&
+#ifdef HID_TRANSPORT_BLE
+        (!hid_ble() || adv->setScanResponseData(want == ADV_CLI ? cliScan : appScan)) &&
+#endif
+        adv->start())
       advNow = want;
   }
   xSemaphoreGive(advLock);
@@ -383,10 +487,28 @@ static void advertise() {
 static void setUpAdvertising(const std::string &name) {
   for (auto *d : {&appAdv, &cliAdv}) d->setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
   appAdv.setCompleteServices(NimBLEUUID(UUID("0000")));
+#ifdef HID_TRANSPORT_BLE
+  // Advertise HID on the stable app identity; keep the CLI on its own random address.
+  // USB mode (--dual-hid) shows no HID at all: a phone that pairs a Bluetooth keyboard hides its own.
+  if (hid_ble()) {
+    appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x1812)));
+    appAdv.addServiceUUID(NimBLEUUID(uint16_t(0x180f)));
+    appAdv.setAppearance(0x03c2);
+  }
+#endif
   cliAdv.setCompleteServices(NimBLEUUID(UUID("0010")));
-  NimBLEAdvertisementData scan;
-  scan.setName(name);
-  NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+#ifdef HID_TRANSPORT_BLE
+  if (hid_ble()) {
+    // iOS lists devices by name; keep the board's four-digit suffix for CLI selection.
+    appScan.setName(name);
+    cliScan.setName("CLI " + name);
+  } else
+#endif
+  {
+    NimBLEAdvertisementData scan;
+    scan.setName(name);
+    NimBLEDevice::getAdvertising()->setScanResponseData(scan);
+  }
   uint8_t a[6];
   esp_fill_random(a, sizeof a);
   a[5] |= 0xC0;  // random static: top two bits set (NimBLE addresses are little-endian)
@@ -404,7 +526,7 @@ static QueueHandle_t psramQueue(UBaseType_t n, UBaseType_t size) {
 }
 
 void ble_begin(const String &name) {
-  cmdQueue = psramQueue(6, CMD_MAX);
+  cmdQueue = psramQueue(6, sizeof(Command));
   replyQueue = psramQueue(8, sizeof(Text));
   statusLock = xSemaphoreCreateMutex();
   NimBLEDevice::init(name.c_str());
@@ -443,6 +565,9 @@ void ble_begin(const String &name) {
   cmd->setCallbacks(&charCb);
   netChar->setCallbacks(&charCb);
   for (auto *c : chars) c->setCallbacks(&charCb);
+#ifdef HID_TRANSPORT_BLE
+  if (hid_ble()) ble_hid_begin(server);  // last, so the app's own services keep their handles in either mode
+#endif
   server->start();
 
   advLock = xSemaphoreCreateMutex();
@@ -460,34 +585,44 @@ bool ble_connected() { return peerCount() > 0; }
 
 bool ble_app_connected() {
   for (int i = 0; i < MAX_PEERS; i++)
-    if (encrypted(peers[i])) return true;
+    if (appLink(peers[i])) return true;
   return false;
 }
 
 bool ble_app_active() { return appSeenMs && millis() - appSeenMs < APP_IDLE_MS && ble_app_connected(); }
 
-// A queued command: [origin][4 bytes: millis() when it came in][text]. The receive time goes with it so a slow
-// reply can say where its time went (2026-11-18: commands took 0.6-2.2 s for 20 s at a run's start, cause unknown).
-static const size_t CMD_HEAD = 5;
-
+// The receive time goes with a queued command so a slow reply can say where its time went
+// (2026-11-18: commands took 0.6-2.2 s for 20 s at a run's start, cause unknown).
 void ble_push_cmd(char origin, const char *line, size_t n) {
-  char buf[CMD_MAX] = {origin};
+  Command cmd{};
+  cmd.origin = origin;
+#ifdef HID_TRANSPORT_BLE
+  cmd.hidSession = ble_hid_session();
+#endif
   if (!n) return;
-  uint32_t now = millis();
-  memcpy(buf + 1, &now, 4);
-  memcpy(buf + CMD_HEAD, line, n < CMD_MAX - CMD_HEAD - 1 ? n : CMD_MAX - CMD_HEAD - 1);
+  cmd.recv = millis();
+  memcpy(cmd.line, line, n < sizeof(cmd.line) - 1 ? n : sizeof(cmd.line) - 1);
   lastCmdMs = millis();
-  xQueueSend(cmdQueue, buf, 0);  // full queue: the sender times out and retries
+  xQueueSend(cmdQueue, &cmd, 0);  // full queue: the sender times out and retries
 }
 
 static uint32_t replyRecv, replyQueued, replyRan;  // set by the loop for the reply it is about to queue
+#ifdef HID_TRANSPORT_BLE
+static bool popStale;  // the last popped command was queued for an earlier HID session (loop task only)
+bool ble_cmd_stale() { return popStale; }
+#endif
 
 bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv) {
-  char buf[CMD_MAX];
-  if (xQueueReceive(cmdQueue, buf, pdMS_TO_TICKS(wait_ms)) != pdTRUE) return false;
-  origin = buf[0];
-  if (recv) memcpy(recv, buf + 1, 4);
-  line = buf + CMD_HEAD;
+  Command cmd;
+  if (xQueueReceive(cmdQueue, &cmd, pdMS_TO_TICKS(wait_ms)) != pdTRUE) return false;
+#ifdef HID_TRANSPORT_BLE
+  // Still run it and answer: only HID input refuses a stale session (drive()), so status, netinfo and CLI
+  // commands queued while the phone (re)subscribed are not dropped without a reply.
+  popStale = !ble_hid_command_begin(cmd.hidSession);
+#endif
+  origin = cmd.origin;
+  if (recv) *recv = cmd.recv;
+  line = cmd.line;
   return true;
 }
 
@@ -507,22 +642,26 @@ void ble_reply(const String &line, char dest) {
   }
 }
 
-void ble_cli_status(const String &full, const String &compact) {
+void ble_cli_status(String full, String compact) {
   int slot = cli_slot();
   if (slot < 0) return;
-  const String &s = full.length() + 1 + CLI_OVERHEAD + 3 <= cli_mtu() ? full : compact;
+  const size_t room = cli_ctrl_room(cli_mtu());
+  String &s = full.length() <= room ? full : compact;
+  if (!s.length() || s.length() > room) return;
   xSemaphoreTake(statusLock, portMAX_DELAY);
-  toText(cliStatus, s);
+  cliStatus = std::move(s);
   if (!cliStatusDirty) ctrlPending++;
   cliStatusDirty = true;
   xSemaphoreGive(statusLock);
 }
 
 void ble_status(const String &json) {
+#ifndef HID_TRANSPORT_BLE
   chars[CH_STATUS]->setValue((const uint8_t *)json.c_str(), json.length());  // also served on read
-  if (!anySubscribed(CH_STATUS)) return;
+#endif
   xSemaphoreTake(statusLock, portMAX_DELAY);
   toText(statusText, json);
+  if (!anySubscribed(CH_STATUS)) { xSemaphoreGive(statusLock); return; }
   if (!statusDirty) ctrlPending++;
   statusDirty = true;
   xSemaphoreGive(statusLock);
@@ -535,6 +674,8 @@ bool ble_video_send(const uint8_t *p, size_t n) {
     drops++;
     return false;
   }
+  videoNotifies++;
+  videoBytes += n;
   uint32_t now = millis();
   winBytes += n;
   if (now - winStart >= 1000) {
@@ -554,7 +695,7 @@ uint16_t ble_mtu() {  // the smallest app peer's, so one notify fits every one o
   uint16_t mtu = 0;
   for (int i = 0; i < MAX_PEERS; i++) {
     int h = peers[i];
-    uint16_t m = encrypted(h) ? server->getPeerMTU(h) : 0;
+    uint16_t m = appLink(h) ? server->getPeerMTU(h) : 0;
     if (m && (!mtu || m < mtu)) mtu = m;
   }
   return mtu ? mtu : 23;
@@ -567,8 +708,29 @@ uint8_t ble_phy() {
   return tx == BLE_GAP_LE_PHY_2M ? 2 : 1;
 }
 
+BleDiag ble_diag() {
+  return {videoNotifies, videoBytes, notifyWaits, maxNotifyWait.exchange(0)};
+}
+
+bool ble_app_conn(uint16_t *interval, uint16_t *latency, uint16_t *timeout) {
+  for (int i = 0; i < MAX_PEERS; i++) {
+    int h = peers[i];
+    ble_gap_conn_desc d;
+    if (appLink(h) && ble_gap_conn_find(h, &d) == 0) {
+      *interval = d.conn_itvl;
+      *latency = d.conn_latency;
+      *timeout = d.supervision_timeout;
+      return true;
+    }
+  }
+  return false;
+}
+
 void ble_unpair() {
   for (int i = 0; i < 100 && ctrlPending > 0; i++) vTaskDelay(pdMS_TO_TICKS(10));  // let the `ok` go out
+#ifdef HID_TRANSPORT_BLE
+  for (auto &phone : trustedPhone) phone = -1;
+#endif
   NimBLEDevice::deleteAllBonds();  // unpairs each bond (also drops it from the controller's resolving list)
   ble_store_clear();               // and any CCCD/peer records left in NVS
   cli_forget_all();                // and paired computers
@@ -582,6 +744,17 @@ void ble_unpair() {
 
 // Hooks for cli_link.cpp.
 bool ble_pair_window_open() { return millis() - pairOpened < PAIR_WINDOW_MS; }
+// A board on its own battery is rarely just powered on when a phone comes to pair (Henry 2026-11-21): open it again.
+void ble_pair_open() {
+  pairOpened = millis();
+  board_log("ble: pairing window open for %lu s", PAIR_WINDOW_MS / 1000);
+}
+// Yellow on the pairing page (Henry 2026-11-22): the window shuts now; bonded phones still reconnect.
+void ble_pair_close() {
+  pairOpened = millis() - PAIR_WINDOW_MS;
+  board_log("ble: pairing window closed");
+}
+uint32_t ble_pair_left_ms() { return ble_pair_window_open() ? PAIR_WINDOW_MS - (millis() - pairOpened) : 0; }
 
 uint16_t ble_cli_mtu(int slot) {
   int h = slot >= 0 && slot < MAX_PEERS ? peers[slot] : -1;

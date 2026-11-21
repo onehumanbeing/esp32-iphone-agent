@@ -44,3 +44,220 @@ import XCTest
         XCTAssertFalse(feed.live)
     }
 }
+
+/// M5Stack StopWatch: `ui` lines for its screen, `btn` lines from its buttons; nothing for any other board.
+@MainActor final class StopWatchUITests: XCTestCase {
+    typealias State = AgentActivityAttributes.ContentState
+    let stopwatch = BoardStatus(board: "stopwatch", ui: 1)
+    var time = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 9, minute: 5))!
+
+    private func make(_ status: BoardStatus?) -> (CommandChannel, FakeBoard) {
+        let board = FakeBoard()
+        let channel = CommandChannel(transport: board)
+        board.channel = channel
+        channel.boardStatus = { status }
+        channel.clock = { [unowned self] in self.time }
+        return (channel, board)
+    }
+
+    private func json(_ line: String) throws -> [String: Any] {
+        let body = try XCTUnwrap(line.split(separator: " ", maxSplits: 1).last)
+        XCTAssertTrue(line.hasPrefix("ui {"))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
+    }
+
+    private func sent(_ line: String) -> String { String(line.split(separator: " ", maxSplits: 1).last ?? "") }  // no id
+
+    func testTheLineCarriesTheStateWithinItsLimits() throws {
+        var state = State(mood: .acting, step: 4, limit: 300, line: String(repeating: "点开设置", count: 30), phase: .running)
+        (state.done, state.total) = (3, 12)
+        let (line, picks) = try XCTUnwrap(StopWatchUI.command(.show(state), at: time))
+        XCTAssertNil(picks)
+        XCTAssertLessThanOrEqual(line.utf8.count, StopWatchUI.maxLine)
+        let o = try json(line)
+        XCTAssertEqual(o["c"] as? String, "09:05")
+        XCTAssertEqual(o["m"] as? String, "acting")
+        XCTAssertEqual(o["p"] as? String, "running")
+        XCTAssertEqual(o["s"] as? Int, 4)
+        XCTAssertEqual(o["l"] as? Int, 300)
+        XCTAssertEqual(o["d"] as? Int, 3)
+        XCTAssertEqual(o["n"] as? Int, 12)
+        XCTAssertEqual(o["f"] as? Bool, false)
+        XCTAssertNil(o["k"])
+        let t = try XCTUnwrap(o["t"] as? String)
+        XCTAssertEqual(t.utf8.count, 78)  // 26 whole 3-byte characters, never half of one
+        XCTAssertTrue(state.line.hasPrefix(t))
+    }
+
+    func testStandbyPicksAreCappedAndATightLineDropsTheTextFirst() throws {
+        let names = ["Morning alarm and weather report", "B", "C", "D"]
+        let picks = names.map { StandbyPick(id: UUID(), name: $0, symbol: "alarm") }
+        let state = LiveActivityController.standbyState(picks)
+        let (line, sent) = try XCTUnwrap(StopWatchUI.command(.show(state)))
+        XCTAssertEqual(sent, picks.prefix(3).map(\.id))
+        let k = try XCTUnwrap(json(line)["k"] as? [String])
+        XCTAssertEqual(k, ["Morning alarm and weathe", "B", "C"])
+        XCTAssertTrue(k.allSatisfy { $0.utf8.count <= StopWatchUI.maxPick })
+        let (tight, kept) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 135))  // 112 before `"v":1`, 118 before `"z"`
+        XCTAssertLessThanOrEqual(tight.utf8.count, 135)
+        XCTAssertNil(try json(tight)["t"])
+        XCTAssertNotNil(kept)
+        let (tiny, none) = try XCTUnwrap(StopWatchUI.command(.show(state), max: 93))
+        XCTAssertNil(try json(tiny)["k"])
+        XCTAssertNil(none)
+        XCTAssertEqual(StopWatchUI.command(.off)?.0, "ui off")
+    }
+
+    func testOnlyAStopWatchWithAScreenGetsUILines() {
+        let state = State(mood: .thinking, step: 1, limit: 300, line: "Reading the screen…")
+        for status in [nil, BoardStatus(board: "xiao"), BoardStatus(board: "stopwatch"), BoardStatus(usb: "ok")] as [BoardStatus?] {
+            let (channel, board) = make(status)
+            channel.showUI(state)
+            channel.showUI(nil)
+            channel.flushUI()
+            XCTAssertEqual(board.lines, [], "\(String(describing: status))")
+        }
+    }
+
+    func testAStopWatchGetsChangesOnlyAtMostTwiceASecond() {
+        let (channel, board) = make(stopwatch)
+        var state = State(mood: .thinking, step: 1, limit: 300, line: "a")
+        channel.showUI(state)
+        channel.showUI(state)
+        XCTAssertEqual(board.lines.count, 1)
+        XCTAssertTrue(board.lines[0].split(separator: " ")[1] == "ui")
+        state.step = 2
+        channel.showUI(state)
+        state.step = 3
+        channel.showUI(state)  // third in a second: kept for later
+        XCTAssertEqual(board.lines.count, 2)
+        channel.linkUp()  // a reconnect: the newest state goes again
+        channel.flushUI()
+        XCTAssertEqual(board.lines.count, 2)  // still rate-limited
+    }
+
+    func testTheLineGoesAgainEvery5sAndOnANewMinuteButNotWhenFinished() {
+        let (channel, board) = make(stopwatch)
+        var state = State(mood: .thinking, step: 1, limit: 300, line: "a")
+        channel.showUI(state)
+        channel.refreshUI()  // unchanged: still sent, so the screen does not fall back to idle
+        XCTAssertEqual(board.lines.count, 2)
+        XCTAssertEqual(board.lines[0].split(separator: " ", maxSplits: 1)[1], board.lines[1].split(separator: " ", maxSplits: 1)[1])
+        let (later, laterBoard) = make(stopwatch)
+        later.showUI(state)
+        time = time.addingTimeInterval(60)
+        later.showUI(state)  // the same state, a new minute: a change
+        XCTAssertEqual(laterBoard.lines.count, 2)
+        XCTAssertTrue(laterBoard.lines[1].contains(#""c":"09:06""#))
+        let (done, doneBoard) = make(stopwatch)
+        state.finished = true
+        done.showUI(state)
+        done.refreshUI()  // the outcome had its 5 s: idle, awake
+        XCTAssertEqual(doneBoard.lines.count, 2)
+        XCTAssertTrue(try json(sent(doneBoard.lines[0]))["f"] as? Bool == true)
+        XCTAssertEqual(try json(sent(doneBoard.lines[1]))["m"] as? String, "idle")
+        XCTAssertEqual(try json(sent(doneBoard.lines[1]))["p"] as? String, "standby")
+        let (off, offBoard) = make(stopwatch)
+        off.showUI(nil)
+        off.refreshUI()
+        XCTAssertEqual(offBoard.lines.count, 1)  // `ui off` once, not repeated
+        XCTAssertTrue(offBoard.lines[0].hasSuffix(" ui off"))
+    }
+
+    func testWithoutARunTheBoardGetsTheAppsIdleMoodAfterALinkUp() throws {
+        let (channel, board) = make(stopwatch)
+        channel.linkUp()
+        channel.flushUI()  // the first status says StopWatch
+        XCTAssertEqual(board.lines.count, 1)
+        let o = try json(sent(board.lines[0]))
+        XCTAssertEqual(o["m"] as? String, "idle")
+        XCTAssertEqual(o["p"] as? String, "standby")
+        XCTAssertEqual(o["k"] as? [String], [])  // no picks left over from a standby island
+        let (xiao, xiaoBoard) = make(BoardStatus(board: "xiao"))
+        xiao.linkUp()
+        xiao.flushUI()
+        XCTAssertEqual(xiaoBoard.lines, [])
+    }
+
+    func testTheBoardSaysWhatTheIslandSaysAndLooksWhereItLooks() throws {
+        var state = State(mood: .acting, step: 2, limit: 300, line: "Open Settings and find Wi-Fi", phase: .running)
+        state.labelFull = "Tapping Settings"
+        (state.lookX, state.lookY) = (0.34, -2)
+        let o = try json(try XCTUnwrap(StopWatchUI.command(.show(state), at: time)).0)
+        XCTAssertEqual(o["t"] as? String, "Tapping Settings")
+        XCTAssertEqual(o["x"] as? Double, 0.3)
+        XCTAssertEqual(o["y"] as? Double, -1)
+        state.phase = .help
+        state.line = "Enter the code"
+        (state.lookX, state.lookY) = (0, 0)
+        let help = try json(try XCTUnwrap(StopWatchUI.command(.show(state), at: time)).0)
+        XCTAssertEqual(help["t"] as? String, "Enter the code")
+        XCTAssertNil(help["x"])
+        XCTAssertNil(help["y"])
+    }
+
+    func testButtonsMapToCommands() {
+        let picks = [UUID(), UUID()]
+        XCTAssertEqual(StopWatchUI.action("stop", picks: []), .command(.stop))
+        XCTAssertEqual(StopWatchUI.action("pause", picks: []), .command(.pause))
+        XCTAssertEqual(StopWatchUI.action("unpause", picks: []), .command(.unpause))
+        XCTAssertEqual(StopWatchUI.action("continue", picks: []), .command(.resume))
+        XCTAssertEqual(StopWatchUI.action("takeover", picks: []), .command(.takeOver))
+        XCTAssertEqual(StopWatchUI.action("home", picks: []), .home)
+        XCTAssertEqual(StopWatchUI.action("run 1", picks: picks), .run(picks[1]))
+        XCTAssertNil(StopWatchUI.action("run 2", picks: picks))
+        XCTAssertNil(StopWatchUI.action("run -1", picks: picks))
+        XCTAssertNil(StopWatchUI.action("run", picks: picks))
+        XCTAssertNil(StopWatchUI.action("reboot", picks: picks))
+    }
+
+    func testRunPicksTheIntentOnTheBoardsScreenAndOtherBoardsAreNotHeard() {
+        let picks = ["A", "B"].map { StandbyPick(id: UUID(), name: $0, symbol: "star") }
+        let (channel, board) = make(stopwatch)
+        var heard: [StopWatchUI.Action] = []
+        channel.onButton = { heard.append($0) }
+        channel.showUI(LiveActivityController.standbyState(picks))
+        XCTAssertEqual(board.lines.count, 1, board.lines.joined(separator: "|"))
+        XCTAssertEqual(channel.uiPicks, picks.map(\.id))
+        channel.handleReply("btn run 1")
+        channel.handleReply("btn stop\n")
+        channel.handleReply("btn run 5")
+        XCTAssertEqual(heard, [.run(picks[1].id), .command(.stop)])
+
+        let (other, _) = make(BoardStatus(board: "xiao"))
+        other.onButton = { heard.append($0) }
+        other.handleReply("btn stop")
+        XCTAssertEqual(heard.count, 2)
+    }
+
+    func testQuickIntentsGoAsAPicksLineAndYellowRunsThem() async throws {
+        let picks = (1...7).map { StandbyPick(id: UUID(), name: "Intent \($0)", symbol: "star") }
+        let (channel, board) = make(stopwatch)
+        var heard: [StopWatchUI.Action] = []
+        channel.onButton = { heard.append($0) }
+        channel.quickIntents = { picks }
+        channel.flushPicks()
+        for _ in 0..<50 where !channel.quickOn { try await Task.sleep(nanoseconds: 10_000_000) }
+        let line = try XCTUnwrap(board.lines.first { $0.contains(" picks ") })
+        XCTAssertTrue(line.hasSuffix(#"picks ["Intent 1","Intent 2","Intent 3","Intent 4","Intent 5"]"#), line)
+        XCTAssertEqual(channel.uiPicks, picks.prefix(5).map(\.id))
+        channel.showUI(LiveActivityController.standbyState(Array(picks.suffix(2))))  // the island's picks: not for the board now
+        let ui = try XCTUnwrap(board.lines.last { $0.contains(" ui ") })
+        XCTAssertNil(try json(String(ui.split(separator: " ", maxSplits: 1)[1]))["k"])
+        XCTAssertEqual(channel.uiPicks, picks.prefix(5).map(\.id))
+        channel.handleReply("btn run 4")
+        XCTAssertEqual(heard, [.run(picks[4].id)])
+        let count = board.lines.count
+        channel.flushPicks()  // unchanged: not again
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(board.lines.count, count)
+    }
+
+    func testStatusWithAScreenDecodesAndSurvivesAShortNotify() throws {
+        let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"stopwatch","ui":1,"hid":"ok"}"#.utf8)))
+        XCTAssertTrue(StopWatchUI.enabled(full))
+        let short = try XCTUnwrap(BoardStatus.decode(Data(#"{"up":5,"ble":{"mtu":23}}"#.utf8)))
+        XCTAssertTrue(StopWatchUI.enabled(full.merged(with: short)))
+        XCTAssertFalse(StopWatchUI.enabled(BoardStatus.decode(Data(#"{"board":"xiao","hid":"ok"}"#.utf8))))
+    }
+}

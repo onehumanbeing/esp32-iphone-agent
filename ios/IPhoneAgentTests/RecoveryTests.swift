@@ -18,6 +18,25 @@ import XCTest
         XCTAssertEqual(r.next(link(frameAt: 141), at: 141), .live)
     }
 
+    func testAUSBBoardUnpluggedFromThisIPhoneWaitsThenAsksToPlugItIn() {
+        var usbOff = link(frameAt: 200)
+        usbOff.usb = "off"  // powered elsewhere; mirroring still streams
+        XCTAssertTrue(usbOff.inputGone)
+        var r = Recovery(at: 100)
+        XCTAssertEqual(r.next(usbOff, at: 100), .wait(.init(part: .cable, ask: false)))
+        XCTAssertEqual(r.next(usbOff, at: 110), .wait(.init(part: .cable, ask: true)))
+        XCTAssertEqual(Recovery.Stage(part: .cable, ask: true).status.minimal, "USB")
+        var asleep = usbOff
+        asleep.usb = "asleep"
+        XCTAssertEqual(r.next(asleep, at: 111), .wait(.init(part: .locked, ask: false)), "asleep still means locked")
+        usbOff.usb = "ok"
+        XCTAssertEqual(r.next(usbOff, at: 112), .live)
+        var wireless = link()
+        wireless.usb = nil  // a wireless-HID board: its USB says nothing about this iPhone
+        XCTAssertFalse(wireless.inputGone)
+        XCTAssertTrue(Recovery.matches(Recovery.reason(.cable), .cable))
+    }
+
     func testAsksOnlyAfterEachPartsQuietTime() {
         var r = Recovery(at: 0)
         XCTAssertEqual(r.next(link(sta: 0), at: 0), .wait(.init(part: .hotspot, ask: false)))
@@ -330,5 +349,93 @@ import XCTest
         let url = TrialRecordsSection.mail("0a1b2c3d-0000-4000-8000-000000000001")
         XCTAssertEqual(url?.scheme, "mailto")
         XCTAssertTrue(url?.absoluteString.contains("0a1b2c3d-0000-4000-8000-000000000001") == true)
+    }
+
+    func testMirrorHintShowsInBluetoothModeAfterALongSessionUntilDismissed() {
+        let long = MirrorHint.longSession
+        var h = MirrorHint()
+        h.status(streaming: true, frozen: false, at: 100)
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + long - 1), "not long enough yet")
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 100 + long), .long)
+        XCTAssertNil(h.trigger(ble: false, never: false, at: 100 + long), "USB mode: no tip")
+        XCTAssertNil(h.trigger(ble: true, never: true, at: 100 + long), "don't show again")
+        h.status(streaming: true, frozen: false, at: 100 + long)  // later heartbeats keep the session's start
+        h.dismiss()
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + 2 * long), "× hides it for this session")
+        h.status(streaming: false, frozen: false, at: 100 + 2 * long)  // mirroring restarted
+        h.status(streaming: true, frozen: false, at: 100 + 2 * long + 5)
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 100 + 2 * long + 10), "a fresh session starts over")
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 100 + 3 * long + 5), .long)
+    }
+
+    func testMirrorHintShowsAtOnceAfterFrozenVideo() {
+        var h = MirrorHint()
+        XCTAssertNil(h.trigger(ble: true, never: false, at: 0), "no mirroring, no tip")
+        h.status(streaming: true, frozen: false, at: 10)
+        h.status(streaming: true, frozen: true, at: 11)  // the board's GOP filled up
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 12), .stale)
+        h.status(streaming: true, frozen: false, at: 13)
+        XCTAssertEqual(h.trigger(ble: true, never: false, at: 14), .stale, "stays until mirroring restarts")
+        var r = MirrorHint()
+        r.status(streaming: true, frozen: false, at: 10)
+        r.stale()  // a run's recovery asked to reconnect mirroring
+        XCTAssertEqual(r.trigger(ble: true, never: false, at: 11), .stale)
+        XCTAssertNil(r.trigger(ble: false, never: false, at: 11))
+        r.status(streaming: false, frozen: false, at: 12)
+        XCTAssertNil(r.trigger(ble: true, never: false, at: 12))
+    }
+
+    // MARK: usage stats on run events (counts and fixed kinds only)
+
+    func testRunAnalyticsNameTheBoardsInputAndFirmware() {
+        XCTAssertEqual(BoardStatus.analytics(nil)["hid"] as? String, "none")
+        var s = BoardStatus()
+        s.usb = "ok"
+        XCTAssertEqual(BoardStatus.analytics(s)["hid"] as? String, "usb")
+        XCTAssertEqual(BoardStatus.analytics(s)["board"] as? String, "stock")
+        XCTAssertEqual(BoardStatus.analytics(s)["fw"] as? String, "unknown")
+        s.hid = "ok"; s.board = "note4"; s.fw = FirmwareVersion("0.2.6")
+        XCTAssertEqual(BoardStatus.analytics(s)["hid"] as? String, "ble")
+        XCTAssertEqual(BoardStatus.analytics(s)["fw"] as? String, "0.2.6")
+        XCTAssertEqual(BoardStatus.analytics(s)["dual_hid"] as? Bool, false)
+        var dual = BoardStatus()
+        dual.hidm = "usb"
+        XCTAssertFalse(dual.bleInput)
+        dual.hidm = "ble"
+        XCTAssertTrue(dual.bleInput)
+        XCTAssertEqual(BoardStatus.analytics(dual)["dual_hid"] as? Bool, true)
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(BoardStatus.analytics(s)))
+    }
+
+    func testTypeStatsCountPasteFallbacksByKind() {
+        var t = TypeStats()
+        t.pasted(nil, pinyin: true)
+        t.pasted("x, so \"y\" is on the clipboard instead: Notes is open again and cmd+v was pressed, but the text is not seen: tap", pinyin: false)
+        t.pasted("nothing typed, and the clipboard is not available here", pinyin: false)
+        t.pasted("x, so \"y\" is on the clipboard instead: Notes did not open again: open it", pinyin: true)
+        let p = t.props
+        XCTAssertEqual(p["pinyin_stops"] as? Int, 2)
+        XCTAssertEqual(p["paste_ok"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed"] as? Int, 3)
+        XCTAssertEqual(p["paste_failed_not_seen"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed_no_clipboard"] as? Int, 1)
+        XCTAssertEqual(p["paste_failed_reopen"] as? Int, 1)
+        XCTAssertEqual(TypeStats.reason("something new"), "other")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(p))
+    }
+
+    func testVideoHealthCountsSinceTheRunStarted() {
+        let metrics = Metrics()
+        metrics.decodeError(background: false)
+        var v = VideoHealth(metrics)
+        metrics.decodeError(background: true)
+        metrics.decodeError(background: false)
+        v.frozen += 1
+        v.mirrorAsked += 1
+        let p = v.props(decodeErrors: metrics.decodeErrors, backgroundDecodeErrors: metrics.backgroundDecodeErrors)
+        XCTAssertEqual(p["decode_errors"] as? Int, 2)
+        XCTAssertEqual(p["decode_errors_bg"] as? Int, 1)
+        XCTAssertEqual(p["video_frozen"] as? Int, 1)
+        XCTAssertEqual(p["mirror_reconnect_asked"] as? Int, 1)
     }
 }

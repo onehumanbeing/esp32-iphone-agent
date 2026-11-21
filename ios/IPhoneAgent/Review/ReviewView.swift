@@ -118,12 +118,12 @@ struct ReviewView: View {
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .safeAreaInset(edge: .bottom) { if !draft.readOnly && outcome != .running { bottomBar } }
         .task(id: [playing, showVideo]) { await autoplay() }
-        .onChange(of: showVideo) { playing = false }
-        .onChange(of: videoTime) { _, t in  // the step follows the video
+        .onValueChange(of: showVideo) { playing = false }
+        .onValueChange(of: videoTime) { _, t in  // the step follows the video
             guard showVideo, let i = steps.lastIndex(where: { ($0.t ?? 0) <= t }), i != index else { return }
             index = i
         }
-        .onChange(of: index) { _, i in
+        .onValueChange(of: index) { _, i in
             Haptics.tick()
             if !playing, let t = steps[safe: i]?.t { videoTime = t }
         }
@@ -182,7 +182,7 @@ struct ReviewView: View {
             Spacer()
             Menu {
                 if let folder = draft.folder {
-                    Button { shareURL = try? TraceStore.zip(folder) } label: {
+                    Button { shareURL = try? TraceStore.zipForSharing(folder, name: "trace.zip") } label: {
                         Label("Export trace", systemImage: "square.and.arrow.up")
                     }
                 }

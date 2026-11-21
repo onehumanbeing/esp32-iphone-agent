@@ -501,3 +501,42 @@ final class ModelImageTests: XCTestCase {
         return out as Data
     }
 }
+
+/// The `vdiag` line: one per 5 s window while a run goes, counts from zero each window (BLE vs USB HID freezes).
+final class VideoDiagTests: XCTestCase {
+    func testOneLinePerWindowWithItsOwnCounts() {
+        var d = VideoDiag()
+        XCTAssertNil(d.tick(at: 100, active: true, hid: "ble", via: "wifi", frozen: false), "the first tick opens the window")
+        d.units += 3
+        d.seqDrops += 2
+        d.shown(at: 101)
+        d.shown(at: 101.2)
+        d.shown(at: 103.7)
+        d.decodeError()
+        d.sessionLost()
+        XCTAssertNil(d.tick(at: 104, active: true, hid: "ble", via: "wifi", frozen: false))
+        XCTAssertEqual(d.tick(at: 105, active: true, hid: "ble", via: "wifi", frozen: true),
+                       "vdiag: hid ble via wifi, 5 s: units 3, frames 3, max frame gap 2.5 s, frame age 1.3 s, seq drops 2, decode errors 1, session lost 1, fz 1")
+        // nothing shown in the next window: the gap is the frame's age, the counts start over
+        XCTAssertEqual(d.tick(at: 110, active: true, hid: "usb", via: "ble", frozen: false),
+                       "vdiag: hid usb via ble, 5 s: units 0, frames 0, max frame gap 6.3 s, frame age 6.3 s, seq drops 0, decode errors 0, session lost 0, fz 0")
+    }
+
+    func testNoLineWithoutARunAndNoFrameYet() {
+        var d = VideoDiag()
+        XCTAssertNil(d.tick(at: 0, active: false, hid: "ble", via: "wifi", frozen: false))
+        XCTAssertNil(d.tick(at: 10, active: false, hid: "ble", via: "wifi", frozen: false))
+        XCTAssertNil(d.tick(at: 20, active: true, hid: "ble", via: "wifi", frozen: false))
+        XCTAssertEqual(d.tick(at: 26, active: true, hid: "ble", via: "wifi", frozen: false),
+                       "vdiag: hid ble via wifi, 6 s: units 0, frames 0, max frame gap 6.0 s, frame age -, seq drops 0, decode errors 0, session lost 0, fz 0")
+        XCTAssertNil(d.tick(at: 27, active: false, hid: "ble", via: "wifi", frozen: false), "the run ended")
+        XCTAssertNil(d.tick(at: 40, active: true, hid: "ble", via: "wifi", frozen: false), "a new run opens a new window")
+    }
+
+    func testHIDTransportFromStatus() throws {
+        XCTAssertEqual(try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8))).hidTransport, "usb")
+        XCTAssertEqual(try XCTUnwrap(BoardStatus.decode(Data(#"{"hid":"ok","usb":"off"}"#.utf8))).hidTransport, "ble")
+        XCTAssertEqual(try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"usb","usb":"ok"}"#.utf8))).hidTransport, "usb")
+        XCTAssertEqual(try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"ble","hid":"ok"}"#.utf8))).hidTransport, "ble")
+    }
+}

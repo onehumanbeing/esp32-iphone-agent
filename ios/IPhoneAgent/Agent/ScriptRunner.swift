@@ -118,14 +118,19 @@ extension AgentLoop {
     private func labelled(_ step: Replay.Step) async -> (x: Int, y: Int)? {
         guard let label = step.action["label"]?.str else { return nil }
         var at: (x: Int, y: Int)?
-        // a sheet or Control Center may still be sliding in after the last move: read again for up to ~2 s
-        for attempt in 0..<4 where at == nil {
-            if attempt > 0 { try? await Task.sleep(nanoseconds: 600_000_000) }
+        // a sheet or Control Center may still be sliding in after the last move: read again for up to ~2.5 s. By time,
+        // not by count: one read of the screen took ~13 s on an iPhone X, and 4 reads held a run for 54 s (2026-11-22)
+        let started = now()
+        var reads = 0
+        while at == nil && (reads == 0 || now() - started < 2.5) {
+            if reads > 0 { try? await Task.sleep(nanoseconds: 600_000_000) }
             guard let frame = screen?.frame else { return nil }
+            reads += 1
             at = Replay.locate(label, near: step.action["x"]?.int ?? 500, step.action["y"]?.int ?? 500,
-                               in: await DemoAnalysis.texts(frame, limit: 80))
+                               in: await DemoAnalysis.texts(frame, limit: 80, fast: label.unicodeScalars.allSatisfy(\.isASCII)))
         }
-        DebugLog.write("script: \"\(label)\" \(at.map { "at \($0.x) \($0.y)" } ?? "not on screen")")
+        DebugLog.write(String(format: "script: \"%@\" %@ (%d read%@, %.1f s)", label,
+                              at.map { "at \($0.x) \($0.y)" } ?? "not on screen", reads, reads == 1 ? "" : "s", now() - started))
         return at
     }
 
@@ -191,6 +196,17 @@ extension AgentLoop {
         let seen = screen?.frame
         if try await pausedBeforeGesture() { return false }  // they paused; don't replay this move on a new screen
         var act = step.action
+        if act["action"]?.str == "open", let app = act["app"]?.str, let opened = openedAtStart,
+           app.caseInsensitiveCompare(opened) == .orderedSame {
+            // the scheme opened it before the first frame: replaying the open went Home and through Spotlight again,
+            // 23 s, and ended "not opened" with the app in front (2026-11-22, Fiverr)
+            act["opened"] = .str(OpenResult.opened.rawValue)
+            act["via"] = .str("scheme")
+            act["replay"] = .bool(true)
+            act["changed"] = .bool(true)
+            record(seen, act)
+            return true
+        }
         onDoing?(.acting(act))
         let started = now()
         try await perform(act)

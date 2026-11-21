@@ -305,11 +305,223 @@ import XCTest
         }
     }
 
+    /// The re-pair steps: only after a wait, never while connected or pairing, and not while boards are listed to pick.
+    func testBoardRepairHintWaitsAndHidesWhileConnected() {
+        XCTAssertFalse(BoardRepairHint.shows(stuck: false, connected: false, linking: false, paired: true, found: false), "not at once")
+        XCTAssertTrue(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: true, found: true), "remembered board won't connect")
+        XCTAssertTrue(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: false, found: false), "scan found nothing")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: false, linking: false, paired: false, found: true), "pick a found board")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: false, linking: true, paired: true, found: true), "iOS is asking to pair")
+        XCTAssertFalse(BoardRepairHint.shows(stuck: true, connected: true, linking: false, paired: true, found: true))
+    }
+
     func testReplyParsing() {
         XCTAssertEqual(BoardReply.parse("12 ok"), BoardReply(id: 12, ok: true, text: ""))
         XCTAssertEqual(BoardReply.parse("3 ok 812\n"), BoardReply(id: 3, ok: true, text: "812"))
         XCTAssertEqual(BoardReply.parse("4 err unknown command"), BoardReply(id: 4, ok: false, text: "unknown command"))
         XCTAssertNil(BoardReply.parse("ok"))
+    }
+
+    /// A --dual-hid board reports its input (hidm); a compact status without it keeps the last one.
+    func testDualHIDBoardReportsItsInputMode() throws {
+        let ble = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"ble","hid":"ok","usb":"ok"}"#.utf8)))
+        XCTAssertEqual(ble.hidm, "ble")
+        XCTAssertTrue(ble.isWirelessHID)
+        XCTAssertEqual(ble.merged(with: BoardStatus(up: 5)).hidm, "ble")
+        let usb = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"usb","usb":"ok"}"#.utf8)))
+        XCTAssertFalse(usb.isWirelessHID, "USB mode sends no hid field")
+        XCTAssertEqual(usb.inputState, "ok")
+        XCTAssertNil(try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8))).hidm, "single-mode firmware")
+    }
+
+    /// Lightning up to the 14 Pro (iPhone15,3); USB-C from the iPhone 15 (iPhone15,4), the 16e included.
+    func testLightningModels() {
+        for m in ["iPhone10,6", "iPhone12,8", "iPhone14,5", "iPhone14,6", "iPhone14,7", "iPhone14,8", "iPhone15,2", "iPhone15,3"] {
+            XCTAssertTrue(DeviceCaps.usesLightning(model: m), m)
+        }
+        for m in ["iPhone15,4", "iPhone15,5", "iPhone16,1", "iPhone16,2", "iPhone17,1", "iPhone17,5", "iPhone18,1",
+                  "iPad14,1", "arm64", "x86_64", "iPhone", ""] {
+            XCTAssertFalse(DeviceCaps.usesLightning(model: m), m)
+        }
+    }
+
+    /// Setup on a Lightning iPhone: a dual board in USB mode gets the switch, USB-only firmware the firmware hint;
+    /// a Bluetooth board and every USB-C iPhone see nothing new.
+    func testLightningSetupAdvice() throws {
+        let dualUSB = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"usb","usb":"ok"}"#.utf8)))
+        let dualBLE = try XCTUnwrap(BoardStatus.decode(Data(#"{"hidm":"ble","hid":"off","usb":"ok"}"#.utf8)))
+        let usbOnly = try XCTUnwrap(BoardStatus.decode(Data(#"{"usb":"ok"}"#.utf8)))
+        let bleOnly = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"note4","hid":"ok"}"#.utf8)))
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: dualUSB), .switchInput)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: usbOnly), .needsFirmware)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: dualBLE), .none)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: bleOnly), .none)
+        XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: true, status: nil), .none, "nothing connected yet")
+        for s in [dualUSB, dualBLE, usbOnly, bleOnly] {
+            XCTAssertEqual(DeviceCaps.bluetoothAdvice(lightning: false, status: s), .none, "USB-C: unchanged")
+        }
+    }
+
+    func testAnotherDevicesMirroringIsNotThisDevicesScreen() throws {
+        let iPhone = try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPhone15,4","usb":"ok"}"#.utf8)))
+        XCTAssertEqual(iPhone.seen(by: "iPad15,3").ap, "other", "the iPad must not take the iPhone's screen")
+        XCTAssertEqual(iPhone.seen(by: "iPhone15,4").ap, "streaming")
+        var connecting = iPhone
+        connecting.ap = "connected"
+        XCTAssertEqual(connecting.seen(by: "iPad15,3").ap, "other")
+        var none = iPhone
+        none.ap = "idle"; none.src = ""
+        XCTAssertEqual(none.seen(by: "iPad15,3").ap, "idle")
+        var unknown = iPhone
+        unknown.src = ""  // before SETUP names the sender
+        XCTAssertEqual(unknown.seen(by: "iPad15,3").ap, "streaming")
+        unknown.src = nil  // older firmware
+        XCTAssertEqual(unknown.seen(by: "iPad15,3").ap, "streaming")
+        // the iPhone stops, the iPad starts: the next status names the iPad
+        let merged = iPhone.merged(with: try XCTUnwrap(BoardStatus.decode(Data(#"{"ap":"streaming","src":"iPad15,3"}"#.utf8))))
+        XCTAssertEqual(merged.seen(by: "iPad15,3").ap, "streaming")
+    }
+
+    func testAUSBBoardLeavingThisIPhoneInvalidatesThePointerAndAsksToPlugIn() {
+        let board = BoardLink(mock: true)
+        board.updateStatus(BoardStatus(usb: "ok", ap: "streaming"))
+        let plugged = board.commands.links
+        board.updateStatus(BoardStatus(usb: "off"))
+        XCTAssertNotEqual(board.commands.links, plugged, "the pointer the app tracked is gone with the USB link")
+        XCTAssertEqual(board.status?.needsUSBHost, true)
+        XCTAssertEqual(board.status?.needsWirelessPointer, false)
+        let off = board.commands.links
+        board.updateStatus(BoardStatus(usb: "ok"))
+        XCTAssertEqual(board.commands.links, off, "coming back does not invalidate again")
+        XCTAssertEqual(board.status?.inputReady, true)
+    }
+
+    func testWirelessPairingIsSeparateFromTheControlConnection() throws {
+        let board = BoardLink(mock: true)
+        let full = try XCTUnwrap(BoardStatus.decode(Data(#"{"board":"esp32s3","usb":"ok","hid":"off","ap":"streaming"}"#.utf8)))
+        board.updateStatus(full)
+        XCTAssertTrue(full.needsWirelessPointer)
+        XCTAssertFalse(full.inputReady)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.inputReady, true)
+        XCTAssertEqual(board.status?.ap, "streaming")
+        let paired = board.commands.links
+        board.updateStatus(BoardStatus(up: 200))
+        XCTAssertEqual(board.status?.hid, "ok")
+        board.updateStatus(BoardStatus(hid: "off"))
+        XCTAssertNotEqual(board.commands.links, paired, "Losing the pointer while GATT stays connected must invalidate earlier actions")
+        XCTAssertEqual(board.status?.needsWirelessPointer, true)
+        XCTAssertEqual(board.status?.usb, "ok")
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.needsWirelessPointer, false)
+    }
+
+    func testReconnectingFromAbsoluteUSBToBLEClearsUSBStatusAndPointerMode() {
+        let board = BoardLink(mock: true)
+        let net = NetConfig(mode: "ap")
+        board.mockConnect(name: "board", net: net)
+        let usb = BoardStatus(fw: .init([0, 2, 4]), heap: 81234, abs: 1, usb: "asleep")
+        board.updateStatus(usb)
+        XCTAssertEqual(board.status?.acceptsUSBRelease, true)
+
+        board.setDisconnected()
+        XCTAssertEqual(board.status, usb)
+        board.mockConnect(name: "board", net: net)
+        XCTAssertNil(board.status)
+        board.updateStatus(BoardStatus(usb: "ok", hid: "off"))
+        XCTAssertEqual(board.status?.acceptsUSBRelease, false)
+        XCTAssertNil(board.status?.heap)
+        XCTAssertNil(board.status?.abs)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        XCTAssertEqual(board.status?.inputReady, true)
+        XCTAssertNil(board.status?.abs)
+    }
+
+    func testCalibratedSetupCanContinueWithSleepingUSBButWaitsForWirelessInput() {
+        let app = AppModel.shared, board = BoardLink(mock: true)
+        let net = NetConfig(mode: "ap")
+        // The page reads the calibration through AutoCalibrator.hasValidCalibration, which is the app's pointer.
+        let pointer = app.pointer
+        pointer.mockCalibrated(quality: 0.005)
+        let view = OnboardingView(app: app, board: board, feed: app.feed, settings: app.settings,
+                                  calibrator: AutoCalibrator(app: app), pointer: pointer, start: .act)
+        func check(_ ready: Bool, line: UInt = #line) {
+            XCTAssertEqual(view.pageDone, ready, line: line)
+            XCTAssertEqual(view.primaryEnabled, ready, line: line)
+        }
+
+        board.mockConnect(name: "board", net: net)
+        board.updateStatus(BoardStatus(usb: "asleep"))
+        check(true)
+        board.setDisconnected()
+        check(true)
+        board.mockConnect(name: "board", net: net)
+        board.updateStatus(BoardStatus(usb: "ok", hid: "off"))
+        check(false)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(true)
+        board.setDisconnected()
+        XCTAssertNil(board.status)
+        check(false)
+        board.mockConnect(name: "board", net: net)
+        check(false)
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(true)
+
+        board.setDisconnected()
+        board.updateStatus(BoardStatus(hid: "ok"))
+        check(false)
+        board.mockConnect(name: "board", net: net)
+        check(true)
+    }
+
+    func testHIDCapabilityDoesNotDependOnBoardName() throws {
+        for model in ["note4", "esp32s3"] {
+            let status = try XCTUnwrap(BoardStatus.decode(Data("{\"board\":\"\(model)\",\"usb\":\"ok\"}".utf8)))
+            XCTAssertFalse(status.isWirelessHID, "The board model alone must not imply wireless HID support")
+            XCTAssertNil(status.inputState, "A named board without an input capability must not fall back to USB status")
+            XCTAssertFalse(status.inputReady)
+            XCTAssertFalse(status.acceptsUSBRelease)
+            let paired = status.merged(with: BoardStatus(hid: "ok"))
+            XCTAssertTrue(paired.isWirelessHID)
+            XCTAssertTrue(paired.inputReady)
+            XCTAssertFalse(paired.acceptsUSBRelease)
+            XCTAssertEqual(paired.board, model)
+        }
+        let unnamedHID = BoardStatus(usb: "ok", hid: "off")
+        XCTAssertTrue(unnamedHID.isWirelessHID)
+        XCTAssertTrue(unnamedHID.needsWirelessPointer)
+        XCTAssertFalse(unnamedHID.inputReady)
+    }
+
+    func testUSBStartupRetryKeepsWiredTimingAndSkipsWirelessInput() {
+        XCTAssertEqual(AutoCalibrator.usbStartupRetry(BoardStatus(up: 15_000, usb: "ok"))?.delay, 45)
+        XCTAssertEqual(AutoCalibrator.usbStartupRetry(BoardStatus(up: 75_000, usb: "ok"))?.delay, 10)
+        XCTAssertNil(AutoCalibrator.usbStartupRetry(BoardStatus(up: 90_000, usb: "ok")))
+        XCTAssertNil(AutoCalibrator.usbStartupRetry(BoardStatus(up: 15_000, usb: "off", hid: "ok")))
+        XCTAssertNil(AutoCalibrator.usbStartupRetry(BoardStatus(up: 15_000, usb: "off", board: "unknown")))
+    }
+
+    func testMissingUSBHostOnlyBlocksUSBInput() {
+        XCTAssertTrue(BoardStatus(usb: "off").needsUSBHost)
+        XCTAssertFalse(BoardStatus(usb: "asleep").needsUSBHost)
+        XCTAssertFalse(BoardStatus(usb: "off", hid: "ok").needsUSBHost)
+        XCTAssertFalse(BoardStatus(usb: "off", hid: "off").needsUSBHost)
+        XCTAssertFalse(BoardStatus(usb: "off", board: "unknown").needsUSBHost)
+    }
+
+    func testUSBUpdateRequiresAnIdentifiedUSBBoard() {
+        XCTAssertFalse(BoardStatus().acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(fw: .init([0, 2, 2]), usb: "off", board: "note4").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", hid: "off").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", board: "another-board").acceptsUSBRelease)
+        XCTAssertFalse(BoardStatus(usb: "ok", hidm: "usb").acceptsUSBRelease)  // dual board in USB mode: no OTA server
+        let usb = BoardStatus(usb: "ok")
+        XCTAssertTrue(usb.acceptsUSBRelease)
+        XCTAssertTrue(usb.inputReady)
+        XCTAssertFalse(usb.needsWirelessPointer)
+        XCTAssertFalse(BoardStatus(usb: "asleep").inputReady)
+        XCTAssertTrue(BoardStatus(usb: "asleep").acceptsUSBRelease)
     }
 
     func testStatusDecoding() throws {
@@ -539,6 +751,50 @@ import XCTest
         XCTAssertEqual(device.sent, ["release", "home"])
     }
 
+    /// iPad over Bluetooth (HomeTuning): blind homes push up the tuned count; with a known position the pointer goes
+    /// to the left edge only and up the measured way, so it pushes at the top edge only briefly. Probes stay blind.
+    func testBluetoothIPadHomesWithTheTunedCountOrTheMeasuredWay() async throws {
+        let wasPad = DeviceKind.isPad
+        DeviceKind.isPad = true
+        defer { DeviceKind.isPad = wasPad }
+        let device = FakeDevice()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let pointer = Pointer(device: device, calibrationFile: file)
+        pointer.homeUp = { 7 }
+        pointer.finishCalibration(x: 0.5, y: 0.25)  // span 400 x 800
+        try await pointer.reset()  // position unknown: blind, stepping off the top edge first
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home 4 7"])
+        try await pointer.point(0.75, 0.5)
+        device.sent = []
+        try await pointer.reset()  // known (300, 400): left edge, then up 400 + a 4% margin of 800
+        XCTAssertEqual(Array(device.sent.prefix(2)), ["release", "home 4 0"])
+        XCTAssertEqual(device.sent.count, 3)
+        XCTAssertTrue(device.sent[2].hasPrefix("move 0 -432"), device.sent[2])
+        device.sent = []
+        try await pointer.probe(150, 350)  // calibration needs the real corner, known position or not
+        XCTAssertEqual(device.sent, ["move 0 150", "home 4 7", "move 0 350", "move 150 0"])
+        pointer.homeUp = { nil }  // a USB board on the iPad: as before
+        device.sent = []
+        try await pointer.reset()
+        XCTAssertEqual(device.sent, ["release", "move 0 150", "home"])
+    }
+
+    func testHomeTuningGoesDownAfterAPanelAndUpWhenShortWithinBounds() {
+        let defaults = UserDefaults(suiteName: "HomeTuningTests-\(UUID().uuidString)")!
+        XCTAssertEqual(HomeTuning.value(landscape: true, defaults: defaults), HomeTuning.start)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 25), 17)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 10), 7)
+        XCTAssertEqual(HomeTuning.next(after: .panel, from: 5), HomeTuning.least)
+        XCTAssertNil(HomeTuning.next(after: .panel, from: HomeTuning.least))
+        XCTAssertEqual(HomeTuning.next(after: .short(0.03), from: 10), 13)
+        XCTAssertNil(HomeTuning.next(after: .short(0.03), from: HomeTuning.most))
+        HomeTuning.store(13, landscape: true, defaults: defaults)
+        XCTAssertEqual(HomeTuning.value(landscape: true, defaults: defaults), 13)
+        XCTAssertEqual(HomeTuning.value(landscape: false, defaults: defaults), HomeTuning.start, "each orientation its own")
+        XCTAssertNotEqual(HomeTuning.key(landscape: true, model: "iPad15,3"), HomeTuning.key(landscape: true, model: "iPad16,1"))
+    }
+
     func testIPadPointerMovesOneAxisAtATimeExceptMidDrag() async throws {
         let wasPad = DeviceKind.isPad
         DeviceKind.isPad = true
@@ -616,6 +872,19 @@ import XCTest
         try await pointer.goHome()
         XCTAssertFalse(device.sent.contains("homescreen"))
         XCTAssertEqual(Array(device.sent.suffix(3)), ["press", "abs 16384 4915 2000", "release"])  // a flick, not a glide
+    }
+
+    /// iOS ignores a Home key over Bluetooth HID (2026-11-19): a wireless board goes Home with the flick only.
+    func testWirelessPointerGoesHomeWithAFlickNotTheHomeKey() async throws {
+        let device = FakeDevice()
+        let pointer = pointer(device)
+        pointer.mockCalibrated(quality: 0.005)  // a relative pointer flicks only once calibrated
+        pointer.swipeHome = true
+        try await pointer.goHome()
+        try await pointer.homeKey()
+        XCTAssertFalse(device.sent.contains("homescreen"))
+        XCTAssertFalse(device.sent.contains("key cmd+h"))
+        XCTAssertEqual(device.sent.filter { $0.hasPrefix("flick 0 -") }.count, 2, "each goes Home with the flick up from the home bar")
     }
 
     /// A board flashed back to the relative mouse answers `abs` with an error: the pointer stops sending it.
@@ -964,4 +1233,51 @@ import XCTest
         XCTAssertFalse(boundary.accepts(capturedAt: 9, backgroundEnteredAt: 11))  // a new app visit supersedes it
     }
 
+
+    // AssistiveTouch Home on old iPhones (2026-11-22): the floating button found by its picture, Home by where iOS
+    // puts the menu.
+    private func screen(button at: CGPoint?, alpha: Double = 1, ring: CGPoint? = nil) -> CGImage {
+        let w = 750, h = 1624, k = AssistiveButton.size, scale = 5  // 150 px across, scaled 5×
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+        ctx.setFillColor(gray: 0.95, alpha: 1); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.setFillColor(gray: 0.2, alpha: 1); ctx.fill(CGRect(x: 40, y: 200, width: 670, height: 30))  // a text bar
+        if let ring {  // a round button with a light centre (a play button looked like the button to the old test)
+            let c = CGPoint(x: ring.x * Double(w), y: (1 - ring.y) * Double(h))
+            ctx.setFillColor(gray: 0.3, alpha: 1); ctx.fillEllipse(in: CGRect(x: c.x - 50, y: c.y - 50, width: 100, height: 100))
+            ctx.setFillColor(gray: 1, alpha: 1); ctx.fillEllipse(in: CGRect(x: c.x - 20, y: c.y - 20, width: 40, height: 40))
+        }
+        if let at {
+            let raw = Data(base64Encoded: AssistiveButton.templateBase64)!
+            for ty in 0..<k { for tx in 0..<k {
+                ctx.setFillColor(gray: Double(raw[ty * k + tx]) / 255, alpha: alpha)
+                let x = at.x * Double(w) + Double((tx - k / 2) * scale), y = (1 - at.y) * Double(h) - Double((ty - k / 2) * scale)
+                ctx.fill(CGRect(x: x - 2.5, y: y - 2.5, width: Double(scale), height: Double(scale)))
+            } }
+        }
+        return ctx.makeImage()!
+    }
+
+    func testAssistiveButtonFound() {
+        for at in [CGPoint(x: 0.89, y: 0.78), CGPoint(x: 0.89, y: 0.05), CGPoint(x: 0.123, y: 0.456)] {
+            for alpha in [1.0, 0.4] {  // solid, and faded as when idle
+                let spot = AssistiveButton.find(screen(button: at, alpha: alpha, ring: CGPoint(x: 0.5, y: 0.6)))
+                XCTAssertEqual(spot?.x ?? 0, at.x, accuracy: 0.02, "\(at) \(alpha)")
+                XCTAssertEqual(spot?.y ?? 0, at.y, accuracy: 0.02, "\(at) \(alpha)")
+            }
+        }
+        XCTAssertNil(AssistiveButton.find(screen(button: nil, ring: CGPoint(x: 0.5, y: 0.6))))  // a look-alike mid-screen
+        XCTAssertNil(AssistiveButton.find(screen(button: nil)))
+    }
+
+    func testAssistiveHomeSpotFollowsTheMenu() {
+        let x = CGSize(width: 375, height: 812)  // iPhone X; Home measured on screenshots with the menu open
+        for (button, home) in [(CGPoint(x: 0.893, y: 0.148), CGPoint(x: 0.578, y: 0.367)),
+                               (CGPoint(x: 0.893, y: 0.351), CGPoint(x: 0.578, y: 0.447)),
+                               (CGPoint(x: 0.884, y: 0.947), CGPoint(x: 0.578, y: 0.828))] {
+            let spot = AssistiveButton.homeSpot(button: button, screen: x)
+            XCTAssertEqual(spot.x, home.x, accuracy: 0.02)
+            XCTAssertEqual(spot.y, home.y, accuracy: 0.02)
+        }
+    }
 }

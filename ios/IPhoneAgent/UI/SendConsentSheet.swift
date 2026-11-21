@@ -16,7 +16,7 @@ struct SendConsentSheet: View {
                 SendConsentParts(settings: settings, model: model, jev: jev)
                 SendConsentFooter(policy: jev && JevConsent.target == JevConsent.handsy ? Trial.privacyURL : nil)
             }
-            .listSectionSpacing(Space.l)
+            .sectionSpacing(Space.l)
             .navigationTitle(model && jev ? "Allow Sending to Both?" : "Allow Sending?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Not Now") { dismiss() } } }

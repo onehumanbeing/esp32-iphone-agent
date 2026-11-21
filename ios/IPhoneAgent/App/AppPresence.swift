@@ -19,13 +19,15 @@ extension AppModel {
     func leaveApp() async throws -> Bool {
         let began = now()
         var used: AppDeparture.Method?
-        let away = try await AppDeparture(isBackground: { self.appIsBackgrounded },
+        var departure = AppDeparture(isBackground: { self.appIsBackgrounded },
                                isConnected: { self.board.connected }, attempt: { method in
             used = method
             switch method {
             case .homeKey: _ = try await self.board.commands.send("homescreen", timeout: 3)
             case .shortcut: _ = try await self.board.commands.send("key cmd+h", timeout: 3)
             case .swipe: try await self.pointer.homeSwipe()
+            case .assistive:
+                if !(try await self.pointer.assistiveHome()) { throw DeviceError(message: "no AssistiveTouch Home") }
             }
         }, waitForBackground: { try await self.waitForBackground($0, stopOnBoardLoss: true) },
            waitForConnection: {
@@ -36,7 +38,11 @@ extension AppModel {
             if error is BoardTimeout || !self.board.connected {
                 self.startupBoardUnavailable(disconnected: !self.board.connected)
             }
-        }, log: DebugLog.write).leave()
+        }, log: DebugLog.write)
+        // iOS 16 and older: the home-bar flick, the Home key and Cmd+H over the board never leave the app (2026-11-22,
+        // iPhone X), so only the AssistiveTouch menu, tried twice
+        if AssistiveButton.oldIPhone { departure.methods = [.assistive, .assistive] }
+        let away = try await departure.leave()
         // Which gesture really sends the app home, and how fast (a slow one shows the app switcher first).
         Analytics.capture("app_left", ["method": used?.rawValue ?? "none", "away": away,
                                        "ms": Int((now() - began) * 1000)])
@@ -70,19 +76,21 @@ extension AppModel {
         let usb = board.status?.usb ?? "?", mouse = PhoneMouse.connected
         DebugLog.write("leave app: the board took every gesture, the app stayed in front (usb \(usb), mouse on this iPhone: \(mouse))")
         Analytics.capture("app_left_failed", ["usb": usb, "mouse": mouse])
-        if usb == "off" {
+        if board.status?.needsUSBHost == true {
             throw DeviceError(message: String(localized: "The board has power, but it isn't plugged into this iPhone. Plug it into this iPhone's USB-C port and try again."))
         }
-        // just powered up: its USB drops reports for up to a minute (AutoCalibrator.settledAfter); once more after
-        if let ms = board.status?.up, Double(ms) / 1000 < AutoCalibrator.youngBelow {
-            let wait = max(AutoCalibrator.settledAfter - Double(ms) / 1000, 10)
-            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", Double(ms) / 1000, wait))
+        // A newly powered USB board may drop input reports until it settles.
+        if let retry = AutoCalibrator.usbStartupRetry(board.status) {
+            DebugLog.write(String(format: "leave app: the board is up %.0f s; trying again in %.0f s", retry.uptime, retry.delay))
             homeHint = String(localized: "The board just started. One moment…")
-            try await Task.sleep(nanoseconds: UInt64(wait * 1e9))
+            try await Task.sleep(nanoseconds: UInt64(retry.delay * 1e9))
             homeHint = nil
             if try await leaveApp() { return true }
         }
         if mouse || PhoneMouse.connected { return try await askUserToLeave() }  // the board drives this iPhone: the user swipes up once
+        if board.status?.isWirelessHID == true {
+            throw DeviceError(message: String(localized: "Check the Bluetooth board pairing and AssistiveTouch settings on this iPhone."))
+        }
         // USB up but no mouse on this iPhone: "plug it into USB-C" is wrong for a board that is plugged in. Its
         // USB host is another device, or this iPhone has not let the accessory in yet: say which, wait for the user
         // to fix it here, then go on.
@@ -146,11 +154,12 @@ extension AppModel {
         let began = now()
         var waited = false
         while true {
-            while !board.connected {
+            while !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
                 try Task.checkCancellation()
-                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.board)) }
+                let part: Recovery.Part = board.connected && board.status?.isWirelessHID == true ? .pointer : .board
+                guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(part)) }
                 waited = true
-                let stage = Recovery.Stage(part: .board, ask: now() - began >= Recovery.quiet[.board]!)
+                let stage = Recovery.Stage(part: part, ask: now() - began >= Recovery.quiet[part]!)
                 if stage != recovering {
                     DebugLog.write(String(format: "startup board wait: %@ after %.1f s", stage.logLine, now() - began))
                     recover(stage)
@@ -238,10 +247,10 @@ extension AppModel {
             guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.frames)) }
             try Task.checkCancellation()
             guard appIsBackgrounded else { throw onScreenError() }
-            if hasFrame(), board.connected, !snapMode || receivedSnapshot {
+            if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, !snapMode || receivedSnapshot {
                 await feed.settled(most: 1.5)  // the nudged cursor keeps fading for seconds; the Home Screen is still
                 try Task.checkCancellation()
-                if hasFrame(), board.connected, appIsBackgrounded {
+                if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, appIsBackgrounded {
                     if recovering != nil { recover(nil) }
                     return source
                 }
@@ -270,9 +279,9 @@ extension AppModel {
                 DebugLog.write(feed.undecodable ? "startup: frames arrive but none decodes (a lost packet; no keyframe yet); Screen Mirroring has to restart"
                                : "startup: the board has had no AirPlay frame since before the cursor moved; Screen Mirroring stalled")
             }
-            let link = Recovery.Link(connected: board.connected, sta: board.status?.sta, ap: board.status?.ap,
+            let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
                                      net: board.status?.net,
-                                     frameAt: hasFrame() ? now() : 0, stalled: stalled)
+                                     frameAt: hasFrame() ? now() : 0, stalled: stalled, needsPointer: board.status?.needsWirelessPointer == true)
             var waiting = false, stage: Recovery.Stage?
             switch recovery.next(link, at: now()) {
             case .live: break
@@ -291,7 +300,10 @@ extension AppModel {
                 shownPoll = poll
                 RunMarker.set("startup: " + (stage.map { "waiting, \($0.part)\($0.ask ? ", asked the user" : "")" } ?? "waiting for a frame"))
             }
-            if !board.connected { try await waitForStartupBoard(); continue }
+            if !board.connected || board.status?.inputState == nil || board.status?.needsWirelessPointer == true {
+                try await waitForStartupBoard()
+                continue
+            }
             if now() < streamDeadline {
                 try await Task.sleep(nanoseconds: UInt64(poll * 1e9))
                 continue
@@ -355,7 +367,7 @@ extension AppModel {
     func holdWhileInFront() async throws {
         guard !appIsBackgrounded, agent.running, !MockMode.on else { return }
         if let text = pendingClipboard {  // the agent came here for `write`: only a foreground app may set it
-            UIPasteboard.general.string = text
+            Self.writeLocalClipboard(text)
             clipboardWritten = UIPasteboard.general.hasStrings
             pendingClipboard = nil
             DebugLog.write("clipboard: wrote \(text.count) chars for the agent")
@@ -396,15 +408,29 @@ extension AppModel {
             guard !appIsBackgrounded, !Task.isCancelled else { return false }
             guard await UIApplication.shared.open(url) else { continue }
             var away = (try? await waitForBackground(0.8)) ?? false
+            // Still here: most likely iOS asks first. Said in the middle of the screen until the app leaves (a toast
+            // went unseen under the take-off screen, Henry 2026-11-20).
+            let hint = homeHint
+            if !away { homeHint = Self.openPromptNote(app) }
+            defer { homeHint = hint }
             // iOS asks "在“美团外卖”中打开？" for a scheme: the board taps 打开 / Open (Henry 2026-11-17: tapped by
             // hand each time). Only a prompt line that is just that word, read on the mirrored screen.
-            if !away, await tapOpenPrompt() { away = (try? await waitForBackground(3)) ?? false }
+            schemePrompted = false
+            if !away, await tapOpenPrompt() {
+                schemePrompted = true
+                away = (try? await waitForBackground(3)) ?? false
+            }
             if !away { away = (try? await waitForBackground(1.2)) ?? false }
             DebugLog.write(String(format: "open %@ by scheme: %@ (%.0f ms)", app, away ? "opened" : "did not leave", (now() - began) * 1000))
             Analytics.capture("app_left", ["method": "scheme", "away": away, "ms": Int((now() - began) * 1000)])
             return away
         }
         return false
+    }
+
+    /// Over Home while iOS asks "Open in “X”?" (only the first time a scheme opens that app), so the tap is no surprise.
+    static func openPromptNote(_ app: String) -> String {
+        String(localized: "The first time \(app) opens this way, iOS asks first: the agent taps Open.")
     }
 
     /// The system prompt that asks before another app opens: its 打开 / Open button, tapped by the board.
@@ -445,12 +471,12 @@ enum StartupFailure {
              trialClaim = "trial_claim", agentStart = "agent_start"
     }
 
-    static func kind(_ error: Error, cancelled: Bool, step: Step, boardConnected: Bool, usb: String?, mirroring: Bool,
+    static func kind(_ error: Error, cancelled: Bool, step: Step, boardConnected: Bool, status: BoardStatus?, mirroring: Bool,
                      inFront: Bool) -> String {
         if cancelled || error is CancellationError { return "cancelled" }
         if let trial = error as? TrialError { return trial.ownText ? "trial_refused" : "busy" }
         if !boardConnected { return "board_lost" }
-        if usb == "off" { return "usb_off" }
+        if status?.needsUSBHost == true { return "usb_off" }
         if !mirroring { return "mirroring_off" }
         if inFront, step == .leaveApp || step == .firstFrame { return "on_screen" }  // the app never left the front
         if error is URLError || (error as? DeviceError)?.message == "timeout" { return "timeout" }

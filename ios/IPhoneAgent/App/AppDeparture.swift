@@ -6,7 +6,9 @@ import Foundation
     /// them (2026-10-17 log), and each miss cost ~2 s before the flick.
     enum Method: String, CaseIterable {
         case swipe = "Home swipe", homeKey = "Home key", shortcut = "Cmd+H"
+        case assistive = "AssistiveTouch Home"  // iPhones on iOS 16 and older, first (Pointer.assistiveHome)
     }
+    var methods: [Method] = [.swipe, .homeKey, .shortcut]
 
     let isBackground: () -> Bool
     let isConnected: () -> Bool
@@ -19,7 +21,7 @@ import Foundation
     var log: (String) -> Void = { _ in }
 
     func leave() async throws -> Bool {
-        for method in Method.allCases {
+        for method in methods {
             while true {
                 try Task.checkCancellation()
                 if isBackground() { return true }

@@ -303,6 +303,21 @@ import XCTest
         XCTAssertEqual(wait?.taken, false)
     }
 
+    func testTypeSafeRequestAsksOneBoxWithTheGoalInTheState() {
+        let steps = JevRules.planSteps("1. Open Notes\n2. Tap New note")
+        let body = JevRules.request(goal: JevRules.stepGoal("make a note", "1. Open Notes\n2. Tap New note", nil),
+                                    steps: steps, image: Data([1, 2]), model: "jev-latest")
+        let questions = body["questions"] as? [String: Any] ?? [:]
+        XCTAssertEqual(Set(questions.keys), ["step", "operation", "box_now"])
+        let state = body["state"] as? [String: String] ?? [:]
+        XCTAssertEqual(state["screenshot"], "screenshot-1")
+        XCTAssertTrue(state["task"]?.hasPrefix("make a note\nPlan:\n1. Open Notes") == true)
+        let ids = ["step 1", "step 2", "done", "other"], ops = Array(JevRules.operations.keys)
+        let box: [String: Any] = ["confidence": 0.95, "box": ["top": 0.1, "bottom": 0.2, "left": 0.4, "right": 0.6]]
+        let tap = JevRules.reply(steps: steps, response: ["answers": ["step": choice("step 2", ids), "operation": choice("TAP", ops), "box_now": box]])
+        XCTAssertEqual(tap?.do, "tap 500 150")
+    }
+
     func testTypeSafeFloorsPerOperationAsTheServer() {
         let steps = JevRules.planSteps("1. Open Notes\n2. Tap New note\n3. Type \"milk\"")
         let ids = ["step 1", "step 2", "step 3", "done", "other"], ops = Array(JevRules.operations.keys)

@@ -12,9 +12,9 @@ struct FirmwareGate: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task(id: board.connected) { if board.connected { await updater.boardConnected() } }
-            .onChange(of: scene) { _, phase in if phase == .active { updater.ask() } }
-            .onChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
+            .task(id: updater.updatable) { if updater.updatable { await updater.boardConnected() } }
+            .onValueChange(of: scene) { _, phase in if phase == .active { updater.ask() } }
+            .onValueChange(of: agent.running || app.startingAgent || recorder.busy) { _, busy in if !busy { updater.ask() } }
             .sheet(isPresented: $updater.presented) { FirmwareSheet(app: app, updater: updater, board: board) }
     }
 }
@@ -56,15 +56,19 @@ struct FirmwareSection: View {
                 Button { showing = true } label: { Label("Update to \(release.ver.description)", systemImage: "arrow.down.circle") }
             } else if updater.checking {
                 HStack { Text("Checking for Updates…").foregroundStyle(.secondary); Spacer(); ProgressView() }
-            } else {
-                Button("Check for Updates") { Task { await updater.check() } }.disabled(!board.connected)
+            } else if board.status?.isWirelessHID != true || updater.updatable {
+                Button("Check for Updates") { Task { await updater.check() } }.disabled(!updater.updatable)
             }
         } header: {
             Text("Firmware")
         } footer: {
-            if let error = updater.checkError {
+            if board.status?.board == "note4" {
+                Text("Use firmware made for Note 4. Back up the board and follow its USB installation guide.")
+            } else if !updater.updatable && (board.status?.isWirelessHID == true || board.status?.board != nil) {
+                Text("Use firmware for your board model. Back up the board and follow its installation guide.")
+            } else if let error = updater.checkError {
                 Text(verbatim: error)
-            } else if updater.release != nil && !updater.available && board.connected {
+            } else if updater.release != nil && !updater.available && updater.updatable {
                 Text("The board is up to date.")
             }
         }

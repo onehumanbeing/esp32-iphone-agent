@@ -19,6 +19,8 @@
 #include "lwip/sockets.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
+#include "esp_heap_caps.h"
 #include "ap_internal.h"
 #include "mdns.h"
 
@@ -54,6 +56,11 @@ int airplay_state(void) {
   for (int i = 0; i < MAX_CONNS; i++)
     if (conns[i].fd >= 0 && (conns[i].have_keymsg || ap_mirror_owner == &conns[i])) return AIRPLAY_CONNECTED;
   return AIRPLAY_IDLE;
+}
+
+const char *airplay_source(void) {
+  const ap_conn *c = ap_mirror_owner;
+  return c ? c->model : "";
 }
 
 static bool send_all(int fd, const void *p, size_t n) {
@@ -210,7 +217,11 @@ bool airplay_start(const airplay_cfg *cfg) {
   for (int i = 0; i < MAX_CONNS; i++) conns[i].fd = -1;
   if (!ap_crypto_init(cfg->ed25519_seed)) return false;
   if (!ap_mdns_start()) ap_log("mdns: advertising failed");
+#ifdef M5_STOPWATCH  // its stack in PSRAM: the StopWatch's internal RAM is short (2026-11-22); this task never writes flash
+  return xTaskCreatePinnedToCoreWithCaps(server_task, "rtsp", 12 * 1024, NULL, 5, NULL, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS;
+#else
   return xTaskCreatePinnedToCore(server_task, "rtsp", 12 * 1024, NULL, 5, NULL, 0) == pdPASS;
+#endif
 }
 
 void airplay_readvertise(void) {

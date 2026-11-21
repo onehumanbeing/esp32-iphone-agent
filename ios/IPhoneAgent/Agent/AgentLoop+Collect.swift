@@ -15,13 +15,27 @@ enum Collect {
         case limit = "the page limit"
         case feed = "a recommendations feed starts (the list's own end)"
         case past = "the list reached items before the goal's dates"
+        case enough = "the number the goal asks for is read"
+    }
+
+    /// `collect WHAT [max N]`: max is the actor's, when the goal asks for the first N items (2026-11-22: "the first
+    /// 20 services" paged through 25 screens and 109 items in 6 minutes).
+    static func parse(_ text: String) -> (what: String, max: Int?) {
+        var what = text.trimmingCharacters(in: .whitespaces)
+        var max: Int?
+        if let m = what.firstMatch(of: #/\s*\(?\s*max\s*[:=]?\s*(\d+)\s*\)?\s*$/#.ignoresCase()), let n = Int(m.1), n > 0 {
+            max = n
+            what = String(what[..<m.range.lowerBound])
+        }
+        return (what.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")), max)
     }
 
     /// What to do after the stop: the list's end may only load more on a tap; past the goal's dates it is done.
-    static func next(_ end: End) -> String {
+    /// `done`: what the actor is told once the list is done (AgentLoop.listDone()).
+    static func next(_ end: End, done: String) -> String {
         switch end {
-        case .past: return ". " + listDone
-        case .still: return ". If the list's last row offers more (a row to tap to load more items), tap it and collect again; else " + listDone.prefix(1).lowercased() + listDone.dropFirst()
+        case .past, .enough: return ". " + done
+        case .still: return ". If the list's last row offers more (a row to tap to load more items), tap it and collect again; else " + done.prefix(1).lowercased() + done.dropFirst()
         default: return ""
         }
     }
@@ -29,8 +43,25 @@ enum Collect {
     /// 2026-11-19: Gaode and Meituan runs read their lists to the end and then never finished.
     static let listDone = "The list is done: write the result from the notebook now (every item in it that the goal counts), then finish with done"
 
+    /// The list is done and the app saved its result from the notebook (AgentLoop.saveListResult).
+    static func saved(_ path: String, items: Int) -> String {
+        "The list is done and its result is saved: \(path) holds all \(items) item\(items == 1 ? "" : "s") of the notebook "
+            + "(the app wrote it). Do not write it again. If the goal asks for more than the list (a total, a summary), "
+            + "add only that with one short str_replace or insert; then finish with done"
+    }
+
+    /// The result file from the notebook: the title, one line per item, then the actor's notes.
+    static func result(title: String, items: [String], notes: [String], chinese: Bool) -> String {
+        let list = { (lines: [String]) in lines.map { "- " + $0 }.joined(separator: "\n") + "\n" }
+        var text = "# \(title)\n\n"
+        if !items.isEmpty { text += list(items) }
+        if !notes.isEmpty { text += (items.isEmpty ? "" : "\n" + (chinese ? "## 备注" : "## Notes") + "\n\n") + list(notes) }
+        return text
+    }
+
     /// After one more screen: whether to stop, and why. `added`: new items on it; `moved`: the scroll before it moved.
-    static func end(page: Int, dryRun: Int, moved: Bool) -> End? {
+    static func end(page: Int, dryRun: Int, moved: Bool, added: Int = 0, max: Int? = nil) -> End? {
+        if let max, added >= max { return .enough }
         if !moved { return .still }
         if dryRun >= dry { return .dry }
         return page >= pages ? .limit : nil
@@ -40,7 +71,7 @@ enum Collect {
 extension AgentLoop {
     func collect(_ act: inout JObject) async throws {
         guard let phone else { throw LLMError(message: "no phone") }
-        let what = act["what"]?.str ?? ""
+        let (what, max) = Collect.parse(act["what"]?.str ?? "")
         var (page, dryRun, added, seconds) = (0, 0, 0, 0.0)
         var end = Collect.End.limit
         var moved = true
@@ -49,7 +80,7 @@ extension AgentLoop {
             (page, added, seconds) = (page + 1, added + new, seconds + s)
             dryRun = new == 0 ? dryRun + 1 : 0
             if readPastStart { end = .past; listRead = true; break }
-            if let stop = Collect.end(page: page, dryRun: dryRun, moved: moved) { end = stop; break }
+            if let stop = Collect.end(page: page, dryRun: dryRun, moved: moved, added: added, max: max) { end = stop; break }
             if await feedShown() != nil { end = .feed; break }
             try await gate?()  // a pause or stop between screens
             let before = screen?.frame
@@ -62,8 +93,52 @@ extension AgentLoop {
         }
         DebugLog.write("collect: \(page) screens, \(added) new, stopped: \(end.rawValue)")
         act["think_s"] = .num((seconds * 100).rounded() / 100)
+        let done = end == .past || end == .still ? listDone() : ""
         act["reason"] = .str("collected over \(page) screen\(page == 1 ? "" : "s"): \(added) new; \(notebook.items.count) in the notebook; "
-                             + "stopped: \(end.rawValue)" + Collect.next(end))
+                             + "stopped: \(end.rawValue)" + Collect.next(end, done: done))
+    }
+
+    /// The list is read to its end: the app saves the result from the notebook and the actor is told where it is.
+    /// 2026-11-20: a collect read 25 rides, then the whole README had to come in one model reply; the reply was cut
+    /// three times and the run ended in help with no result. The result no longer hangs on one long reply.
+    func listDone() -> String {
+        guard let path = saveListResult() else { return Collect.listDone }
+        return Collect.saved(path, items: notebook.items.count)
+    }
+
+    /// README.md in the run's folder, from the notebook. nil: nothing to write, or the run wrote its own result there
+    /// (left alone). Written again when the notebook grew, as long as the actor has not changed the file since.
+    @discardableResult
+    func saveListResult() -> String? {
+        guard !notebook.items.isEmpty || !notebook.notes.isEmpty, let folder = liveNotes.folder ?? runFolder else { return nil }
+        let path = folder + "/README.md"
+        let text = Collect.result(title: resultName ?? task, items: notebook.items, notes: notebook.notes, chinese: HanTyper.isHan(task))
+        if let own = autoResult {
+            guard own.path == path else { return nil }
+            if own.text == text { return path }
+        } else if resultWritten {
+            return nil  // the actor's own result
+        }
+        let files = MemoryFiles.open(since: filesSince)
+        let args = (try? JSONSerialization.data(withJSONObject: ["command": "create", "path": path, "file_text": text])) ?? Data()
+        let said = files.run(String(decoding: args, as: UTF8.self))
+        guard said.hasPrefix("ok: ") else {
+            DebugLog.write("list done: the result was not saved (\(said))")
+            return nil
+        }
+        DebugLog.write("list done: \(said)")
+        record(nil, ["action": .str("file"), "path": .str(path), "by": .str("app"),
+                     "reason": .str(said + "; written by the app from the notebook")])
+        liveNotes.wrote(path, files: files)
+        (autoResult, resultWritten, viewedSinceWrite) = ((path, text), true, [])
+        return path
+    }
+
+    /// The run's work is complete: the list was read to its end, or the progress count reached, and the result is
+    /// saved (the actor's, else the app's from the notebook).
+    func workComplete() -> Bool {
+        guard listRead || notebook.reached else { return false }
+        return saveListResult() != nil || resultWritten
     }
 }
 
@@ -133,6 +208,6 @@ extension AgentLoop {
         guard listRead, !backChecked, let y1 = act["y1"]?.double, let y2 = act["y2"]?.double, y2 - y1 > 100 else { return nil }
         backChecked = true
         return "refused once: the list was already read past the goal's dates (newest first, so nothing newer was "
-            + "skipped). " + Collect.listDone + ". Scroll back up again only if something the goal needs is really missing."
+            + "skipped). " + listDone() + ". Scroll back up again only if something the goal needs is really missing."
     }
 }

@@ -18,6 +18,7 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     var until: String?      // a script repeats its steps until this is true on screen (ScriptRunner)
     var maxLoops: Int?       // at most this many rounds of an `until` script (default 5)
     var kind: String?        // "call": always a phone call; "task": never; nil: by its words (Calls.dials)
+    var planReuse: Bool?     // Reuse Plan (PlanCache): false = never started from a saved plan, none saved; nil = on
 
     var symbol: String { icon ?? (isCall ? "phone.fill" : "bolt.fill") }  // a call shows as one
     /// Runs as a phone call (Calls.script): the Phone call switch, or else the words ("Call …", "打电话给…").
@@ -25,6 +26,7 @@ struct SavedTask: Codable, Identifiable, Equatable, Hashable {
     /// A template's blanks ("[who]") are still in it: edit them before it can run.
     var unfilled: Bool { IntentStore.unfilled(prompt) }
     var checklist: [String] { hints ?? [] }
+    var reusesPlan: Bool { planReuse ?? true }
     var runs: [RunStat] { history ?? [] }
     var successRate: Double? { runs.isEmpty ? nil : Double(runs.filter(\.ok).count) / Double(runs.count) }
     var averageSeconds: Double? { runs.isEmpty ? nil : runs.map(\.seconds).reduce(0, +) / Double(runs.count) }
@@ -147,6 +149,13 @@ struct RunStat: Codable, Equatable, Hashable {
     func record(_ id: UUID, _ stat: RunStat) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         items[i].history = Array((items[i].runs + [stat]).suffix(50))
+        save()
+    }
+
+    /// A deleted run leaves its intents' history (and their success rate and average time) too.
+    func forget(run: String) {
+        guard items.contains(where: { $0.runs.contains { $0.run == run } }) else { return }
+        for i in items.indices { items[i].history = items[i].history?.filter { $0.run != run } }
         save()
     }
 

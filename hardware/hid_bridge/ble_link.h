@@ -16,7 +16,7 @@ bool ble_pop_cmd(String &line, char &origin, uint32_t wait_ms, uint32_t *recv = 
 void ble_reply_timing(uint32_t recv, uint32_t queued, uint32_t ran);  // for the next ble_reply: logged when slow
 void ble_reply(const String &line, char dest = FROM_APP);         // queued; sent before any further video
 void ble_status(const String &json);               // latest wins; sent before any further video
-void ble_cli_status(const String &full, const String &compact);  // to the CLI, the form that fits its MTU
+void ble_cli_status(String full, String compact);  // to the CLI, the form that fits its MTU
 size_t ble_video_room();                           // payload bytes per video notify; 0 = nobody listening
 bool ble_video_send(const uint8_t *p, size_t n);   // waits for free buffers; false = gave up
 void ble_unpair();
@@ -27,11 +27,29 @@ uint32_t ble_kbps();     // video bytes out, last second
 uint32_t ble_drops();    // video notifies we failed to send
 uint32_t ble_reply_drops();  // replies that never got out to a subscribed peer
 int ble_peers();         // connected centrals
+// For the `diag` lines: running totals since boot; maxWaitMs (the longest a notify waited for the host to take it,
+// any channel) restarts on every call.
+struct BleDiag {
+  uint32_t videoNotifies, videoBytes, waits, maxWaitMs;
+};
+BleDiag ble_diag();
+// The app's link now: interval (1.25 ms units), peripheral latency, supervision timeout (10 ms). False: none.
+// On a BLE HID board the same link carries the mouse and keyboard.
+bool ble_app_conn(uint16_t *interval, uint16_t *latency, uint16_t *timeout);
 
 // For cli_link.cpp (slot = the peer's connection slot).
 bool ble_pair_window_open();
+void ble_pair_open();          // a new pairing window, bonds kept (the StopWatch's blue on its status page)
+void ble_pair_close();         // shut it now (yellow on the pairing page)
+uint32_t ble_pair_left_ms();   // what is left of it, 0 when closed
 uint16_t ble_cli_mtu(int slot);
 bool ble_cli_subscribed(int slot);
 bool ble_cli_notify(int slot, const uint8_t *p, size_t n, bool video, uint32_t timeout_ms);
 void ble_cli_drop(int slot);
 void ble_cli_push_cmd(const char *line, size_t n);
+
+#ifdef HID_TRANSPORT_BLE
+bool ble_hid_trusted(int handle);
+bool ble_cmd_stale();  // the last popped command was queued before the phone's HID session changed
+void ble_hid_subscribe(uint16_t handle, bool subscribed);
+#endif

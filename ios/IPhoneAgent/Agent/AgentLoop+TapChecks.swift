@@ -47,18 +47,33 @@ extension AgentLoop {
 
 /// A tap by coordinates on a tab bar label its THINK never names: what the model meant (a list card at the screen's
 /// bottom) is under the tab bar. 2026-11-19, 美团: order cards aimed at y 943 and 972 opened 神券 and 我的.
+/// A tab bar is a row: three or more short labels side by side along the bottom, over half the width, and the tap
+/// is nearest that label of the row (2026-11-21: any short word low on the screen counted, and Notes' compose, the
+/// Phone search button and a dock icon were held 12 times in 17 user runs).
 enum TabBarGuard {
     nonisolated static func held(_ act: JObject, lines: [(text: String, box: [Int])], w: Int, h: Int) -> String? {
         guard act["text"] == nil, let x = act["x"]?.double, let y = act["y"]?.double, y >= TapText.tabBar * 1000,
               w > 0, h > 0, let thought = act["thought"]?.str, !thought.isEmpty else { return nil }
         let (px, py, W, H) = (x / 1000 * Double(w), y / 1000 * Double(h), Double(w), Double(h))
-        let label = lines.first { l in
+        let short = lines.compactMap { l -> (text: String, b: [Double])? in
             let t = l.text.trimmingCharacters(in: .whitespaces), b = l.box.map(Double.init)
-            guard !t.isEmpty, t.count <= 4, b.count == 4, b[1] >= TapText.tabBar * H - 0.02 * H else { return false }
-            // the label and its icon above it, about one tab wide
-            return px >= b[0] - 0.06 * W && px <= b[2] + 0.06 * W && py >= b[1] - 0.06 * H && py <= b[3] + 0.02 * H
-        }?.text.trimmingCharacters(in: .whitespaces)
-        guard let label, !thought.contains(label) else { return nil }
+            guard !t.isEmpty, t.count <= 4, b.count == 4, b[1] >= TapText.tabBar * H - 0.02 * H else { return nil }
+            // one sign that is not a CJK character is an icon read as text (the Phone search button's magnifier,
+            // 2026-11-21); a one-character tab such as 我 stays
+            if t.count == 1, !t.unicodeScalars.allSatisfy({ (0x4E00...0x9FFF).contains($0.value) }) { return nil }
+            return (t, b)
+        }
+        let hit = short.first { l in  // the label and its icon above it, about one tab wide
+            px >= l.b[0] - 0.06 * W && px <= l.b[2] + 0.06 * W && py >= l.b[1] - 0.06 * H && py <= l.b[3] + 0.02 * H
+        }
+        guard let hit, !thought.contains(hit.text) else { return nil }
+        let mid = { (b: [Double]) in ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2) }
+        let row = short.filter { abs(mid($0.b).1 - mid(hit.b).1) <= 0.015 * H }
+        guard row.count >= 3, let left = row.map({ $0.b[0] }).min(), let right = row.map({ $0.b[2] }).max(),
+              right - left >= 0.5 * W,
+              let nearest = row.min(by: { abs(mid($0.b).0 - px) < abs(mid($1.b).0 - px) }), nearest.text == hit.text
+        else { return nil }
+        let label = hit.text
         return "not tapped: \(Int(x)), \(Int(y)) is the tab bar's \"\(label)\", which your THINK does not name; what you "
             + "meant is under the tab bar: scroll the list up a little first, then tap it"
     }

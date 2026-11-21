@@ -49,7 +49,8 @@ struct ModelSettingsView: View {
             Section {
                 DisclosureGroup("Advanced", isExpanded: $advanced) {
                     let same = String(localized: "Same as Model")
-                    ModelPicker(settings: settings, title: "Planner model", selection: $settings.plannerModel, automatic: same)
+                    ModelPicker(settings: settings, title: "Planner model", selection: $settings.plannerModel, automatic: same,
+                                forPlanner: true)
                     ModelPicker(settings: settings, title: "Actor model", selection: $settings.actorModel, automatic: same)
                     Picker("Token parameter", selection: $settings.tokenParam) {
                         ForEach(["auto"] + LLMClient.tokenParams, id: \.self) { Text(verbatim: $0) }

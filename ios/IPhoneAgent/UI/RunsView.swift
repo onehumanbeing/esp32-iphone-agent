@@ -10,6 +10,7 @@ struct RunsView: View {
     @State private var importError: String?
     @State private var showingDeleteError = false
     @State private var deleteError = ""
+    @State private var bulkDelete: Bool?  // asking to delete many runs: true = only the failed ones
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,20 @@ struct RunsView: View {
                     Button { importing = true } label: { Label("Import run", systemImage: "square.and.arrow.down") }
                 }
                 .plainBackground()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Delete Failed Runs", systemImage: "xmark.circle", role: .destructive) { bulkDelete = true }
+                        Button("Delete All Runs", systemImage: "trash", role: .destructive) { bulkDelete = false }
+                    } label: { Label("More", systemImage: "ellipsis.circle") }
+                    .disabled(runs.runs.isEmpty)
+                }
+                .plainBackground()
+            }
+            .confirmationDialog(bulkDelete == true ? LocalizedStringKey("Delete failed runs? This can't be undone.")
+                                                   : LocalizedStringKey("Delete all runs? This can't be undone."),
+                                isPresented: Binding(get: { bulkDelete != nil }, set: { if !$0 { bulkDelete = nil } }),
+                                titleVisibility: .visible, presenting: bulkDelete) { failedOnly in
+                Button(failedOnly ? LocalizedStringKey("Delete Failed Runs") : LocalizedStringKey("Delete All Runs"), role: .destructive) { deleteRuns(failedOnly: failedOnly) }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.zip]) { result in
                 do { try app.importRuns(result.get()) } catch { importError = error.localizedDescription }
@@ -54,6 +69,11 @@ struct RunsView: View {
 
     private func isRunning(_ run: Run) -> Bool {
         app.outcome(for: run) == .running
+    }
+
+    private func deleteRuns(failedOnly: Bool) {
+        do { try app.deleteRuns(failedOnly: failedOnly) }
+        catch { deleteError = error.localizedDescription; showingDeleteError = true }
     }
 
     private func delete(at offsets: IndexSet) {

@@ -21,3 +21,18 @@ struct VideoStats {
 };
 VideoStats video_stats(char who);  // frozen is as seen by who's stream
 String video_debug();              // `vdbg`: the tail and the app stream's state, for a frozen screen
+
+// Running totals for the periodic `diag` lines (diag.cpp): it logs the change over each window.
+struct VideoDiag {
+  uint32_t aus, bytes, idrs;  // from AirPlay
+  uint32_t maxGapMs;          // the longest wait between two AUs (or since the last one) since the last call
+  uint32_t sinceIdrMs;        // 0: no IDR yet
+  int gopAus;
+  uint32_t gopKb, overflows, frozenMs;  // frozenMs: how long the GOP has been full (0: it isn't)
+  bool frozen;                          // as the app's stream sees it (status fz)
+  uint32_t wifiChunks, wifiFails, bleChunks, bleFails, flips;  // the app's chunks by link, and link switches
+  uint32_t resyncs, resumes, resumeMisses, tailBreaks;
+  bool following;  // the app's stream goes on AU after AU in this GOP (or its tail)
+  char lastWhy;    // why it last stopped following (vdbg `uf`: w r n c g t b, '-' never)
+};
+VideoDiag video_diag();

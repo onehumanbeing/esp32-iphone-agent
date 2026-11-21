@@ -8,8 +8,8 @@ enum OpenResult: String {
     case unchecked  // no live screen: the keys went out, nothing was read back
 }
 
-/// `open APP` done by code, read back on the screen: the Home key, Spotlight (cmd+space), the name typed, Return
-/// only once the results list the name, then a check that the screen left Spotlight and the Home Screen.
+/// `open APP` done by code, read back on the screen: the Home key, Spotlight (cmd+space), the name typed, its listed
+/// row tapped (Return only when no row is read), then a check that the screen left Spotlight and the Home Screen.
 /// The model used to tap the app in the results itself: a tap that missed closed Spotlight back to the Home
 /// Screen, and a Chinese name could stay uncommitted pinyin that never found the app.
 /// Only the name asked for; a name Spotlight does not list goes back to the model, which picks another.
@@ -28,6 +28,8 @@ enum OpenResult: String {
     /// The agent app itself came to the front (a tap on its notification, its own shortcut as the top hit).
     var ownAppInFront: () -> Bool = { false }
     var same: (Data?, Data?) -> Bool = { Vision.similar($0, $1) }
+    /// A new screen rather than the same one redrawn (Spotlight after its letters were committed).
+    var big: (Data?, Data?) -> Bool = { Vision.bigChange($0, $1) }
     var pause: (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
     /// Picks the other names to try (AppNames.language).
     var language = AppNames.deviceLanguage
@@ -42,6 +44,7 @@ enum OpenResult: String {
     var tapAt: ((CGPoint) async throws -> Void)?
     /// The clock for `budget` (seconds).
     var clock: () -> Double = { CFAbsoluteTimeGetCurrent() }
+    var log: (String) -> Void = { DebugLog.write($0) }
     static let tries = 2
     static let relooks = 2
     /// The whole open: no new try and no tap on a listed result after this many seconds; the model decides then
@@ -131,31 +134,72 @@ enum OpenResult: String {
                 if Self.count(query, in: lines) <= Self.count(query, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
-            try await key("enter")  // opens the top hit
-            guard let after = await look() else { return .unchecked }
-            if ownAppInFront() { continue }
-            if !same(after, results), !same(after, homeFrame) { return .opened }
-            let afterLines = await read(after)
-            if !shows(afterLines) { return .opened }  // a plain screen: Spotlight is gone
-            // Return did nothing, the results still list the app (Wiki #1007 N1, 33% of runs on 11-16): tap the
-            // listed name itself. Only a line that is the app's name (not one that contains it: a message, a web
-            // hit), at most two, top first; the search field holding the same text may be one of them, a tap there
-            // leaves the results as they were.
-            if let readBoxes, let tapAt, !overBudget() {
-                let (found, size) = await readBoxes(after)
-                for spot in Self.resultSpots(found, labels: [name] + labels, size: size).prefix(2) {
-                    try await tapAt(spot)
+            // The results list the app: tap its row. Return only when no row is read, or a tap left Spotlight up:
+            // with the pinyin keyboard on, the typed letters are still composing and Return commits them instead
+            // of opening the top hit (2026-11-20: `open Pocket Chess` reported opened twice, Spotlight still up and
+            // listing it). Then the rows are read again and tapped. Opened only once Spotlight's words are gone:
+            // a commit changes the frame as much as a new app does.
+            // Only a line that is the app's name (not one that contains it: a message, a web hit), at most two per
+            // look, top first; the search field holding the same text may be one of them, a tap there changes nothing.
+            var shown = results, closed = false
+            for round in 0..<2 {
+                let spots = await spots(shown, name, labels)
+                for spot in spots.prefix(2) {
+                    log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
+                    try await tapAt?(spot)
                     guard let now = await look() else { return .unchecked }
-                    if ownAppInFront() { break }
-                    // a new screen is the app (as after Return): never a second tap there with the old results' spots;
-                    // only a screen that stayed the same (a tap on the field) goes on to the next one
-                    if !same(now, after) { return .opened }
-                    if !shows(await read(now)) { return .opened }
+                    let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
+                    if after == .left { return .opened }
+                    let moved = !same(now, shown)
+                    shown = now
+                    closed = after == .closed
+                    if closed || moved { break }  // the old spots are stale on a changed screen
                 }
+                if closed || round == 1 || overBudget() { break }
+                log("open \(name) via Spotlight: \(spots.isEmpty ? "not listed" : "still on Spotlight") → enter")
+                try await key("enter")  // opens the top hit, or commits letters still composing
+                guard let now = await look() else { return .unchecked }
+                let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
+                if after == .left { return .opened }
+                shown = now
+                closed = after == .closed
+                if closed { break }
             }
+            log("open \(name) via Spotlight: \(closed ? "closed without opening it" : "still on Spotlight")")
         }
         return .notOpened
     }
+
+    private enum After { case left, closed, still }
+
+    /// What a tap or Return did: the app came up (Spotlight's words are gone), Spotlight closed to the Home Screen
+    /// or this app came to the front, or Spotlight is still up.
+    /// An app that shows its own name twice ("Notes" over a "Notes" folder) is not Spotlight: still up only when
+    /// the frame barely changed or a line other than the name is still there (a section heading, another result).
+    private func state(_ now: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async -> After {
+        if ownAppInFront() { return .closed }
+        let lines = await read(now)
+        // words first: on a plain wallpaper Spotlight, the Home Screen and the app can all look alike (2026-11-11)
+        guard shows(lines) else { return same(now, home) && !same(spotlight, home) ? .closed : .left }
+        if same(now, spotlight) { return .still }
+        if same(now, home) { return .closed }
+        if !big(spotlight, now) { return .still }
+        let before = Set(await read(spotlight).map(Scripts.fold))
+        let kept = lines.contains { line in
+            let l = Scripts.fold(line)
+            return !l.isEmpty && before.contains(l) && Self.count(name, in: [line]) == 0
+        }
+        return kept ? .still : .left
+    }
+
+    /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
+    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> [CGPoint] {
+        guard let readBoxes, tapAt != nil else { return [] }
+        let (found, size) = await readBoxes(frame)
+        return Self.resultSpots(found, labels: [name] + labels, size: size)
+    }
+
+    private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
 
     /// Where to tap a listed result: the centers (screen fractions) of the lines that are one of `labels` (folded,
     /// a label cut short with "…" counts), below the status bar and above the home bar, top first.

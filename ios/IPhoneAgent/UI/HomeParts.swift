@@ -56,6 +56,8 @@ struct HelpPanel: View {
     private var stalled: Bool { reason.hasPrefix(AgentLoop.stallReason) }
     private var touchless: Bool { reason == TouchCheck.reason }
     private var repeating: Bool { reason == NoProgress.reason }  // a stall too (its prefix): the same buttons
+    /// Model rounds failed in a row: "3 errors in a row" said nothing to users (2026-11-20); the agent words it.
+    private var erring: Bool { reason.hasSuffix(AgentLoop.errorsReason) }
 
     var body: some View {
         Section {
@@ -64,15 +66,19 @@ struct HelpPanel: View {
                     .font(.headline)
                 if let detail {
                     Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                } else if erring, let words = app.agent.helpMessage {  // already in the user's language
+                    Text(verbatim: words).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: Space.s) {
                     if app.takingOver {
                         Button { app.answerHelp(.resume) } label: { Label("Continue", systemImage: "play.fill") }
                             .buttonStyle(BigButton())
                         Button("Skip Step") { app.answerHelp(.skip) }.buttonStyle(BigButton.tinted)
-                    } else if limit || touchless {
-                        Button { app.answerHelp(.resume) } label: { Label("Keep Going", systemImage: "play.fill") }
-                            .buttonStyle(BigButton())
+                    } else if limit || touchless || erring {
+                        Button { app.answerHelp(.resume) } label: {
+                            Label(erring ? LocalizedStringKey("Continue") : "Keep Going", systemImage: "play.fill")
+                        }
+                        .buttonStyle(BigButton())
                         Button("Take Over") { app.takeOver() }.buttonStyle(BigButton.tinted)
                     } else {
                         Button { app.takeOver() } label: { Label("Take Over", systemImage: "hand.point.up.left.fill") }
@@ -93,6 +99,7 @@ struct HelpPanel: View {
         if repeating { return Text("I keep repeating the same step") }
         if stalled { return Text("The screen hasn't changed in a while") }
         if touchless { return Text("My taps aren't reaching the iPhone") }
+        if erring { return Text("The AI service isn't answering") }
         return Text(verbatim: reason)
     }
 
@@ -136,6 +143,39 @@ struct RecoveryPanel: View {
             } else {
                 Text("Connection lost, run paused")
             }
+        }
+    }
+}
+
+/// Above the face on Home in Bluetooth mode after a long mirroring session or frozen video (MirrorHint): a quiet
+/// one-line tip in grey, not a box (Henry 2026-11-20: the blue card was too loud). × hides it until mirroring
+/// restarts; Don't Show Again sits in the long-press / × menu, not on a second line.
+struct MirrorHintBanner: View {
+    @ObservedObject var app: AppModel
+    let busy: Bool  // a run starting or going: the tip waits
+
+    var body: some View {
+        if app.mirrorHintShown && !busy {
+            HStack(spacing: Space.xs) {
+                Text("Stuck after a long session? Restart Screen Mirroring.")
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .contextMenu { Button("Don't Show Again") { app.dismissMirrorHint(forever: true) } }
+                Menu {  // tap: hide for now; long press: for good
+                    Button("Don't Show Again") { app.dismissMirrorHint(forever: true) }
+                } label: {
+                    Image(systemName: "xmark.circle.fill").imageScale(.small).frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                } primaryAction: {
+                    app.dismissMirrorHint(forever: false)
+                }
+                .tint(Color.secondary)
+                .accessibilityLabel(Text("Close"))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Space.l)
+            .transition(.opacity)
         }
     }
 }

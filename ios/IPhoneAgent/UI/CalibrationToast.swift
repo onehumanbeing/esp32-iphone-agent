@@ -53,7 +53,7 @@ struct CalibrationBoard: View {
             }
         }
         .environment(\.colorScheme, .light)
-        .onChange(of: calibrator.phase) { _, p in if p == .failed { Haptics.stop() } }
+        .onValueChange(of: calibrator.phase) { _, p in if p == .failed { Haptics.stop() } }
     }
 
     private var card: some View {
@@ -76,7 +76,14 @@ struct CalibrationBoard: View {
                     .controlSize(.small).buttonBorderShape(.capsule).padding(.top, Space.xs)
                 case .needsTap:
                     Text("Tap exactly where the pointer is").font(.subheadline.weight(.semibold))
-                    Text("It's the grey dot, near the top left.").font(.footnote).foregroundStyle(.secondary)
+                    Group {
+                        if calibrator.manualRetry {
+                            Text("It was on the edge of the screen, so it moved less this time. Tap the grey dot again.")
+                        } else {
+                            Text("It's the grey dot, usually near the top left.")
+                        }
+                    }
+                    .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 default:
                     Group {
                         if let p = calibrator.progress {
@@ -131,8 +138,10 @@ struct ProbeGrid: View {
                 line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
                 line.move(to: CGPoint(x: 0, y: y)); line.addLine(to: CGPoint(x: size.width, y: y))
                 ctx.stroke(line, with: .color(.black.opacity(i == 5 ? 0.55 : 0.28)), lineWidth: i == 5 ? 1.5 : 1)
-                let label = Text(verbatim: "\(i * 100)").font(.system(size: 10, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Color.black.opacity(0.7))
+                let number = Text(verbatim: "\(i * 100)").font(.system(size: 10, weight: .semibold).monospacedDigit())
+                let label: Text  // Text.foregroundStyle returns Text from iOS 17; foregroundColor before
+                if #available(iOS 17.0, *) { label = number.foregroundStyle(Color.black.opacity(0.7)) }
+                else { label = number.foregroundColor(Color.black.opacity(0.7)) }
                 ctx.draw(label, at: CGPoint(x: x + 2, y: size.height * 0.035), anchor: .leading)
                 ctx.draw(label, at: CGPoint(x: 4, y: y - 1), anchor: .bottomLeading)
             }

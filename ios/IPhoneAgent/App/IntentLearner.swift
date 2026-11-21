@@ -119,9 +119,11 @@ enum IntentLearner {
         return changed ? result : nil
     }
 
-    /// The text at a tap's spot: the nearest OCR line within `reach`.
+    /// The text at a tap's spot: the OCR line nearest it within `reach`, by its box, not its centre (2026-11-22: a tap
+    /// on a search bar whose words start at the left learned the logo above it, "ffverr."). A row's words sit beside
+    /// the spot more often than above or below it (bars, list rows), so the vertical gap counts twice.
     static func label(at x: Int, _ y: Int, in lines: [DemoAnalysis.Line]) -> String? {
-        func distance(_ l: DemoAnalysis.Line) -> Double { hypot(Double(l.x - x), Double(l.y - y)) }
+        func distance(_ l: DemoAnalysis.Line) -> Double { l.distance(x, y, rows: 2) }
         guard let near = lines.min(by: { distance($0) < distance($1) }), distance(near) <= reach else { return nil }
         let text = near.text.trimmingCharacters(in: .whitespaces)
         // One character ("x", an icon's glyph read as text) names nothing: the replay would find it anywhere
@@ -228,8 +230,8 @@ extension AppModel {
     /// run yet) gets its first run that worked as its reference run, and its steps.
     /// `missed`: the recorded steps that missed in the run (Replay.missed); a run that did not finish demotes them.
     func learnIntent(_ intent: SavedTask, run runID: String, steps: [JObject], done: Bool, failed: Bool = false,
-                     missed: Set<Int> = []) {
-        keepPlan(intent, run: runID, done: done, failed: failed)
+                     missed: Set<Int> = [], plan: (step: PlanJudge.Step, hold: Int?) = (.skip, nil)) {
+        keepPlan(intent, run: runID, step: plan.step, hold: plan.hold)
         guard settings.learnFromRuns else { return }
         if done, !IntentLearner.rejected.contains(runID) {
             let lessons = IntentLearner.lessons(steps)
@@ -292,18 +294,151 @@ extension AppModel {
     }
 }
 
-extension AppModel {
-    /// PlanCache after an intent's run: a run that worked keeps its first plan (unless one is already kept and was
-    /// used); a run that used the kept plan and failed drops it, so the next run asks the planner again.
-    func keepPlan(_ intent: SavedTask, run: String, done: Bool, failed: Bool) {
-        if done, !IntentLearner.rejected.contains(run), settings.learnFromRuns, let plan = agent.firstPlan {
-            if !agent.usedCachedPlan || planCache.entry(for: intent) == nil {
-                planCache.save(plan, for: intent, run: run)
-                DebugLog.write("plan cache: kept the plan of run \(run) for \"\(intent.name)\"")
+/// Whether an intent's first plan is kept for its next runs (PlanCache). Owner 2026-11-20: runs rarely end in done
+/// (stopped, help, errors), so after any run a fast model reads the plan and a text summary of the run and says
+/// whether the plan is worth starting from next time. Asked in the background, never with screens.
+enum PlanJudge {
+    enum Step: Equatable {
+        case judge(String)  // ask about this plan
+        case drop           // the saved plan was used and the run failed
+        case skip
+        var telemetry: String { switch self { case .judge: "judging"; case .drop: "dropped"; case .skip: "skipped" } }
+    }
+    enum Kept: String { case yes, no, error }
+
+    /// The free line is held this long at most for the answer (Trial.hold; the server ends an idle lease at 30 s).
+    /// A text-only one-line answer takes ~1–3 s; on time out the line is given back, the call fails: not kept.
+    static let timeout: TimeInterval = 20
+    /// One line is asked for; the room is for a model that thinks aloud first.
+    static let maxTokens = 400
+
+    static let prompt = """
+    An AI agent operating an iPhone ran a saved task, starting from the plan below. Decide whether this plan \
+    should be saved and used as the starting plan of the next runs of the same task. Keep it when its steps are a \
+    right way to do this task every time (right app, right order, nothing that only fits this one run), even when \
+    the run was stopped by the user or broke off for a reason outside the plan. Do not keep it when it is wrong, \
+    vague, misses needed steps, or the run shows it leads the wrong way. \
+    Reply with one line: YES: <short reason> or NO: <short reason>.
+    """
+
+    static func step(reuse: Bool, learn: Bool, rejected: Bool, plan: String?, usedCached: Bool, cachedKept: Bool,
+                     outcome: Outcome) -> Step {
+        guard reuse else { return .skip }  // Reuse Plan off: neither used nor saved
+        if usedCached, outcome == .failed { return .drop }  // a stop by the user says nothing about the plan
+        if usedCached, cachedKept { return .skip }
+        guard learn, !rejected, let plan, !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .skip }
+        return .judge(plan)
+    }
+
+    /// What the judge reads: the task, the plan and how the run went, as text (actions and thoughts, no screens).
+    static func notes(task: String, plan: String, steps: [JObject], latestPlan: String, progress: String) -> String {
+        let moves = steps.filter { !StepText.notMoves.contains($0["action"]?.str ?? "") }
+        let last = steps.last, end = last?["action"]?.str ?? "stopped"
+        let why = last?["reason"]?.str ?? last?["answer"]?.str ?? ""
+        var lines = ["Task: \(task)", "Plan:\n\(plan.prefix(2000))",
+                     "Run: \(Outcome(last: end, running: false)) after \(moves.count) step(s), ended with \(end)"
+                     + (why.isEmpty ? "" : ": \(why.prefix(300))")]
+        if let first = steps.first, first["action"]?.str == "open", first["auto"] == .bool(true), let app = first["app"]?.str {
+            // the judge said "the plan misses opening Fiverr" on runs the app had started in Fiverr (2026-11-22)
+            lines.append("Before the plan, the app itself opened \(app)\(first["via"]?.str == "scheme" ? " (by its link)" : ""); "
+                         + "a plan need not open it.")
+        }
+        if end == "stopped" {
+            lines.append(steps.dropLast().last?["action"]?.str == "help" ? "It was stopped at a needs-help pause." : "The user stopped it.")
+        }
+        if !progress.isEmpty { lines.append("Progress noted: \(progress.prefix(300))") }
+        let replans = max(steps.filter { $0["action"]?.str == "plan" }.count - 1, 0)
+        if replans > 0 { lines.append("It changed the plan \(replans) time(s); its last plan:\n\(latestPlan.prefix(1000))") }
+        let shown = moves.suffix(30).map { m in
+            "- " + PyJSON.dumps(Actions.key(m).without(["reason", "thought"])).prefix(120)
+                + (m["thought"]?.str.map { " — " + $0.prefix(160) } ?? "")
+        }
+        if !shown.isEmpty {
+            lines.append((moves.count > shown.count ? "Its last \(shown.count) steps:\n" : "Its steps:\n") + shown.joined(separator: "\n"))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// "YES: …" / "NO: …" on any line (markdown or quotes around it); nil when the reply says neither.
+    static func verdict(_ reply: String) -> (keep: Bool, reason: String)? {
+        for raw in reply.split(separator: "\n") {
+            let line = raw.trimmingCharacters(in: CharacterSet(charactersIn: "-•*\"`# ").union(.whitespaces))
+            for (word, keep) in [("YES", true), ("NO", false)] where line.uppercased().hasPrefix(word) {
+                let rest = line.dropFirst(word.count)
+                guard rest.first.map({ !$0.isLetter }) ?? true else { continue }  // "NOTE", "Yesterday"
+                let reason = rest.trimmingCharacters(in: CharacterSet(charactersIn: ":：-—*.,，").union(.whitespaces))
+                return (keep, String(reason.prefix(160)))
             }
-        } else if failed, agent.usedCachedPlan {  // a stop by the user says nothing about the plan
+        }
+        return nil
+    }
+
+    /// Ask, and on a yes save the plan while `wanted` (no ✗ from the user meanwhile, Reuse Plan still on).
+    @MainActor static func keep(_ plan: String, for intent: SavedTask, run: String, notes: String, model: ChatModel?,
+                                cache: PlanCache, wanted: () -> Bool) async -> Kept {
+        let name = "plan cache: run \(run) for \"\(intent.name)\""
+        guard let model else { DebugLog.write("\(name): no model to judge the plan; not kept"); return .error }
+        do {
+            let reply = try await model.chat(system: prompt, text: notes, image: nil, maxTokens: maxTokens, temperature: 0)
+            guard let verdict = verdict(reply.text) else {
+                DebugLog.write("\(name): the judge's reply says neither yes nor no (\(reply.text.prefix(80))); not kept")
+                return .error
+            }
+            guard verdict.keep, wanted() else {
+                DebugLog.write("\(name): plan not kept (\(verdict.keep ? "no longer wanted" : verdict.reason))")
+                return .no
+            }
+            cache.save(plan, for: intent, run: run)
+            DebugLog.write("\(name): plan kept (\(verdict.reason))")
+            return .yes
+        } catch {
+            DebugLog.write("\(name): judging the plan failed (\(error.localizedDescription)); not kept")
+            return .error
+        }
+    }
+}
+
+extension AppModel {
+    /// The run ended: what becomes of its intent's plan (PlanJudge), and its line given back, or held while asked.
+    func endLine(_ runEnd: RunEnd) -> (step: PlanJudge.Step, hold: Int?) {
+        var runEnd = runEnd
+        runEnd.planCached = agent.usedCachedPlan
+        let step = currentIntent.map { saved in
+            let intent = intents.item(saved.id) ?? saved  // Reuse Plan may have been switched during the run
+            return PlanJudge.step(reuse: intent.reusesPlan, learn: settings.learnFromRuns,
+                                  rejected: IntentLearner.rejected.contains(runID), plan: agent.firstPlan,
+                                  usedCached: agent.usedCachedPlan, cachedKept: planCache.entry(for: intent) != nil,
+                                  outcome: Outcome(last: agent.steps.last?["action"]?.str, running: false))
+        } ?? .skip
+        if case .judge = step { return (step, Trial.shared.hold(runEnd)) }
+        Trial.shared.end(runEnd)
+        return (step, nil)
+    }
+
+    /// PlanCache after an intent's run (PlanJudge.step): judged in the background, or dropped.
+    func keepPlan(_ intent: SavedTask, run: String, step: PlanJudge.Step, hold: Int?) {
+        switch step {
+        case .skip: return
+        case .drop:
             planCache.drop(intent.id)
             DebugLog.write("plan cache: run \(run) used the saved plan and did not finish; dropped")
+        case .judge(let plan):
+            let notes = PlanJudge.notes(task: intent.prompt, plan: plan, steps: agent.steps, latestPlan: agent.plan,
+                                        progress: agent.notebook.progress)
+            let outcome = "\(Outcome(last: agent.steps.last?["action"]?.str, running: false))"
+            let timer = Task {  // the free line is held no longer than this
+                try? await Task.sleep(nanoseconds: UInt64(PlanJudge.timeout * 1_000_000_000))
+                hold.map(Trial.shared.release)
+            }
+            Task {
+                defer { timer.cancel(); hold.map(Trial.shared.release) }
+                // the line's fast model: the free line's (or a Manina AI key's) on the gateway, else one's own actor model
+                let model: LLMClient? = MockMode.on ? nil : try? await settings.client("reader")
+                let kept = await PlanJudge.keep(plan, for: intent, run: run, notes: notes, model: model, cache: planCache) {
+                    !IntentLearner.rejected.contains(run) && settings.learnFromRuns && intents.item(intent.id)?.reusesPlan == true
+                }
+                Analytics.capture("plan_judged", ["kept": kept.rawValue, "outcome": outcome])
+            }
         }
     }
 }
