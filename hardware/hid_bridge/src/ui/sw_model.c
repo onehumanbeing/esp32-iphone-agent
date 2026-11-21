@@ -318,9 +318,20 @@ static bool say(char *out, size_t n, const char *line) {
   return true;
 }
 
+// A short press during a run: a second one within SW_DOUBLE_MS stops it; alone, sw_tick sends its own action.
+static bool tap(sw_ctl *c, uint8_t kind, uint32_t now, char *out, size_t n) {
+  if (c->tap && !after(now, c->tap_at, SW_DOUBLE_MS)) {
+    c->tap = 0;
+    return say(out, n, "stop");
+  }
+  c->tap = kind;
+  c->tap_at = now;
+  return false;
+}
+
 static bool yellow(sw_ctl *c, bool running, uint32_t now, char *out, size_t n) {
   if (running && c->ui.phase == SW_HELP) return say(out, n, "continue");  // help or confirm: yellow goes on
-  if (running) return say(out, n, c->ui.phase == SW_PAUSED ? "unpause" : "pause");
+  if (running) return tap(c, 1, now, out, n);
   if (!c->ui.npicks) return false;
   c->sel_at = now;
   if (c->sel < 0) {
@@ -407,6 +418,7 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
       c->blue_down = false;
       if (!was || after(now, c->blue_at, SW_HOME_MS)) return false;
       if (running && c->ui.phase == SW_HELP) return say(out, n, c->ui.confirm ? "skip" : "stop");  // blue answers no
+      if (running) return tap(c, 2, now, out, n);
       return say(out, n, "home");
     }
     case SW_IN_TAP:
@@ -430,6 +442,12 @@ bool sw_input(sw_ctl *c, int in, uint32_t now, char *out, size_t n) {
 }
 
 bool sw_tick(sw_ctl *c, uint32_t now, char *out, size_t n) {
+  if (c->tap && after(now, c->tap_at, SW_DOUBLE_MS)) {  // one press, no second: its own action
+    uint8_t kind = c->tap;
+    c->tap = 0;
+    if (sw_running(c, now) && c->ui.phase != SW_HELP)
+      return say(out, n, kind == 2 ? "home" : c->ui.phase == SW_PAUSED ? "unpause" : "pause");
+  }
   if (c->y_down && c->voice == SW_V_NONE && after(now, c->y_at, SW_HOLD_MS)) {
     c->voice = SW_V_LISTEN;
     c->voice_at = now;

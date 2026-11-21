@@ -53,6 +53,8 @@ enum {
   SW_STALE_MS = 15000,     // no `ui` line this long (the app repeats it every 5 s): the app is gone or suspended
   SW_DONE_MS = 5000,       // the check or cross after a finished task
   SW_PICK_MS = 6000,       // a pick or its confirmation without a press is cancelled (5 to browse)
+  SW_DOUBLE_MS = 400,      // a run: two short presses (yellow or blue) this close are `btn stop` (Henry 2026-11-22);
+                           // one press waits this long for a second before it pauses / goes home
   SW_HOME_MS = 500,        // blue released before this: `btn home`; later and before SW_STOP_MS: nothing
   SW_STOP_MS = 2000,       // blue held this long: `btn stop`
   SW_RING_MS = 300,        // the stop ring shows from here on
@@ -80,6 +82,8 @@ typedef struct {
   uint32_t sel_at;
   uint8_t next_pick;
   bool blue_down, blue_fired, blue_ignore;
+  uint8_t tap;  // a run's short press waiting for a second one: 1 yellow, 2 blue, 0 none
+  uint32_t tap_at;
   uint32_t blue_at;
   bool shaking, shook;
   uint32_t shake_at;

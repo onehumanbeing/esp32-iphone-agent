@@ -687,12 +687,15 @@ static void test_sw_buttons(void) {
   sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"s\":1,\"l\":10}", &u);
   CHECK(sw_apply(&c, &u, false, 15000) == SW_BUZZ_NONE && sw_running(&c, 15000) && c.sel == -1 && c.ui.npicks == 3);
   CHECK(sw_screen(&c, 15000) == SW_SCR_RUN && sw_progress(&c.ui) == 100);
-  CHECK(sw_input(&c, SW_IN_YELLOW, 15100, out, sizeof out) && !strcmp(out, "btn pause"));
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 15010, out, sizeof out));  // waits for a second press
+  CHECK(!sw_tick(&c, 15010 + SW_DOUBLE_MS - 1, out, sizeof out));
+  CHECK(sw_tick(&c, 15010 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn pause"));
   CHECK(!sw_input(&c, SW_IN_TAP, 15100, out, sizeof out));
   sw_parse("{\"p\":\"paused\"}", &u);
-  sw_apply(&c, &u, false, 15200);
-  CHECK(sw_screen(&c, 15200) == SW_SCR_PAUSED);
-  CHECK(sw_input(&c, SW_IN_YELLOW, 15300, out, sizeof out) && !strcmp(out, "btn unpause"));
+  sw_apply(&c, &u, false, 15420);
+  CHECK(sw_screen(&c, 15420) == SW_SCR_PAUSED);
+  CHECK(!sw_input(&c, SW_IN_YELLOW, 15430, out, sizeof out) && sw_tick(&c, 15430 + SW_DOUBLE_MS, out, sizeof out) &&
+        !strcmp(out, "btn unpause"));
   sw_parse("{\"p\":\"help\",\"t\":\"Need a code\"}", &u);
   CHECK(sw_apply(&c, &u, false, 16000) == SW_BUZZ_HELP && sw_screen(&c, 16000) == SW_SCR_HELP);
   CHECK(sw_apply(&c, &u, false, 16500) == SW_BUZZ_NONE);  // the same phase again: no second buzz
@@ -834,10 +837,25 @@ static void test_sw_voice(void) {
   sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"v\":1}", &u);
   sw_apply(&c, &u, false, 120000);
   CHECK(!sw_input(&c, SW_IN_YELLOW_DOWN, 120000, out, sizeof out));
-  CHECK(sw_input(&c, SW_IN_YELLOW_UP, 120100, out, sizeof out) && !strcmp(out, "btn pause"));
+  CHECK(!sw_input(&c, SW_IN_YELLOW_UP, 120100, out, sizeof out));
+  CHECK(sw_tick(&c, 120100 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn pause"));
   sw_input(&c, SW_IN_YELLOW_DOWN, 121000, out, sizeof out);
   sw_tick(&c, 121400, out, sizeof out);
   CHECK(c.voice == SW_V_LISTEN && c.voice_run && sw_screen(&c, 121400) == SW_SCR_VOICE);
+  {
+    sw_ctl d;
+    sw_init(&d);
+    sw_parse("{\"m\":\"acting\",\"p\":\"running\",\"s\":1,\"l\":10}", &u);
+    sw_apply(&d, &u, false, 15500);
+  // two short presses, yellow or blue, close together: stop, and no pause or home after it
+  CHECK(!sw_input(&d, SW_IN_YELLOW, 15600, out, sizeof out) && sw_input(&d, SW_IN_YELLOW, 15800, out, sizeof out) &&
+        !strcmp(out, "btn stop"));
+  CHECK(!sw_tick(&d, 16300, out, sizeof out));
+  CHECK(!sw_input(&d, SW_IN_BLUE_DOWN, 16400, out, sizeof out) && !sw_input(&d, SW_IN_BLUE_UP, 16500, out, sizeof out));
+  CHECK(sw_input(&d, SW_IN_YELLOW, 16700, out, sizeof out) && !strcmp(out, "btn stop"));
+  CHECK(!sw_input(&d, SW_IN_BLUE_DOWN, 17000, out, sizeof out) && !sw_input(&d, SW_IN_BLUE_UP, 17100, out, sizeof out));
+  CHECK(sw_tick(&d, 17100 + SW_DOUBLE_MS, out, sizeof out) && !strcmp(out, "btn home"));  // one blue alone: home
+  }
 }
 
 // Quick intents: the app's `picks` line (the newest 5), yellow selects, a tap moves on, blue drops the selection.
