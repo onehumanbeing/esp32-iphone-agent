@@ -1125,7 +1125,7 @@ extension Gestures {
         let prompt = actorUserPrompt()
         if let early = try await takeSpeculative(prompt) { return early }
         var reply = ""
-        let checkpoint = checkpointModel == nil ? nil : checkpoints.reason(steps)
+        let checkpoint = checkpointReason
         // An unparseable reply is asked again at temperature 0 with the format first: a warmer retry was worse
         // (2026-11-17 gateway records: 16% off-format at 0, 41% at 0.4-0.8).
         for attempt in 0..<3 {

@@ -19,6 +19,29 @@ struct Checkpoints {
         + "shortest way to finish; fix the PLAN if needed, then give the next action. When the same open-item, read, "
         + "go-back round was done twice on a list, give each \"ANCHOR\" read \"WHAT\" for the rest instead.\n\n"
 
+    static let revisitNote = "Going round (the stronger model looks because this screen came back a third time with "
+        + "nothing new in the notebook): say in THINK which screens the run went between and why it did not get "
+        + "closer to the goal, then choose a different way to reach it, or ask for help.\n\n"
+    /// Screens with progress between them are not going round: the notebook grew.
+    static let progressActions: Set<String> = ["read", "collect", "note", "progress", "remember", "write"]
+
+    /// The screen the last gesture was decided on came back for the third time since `from` (the last checkpoint)
+    /// with no notebook row in between (2026-11-21: 10 of 58 user runs went page, home, page until the step or
+    /// time limit; every screen changed, so the circling check, which counts swipes only, never fired).
+    /// `same(i, j)`: the screenshots of steps i and j show the same screen.
+    static func revisited(_ steps: [JObject], from: Int, same: (Int, Int) -> Bool) -> Bool {
+        let shown = steps.indices.filter { $0 >= from && steps[$0]["shot"] == .bool(true)
+            && Actions.gestures.contains(steps[$0]["action"]?.str ?? "") }
+        guard let last = shown.last else { return false }
+        var seen = 1
+        for i in shown.dropLast().reversed() {
+            if steps[i..<last].contains(where: { progressActions.contains($0["action"]?.str ?? "") }) { break }
+            if same(i, last) { seen += 1 }
+            if seen >= 3 { return true }
+        }
+        return false
+    }
+
     /// steps.count at the last checkpoint; nil = none yet this run (the first round is one).
     var lastAt: Int?
     /// Asked for by code outside the round (the repeat guard).
@@ -46,6 +69,16 @@ struct Checkpoints {
 }
 
 extension AgentLoop {
+    /// Why this round goes to the planner: the checkpoints' own reasons, or the run going round between screens.
+    var checkpointReason: String? {
+        guard checkpointModel != nil else { return nil }
+        if let reason = checkpoints.reason(steps) { return reason }
+        guard let from = checkpoints.lastAt else { return nil }
+        // only screenshots both there count (a run resumed from disk has the steps but not their screens)
+        let same = { (i: Int, j: Int) in self.shots[i] != nil && self.shots[j] != nil && self.sameShots(i, j) }
+        return Checkpoints.revisited(steps, from: from, same: same) ? "revisit" : nil
+    }
+
     /// One round's reply: from the planner at a checkpoint, else the actor. A planner error (an old gateway that
     /// doesn't know the model, a dropped call) falls back to the actor for this round.
     func askRound(_ reason: String?, _ actor: ChatModel, _ prompt: String, temperature: Double) async throws -> (String, Double, Data?) {
@@ -54,7 +87,8 @@ extension AgentLoop {
             checkpoints.used(at: steps.count)
             DebugLog.write("checkpoint (\(reason)): asking \(planner.model)")
             do {
-                let asked = reason == "review" ? Checkpoints.reviewNote + prompt : prompt
+                let asked = reason == "review" ? Checkpoints.reviewNote + prompt
+                    : reason == "revisit" ? Checkpoints.revisitNote + prompt : prompt
                 let reply = try await ask("actor", planner, actorPrompt, asked, temperature: temperature)
                 checkpoints.answered = true
                 return reply
