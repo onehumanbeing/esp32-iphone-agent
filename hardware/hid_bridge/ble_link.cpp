@@ -749,6 +749,11 @@ void ble_pair_open() {
   pairOpened = millis();
   board_log("ble: pairing window open for %lu s", PAIR_WINDOW_MS / 1000);
 }
+// Yellow on the pairing page (Henry 2026-11-22): the window shuts now; bonded phones still reconnect.
+void ble_pair_close() {
+  pairOpened = millis() - PAIR_WINDOW_MS;
+  board_log("ble: pairing window closed");
+}
 uint32_t ble_pair_left_ms() { return ble_pair_window_open() ? PAIR_WINDOW_MS - (millis() - pairOpened) : 0; }
 
 uint16_t ble_cli_mtu(int slot) {

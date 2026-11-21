@@ -183,7 +183,7 @@ static void statusDots(const View &v) {
   }
 }
 
-// Pairing, opened with blue on the status page: big waves across the screen, the countdown on the rim, the
+// Pairing, opened by holding blue (Henry 2026-11-22): big waves across the screen, the countdown on the rim, the
 // board's name to pick in the app, and "connecting" once a phone is on the way.
 static void pairingPage(const View &v) {
   uint32_t t = millis();
@@ -206,7 +206,8 @@ static void pairingPage(const View &v) {
   snprintf(left, sizeof left, T(SWT_PAIR_LEFT), v.pair / 60, v.pair % 60);
   font(&fonts::efontCN_24);
   canvas->setTextColor(C_GREY);
-  canvas->drawString(left, CX, CY + 120);
+  canvas->drawString(left, CX, CY + 105);
+  line(T(SWT_PAIR_KEYS), CY + 150, C_GREY, 1, 320);
 }
 
 // The status page's battery (Henry 2026-11-21: it matters): a battery drawn to its level, the percent beside it,
@@ -228,7 +229,7 @@ static void batteryBadge(const View &v, int y) {
 }
 
 static void statusPage(const View &v) {
-  if (v.pair && !v.hid) {  // pairing: its own page, not one row (Henry 2026-11-21: the row was easy to miss)
+  if (v.pairing) {  // pairing: its own page, not one row (Henry 2026-11-21: the row was easy to miss)
     pairingPage(v);
     return;
   }

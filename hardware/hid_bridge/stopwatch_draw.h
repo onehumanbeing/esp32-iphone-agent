@@ -34,7 +34,8 @@ struct View {
   uint8_t warn;    // SW_SCR_WARN: the alert (sw_warn_code)
   bool connecting, wifi;  // a Bluetooth link not yet paired; a phone on the board's Wi-Fi
   uint8_t mirror;  // AirPlay: 0 off, 1 starting, 2 on
-  uint16_t pair;   // the status page: seconds left of a pairing window opened with blue (0 none)
+  uint16_t pair;   // seconds left of the pairing window (0 none)
+  bool pairing;    // the pairing page (blue held), until yellow cancels, blue goes back, or a phone links
   sw_ui ui;
 };
 static const int STATUS_Y = 148, STATUS_GAP = 34, STATUS_LANG = 6;  // the language row: a tap there switches
