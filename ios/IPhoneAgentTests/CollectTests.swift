@@ -436,6 +436,10 @@ final class NotebookBlockTests: XCTestCase {
         XCTAssertEqual(Collect.parse(#""title, rating, price" max 20"#).what, "title, rating, price")
         XCTAssertEqual(Collect.parse(#"title, rating, price" max 20"#).max, 20)  // the leading quote already gone
         XCTAssertNil(Collect.parse("order totals").max)
+        XCTAssertEqual(Collect.parse(#"title, price" max=20"#).max, 20)
+        XCTAssertEqual(Collect.parse("title, price (max 20)").max, 20)
+        XCTAssertEqual(Collect.parse("title, price (max 20)").what, "title, price")
+        XCTAssertNil(Collect.parse("orders from 2024").max)  // a number in WHAT is not a max
         XCTAssertEqual(Collect.parse("order totals").what, "order totals")
         XCTAssertEqual(Collect.end(page: 3, dryRun: 0, moved: true, added: 21, max: 20), .enough)
         XCTAssertNil(Collect.end(page: 3, dryRun: 0, moved: true, added: 19, max: 20))

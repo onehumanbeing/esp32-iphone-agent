@@ -191,6 +191,17 @@ extension AgentLoop {
         let seen = screen?.frame
         if try await pausedBeforeGesture() { return false }  // they paused; don't replay this move on a new screen
         var act = step.action
+        if act["action"]?.str == "open", let app = act["app"]?.str, let opened = openedAtStart,
+           app.caseInsensitiveCompare(opened) == .orderedSame {
+            // the scheme opened it before the first frame: replaying the open went Home and through Spotlight again,
+            // 23 s, and ended "not opened" with the app in front (2026-11-22, Fiverr)
+            act["opened"] = .str(OpenResult.opened.rawValue)
+            act["via"] = .str("scheme")
+            act["replay"] = .bool(true)
+            act["changed"] = .bool(true)
+            record(seen, act)
+            return true
+        }
         onDoing?(.acting(act))
         let started = now()
         try await perform(act)

@@ -23,7 +23,7 @@ enum Collect {
     static func parse(_ text: String) -> (what: String, max: Int?) {
         var what = text.trimmingCharacters(in: .whitespaces)
         var max: Int?
-        if let m = what.firstMatch(of: #/\s+max\s+(\d+)\s*$/#.ignoresCase()), let n = Int(m.1), n > 0 {
+        if let m = what.firstMatch(of: #/\s*\(?\s*max\s*[:=]?\s*(\d+)\s*\)?\s*$/#.ignoresCase()), let n = Int(m.1), n > 0 {
             max = n
             what = String(what[..<m.range.lowerBound])
         }
