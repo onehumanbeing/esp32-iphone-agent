@@ -29,6 +29,10 @@ import Foundation
     private var freshUntil: Date?   // the stale date of the last update
     private var staleSeen: Date?    // when an update found the previous one already stale
     private var stuckTapAt: Date?   // the user opened the app from a stale activity
+    /// The same states for a board with a screen (StopWatchUI), with or without a Live Activity; nil: off.
+    var onBoard: ((State?) -> Void)?
+    private var boardLast: State?   // the run's state when there is no Live Activity to keep it in `last`
+    private var boardOnly: State? { activity == nil ? boardLast : nil }
 
     init() {
         // A run that ended with its process (killed, crashed) left its activity behind: it would go stale and
@@ -50,7 +54,6 @@ import Foundation
                since: Date = Date()) {
         end(nil)
         stuckTapAt = nil
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return DebugLog.write("Live Activity: disabled in Settings") }
         let line: String, status: IslandStatus
         switch phase {
         case .countdown: (line, status) = (String(localized: "Recording starts after the countdown."), .getReady)
@@ -60,6 +63,8 @@ import Foundation
         var state = State(mood: phase == .running || phase == .help ? .thinking : .listening, step: 0, limit: limit,
                           line: line, phase: phase, since: since)
         apply(status, to: &state)
+        toBoard(state)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return DebugLog.write("Live Activity: disabled in Settings") }
         do {
             activity = try Activity.request(attributes: AgentActivityAttributes(task: task, runID: runID, name: Settings.storedAgentName),
                                             content: .init(state: state, staleDate: markSent(state), relevanceScore: Self.relevance))
@@ -103,6 +108,7 @@ import Foundation
             (self.activity, last, sent) = (nil, nil, nil)  // ended by iOS (8 hours) or swiped away
         }
         let state = Self.standbyState(picks)
+        if activity == nil || isStandby { toBoard(state) }
         if let activity {
             guard isStandby, last != state else { return }  // a run's activity: leave it to the run
             (last, sent) = (state, state)
@@ -127,7 +133,7 @@ import Foundation
     /// `count`: the task's own done / total (Notebook.count), when the agent gave a total.
     func update(mood: Mood, step: Int, line: String, phase: AgentActivityAttributes.Phase? = nil, status: IslandStatus? = nil,
                 since: Date? = nil, count: (done: Int, total: Int)? = nil) {
-        guard var state = last else { return }
+        guard var state = last ?? boardOnly else { return }
         state.mood = mood
         state.step = step
         if let count { (state.done, state.total) = (count.done, count.total) }
@@ -140,7 +146,7 @@ import Foundation
 
     /// What the character is doing now: looking / thinking (the eyes dart) or a gesture (the eyes go to its target).
     func show(_ status: IslandStatus, mood: Mood? = nil) {
-        guard var state = last, !state.finished else { return }
+        guard var state = last ?? boardOnly, !state.finished else { return }
         apply(status, to: &state)
         if let mood { state.mood = mood }
         push(state)
@@ -154,6 +160,7 @@ import Foundation
         recentEndTask?.cancel()  // a previous run still asking: ended now
         stopUpdates()
         stuckTapAt = nil
+        endBoard(outcome)
         guard let activity else { return }
         var state = last ?? State(mood: .idle, step: 0, limit: 0, line: "")
         if let outcome {
@@ -270,7 +277,21 @@ import Foundation
     // MARK: - rate limit
 
     /// Sends now if a token is left, else once one refills (the newest state wins).
+    private func toBoard(_ state: State) {
+        boardLast = state
+        onBoard?(state)
+    }
+
+    /// A finished run stays on the board's screen (until standby or the next run); without an outcome it goes off.
+    private func endBoard(_ outcome: (mood: Mood, line: String)?) {
+        defer { boardLast = nil }
+        guard let outcome, var state = last ?? boardLast else { return onBoard?(nil) ?? () }
+        (state.mood, state.line, state.finished) = (outcome.mood, outcome.line, true)
+        onBoard?(state)
+    }
+
     private func push(_ state: State) {
+        toBoard(state)
         guard activity != nil, state != last || state != sent else { return }
         last = state
         guard flush == nil else { return }  // a send is already scheduled; it picks up `last`

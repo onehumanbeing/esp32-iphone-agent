@@ -94,7 +94,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>The app receives the screen from its board over the board's Wi-Fi, and connects to a model server you configure on your local network.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls.</string>
+	<string>With Listen to phone audio on, the app turns the sound your iPhone plays while mirroring into text, on this iPhone, so the agent can follow videos and calls. With an M5Stack StopWatch board, it also turns what you say into the board into a task, the same way.</string>
 	<key>NSSpeechRecognitionUsageDescription~ipad</key>
 	<string>With Listen to iPad audio on, the app turns the sound your iPad plays while mirroring into text, on this iPad, so the agent can follow videos and calls.</string>
 	<key>NSSupportsLiveActivities</key>

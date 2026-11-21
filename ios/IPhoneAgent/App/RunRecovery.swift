@@ -54,6 +54,7 @@ extension AppModel {
     func recover(_ stage: Recovery.Stage?) {
         let was = recovering
         recovering = stage
+        board.commands.uiWarn = stage.flatMap { $0.ask ? StopWatchUI.warning($0.part) : nil }  // the StopWatch says it
         guard let stage else {
             if agent.running { RunMarker.set("running") }
             notifier.clearLinkAsks()

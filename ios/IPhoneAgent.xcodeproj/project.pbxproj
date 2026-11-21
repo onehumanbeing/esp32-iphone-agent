@@ -82,6 +82,7 @@
 		2A48924EF6EF7A39D5A05E21 /* ReviewMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CF0FDDD155E930C9AC80D8 /* ReviewMedia.swift */; };
 		2A538D04D89126472479471E /* RunCardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54211E1AF9F25DF548064BA9 /* RunCardSnapshot.swift */; };
 		2AC3B28D33CD484DAE8CF66F /* BoardLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */; };
+		B0A2D5C0FFEE000000000004 /* BoardVoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A2D5C0FFEE000000000003 /* BoardVoiceTests.swift */; };
 		2CF0D6C8101BF02E0EDF44E2 /* ModelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E3598C8B1D1025A419CE5D /* ModelPicker.swift */; };
 		2CF6A30C3D72E05EEBC6FFED /* IslandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54BC007EE5C64A13CDEE9EE /* IslandTests.swift */; };
 		2D5F3E3546B0DF18896126D2 /* TouchCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF617B736D526076BF940A68 /* TouchCheckTests.swift */; };
@@ -115,6 +116,7 @@
 		4D2CC3505EE787FD08A06FB2 /* ChatContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2922DB7E8B844E6C11E8D1 /* ChatContext.swift */; };
 		50F10FB49F552A8D8F47CA32 /* RecordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9AA4AD10964BF7D3CF159DC /* RecordSheet.swift */; };
 		5235C00D6F94D4A3CC05E949 /* SpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8BE66599E49A93C6BD85ED /* SpeechEngine.swift */; };
+		B0A2D5C0FFEE000000000002 /* BoardVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A2D5C0FFEE000000000001 /* BoardVoice.swift */; };
 		534DEFD19932A64B5E0363D4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E7318AED24A07B92CBB7496E /* PrivacyInfo.xcprivacy */; };
 		5529FEF43DA98563B4BCFEC1 /* AgentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7314ABD64EC1106422C685E /* AgentFace.swift */; };
 		C7F1E5A16A0000000000A004 /* Compat16.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5A16A0000000000A003 /* Compat16.swift */; };
@@ -578,6 +580,7 @@
 		C7F1E5A16A0000000000A001 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
 		C7F1E5A16A0000000000A002 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/AppShortcuts.strings"; sourceTree = "<group>"; };
 		6F8BE66599E49A93C6BD85ED /* SpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechEngine.swift; sourceTree = "<group>"; };
+		B0A2D5C0FFEE000000000001 /* BoardVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardVoice.swift; sourceTree = "<group>"; };
 		724EBABF2F5228B5112C3643 /* IntentArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchive.swift; sourceTree = "<group>"; };
 		74060C297931361BA5916910 /* BoardLogDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDumpTests.swift; sourceTree = "<group>"; };
 		752C0C0B77F4469906637145 /* AgentLoop+Pad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Pad.swift"; sourceTree = "<group>"; };
@@ -599,6 +602,7 @@
 		86452ED01E883A6E57BB13E4 /* AgentActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityWidget.swift; sourceTree = "<group>"; };
 		87AE5159FF1E2C627E4ECC7A /* Breaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Breaker.swift; sourceTree = "<group>"; };
 		8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogTests.swift; sourceTree = "<group>"; };
+		B0A2D5C0FFEE000000000003 /* BoardVoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardVoiceTests.swift; sourceTree = "<group>"; };
 		8AE108AA4534D13B7AC12079 /* Recovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recovery.swift; sourceTree = "<group>"; };
 		8B2B975DEE7BC511DC51441F /* Prompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Prompts.swift; sourceTree = "<group>"; };
 		8C498727CAF51C5A955A8A10 /* PrivacyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyViews.swift; sourceTree = "<group>"; };
@@ -919,6 +923,7 @@
 				BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */,
 				74060C297931361BA5916910 /* BoardLogDumpTests.swift */,
 				8882FA92EE9BD53B4B1D1060 /* BoardLogTests.swift */,
+				B0A2D5C0FFEE000000000003 /* BoardVoiceTests.swift */,
 				058E1A3713DF7C52A472CAAD /* ChatTests.swift */,
 				23620E56B422EF8E37A7D2D0 /* ChineseOCRTests.swift */,
 				23A9A9D917B2B2FC534E7DBA /* DeviceTests.swift */,
@@ -1277,6 +1282,7 @@
 				01F6840C8EDD48E656084FEA /* AudioFeed.swift */,
 				D28E243782383303A0D4CF44 /* AudioRecord.swift */,
 				6F8BE66599E49A93C6BD85ED /* SpeechEngine.swift */,
+				B0A2D5C0FFEE000000000001 /* BoardVoice.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -1499,6 +1505,7 @@
 				A6006B2CA89BD106CA73618E /* BackgroundWaitTests.swift in Sources */,
 				462221A21D75409D1F65E82B /* BoardLogDumpTests.swift in Sources */,
 				2AC3B28D33CD484DAE8CF66F /* BoardLogTests.swift in Sources */,
+				B0A2D5C0FFEE000000000004 /* BoardVoiceTests.swift in Sources */,
 				862E35000B05A1D8C18E2D38 /* ChatTests.swift in Sources */,
 				8B59F5D54222DCA64503398A /* ChineseOCRTests.swift in Sources */,
 				607B1520E654F13F1F304F4D /* DeviceTests.swift in Sources */,
@@ -1795,6 +1802,7 @@
 				4C9AF1D3470474D2AB745D00 /* SettingsView.swift in Sources */,
 				F78F625776B38FF9714373AF /* SiriToolIntents.swift in Sources */,
 				5235C00D6F94D4A3CC05E949 /* SpeechEngine.swift in Sources */,
+				B0A2D5C0FFEE000000000002 /* BoardVoice.swift in Sources */,
 				00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */,
 				96C08C1CFEECA69484811137 /* StatusChips.swift in Sources */,
 				A177729443FE818CD754FD64 /* StepFrame.swift in Sources */,
