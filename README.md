@@ -34,7 +34,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
   <a href="https://github.com/onehumanbeing/esp32-iphone-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/onehumanbeing/esp32-iphone-agent/ci.yml?style=flat-square&label=CI" alt="CI"></a>
-  <img src="https://img.shields.io/badge/iOS-18%2B-111111?style=flat-square&logo=apple" alt="iOS 18+">
+  <img src="https://img.shields.io/badge/iOS-16.4%2B-111111?style=flat-square&logo=apple" alt="iOS 16.4+">
   <a href="https://x.com/iamhenryyuan"><img src="https://img.shields.io/badge/follow-@iamhenryyuan-111111?style=flat-square&logo=x" alt="Follow on X"></a>
 </p>
 
@@ -143,8 +143,9 @@ For wireless input built from source, see [Bluetooth mouse and keyboard](docs/bl
 | Part | Notes |
 |---|---|
 | **ESP32-S3 board** | Tested with a [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (plain version, 8 MB PSRAM; not Sense, not Plus). About $7 ([Amazon](https://amzn.to/3U6QKiz)\*). Any ESP32-S3 with native USB on its USB-C port and PSRAM should work. |
+| **Or: M5Stack StopWatch** (experimental) | A round-screen ESP32-S3 watch with its own battery, Bluetooth mode only. It shows the run (face, steps, time), its keys pause, resume and stop it, and a done task's answer shows on it. Flash it from [manina.ai/install](https://manina.ai/install?board=m5stopwatch); needs the TestFlight app 1.0.9+. |
 | **USB-C cable** | Short USB-C to USB-C, e.g. [Anker 60W, 1 ft, 2-pack](https://amzn.to/4yvNyvi)\*. |
-| **iPhone** | iOS 18 or later, with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter, or use Bluetooth mode. Over USB the phone powers the board; in Bluetooth mode the board needs its own power. |
+| **iPhone** | iOS 18 or later (App Store app), or iOS 16.4 or later with the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app 1.0.9+ (iPhone 8 and iPhone X too; on iOS 16 the agent leaves apps through AssistiveTouch), with cellular data (the Wi-Fi is taken by the board's hotspot), or a 2.4 GHz home Wi-Fi the board can join instead. USB-C models plug in directly; Lightning models need a Lightning to USB Camera Adapter, or use Bluetooth mode. Over USB the phone powers the board; in Bluetooth mode the board needs its own power. |
 | **Vision model** | Any OpenAI-compatible chat API that accepts images: a cloud API or your own server. |
 | **Mac with Xcode** | Only to flash the board and build the app once. Not needed at run time. With the [TestFlight](https://testflight.apple.com/join/1xQHgJcA) app, Xcode is not needed for the app. |
 
