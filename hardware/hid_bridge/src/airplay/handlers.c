@@ -47,6 +47,7 @@ static void info_txt(bp_writer *w, int root, bool airplay) {
   bp_w_set(w, root, airplay ? "txtAirPlay" : "txtRAOP", bp_w_data(w, txt, n));
 }
 
+#ifndef NO_AIRPLAY_AUDIO
 static void audio_entries(bp_writer *w, int root) {
   int lat = bp_w_array(w), fmt = bp_w_array(w);
   bp_w_set(w, root, "audioLatencies", lat);
@@ -64,6 +65,7 @@ static void audio_entries(bp_writer *w, int root) {
     bp_w_set(w, f, "audioOutputFormats", bp_w_uint(w, 0x3fffffc));
   }
 }
+#endif
 
 static void handle_info(ap_conn *c, const ap_req *req, ap_resp *res) {
   bool txt_airplay = false, txt_raop = false, cseq = ap_header(req, "CSeq") != NULL;
@@ -102,8 +104,10 @@ static void handle_info(ap_conn *c, const ap_req *req, ap_resp *res) {
     bp_w_set(&w, root, "keepAliveSendStatsAsBody", bp_w_bool(&w, true));
     bp_w_set(&w, root, "model", bp_w_string(&w, AP_MODEL));
     if (cseq) {
+#ifndef NO_AIRPLAY_AUDIO
       bp_w_set(&w, root, "initialVolume", bp_w_real(&w, 0.0));
       audio_entries(&w, root);
+#endif
       int displays = bp_w_array(&w), d = bp_w_dict(&w);
       bp_w_set(&w, root, "displays", displays);
       bp_w_append(&w, displays, d);
