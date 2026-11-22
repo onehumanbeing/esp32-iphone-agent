@@ -599,6 +599,10 @@ struct RunEnd: Equatable {
     var planCached: Bool?  // the run started from the intent's saved plan (PlanCache), sent as `plan_cached`
     /// A failed start: the startup step it stopped at (StartupFailure.Step), sent as `step`.
     var step: String?
+    /// The link the mouse and keyboard went over (BoardStatus.hidTransport: usb | ble), sent as `transport`.
+    var transport: String?
+    /// The longest run of gestures in a row that changed nothing on the screen, sent as `unchanged_max`.
+    var unchangedMax: Int?
 
     init(reason: Reason, stage: Stage, outcome: String? = nil, steps: Int = 0, calls: Int = 0, firmware: String? = nil) {
         self.reason = reason
@@ -619,7 +623,8 @@ struct RunEnd: Equatable {
         case "fail":
             if why.hasSuffix(AgentLoop.errorsReason) { reason = .failErrors }
             // gestures that never reach the iPhone are a stall too: the gateway's list of reasons is closed
-            else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason { reason = .stall }
+            // a guard gave up on moves that kept being held back (StuckGuard, PingPongGuard): stuck, not the model
+            else if why.hasPrefix(AgentLoop.stallReason) || why == TouchCheck.reason || why.hasPrefix("stuck:") { reason = .stall }
             else if why == AgentLoop.stepLimitReason { reason = .stepLimit }
             else if [.board, .cable, .pointer].contains(where: { Recovery.matches(why, $0) }) { reason = .boardLost }
             else if why == BlindError().reason || why == LinkCheck.reason
@@ -631,6 +636,17 @@ struct RunEnd: Equatable {
         }
         self.init(reason: reason, stage: .running, outcome: "\(Outcome(last: last, running: false))", steps: moves,
                   calls: calls, firmware: firmware)
+        unchangedMax = Self.longestUnchanged(trace)
+    }
+
+    /// Gestures in a row the screen showed no change after; other records (holds, notes) don't break the run.
+    static func longestUnchanged(_ trace: [JObject]) -> Int {
+        var run = 0, best = 0
+        for s in trace where Actions.gestures.contains(s["action"]?.str ?? "") {
+            run = s["changed"] == .bool(false) ? run + 1 : 0
+            best = max(best, run)
+        }
+        return best
     }
 
     static var appVersion: String {
@@ -645,6 +661,8 @@ struct RunEnd: Equatable {
         if let firmware { body["fw"] = firmware }
         if let step { body["step"] = step }
         if let planCached { body["plan_cached"] = planCached }
+        if let transport { body["transport"] = transport }
+        if let unchangedMax { body["unchanged_max"] = min(unchangedMax, 10_000) }
         return body
     }
 

@@ -93,7 +93,7 @@ extension AgentLoop {
         }
         DebugLog.write("collect: \(page) screens, \(added) new, stopped: \(end.rawValue)")
         act["think_s"] = .num((seconds * 100).rounded() / 100)
-        let done = end == .past || end == .still ? listDone() : ""
+        let done = [.past, .still, .enough].contains(end) ? listDone() : ""
         act["reason"] = .str("collected over \(page) screen\(page == 1 ? "" : "s"): \(added) new; \(notebook.items.count) in the notebook; "
                              + "stopped: \(end.rawValue)" + Collect.next(end, done: done))
     }

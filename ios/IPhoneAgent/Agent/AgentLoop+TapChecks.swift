@@ -15,6 +15,17 @@ extension AgentLoop {
         return lines
     }
 
+    /// A tap on a send button goes through SendGuard like Enter: the label under the tap, or a text tap's words.
+    func sendTapHold(_ act: JObject, on shot: Data?) async -> String? {
+        guard act["action"]?.str == "tap" else { return nil }
+        var under: String?
+        if let x = act["x"]?.int, let y = act["y"]?.int, let shot {
+            under = IntentLearner.label(at: x, y, in: await lookLines(for: shot))
+        }
+        guard SendGuard.isSend(under) || SendGuard.isSend(act["text"]?.str) else { return nil }
+        return sendGuard.enter(step: steps.count + 1, again: "tap it again")
+    }
+
     enum TapCheck: Equatable {
         case send
         case held(String)
@@ -28,6 +39,10 @@ extension AgentLoop {
             return .held(off)
         }
         if let ask = await payGuardReason(act, on: shot) { return .ask(ask) }
+        if let held = await sendTapHold(act, on: shot) {
+            DebugLog.write("step: tap not sent, a send button after a type that needs a look")
+            return .held(held)
+        }
         if let held = await inventoryHold(act, on: shot) { return .held(held) }
         if let x = act["x"]?.double, let y = act["y"]?.double, let held = AssistiveTouchGuard.held(x, y, hits: assistiveHits) {
             DebugLog.write("step: tap not sent, on the AssistiveTouch button")

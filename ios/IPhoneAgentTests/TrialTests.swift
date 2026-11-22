@@ -105,6 +105,8 @@ import XCTest
         XCTAssertEqual(end([["action": .str("help"), "reason": .str("x")], ["action": .str("stopped")]]).reason, .helpStop)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str("3 errors in a row")]]).reason, .failErrors)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(AgentLoop.stallReason + " in 12 steps")]]).reason, .stall)
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(StuckGuard.reason)]]).reason, .stall, "held moves, not the model")
+        XCTAssertEqual(end([["action": .str("fail"), "reason": .str(PingPongGuard.stuck)]]).reason, .stall)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(AgentLoop.stepLimitReason)]]).reason, .stepLimit)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.board))]]).reason, .boardLost)
         XCTAssertEqual(end([["action": .str("fail"), "reason": .str(Recovery.reason(.mirroring))]]).reason, .blindMirroring)
@@ -120,7 +122,7 @@ import XCTest
     func testRunEndBodyIsSmallAndHasNoContent() throws {
         let body = RunEnd(steps: [["action": .str("fail"), "reason": .str("secret task text")]], moves: 3, calls: 4,
                           firmware: "0.2.4").json
-        XCTAssertEqual(Set(body.keys), ["outcome", "reason", "stage", "steps", "calls", "app_version", "fw"])
+        XCTAssertEqual(Set(body.keys), ["outcome", "reason", "stage", "steps", "calls", "app_version", "fw", "unchanged_max"])
         XCTAssertEqual(body["reason"] as? String, "model_fail")
         XCTAssertEqual(body["stage"] as? String, "running")
         XCTAssertEqual(body["steps"] as? Int, 3)
@@ -128,6 +130,14 @@ import XCTest
         let text = String(data: try JSONSerialization.data(withJSONObject: body), encoding: .utf8) ?? ""
         XCTAssertFalse(text.contains("secret"))  // the model's reason text never leaves the phone
         XCTAssertNil(RunEnd(reason: .startFailed, stage: .startup).json["fw"])
+        // 1.0.10: the input link and the longest run of gestures that changed nothing (counts and an enum only)
+        func g(_ changed: Bool) -> JObject { ["action": .str("tap"), "changed": .bool(changed)] }
+        let hold: JObject = ["action": .str(RepeatGuard.action)]
+        XCTAssertEqual(RunEnd.longestUnchanged([g(false), g(false), hold, g(false), g(true), g(false)]), 3, "a hold doesn't break the run")
+        var linked = RunEnd(steps: [g(false), ["action": .str("done")]], moves: 1, calls: 1, firmware: nil)
+        linked.transport = "ble"
+        XCTAssertEqual(linked.json["transport"] as? String, "ble")
+        XCTAssertEqual(linked.json["unchanged_max"] as? Int, 1)
         // the gateway reads "0.2.5"; the app shows v0.2.5 (2026-11-13)
         let board = try XCTUnwrap(FirmwareVersion("v0.2.5"))
         XCTAssertEqual(RunEnd(reason: .userStop, stage: .running, firmware: board.plain).json["fw"] as? String, "0.2.5")
