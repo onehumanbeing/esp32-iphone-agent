@@ -6,6 +6,7 @@
 #   --build-only  compile only (prints flash/RAM usage)
 #   --name NAME   the board's name in Screen Mirroring and Bluetooth (one word; default ESP32 Agent)
 #   --abs         USB absolute mouse instead of the relative one (needs AssistiveTouch; the app skips calibration)
+#   --no-audio    mirroring only: do not advertise AirPlay audio (keeps audio on the iPhone speaker)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
 #   --note4       build BLE HID for the Note 4 (build only)
 #   --ble-hid     build BLE HID for the standard 8 MB board (build only)
@@ -40,6 +41,7 @@ for a in "$@"; do
     --build-only) BUILD_ONLY=1 ;;
     --ap-tune) DEFS+=" -DAP_TUNE=1" ;;
     --abs) ABS=1 ;;
+    --no-audio) DEFS+=" -DNO_AIRPLAY_AUDIO=1" ;;
     --crash-test) DEFS+=" -DOTA_CRASH_TEST=1" ;;  # build only, then push it with ota_push.py
     --small-gop) DEFS+=" -DGOP_CAP_KB=256" ;;  # test build: the GOP fills (freezes) within minutes
     --*) echo "Unknown build option: $a" >&2; exit 1 ;;

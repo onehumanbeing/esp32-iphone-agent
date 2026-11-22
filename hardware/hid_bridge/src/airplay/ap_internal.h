@@ -21,7 +21,13 @@
 #define AP_VERSION "220.68"
 #define AP_PI "2e388006-13ba-4041-9a67-25dd4a43d536"
 // features bits as UxPlay sets them: mirroring, FairPlay auth, legacy pairing (bit 27) ...
+#ifdef NO_AIRPLAY_AUDIO
+// Clear SupportsAudio (bit 9), AudioRedundant (bit 10), and AudioFormats 0..3 (bits 18..21)
+// so iOS treats the receiver as video-mirroring-only and keeps audio on the phone.
+#define AP_FEATURES (0x5A7FFEE6ull & ~0x3C0600ull)
+#else
 #define AP_FEATURES 0x5A7FFEE6ull
+#endif
 
 extern airplay_cfg ap_cfg;
 extern uint8_t ap_pk[32];  // Ed25519 public key
