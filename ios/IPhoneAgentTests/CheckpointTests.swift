@@ -28,6 +28,26 @@ import XCTest
         XCTAssertNil(c.asked)
     }
 
+    /// 2026-11-22: count reached and README written, the run went on tapping: the planner looks once.
+    func testReachedLooksOnceAfterAGestureWhenTheCountIsReachedAndWritten() {
+        let tap: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(2)]
+        let note: JObject = ["action": .str("note"), "text": .str("x")]
+        XCTAssertTrue(Checkpoints.reached([tap], count: (20, 20), wrote: true))
+        XCTAssertFalse(Checkpoints.reached([tap], count: (20, 20), wrote: false), "the result not written yet")
+        XCTAssertFalse(Checkpoints.reached([tap], count: (20, nil), wrote: true), "no total")
+        XCTAssertFalse(Checkpoints.reached([tap], count: (19, 20), wrote: true))
+        XCTAssertFalse(Checkpoints.reached([tap, note], count: (20, 20), wrote: true), "the last step was no gesture")
+        let a = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        a.checkpointModel = FakeModel { _ in "" }
+        a.checkpoints.used(at: 0)
+        a.notebook.setProgress("20/20")
+        a.resultWritten = true
+        a.steps = [tap]
+        XCTAssertEqual(a.checkpointReason, "reached")
+        a.checkpoints.reachedAsked = true
+        XCTAssertNil(a.checkpointReason, "once per run")
+    }
+
     func testRevisitedScreenGoesToThePlannerOnTheThirdTime() {
         func tap(_ x: Int) -> JObject { ["action": .str("tap"), "x": .int(x), "y": .int(500), "shot": .bool(true)] }
         let note: JObject = ["action": .str("note"), "text": .str("x")]

@@ -354,6 +354,26 @@ final class NotebookBlockTests: XCTestCase {
         return (name, MemoryFiles.root.appendingPathComponent(name))
     }
 
+    /// 2026-11-22: `collect ... max 20` stopped on its count and saved nothing, so the run never said done.
+    func testACollectThatReachesItsMaxWritesTheResult() async throws {
+        let (name, dir) = folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let screen = FakeScreen(), phone = FakeGestures()
+        screen.frame = AgentTests.jpeg()
+        let model = FakeModel { $0 == 1 ? "THINK: page through\nDO: collect ride rows max 2" : "Ride A ¥12\nRide B ¥30" }
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        (agent.task, agent.runFolder) = ("collect my rides", name)
+        _ = try await agent.step()
+        let row = agent.steps.last { $0["action"]?.str == "collect" }
+        let reason = row?["reason"]?.str ?? ""
+        XCTAssertTrue(reason.contains("stopped: \(Collect.End.enough.rawValue)"), reason)
+        let path = try XCTUnwrap(reason.range(of: #"[^ ]+/README\.md"#, options: .regularExpression).map { String(reason[$0]) }, reason)
+        defer { try? FileManager.default.removeItem(at: MemoryFiles.root.appendingPathComponent(String(path.dropLast(10)))) }
+        XCTAssertTrue(reason.contains("the app wrote it"), reason)
+        XCTAssertTrue(agent.resultWritten)
+        XCTAssertEqual(phone.calls.filter { $0 == "swipe" }.count, 0, "the count was read on the first screen")
+    }
+
     /// 2026-11-20: 25 rides collected, then the README in one reply was cut three times. The app writes it now.
     func testAListDoneWritesTheResultFromTheNotebook() throws {
         let (name, dir) = folder()

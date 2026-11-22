@@ -22,6 +22,16 @@ struct Checkpoints {
     static let revisitNote = "Going round (the stronger model looks because this screen came back a third time with "
         + "nothing new in the notebook): say in THINK which screens the run went between and why it did not get "
         + "closer to the goal, then choose a different way to reach it, or ask for help.\n\n"
+    static let reachedNote = "Count reached (the stronger model looks because the progress count is reached and the "
+        + "result file is written, yet the run went on with another gesture): compare the result with the goal. If "
+        + "nothing is missing, say done with the answer; else say in THINK what is still missing and get only that.\n\n"
+
+    /// Once per run: a gesture after the progress count was reached and the result written (2026-11-22: runs that
+    /// had all their rows and README kept tapping until the step limit instead of saying done).
+    static func reached(_ steps: [JObject], count: (done: Int, total: Int?)?, wrote: Bool) -> Bool {
+        AgentLoop.doneIsShown(count, wrote: wrote) && Actions.gestures.contains(steps.last?["action"]?.str ?? "")
+    }
+
     /// Screens with progress between them are not going round: the notebook grew.
     static let progressActions: Set<String> = ["read", "collect", "note", "progress", "remember", "write"]
 
@@ -49,6 +59,8 @@ struct Checkpoints {
     var calls = 0
     /// The planner answered the current round (the trace's "planner" flag).
     var answered = false
+    /// The "reached" checkpoint ran this run (it runs once).
+    var reachedAsked = false
 
     /// Why this round goes to the planner, or nil for the actor. `planChanged`: a plan row since the last checkpoint.
     func reason(_ steps: [JObject]) -> String? {
@@ -73,6 +85,7 @@ extension AgentLoop {
     var checkpointReason: String? {
         guard checkpointModel != nil else { return nil }
         if let reason = checkpoints.reason(steps) { return reason }
+        if !checkpoints.reachedAsked, Checkpoints.reached(steps, count: notebook.count, wrote: resultWritten) { return "reached" }
         guard let from = checkpoints.lastAt else { return nil }
         // only screenshots both there count (a run resumed from disk has the steps but not their screens)
         let same = { (i: Int, j: Int) in self.shots[i] != nil && self.shots[j] != nil && self.sameShots(i, j) }
@@ -85,10 +98,12 @@ extension AgentLoop {
         checkpoints.answered = false
         if let reason, let planner = checkpointModel {
             checkpoints.used(at: steps.count)
+            if reason == "reached" { checkpoints.reachedAsked = true }
             DebugLog.write("checkpoint (\(reason)): asking \(planner.model)")
             do {
                 let asked = reason == "review" ? Checkpoints.reviewNote + prompt
-                    : reason == "revisit" ? Checkpoints.revisitNote + prompt : prompt
+                    : reason == "revisit" ? Checkpoints.revisitNote + prompt
+                    : reason == "reached" ? Checkpoints.reachedNote + prompt : prompt
                 let reply = try await ask("actor", planner, actorPrompt, asked, temperature: temperature)
                 checkpoints.answered = true
                 return reply
