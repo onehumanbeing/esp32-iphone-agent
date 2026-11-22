@@ -4,6 +4,13 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.10 (TestFlight)
+
+- Agent: `collect WHAT max N` that stops on its count saves the result (README) and says where, as a list read to its end does.
+- Agent: when the progress count is reached and the result written but the run goes on with another gesture, the planner looks once.
+- Agent: a tap on a send button (发送 / Send / 发布 / Post / 回复 / Reply) is held once like Enter after a `type` that stopped part way, or when the same text was already sent; the same tap again goes through.
+- Runs: a run that a guard gave up on ("stuck:") ends as `stall`, not `model_fail`; run_end also says which link the mouse and keyboard used (`transport`: usb / ble) and the longest run of gestures that changed nothing (`unchanged_max`).
+
 ## App 1.0.9 (TestFlight)
 
 - iOS 16.4 minimum: iPhone 8 and iPhone X can run the app. On iPhones before iOS 17 the agent leaves an app through the AssistiveTouch menu (its button found on the screen) instead of the Home bar.

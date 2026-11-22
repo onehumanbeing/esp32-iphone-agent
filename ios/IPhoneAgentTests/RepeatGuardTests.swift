@@ -270,6 +270,21 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNil(g.enter(step: 6), "cleared: nothing held")
     }
 
+    /// 2026-11-22: a DM went out garbled through the Send button; a send button is held like Enter.
+    func testASendButtonAfterAPartWayTypeIsHeldOnce() {
+        XCTAssertTrue(SendGuard.isSend("发送"))
+        XCTAssertTrue(SendGuard.isSend(" Send "))
+        XCTAssertFalse(SendGuard.isSend("发送位置"), "a longer label is not the send button")
+        XCTAssertFalse(SendGuard.isSend(nil))
+        var g = SendGuard()
+        g.typed("我们晚上七点见", missing: "七点见")
+        let held = g.enter(step: 3, again: "tap it again") ?? ""
+        XCTAssertTrue(held.contains("tap it again to send it as it is"), held)
+        XCTAssertNil(g.enter(step: 4, again: "tap it again"), "the same tap again: sent as it is")
+        g.typed("好的", missing: nil)
+        XCTAssertNil(g.enter(step: 5, again: "tap it again"), "typed in full: sent at once")
+    }
+
     func testTheSameTextEnteredAgainIsHeldOnce() {
         var g = SendGuard()
         g.typed("hello", missing: nil)

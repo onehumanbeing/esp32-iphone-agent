@@ -419,8 +419,9 @@ extension AppModel {
     /// The run ended: outcome on the character, Live Activity and a notification; then the review opens.
     func ended() {
         RunMarker.clear()
-        let plan = endLine(RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls,
-                                  firmware: board.status?.fw?.plain))  // free line (held while the plan is judged)
+        var runEnd = RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls, firmware: board.status?.fw?.plain)
+        runEnd.transport = board.status?.hidTransport
+        let plan = endLine(runEnd)  // free line (held while the plan is judged)
         videoSink = nil
         saveVideoFrame(feed.frame)  // the last screen too, however the run ended
         videoDir = nil

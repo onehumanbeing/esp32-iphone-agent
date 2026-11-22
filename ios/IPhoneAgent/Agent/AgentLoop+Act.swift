@@ -340,6 +340,8 @@ enum IslandGuard {
 /// - N7: the goal was reached, and the same text was typed and sent again (QQ, ~4 times in one run).
 /// Held once each, with the reason for the model; the same Enter again goes through (a search run twice is
 /// legitimate). A `clear` or a complete `type` starts over.
+/// A tap on a send button (发送 / Send, label under the tap) is held the same way (2026-11-22: a DM went out garbled
+/// through the Send button, which no check saw); nothing is asked before a send.
 struct SendGuard {
     private(set) var missing: String?  // what the last `type` did not get into the field
     private(set) var pending: String?  // the last complete `type`, not yet entered
@@ -377,17 +379,25 @@ struct SendGuard {
         (missing, pending, heldIncomplete) = (nil, nil, false)
     }
 
-    /// Before Enter at `step`: a reason to hold it back, or nil to send it.
-    mutating func enter(step: Int) -> String? {
+    /// Labels of a button that sends what was typed: the whole label, as PayGuard reads it.
+    static let sendWords: Set<String> = ["发送", "发布", "回复", "send", "post", "reply"]
+
+    static func isSend(_ label: String?) -> Bool {
+        guard let label = label?.trimmingCharacters(in: .whitespaces).lowercased(), !label.isEmpty else { return false }
+        return sendWords.contains(label)
+    }
+
+    /// Before Enter (or a tap on a send button: `again` names it) at `step`: a reason to hold it back, or nil to send it.
+    mutating func enter(step: Int, again: String = "key enter again") -> String? {
         if let missing, !heldIncomplete {
             heldIncomplete = true
             return "not sent: the field holds only part of the text (not typed: \"\(missing)\"). " + Self.listedHint
-                + "Else type the rest first, or \(Self.clearHint) and type it all again; key enter again to send it as it is"
+                + "Else type the rest first, or \(Self.clearHint) and type it all again; \(again) to send it as it is"
         }
         if let text = pending, let at = sent[text], heldRepeat != text {
             heldRepeat = text
             return "not sent: \"\(text)\" was already entered at step \(at). If it is on screen, the goal may be done;"
-                + " key enter again only to enter it a second time"
+                + " \(again) only to enter it a second time"
         }
         if let text = pending { sent[text] = step }
         (pending, missing, heldIncomplete, heldRepeat) = (nil, nil, false, nil)
