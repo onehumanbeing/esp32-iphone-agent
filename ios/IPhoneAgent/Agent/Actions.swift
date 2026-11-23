@@ -52,6 +52,17 @@ enum Actions {
             return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
+        // tap 发送: words without quotes and no numbers are the words too (Qwen wrote it so; the whole reply was taken
+        // as off-format and asked again, 5 s, in most runs of 2026-11-23)
+        if name == "tap", numbers.isEmpty {
+            let words = rest.replacingOccurrences(of: "precise", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'“”「」")))
+            if !words.isEmpty {
+                var action: JObject = ["action": .str(name), "text": .str(words)]
+                if rest.lowercased().hasSuffix("precise") { action["precise"] = .bool(true) }
+                return action
+            }
+        }
         if keys == ["points"] {
             guard numbers.count >= 4, numbers.count % 2 == 0 else {
                 throw ParseError(message: "path needs 2+ x y pairs: \(line.prefix(100))")
@@ -79,7 +90,15 @@ enum Actions {
             acts[0]["repaired"] = .bool(true)
             return acts
         }
-        var acts = try lines.map(parseCommand).prefix(6).map { $0 }
+        // the DO lines up to one that does not parse: one odd line no longer throws away the good ones before it
+        var acts: [JObject] = []
+        for line in lines.prefix(6) {
+            guard let act = try? parseCommand(line) else {
+                if acts.isEmpty { _ = try parseCommand(line) }  // the first one: its error says why
+                break
+            }
+            acts.append(act)
+        }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
         acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])

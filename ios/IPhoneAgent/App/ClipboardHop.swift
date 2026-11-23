@@ -40,8 +40,11 @@ extension AppModel {
     /// clipboard is left as it is.
     /// Synchronous, from what is in hand (recorded steps, the cached plan, the prompt): never waits for the planner.
     func carryClipboard(_ task: String, inFront: Bool) {
-        let t0 = now()
         agent.carried = nil
+        // Off (Henry 2026-11-23): a paste into another app asks for permission ("Allow Paste"), and that wait is far
+        // worse than typing. Chinese is typed; nothing goes on the clipboard at a run's start.
+        if !ClipboardCarry.enabled { return }
+        let t0 = now()
         let typed = agent.replay.steps.compactMap { $0.action["action"]?.str == "type" ? $0.action["text"]?.str : nil }
         guard inFront, !appIsBackgrounded,
               let pick = ClipboardCarry.pick(task: task, plan: agent.cachedPlan, typed: typed) else {

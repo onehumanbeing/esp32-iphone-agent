@@ -703,7 +703,11 @@ import UIKit
     }
 
     /// aim: find the pointer on screen first (slower); worth it when a tap just missed.
+    /// Where the last tap went (fractions): the text field a type goes into, for its quick read back.
+    var lastTapAt: CGPoint?
+
     func tap(_ x: Double, _ y: Double, aim: Bool = false) async throws {
+        lastTapAt = CGPoint(x: x, y: y)
         if recalibration.tap() { try await recalibrate() }
         let from = pos  // where the tracked pointer was, for a tap that set off something else (another app in front)
         try await point(x, y, aim: aim)

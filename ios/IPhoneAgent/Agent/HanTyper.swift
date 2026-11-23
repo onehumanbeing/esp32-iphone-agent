@@ -93,6 +93,15 @@ enum TypeStop {
     var toggle: () async throws -> Void
     /// The screen's words once it settled; nil = no live screen (then the pinyin is committed unchecked).
     var look: () async -> Seen?
+    /// The fast way's read before it types, split so the typing need not wait for OCR (about 3 s on an iPhone X,
+    /// 2026-11-23: two reads were 10 of the 14 s of a 29-character type): `grab` the settled frame, `read` it
+    /// while the keys go in. nil: `look` before typing.
+    var grab: (() async -> Data?)? = nil
+    var read: ((Data) async -> Seen?)? = nil
+    /// The words of what changed between two frames (before, after); nil when it cannot tell.
+    var readNew: ((Data, Data) async -> Seen?)? = nil
+    /// The fast way first (`fast`); off in the tests of the careful way.
+    var fastFirst = true
     static let segment = 4
     /// Words committed unread before the field is read back. Each costs about 0.3 s of typing, a read 1–2 s; a
     /// wrong word costs retyping the words after it, so four keeps a repair short.
@@ -123,7 +132,15 @@ enum TypeStop {
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             DebugLog.write("type: \(text.count) chars in \(ms) ms, \(looks.n) screen reads")
         }
-        do { return try await counted.typeBody(text, checkLetters: checkLetters) }
+        do {
+            switch fastFirst ? try await counted.fast(text) : nil {
+            case .done?: return nil
+            case .unread?:  // typed, the field not read: never typed again on top of itself
+                return Stop(note: "typed \"\(text)\" in one go; it is most likely in the field, only the read back was unclear:"
+                    + " look at the field and do not type it again unless it is missing, not typed: \"\"")
+            case .redo?, nil: return try await counted.typeBody(text, checkLetters: checkLetters)
+            }
+        }
         catch let halt as TypeHalted {
             return Stop(note: "typing stopped (\(halt.why)); not typed: \"\(halt.left)\"")
         }
@@ -342,7 +359,8 @@ enum TypeStop {
                 }
                 try await key("space")
                 guard let after = await next() else { typed += word; continue }
-                if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased()) {
+                if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased())
+                    || Self.wentEnglish(from: base, to: field(after)) {
                     // the letters stayed in the field after space: English keyboard (ctrl+space only for this)
                     try await erase(pinyin.count + 1)
                     if item.toggled { return stop("the Chinese (pinyin) keyboard did not come up with ctrl+space (cleared)", piece) }
@@ -361,6 +379,224 @@ enum TypeStop {
             }
         }
         return nil
+    }
+
+    /// The fast way first (Henry 2026-11-23: Chinese typed in one go is as fast as English; reading the screen every
+    /// few words made 7 characters take 22 s with 5 reads): each Han run as its pinyin and one space (runs over
+    /// `fastRun` characters in word groups), punctuation by its key, then one read of the field. true: the field
+    /// shows the text. false: it does not, and what this typing put there is deleted for the careful way. nil: not
+    /// tried (no Chinese, or no screen to check it on).
+    enum Fast { case done, redo, unread }
+
+    /// `from`: the field before (after an English go is deleted it is as it was: not read again).
+    func fast(_ text: String, from: Seen? = nil) async throws -> Fast? {
+        let toggled = from != nil
+        guard Self.isHan(text) else { return nil }
+        var known = from, pending: Task<Seen?, Never>?, frameBefore: Data?
+        if known == nil, let grab, let read {
+            guard let jpeg = await grab() else { return nil }
+            frameBefore = jpeg
+            pending = Task { await read(jpeg) }
+        } else if known == nil {
+            known = await look()
+            if known == nil { return nil }
+        }
+        var keys = 0, letters = 0, spaces = 0
+        for piece in Self.fastPieces(text) {
+            switch piece {
+            case .han(let run):
+                let pinyin = Pointer.typeable(run)
+                try await emit(pinyin)
+                try await key("space")
+                keys += pinyin.count + 1  // the space: a character itself when the keyboard is English
+                spaces += 1
+                letters += pinyin.filter(\.isLetter).count
+            case .plain(let plain):
+                let (strokes, typed) = Accents.plan(plain)
+                if !strokes.isEmpty { try await enter(strokes) }
+                keys += typed.count
+            }
+        }
+        let want = Self.core(text)
+        // the quick check: only what changed on screen, read while the full read of the frame before still runs
+        var freshText: String?
+        if let frameBefore, let grab, let readNew, let frameAfter = await grab(),
+           let fresh = await readNew(frameBefore, frameAfter) {
+            let read = Self.core(Self.fieldText(fresh, minus: []))
+            if Self.holds(want, in: read) {
+                pending?.cancel()
+                DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
+                return .done
+            }
+            freshText = read
+            DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
+        }
+        if known == nil { known = await pending?.value }
+        guard let before = known else { return .unread }
+        // A long text fills the field past its lines and only its end is shown: 60 characters in WeChat read as the
+        // last 18, the right text was deleted and typed again the slow way (2026-11-23). Its end read where the screen
+        // changed is the text, even when the same message sent earlier is on the screen too: that rule sent the next
+        // run (the chat held it twice) to the careful way, 98 s (Henry: speed over full protection).
+        if let end = Self.shownEnd(want), let freshText, Self.holds(end, in: freshText) {
+            DebugLog.write("type: fast, \(text.count) chars in one go, its end read back in the changed area (the field scrolls): ok")
+            return .done
+        }
+        func lookAgain() async -> Seen? {  // the same read as before the keys, when there was one
+            guard let grab, let read else { return await look() }
+            guard let jpeg = await grab() else { return nil }
+            return await read(jpeg)
+        }
+        guard var after = await lookAgain() else { return .unread }
+        // the field as it was: the frame may be from before the keys (2026-11-23, after ctrl+space); one more read
+        if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await lookAgain() { after = again }
+        let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
+        // a long text's shown end, read in a field that grew (the same message may be in the chat above: not asked)
+        let end = Self.shownEnd(want)
+        let fieldGrew = Self.fieldText(after, minus: []).count > Self.fieldText(before, minus: []).count
+        if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was)
+            || (Self.holds(want, in: now) && !Self.holds(want, in: was))
+            || (fieldGrew && end.map({ Self.holds($0, in: now) }) == true) {
+            DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
+            return .done
+        }
+        // what this typing left: pinyin letters (the English keyboard, or a run not committed) and the characters
+        let newLetters = max(0, now.filter(\.isASCII).count - was.filter(\.isASCII).count)
+        // nothing seen growing: the keys may have gone nowhere, so nothing is deleted
+        let grew = max(0, Self.fieldText(after, minus: []).count - Self.fieldText(before, minus: []).count)
+        guard grew > 0 else {  // nothing new read in the field: OCR missed it, or it has no focus; unknown, so kept
+            DebugLog.write("type: fast, nothing new read in the field; not typed again")
+            return .unread
+        }
+        // letters and no Chinese: the English keyboard (2026-11-23, iPhone X: OCR read 4 of 17 letters, the ratio
+        // missed it, a few letters were deleted and the rest stayed). Everything typed is deleted, ctrl+space, again.
+        // the text's own English letters ("See you tomorrow!") are not a sign of the English keyboard (2026-11-23)
+        let ownLatin = text.filter { $0.isASCII && $0.isLetter }.count
+        if !toggled, Self.wentEnglish(from: Self.fieldText(before, minus: []), to: Self.fieldText(after, minus: []), expected: ownLatin) {
+            DebugLog.write("type: fast, letters and no Chinese (\(newLetters) new letters): English keyboard; deleting \(keys), ctrl+space")
+            try await erase(keys)
+            try await toggle()
+            return try await fast(text, from: before)
+        }
+        // what the keys put there, not what OCR saw grow: a sentence over two lines read short, 17 of 29 were
+        // deleted and the careful way typed it all after the rest (2026-11-23, sent with its first half twice).
+        // Pinyin commits a character a syllable and punctuation one each, so text.count is what went in.
+        // the keyboard's other candidate read in the field (西安 for 西岸): a real wrong word, typed again the careful way
+        if Self.otherCandidate(want, in: now) {
+            DebugLog.write("type: fast, another candidate went in (read \"\(String(now.suffix(40)))\"); deleting \(text.count + newLetters), typing it the careful way")
+            try await erase(text.count + newLetters)
+            return .redo
+        }
+        // Not English: the fast way is trusted, nothing deleted (Henry 2026-11-23: "快打没有问题，问题出在你老是查").
+        // Every "read back wrong" on the iPhone X that day was the read's: the field showed only the end of a long
+        // text, the chat held the same message, the last pinyin was not up yet; each one deleted a right text and
+        // the careful way then took 1-2 minutes.
+        DebugLog.write("type: fast, read back unsure (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); trusted, not typed again")
+        return .done
+    }
+
+    static let fastRun = segment  // a group commits with one space; longer ones came out as other words more often
+
+    /// The text for the fast way: Han runs (a long one in groups of words up to `fastRun` characters) and the rest.
+    static func fastPieces(_ text: String) -> [Piece] {
+        var out: [Piece] = []
+        for piece in pieces(text) {
+            guard case .han(let word) = piece else { out.append(piece); continue }
+            if case .han(let last)? = out.last, last.count + word.count <= fastRun {
+                out[out.count - 1] = .han(last + word)
+            } else {
+                out.append(.han(word))
+            }
+        }
+        return out
+    }
+
+    /// A text this long may scroll in its field (WeChat on an iPhone X shows about 4 lines of 13): its last
+    /// `endChars` are what the read can see. Initial estimates.
+    static let scrollsFrom = 30, endChars = 16
+    static func shownEnd(_ want: String) -> String? { want.count >= scrollsFrom ? String(want.suffix(endChars)) : nil }
+
+    /// Letters, digits and Han, folded: what OCR reads reliably (punctuation and spaces left out).
+    static func core(_ text: String) -> String {
+        Scripts.fold(text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text).filter { $0.isLetter || $0.isNumber }
+    }
+
+    /// New letters in the field and no new Chinese: the keys went in as English.
+    static func wentEnglish(from was: String, to now: String, expected: Int = 0) -> Bool {
+        func tally(_ t: String) -> (latin: Int, han: Int) {
+            (t.filter { $0.isASCII && $0.isLetter }.count, t.filter { isHan(String($0)) }.count)
+        }
+        let (a, b) = (tally(was), tally(now))
+        return b.latin - a.latin >= expected + 2 && b.han <= a.han
+    }
+
+    /// Places in `text` that read as `want` with up to one character in ten read otherwise: OCR slips (搜索 read
+    /// as 搜素, 2026-11-23) are not a wrong typing, and retyping for them cost 20 s (Henry: tolerate OCR errors).
+    /// Whether `text` holds `want` up to OCR's slips: the cheapest alignment of `want` against any stretch of `text`
+    /// (a character read otherwise, dropped or added, 1 each) within one in ten. A character with the same pinyin as
+    /// the wanted one is the keyboard's other candidate (西安 for 西岸), never a slip. A dropped character shifted
+    /// every one after it out of a straight comparison and a right 60-character text was typed twice (2026-11-23).
+    static func holds(_ want: String, in text: String) -> Bool {
+        let w = Array(want), t = Array(text)
+        guard !w.isEmpty, !t.isEmpty else { return false }
+        let slack = w.count >= 4 ? 1 + w.count / 10 : 0, never = w.count + t.count
+        var pinyin: [Character: String] = [:]
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
+        // a wanted character missing while one with its pinyin, not wanted, is there: the other candidate, even when
+        // the alignment would take it as a drop and an add
+        if otherCandidate(want, in: text) { return false }
+        var prev = [Int](repeating: 0, count: t.count + 1)  // free start anywhere in text
+        for i in 1...w.count {
+            var cur = [Int](repeating: i, count: t.count + 1)
+            for j in 1...t.count {
+                let sub = w[i - 1] == t[j - 1] ? 0 : (py(w[i - 1]) == py(t[j - 1]) ? never : 1)
+                cur[j] = min(prev[j - 1] + sub, prev[j] + 1, cur[j - 1] + 1)
+            }
+            prev = cur
+        }
+        return (prev.min() ?? never) <= slack  // free end anywhere in text
+    }
+
+    /// A wanted character missing while one with its pinyin, not wanted, is there: the keyboard's other candidate
+    /// (西安 for 西岸), a wrong typing, not a misread.
+    static func otherCandidate(_ want: String, in text: String) -> Bool {
+        var pinyin: [Character: String] = [:]
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
+        let w = Array(want), t = Array(text), have = Set(t), wanted = Set(w)
+        let stand = Set(t.filter { !wanted.contains($0) }.map(py))
+        return w.contains { !have.contains($0) && stand.contains(py($0)) }
+    }
+
+    static func near(_ want: String, in text: String) -> Int {
+        let w = Array(want), t = Array(text), slack = w.count >= 4 ? 1 + w.count / 10 : 0  // a short one exactly: one char off is all of it
+        guard !w.isEmpty, t.count >= w.count else { return 0 }
+        var pinyin: [Character: String] = [:]  // typeable is slow: 2 per mismatch held the main thread 3.2 s (2026-11-23)
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
+        var found = 0, i = 0
+        while i + w.count <= t.count {
+            var off = 0
+            for j in w.indices where t[i + j] != w[j] {
+                // the same pinyin is the keyboard's other candidate (西安 for 西岸), a wrong typing; only a character
+                // that reads otherwise is an OCR slip (索 read as 素)
+                if py(t[i + j]) == py(w[j]) { off = slack + 1 } else { off += 1 }
+                if off > slack { break }
+            }
+            if off <= slack { found += 1; i += w.count } else { i += 1 }
+        }
+        return found
+    }
+
+    static func occurrences(_ want: String, in text: String) -> Int {
+        guard !want.isEmpty else { return 0 }
+        return text.components(separatedBy: want).count - 1
     }
 
     /// One `type` command, split so a long run cannot sit inside the board's watchdog.
@@ -518,7 +754,12 @@ enum TypeStop {
         let after = half(fieldText(now, minus: row)), base = half(fieldText(before, minus: Array(beforeRow)))
         let words = text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 }
         guard words.contains(where: { count($0, in: after) > count($0, in: base) }) else { return false }
-        return symbols.contains { count(String($0), in: after) <= count(String($0), in: base) }
+        // the last character sits against the cursor, where OCR drops it ("OK?" read as "OK", 2026-11-23, iPhone X:
+        // a right English message was called wrong and held from sending): only a symbol inside the text counts
+        // and what follows it on screen (the keyboard's suggestions) cannot tell OCR's miss from a wrong key: only a
+        // symbol inside the text is judged (Henry: tolerate OCR, never hold a right message for it)
+        let last = text.trimmingCharacters(in: .whitespaces).last
+        return symbols.contains { $0 != last && count(String($0), in: after) <= count(String($0), in: base) }
     }
 
     /// How a word committed unread reads in the field.

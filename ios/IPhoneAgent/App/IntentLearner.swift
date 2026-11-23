@@ -426,6 +426,15 @@ extension AppModel {
             let notes = PlanJudge.notes(task: intent.prompt, plan: plan, steps: agent.steps, latestPlan: agent.plan,
                                         progress: agent.notebook.progress)
             let outcome = "\(Outcome(last: agent.steps.last?["action"]?.str, running: false))"
+            // A run that finished keeps its plan, no judge (Henry 2026-11-23: the judge called a plan that had just sent
+            // the message "vague", and each run then waited 5-7 s for the planner again). Stopped runs are still judged.
+            if outcome == "\(Outcome.done)" {
+                hold.map(Trial.shared.release)
+                planCache.save(plan, for: intent, run: run)
+                DebugLog.write("plan cache: run \(run) for \"\(intent.name)\" finished; plan kept")
+                Analytics.capture("plan_judged", ["kept": PlanJudge.Kept.yes.rawValue, "outcome": outcome, "judge": "done"])
+                return
+            }
             let timer = Task {  // the free line is held no longer than this
                 try? await Task.sleep(nanoseconds: UInt64(PlanJudge.timeout * 1_000_000_000))
                 hold.map(Trial.shared.release)

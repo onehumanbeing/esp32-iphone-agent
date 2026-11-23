@@ -33,4 +33,17 @@ import XCTest
         XCTAssertTrue(over)
         XCTAssertEqual(asked, "Delete 2 notes: A, B")
     }
+
+    /// 2026-11-23, iPhone X: "先清空…输入框，再给文件传输助手发…" made the send wait for an answer nobody saw.
+    func testASendTheTaskAskedForDoesNotWaitOnPaymentsOnly() async throws {
+        let actor = FakeModel { _ in "THINK: typed\nDO: confirm send 好的 to 文件传输助手" }
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: actor, planner: nil, trace: nil)
+        agent.showMock(task: "打开微信，先清空文件传输助手输入框里的内容，再发：好的", plan: "", steps: [], running: true)
+        agent.inventory = Inventory(task: agent.task)
+        agent.askMode = .payments
+        var asked: String?
+        agent.onConfirm = { reason in asked = reason; return .stop }
+        _ = try await agent.step()
+        XCTAssertNil(asked)
+    }
 }

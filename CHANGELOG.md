@@ -4,6 +4,14 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.10.1 (TestFlight, build of 1.0.10)
+
+- Chinese input is much faster: pinyin goes in one go and is read back once; a right text is no longer deleted and typed again (a long text that shows only its end, the same message already in the chat, an OCR slip). Only English letters or the keyboard's other candidate (西安 for 西岸) are typed again.
+- Agent: a `type` that repeats part of the text just typed is not typed again; `tap 发送` without quotes is understood (no second model call).
+- Runs end faster: the keyboard check after a run is read on the phone (0.2 s instead of 8-30 s), the planner's done check is off, no wait for a late on-device tree on slower phones, no 2.5 s stall at the start.
+- Intents: a finished run keeps its plan; replayed steps carry this run's result; a done right after the app's own open is held once.
+- Nothing goes on the clipboard at a run's start.
+
 - Hermes Agent plugin (`integrations/hermes`, a portable Agent Plugins v1 package): the esp32agent MCP server (esp32agent 0.1.5) plus the manina skill. `hermes plugins install onehumanbeing/esp32-iphone-agent/integrations/hermes --enable`.
 
 ## App 1.0.10 (TestFlight)

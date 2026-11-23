@@ -6,6 +6,8 @@ import Foundation
 /// field is cleared and pasted once more, with no hop back to this app (Henry 2026-11-20: the Spotlight hop looked
 /// bizarre and missed with many apps open). The write is local only; logs carry counts, never the text.
 struct ClipboardCarry: Equatable {
+    /// The carry at a run's start (AppModel.carryClipboard); off since 2026-11-23 (Henry: no clipboard).
+    nonisolated(unsafe) static var enabled = false
     var text: String
     var changeCount: Int  // UIPasteboard.changeCount right after the write: any later write changes it
     var source: String  // "plan" or "prompt"
@@ -128,7 +130,7 @@ extension AgentLoop {
         let seen = try await pasteClipboard(text)
         DebugLog.write("clipboard: pasted carried text first (\(text.count) chars): read back \(seen ? "ok" : "not seen, typing")")
         typeStats.pasted(seen ? nil : "text is not seen", pinyin: false)
-        if seen { sendGuard.typed(text, missing: nil) } else { _ = try await phone?.clearField() }
+        if seen { sendGuard.typed(text, missing: nil, at: steps.count + 1) } else { _ = try await phone?.clearField() }
         return seen
     }
 
@@ -141,10 +143,10 @@ extension AgentLoop {
         let seen = try await pasteClipboard(text)
         DebugLog.write("clipboard: paste carried text (\(text.count) chars): read back \(seen ? "ok" : "not seen")")
         if seen {
-            sendGuard.typed(text, missing: nil)
+            sendGuard.typed(text, missing: nil, at: steps.count + 1)
             return ("result", "the pinyin keyboard stopped part way, so the field was cleared and the whole text pasted from the clipboard; read back: the field holds all of it")
         }
-        sendGuard.typed(text, missing: text)
+        sendGuard.typed(text, missing: text, at: steps.count + 1)
         return ("typed", SendGuard.listedHint + stop.note + "; the field was then cleared and the text pasted with cmd+v,"
             + " but it is not seen: check the field; if it is wrong, \(SendGuard.clearHint) and type it in shorter pieces")
     }

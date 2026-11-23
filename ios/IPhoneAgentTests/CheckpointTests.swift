@@ -87,6 +87,8 @@ import XCTest
     }
 
     func testTheActorsDoneIsCheckedByThePlanner() async throws {
+        Checkpoints.doneCheck = true  // off by default since 2026-11-23; the check itself still works
+        defer { Checkpoints.doneCheck = false }
         let actor = FakeModel { _ in "THINK: found\nDO: done the address" }
         let planner = FakeModel { _ in "THINK: rating missing but not shown\nDO: done address 29 Essex St; no rating shown" }
         let a = agent(actor: actor, planner: planner)
@@ -99,6 +101,8 @@ import XCTest
     }
 
     func testThePlannerCanOverruleADone() async throws {
+        Checkpoints.doneCheck = true  // off by default since 2026-11-23; the check itself still works
+        defer { Checkpoints.doneCheck = false }
         let actor = FakeModel { _ in "THINK: done\nDO: done ok" }, planner = FakeModel { _ in "THINK: not yet\nDO: tap 10 20" }
         let a = agent(actor: actor, planner: planner)
         a.checkpoints.used(at: 0)

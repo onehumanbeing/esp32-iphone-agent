@@ -26,13 +26,34 @@ extension Pointer {
         // is hidden with the board as a hardware keyboard: it read "English" every time, and ctrl+space on the
         // pinyin keyboard switched it to English (2026-11-20, 5–6 s lost per type)
         let layout = han ? .none : try await matchKeyboard(pinyin: false)
-        let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
+        var typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
                              toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
             guard let image = screen.frame.flatMap(Vision.image) else { return nil }
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
+        typer.grab = { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.25, least: 0.4, most: 1.2)
+            return screen.frame
+        }
+        typer.read = { jpeg in
+            guard let image = Vision.image(jpeg) else { return nil }
+            return HanTyper.Seen(words: await UITreeOCR.lines(image), height: image.height)
+        }
+        // only what changed between the frames before and after the keys (the field wherever the keyboard pushed
+        // it, and the bar): a read in about a second, not ~3 s for the whole screen (Henry 2026-11-23: confirm in
+        // seconds). nil when the change is not one small area.
+        typer.readNew = { before, after in
+            let rects = await Vision.off { Vision.motion(before, after) }
+            guard let first = rects.first, let image = Vision.image(after) else { return nil }
+            let box = rects.dropFirst().reduce(first) { $0.union($1) }.insetBy(dx: 0, dy: -0.02)
+                .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+            let w = Double(image.width), h = Double(image.height)
+            guard let cut = image.cropping(to: CGRect(x: 0, y: box.minY * h, width: w, height: box.height * h)) else { return nil }
+            return HanTyper.Seen(words: await UITreeOCR.lines(cut), height: cut.height)
+        }
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
         let stop = try await typer.attempt(text, checkLetters: han || layout == .none)
         if let stop { log("type: \(stop.note)") }
@@ -112,15 +133,29 @@ extension Pointer {
 
     /// "卫生纸 3卷" → "weishengzhi 3juan", "西岸" → "xi'an": Han characters to joined pinyin, accents folded, the rest dropped.
     /// `trim` false keeps spaces at the ends (a piece of a longer text).
+    /// Chinese punctuation that is not a full-width form of an ASCII one, by the key the pinyin keyboard turns into it.
+    nonisolated static let chinesePunctuation: [Character: Character] = [
+        "。": ".", "、": "\\", "“": "\"", "”": "\"", "‘": "'", "’": "'", "《": "<", "》": ">", "【": "[", "】": "]",
+        "…": "^", "—": "_", "·": "`",
+    ]
+
     nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
         var prevHan = false
+        var last: Character?
         for ch in text {
+            defer { last = ch }
+            if "…—".contains(ch), last == ch { continue }  // "……" and "——": one key makes the pair
             let s = String(ch)
             let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
-            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
-                .applyingTransform(.stripDiacritics, reverse: false) ?? s
+            // Chinese punctuation as the key that makes it on the pinyin keyboard (",": "，"); it was filtered out
+            // as non-ASCII, and "好的，明天见！" went in as 好的明天见 with no note (2026-11-23, iPhone X: the model
+            // cleared and retyped it for 10 minutes)
+            let punct = Self.chinesePunctuation[ch].map(String.init)
+                ?? (s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s)
+            let latin = (punct.applyingTransform(.toLatin, reverse: false) ?? punct)
+                .applyingTransform(.stripDiacritics, reverse: false) ?? punct
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
             if isHan {
                 let syllable = kept.replacingOccurrences(of: " ", with: "")
