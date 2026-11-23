@@ -351,7 +351,8 @@ enum TypeStop {
                 }
                 try await key("space")
                 guard let after = await next() else { typed += word; continue }
-                if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased()) {
+                if Self.count(pinyin, in: field(after).lowercased()) > Self.count(pinyin, in: base.lowercased())
+                    || Self.wentEnglish(from: base, to: field(after)) {
                     // the letters stayed in the field after space: English keyboard (ctrl+space only for this)
                     try await erase(pinyin.count + 1)
                     if item.toggled { return stop("the Chinese (pinyin) keyboard did not come up with ctrl+space (cleared)", piece) }
@@ -379,8 +380,13 @@ enum TypeStop {
     /// tried (no Chinese, or no screen to check it on).
     enum Fast { case done, redo, unread }
 
-    func fast(_ text: String) async throws -> Fast? {
-        guard Self.isHan(text), let before = await look() else { return nil }
+    /// `from`: the field before (after an English go is deleted it is as it was: not read again).
+    func fast(_ text: String, from: Seen? = nil) async throws -> Fast? {
+        let toggled = from != nil
+        guard Self.isHan(text) else { return nil }
+        var read = from
+        if read == nil { read = await look() }
+        guard let before = read else { return nil }
         var keys = 0, letters = 0, spaces = 0
         for piece in Self.fastPieces(text) {
             switch piece {
@@ -412,6 +418,14 @@ enum TypeStop {
             DebugLog.write("type: fast, nothing new read in the field; not typed again")
             return .unread
         }
+        // letters and no Chinese: the English keyboard (2026-11-23, iPhone X: OCR read 4 of 17 letters, the ratio
+        // missed it, a few letters were deleted and the rest stayed). Everything typed is deleted, ctrl+space, again.
+        if !toggled, Self.wentEnglish(from: Self.fieldText(before, minus: []), to: Self.fieldText(after, minus: [])) {
+            DebugLog.write("type: fast, letters and no Chinese (\(newLetters) new letters): English keyboard; deleting \(keys), ctrl+space")
+            try await erase(keys)
+            try await toggle()
+            return try await fast(text, from: before)
+        }
         let english = newLetters * 10 >= letters * 8
         let drop = min(grew + (english ? spaces : 0), english ? keys : text.count + newLetters)
         DebugLog.write("type: fast, read back wrong (\(newLetters) new letters); deleting \(drop), typing it the careful way")
@@ -438,6 +452,15 @@ enum TypeStop {
     /// Letters, digits and Han, folded: what OCR reads reliably (punctuation and spaces left out).
     static func core(_ text: String) -> String {
         Scripts.fold(text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text).filter { $0.isLetter || $0.isNumber }
+    }
+
+    /// New letters in the field and no new Chinese: the keys went in as English.
+    static func wentEnglish(from was: String, to now: String) -> Bool {
+        func tally(_ t: String) -> (latin: Int, han: Int) {
+            (t.filter { $0.isASCII && $0.isLetter }.count, t.filter { isHan(String($0)) }.count)
+        }
+        let (a, b) = (tally(was), tally(now))
+        return b.latin - a.latin >= 2 && b.han <= a.han
     }
 
     static func occurrences(_ want: String, in text: String) -> Int {

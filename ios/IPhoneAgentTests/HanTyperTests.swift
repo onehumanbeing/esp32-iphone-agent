@@ -21,6 +21,8 @@ import XCTest
     var barHidden = false
     /// OCR reads nothing of the field either.
     var fieldHidden = false
+    /// What OCR reads of the field (2026-11-23, iPhone X: 4 of 17 English letters read).
+    var fieldShown: (String) -> String = { $0 }
     var looks = 0
 
     init(knowing text: String) {
@@ -63,7 +65,7 @@ import XCTest
     }
 
     var seen: HanTyper.Seen {
-        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : field + composing, [20, 280, 700, 320])]
+        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : fieldShown(field + composing), [20, 280, 700, 320])]
         let row = barHidden ? [] : !composing.isEmpty ? candidates(composing) : committed ? association : []
         guard barAsOneWord else {
             for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
@@ -154,6 +156,19 @@ import XCTest
         let stop = try await ime.typer(fast: true).attempt("你好")
         XCTAssertNil(stop)
         XCTAssertEqual(ime.field, "你好", "the letters and the space deleted, then typed in pinyin")
+    }
+
+    /// 2026-11-23, iPhone X: the keyboard was English and OCR read only a few of the letters; a few were deleted,
+    /// the rest stayed and the model saw English. Letters and no Chinese = English: all deleted, ctrl+space, again.
+    func testTheFastWayOnAnEnglishKeyboardReadPoorlyDeletesAllAndToggles() async throws {
+        let ime = FakeIME(knowing: "好的明天见")
+        ime.pinyin = false
+        ime.fieldShown = { $0.allSatisfy(\.isASCII) ? String($0.prefix(4)) : $0 }
+        let stop = try await ime.typer(fast: true).attempt("好的，明天见！")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "好的,明天见!", "\(ime.sent)")
+        XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        XCTAssertEqual(ime.looks, 3, "one read before, one after each go: no careful way")
     }
 
     func testTheFastWayNeverTypesTwiceWhenTheFieldIsNotRead() async throws {
