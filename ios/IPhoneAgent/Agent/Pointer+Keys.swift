@@ -26,13 +26,28 @@ extension Pointer {
         // is hidden with the board as a hardware keyboard: it read "English" every time, and ctrl+space on the
         // pinyin keyboard switched it to English (2026-11-20, 5–6 s lost per type)
         let layout = han ? .none : try await matchKeyboard(pinyin: false)
-        let typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
+        var typer = HanTyper(send: { [self] in _ = try await device.send("type \($0)") }, key: { [self] in try await key($0) },
                              toggle: { [self] in try await toggleKeyboard() }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
             guard let image = screen.frame.flatMap(Vision.image) else { return nil }
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
+        typer.grab = { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.25, least: 0.4, most: 1.2)
+            return screen.frame
+        }
+        // only the band around the field last tapped, and no glyph cells (no candidate bar is read this way): a
+        // read in well under a second instead of ~3 s for the whole screen (Henry 2026-11-23: confirm in seconds).
+        // The band reaches up, where a field grows its lines; both reads use the same band.
+        let band = lastTapAt.map { (max(0, $0.y - 0.35), min(1, $0.y + 0.12)) }
+        typer.read = { jpeg in
+            guard var image = Vision.image(jpeg) else { return nil }
+            if let (top, bottom) = band, let cut = image.cropping(to: CGRect(x: 0, y: Double(image.height) * top,
+                    width: Double(image.width), height: Double(image.height) * (bottom - top))) { image = cut }
+            return HanTyper.Seen(words: await UITreeOCR.lines(image), height: image.height)
+        }
         // English text only needs the check that its letters did not stay pinyin when the keyboard was not seen
         let stop = try await typer.attempt(text, checkLetters: han || layout == .none)
         if let stop { log("type: \(stop.note)") }

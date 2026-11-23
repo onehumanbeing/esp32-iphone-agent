@@ -93,6 +93,11 @@ enum TypeStop {
     var toggle: () async throws -> Void
     /// The screen's words once it settled; nil = no live screen (then the pinyin is committed unchecked).
     var look: () async -> Seen?
+    /// The fast way's read before it types, split so the typing need not wait for OCR (about 3 s on an iPhone X,
+    /// 2026-11-23: two reads were 10 of the 14 s of a 29-character type): `grab` the settled frame, `read` it
+    /// while the keys go in. nil: `look` before typing.
+    var grab: (() async -> Data?)? = nil
+    var read: ((Data) async -> Seen?)? = nil
     /// The fast way first (`fast`); off in the tests of the careful way.
     var fastFirst = true
     static let segment = 4
@@ -129,7 +134,8 @@ enum TypeStop {
             switch fastFirst ? try await counted.fast(text) : nil {
             case .done?: return nil
             case .unread?:  // typed, the field not read: never typed again on top of itself
-                return Stop(note: "typed \"\(text)\" in one go, but the field could not be read back; look at it, not typed: \"\"")
+                return Stop(note: "typed \"\(text)\" in one go; it is most likely in the field, only the read back was unclear:"
+                    + " look at the field and do not type it again unless it is missing, not typed: \"\"")
             case .redo?, nil: return try await counted.typeBody(text, checkLetters: checkLetters)
             }
         }
@@ -384,9 +390,14 @@ enum TypeStop {
     func fast(_ text: String, from: Seen? = nil) async throws -> Fast? {
         let toggled = from != nil
         guard Self.isHan(text) else { return nil }
-        var read = from
-        if read == nil { read = await look() }
-        guard let before = read else { return nil }
+        var known = from, pending: Task<Seen?, Never>?
+        if known == nil, let grab, let read {
+            guard let jpeg = await grab() else { return nil }
+            pending = Task { await read(jpeg) }
+        } else if known == nil {
+            known = await look()
+            if known == nil { return nil }
+        }
         var keys = 0, letters = 0, spaces = 0
         for piece in Self.fastPieces(text) {
             switch piece {
@@ -403,12 +414,20 @@ enum TypeStop {
                 keys += typed.count
             }
         }
-        guard var after = await look() else { return .unread }
+        if known == nil { known = await pending?.value }
+        guard let before = known else { return .unread }
+        func lookAgain() async -> Seen? {  // the same quick read as before the keys, when there was one
+            guard let grab, let read else { return await look() }
+            guard let jpeg = await grab() else { return nil }
+            return await read(jpeg)
+        }
+        guard var after = await lookAgain() else { return .unread }
         // the field as it was: the frame may be from before the keys (2026-11-23, after ctrl+space); one more read
-        if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await look() { after = again }
+        if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await lookAgain() { after = again }
         let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
         let want = Self.core(text)
-        if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was) {
+        if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was)
+            || (Self.holds(want, in: now) && !Self.holds(want, in: was)) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
             return .done
         }
@@ -472,6 +491,36 @@ enum TypeStop {
 
     /// Places in `text` that read as `want` with up to one character in ten read otherwise: OCR slips (搜索 read
     /// as 搜素, 2026-11-23) are not a wrong typing, and retyping for them cost 20 s (Henry: tolerate OCR errors).
+    /// Whether `text` holds `want` up to OCR's slips: the cheapest alignment of `want` against any stretch of `text`
+    /// (a character read otherwise, dropped or added, 1 each) within one in ten. A character with the same pinyin as
+    /// the wanted one is the keyboard's other candidate (西安 for 西岸), never a slip. A dropped character shifted
+    /// every one after it out of a straight comparison and a right 60-character text was typed twice (2026-11-23).
+    static func holds(_ want: String, in text: String) -> Bool {
+        let w = Array(want), t = Array(text)
+        guard !w.isEmpty, !t.isEmpty else { return false }
+        let slack = w.count >= 4 ? 1 + w.count / 10 : 0, never = w.count + t.count
+        var pinyin: [Character: String] = [:]
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
+        // a wanted character missing while one with its pinyin, not wanted, is there: the other candidate, even when
+        // the alignment would take it as a drop and an add
+        let have = Set(t), wanted = Set(w)
+        let stand = Set(t.filter { !wanted.contains($0) }.map(py))
+        if w.contains(where: { !have.contains($0) && stand.contains(py($0)) }) { return false }
+        var prev = [Int](repeating: 0, count: t.count + 1)  // free start anywhere in text
+        for i in 1...w.count {
+            var cur = [Int](repeating: i, count: t.count + 1)
+            for j in 1...t.count {
+                let sub = w[i - 1] == t[j - 1] ? 0 : (py(w[i - 1]) == py(t[j - 1]) ? never : 1)
+                cur[j] = min(prev[j - 1] + sub, prev[j] + 1, cur[j - 1] + 1)
+            }
+            prev = cur
+        }
+        return (prev.min() ?? never) <= slack  // free end anywhere in text
+    }
+
     static func near(_ want: String, in text: String) -> Int {
         let w = Array(want), t = Array(text), slack = w.count >= 4 ? 1 + w.count / 10 : 0  // a short one exactly: one char off is all of it
         guard !w.isEmpty, t.count >= w.count else { return 0 }

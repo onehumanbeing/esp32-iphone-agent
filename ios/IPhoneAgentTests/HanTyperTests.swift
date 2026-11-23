@@ -189,6 +189,15 @@ import XCTest
         XCTAssertEqual(HanTyper.near("测试一下搜索", in: "测试搜素一下"), 0)
     }
 
+    /// 2026-11-23: a right 60-character text with one character dropped by OCR, and 西安 typed for 西岸.
+    func testTheReadBackToleratesADroppedCharacterButNotAHomophone() {
+        let want = HanTyper.core("今天下午三点在公司楼下的咖啡店开会，记得带上电脑和充电器。会议结束后我们一起去吃晚饭")
+        var read = want; read.remove(at: read.index(read.startIndex, offsetBy: 5))
+        XCTAssertTrue(HanTyper.holds(want, in: "发送" + read + "下上盘"))
+        XCTAssertFalse(HanTyper.holds("明天在西岸美术馆门口集合", in: "明天在西安美术馆门口集合"))
+        XCTAssertTrue(HanTyper.holds("测试一下搜索", in: "发送测试一下搜素4"))
+    }
+
     func testTheFastWayNeverTypesTwiceWhenTheFieldIsNotRead() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         (ime.barHidden, ime.fieldHidden) = (true, true)
