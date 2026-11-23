@@ -98,6 +98,8 @@ enum TypeStop {
     /// while the keys go in. nil: `look` before typing.
     var grab: (() async -> Data?)? = nil
     var read: ((Data) async -> Seen?)? = nil
+    /// The words of what changed between two frames (before, after); nil when it cannot tell.
+    var readNew: ((Data, Data) async -> Seen?)? = nil
     /// The fast way first (`fast`); off in the tests of the careful way.
     var fastFirst = true
     static let segment = 4
@@ -390,9 +392,10 @@ enum TypeStop {
     func fast(_ text: String, from: Seen? = nil) async throws -> Fast? {
         let toggled = from != nil
         guard Self.isHan(text) else { return nil }
-        var known = from, pending: Task<Seen?, Never>?
+        var known = from, pending: Task<Seen?, Never>?, frameBefore: Data?
         if known == nil, let grab, let read {
             guard let jpeg = await grab() else { return nil }
+            frameBefore = jpeg
             pending = Task { await read(jpeg) }
         } else if known == nil {
             known = await look()
@@ -414,9 +417,17 @@ enum TypeStop {
                 keys += typed.count
             }
         }
+        let want = Self.core(text)
+        // the quick check: only what changed on screen, read while the full read of the frame before still runs
+        if let frameBefore, let grab, let readNew, let frameAfter = await grab(),
+           let fresh = await readNew(frameBefore, frameAfter), Self.holds(want, in: Self.core(Self.fieldText(fresh, minus: []))) {
+            pending?.cancel()
+            DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
+            return .done
+        }
         if known == nil { known = await pending?.value }
         guard let before = known else { return .unread }
-        func lookAgain() async -> Seen? {  // the same quick read as before the keys, when there was one
+        func lookAgain() async -> Seen? {  // the same read as before the keys, when there was one
             guard let grab, let read else { return await look() }
             guard let jpeg = await grab() else { return nil }
             return await read(jpeg)
@@ -425,7 +436,6 @@ enum TypeStop {
         // the field as it was: the frame may be from before the keys (2026-11-23, after ctrl+space); one more read
         if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await lookAgain() { after = again }
         let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
-        let want = Self.core(text)
         if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was)
             || (Self.holds(want, in: now) && !Self.holds(want, in: was)) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
