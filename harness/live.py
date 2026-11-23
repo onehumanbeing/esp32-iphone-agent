@@ -19,8 +19,16 @@ lock = threading.Lock()
 # old socket never closed, and its log waited 3 minutes behind it.
 current = None
 
+# HARNESS_ONLY=ip[,ip]: talk to these phones only (2026-11-23: a second phone running the debug app took the link
+# over and the commands meant for the first went to it).
+ONLY = {ip for ip in os.environ.get("HARNESS_ONLY", "").split(",") if ip}
+
 def serve(conn, addr):
     global current
+    if ONLY and addr[0] not in ONLY:
+        print(f"harness live: ignored {addr[0]} (not in HARNESS_ONLY)", flush=True)
+        conn.close()
+        return
     with lock:
         old, current = current, conn
     if old:
