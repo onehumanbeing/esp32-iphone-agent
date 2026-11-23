@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- Hermes Agent plugin (`integrations/hermes`, a portable Agent Plugins v1 package): the esp32agent MCP server (esp32agent 0.1.5) plus the manina skill. `hermes plugins install onehumanbeing/esp32-iphone-agent/integrations/hermes --enable`.
+
 ## App 1.0.10 (TestFlight)
 
 - Agent: `collect WHAT max N` that stops on its count saves the result (README) and says where, as a list read to its end does.
