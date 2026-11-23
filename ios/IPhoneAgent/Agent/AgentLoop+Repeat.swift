@@ -203,13 +203,17 @@ enum HomeSwipeGuard {
         + "swipe here only when the goal is about the Home Screen itself."
 }
 
-/// `done` from a run whose moves have changed nothing yet, in a chat with earlier runs: what the screen shows was
+/// `done` from a run whose moves have changed nothing yet, in a chat with earlier runs or a saved intent's run (it ran
+/// before): what the screen shows was
 /// there when it started (an earlier run's result). Held back once; the second done stands.
 enum DoneGuard {
     static func premature(_ acts: [JObject], after steps: [JObject], earlierRuns: Bool) -> Bool {
         guard earlierRuns, acts.contains(where: { $0["action"]?.str == "done" }),
               !steps.contains(where: { $0["action"]?.str == "resumed" }) else { return false }
-        let changed = steps.contains { Actions.gestures.contains($0["action"]?.str ?? "") && $0["changed"] == .bool(true) }
+        // the app's own open at the start is not the run's doing: after it, WeChat showed an earlier run's sent message
+        // and the run of a saved intent was done in 17 s, nothing sent (2026-11-23)
+        let changed = steps.contains { Actions.gestures.contains($0["action"]?.str ?? "") && $0["changed"] == .bool(true)
+            && $0["auto"] != .bool(true) }
         let asked = steps.contains { $0["action"]?.str == RepeatGuard.action && $0["reason"]?.str == reason }
         return !changed && !asked
     }
@@ -299,7 +303,7 @@ extension AgentLoop {
         } else if TypedGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("typed guard: a send right after a type that stopped part way; asking once more")
             reason = TypedGuard.reason(steps.last { $0["action"]?.str == "type" }?["typed"]?.str ?? "")
-        } else if DoneGuard.premature(acts.map(\.act), after: steps, earlierRuns: !chatContext.isEmpty) {
+        } else if DoneGuard.premature(acts.map(\.act), after: steps, earlierRuns: !chatContext.isEmpty || resultName != nil) {
             DebugLog.write("done guard: done before any move changed the screen; asking once more")
             reason = DoneGuard.reason
         } else if let audit = await recordAudit(acts.map(\.act)) {

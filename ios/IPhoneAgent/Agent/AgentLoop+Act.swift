@@ -71,6 +71,20 @@ extension AgentLoop {
         }
     }
 
+    static let typedWhole = "typed and read back: the field holds all of it (a long text shows only its end there, the start scrolled out of view); go on (do not clear it or type it again)"
+
+    /// The last gesture typed a text and read it back whole, and this `type` is part of it: the model saw only the end
+    /// of a long text in its field and typed that end again, on top (2026-11-23, three runs in a row: "订好了，七点之前
+    /// 到就行。", "七点之前到就行。"). Not typed; the model is told the field already holds it.
+    static func typedAlready(_ text: String, after steps: [JObject]) -> String? {
+        guard let last = steps.last(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              last["action"]?.str == "type", last["result"]?.str == typedWhole, let whole = last["text"]?.str else { return nil }
+        let part = HanTyper.core(text)
+        guard !part.isEmpty, HanTyper.core(whole).contains(part) else { return nil }
+        return "not typed: the field already holds \"\(text)\" (the last type put all of \"\(whole.suffix(40))\" in and read "
+            + "it back; a long text shows only its end in the field). Go on to the next step of the goal, e.g. send"
+    }
+
     /// What `open` found, or what `type` could not type: a field for the step (nil for every other action).
     @discardableResult
     func perform(_ action: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
@@ -86,10 +100,14 @@ extension AgentLoop {
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)
         case "type":
             let text = a["text"]?.str ?? ""
+            if let note = Self.typedAlready(text, after: steps) {
+                DebugLog.write("type: \"\(text)\" is part of the text the last type put in the field whole; not typed again")
+                return ("result", note)
+            }
             if Scripts.needsPaste(text) {  // the board can't type it
                 let note = try await pasteInstead(text)
                 typeStats.pasted(note, pinyin: false)
-                sendGuard.typed(text, missing: note == nil ? nil : text)
+                sendGuard.typed(text, missing: note == nil ? nil : text, at: steps.count + 1)
                 return note.map { ("typed", $0) } ?? ("result", "pasted (the board cannot type this script)")
             }
             // the text carried on the clipboard since the start (ClipboardCarry): pasted first, pinyin only when the
@@ -109,11 +127,13 @@ extension AgentLoop {
                     return pasted
                 }
                 typeStats.pasted("not pasted", pinyin: true)
-                sendGuard.typed(text, missing: rest)
+                sendGuard.typed(text, missing: rest, at: steps.count + 1)
                 return ("typed", SendGuard.listedHint + stop.note + "; type the rest yourself, in shorter pieces")
             }
-            sendGuard.typed(text, missing: stop.flatMap { SendGuard.missing($0.note) })
+            sendGuard.typed(text, missing: stop.flatMap { SendGuard.missing($0.note) }, at: steps.count + 1)
+            // read back whole: the model is told so, or it cleared and retyped a right field for minutes (2026-11-23)
             return stop.map { ("typed", SendGuard.listedHint + $0.note) }
+                ?? (HanTyper.isHan(text) ? ("result", Self.typedWhole) : nil)
         case "say":  // the Live Speech field: typed, then return speaks it (never the clipboard: it asks first)
             // part of it not typed: not spoken either, half a sentence would go into the call
             if let missed = try await phone.type(a["text"]?.str ?? "") { return ("typed", missed + "; not said: \(SendGuard.clearHint) and say it again") }
@@ -341,12 +361,28 @@ enum IslandGuard {
 /// Held once each, with the reason for the model; the same Enter again goes through (a search run twice is
 /// legitimate). A `clear` or a complete `type` starts over.
 /// A tap on a send button (发送 / Send, label under the tap) is held the same way (2026-11-22: a DM went out garbled
-/// through the Send button, which no check saw); nothing is asked before a send.
+/// through the Send button, which no check saw).
+/// A real send (that button, or Enter while a 发送 / Send key or button shows low on the screen) is a hard gate
+/// (`send`, 2026-11-23, Wiki #1007: half-typed and garbled messages kept going out after the one hold): held once,
+/// then the user is asked, only on hard evidence: the typer said part is missing and the screen does not show it,
+/// or Chinese text whose characters are mostly not on the screen (pinyin letters went in). Built not to stop a
+/// normal run: the screen overrules the typer when it shows the text; an OCR slip (emoji, punctuation, one wrong
+/// character) is not evidence; text typed over `recentType` steps ago (a search never entered) and the same text
+/// sent again (one reply to several chats) only get the old single hold. Enter in a search field stays soft.
 struct SendGuard {
     private(set) var missing: String?  // what the last `type` did not get into the field
     private(set) var pending: String?  // the last complete `type`, not yet entered
     private(set) var sent: [String: Int] = [:]  // text -> the step that entered it
-    private var heldIncomplete = false, heldRepeat: String?
+    private var heldIncomplete = false, heldRepeat: String?, heldUnseen = false
+    private(set) var typedAt: Int?  // the step of the last `type`
+    static let recentType = 6  // steps: a send this long after the type is not about that text any more
+
+    enum Verdict: Equatable {
+        case go
+        case hold(String)  // the model's note: not sent, why, what to do
+        case ask(String)   // the user decides (a confirm reason, "send: ...")
+        var isHold: Bool { if case .hold = self { return true } else { return false } }
+    }
     /// How to empty a field the agent typed into: its own `clear` action (keyboard deletes). A 清空 / Clear button on
     /// screen stops the run at the pay guard (2026-11-20: tapped to undo half a typed name, the user had to stop it).
     static let clearHint = "empty the field with the clear action (never a 清空 / Clear button on screen)"
@@ -363,8 +399,9 @@ struct SendGuard {
         return rest
     }
 
-    mutating func typed(_ text: String, missing: String?) {
+    mutating func typed(_ text: String, missing: String?, at step: Int? = nil) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        typedAt = step
         if let missing {
             self.missing = missing.isEmpty ? text : missing
             pending = nil
@@ -376,7 +413,7 @@ struct SendGuard {
     }
 
     mutating func cleared() {
-        (missing, pending, heldIncomplete) = (nil, nil, false)
+        (missing, pending, heldIncomplete, heldUnseen) = (nil, nil, false, false)
     }
 
     /// Labels of a button that sends what was typed: the whole label, as PayGuard reads it.
@@ -399,8 +436,66 @@ struct SendGuard {
             return "not sent: \"\(text)\" was already entered at step \(at). If it is on screen, the goal may be done;"
                 + " \(again) only to enter it a second time"
         }
-        if let text = pending { sent[text] = step }
-        (pending, missing, heldIncomplete, heldRepeat) = (nil, nil, false, nil)
+        went(step: step)
         return nil
     }
+
+    /// Before a real send at `step`. `lines`: the screen the model saw, when it shows the field as typed (nil: typed
+    /// in this same round, after that screen was taken, or not read).
+    mutating func send(step: Int, lines: [DemoAnalysis.Line]?, again: String) -> Verdict {
+        if let at = typedAt, step - at > Self.recentType {  // an old type: the soft hold, never asked
+            return enter(step: step, again: again).map { .hold($0) } ?? .go
+        }
+        if let missing {
+            if let lines, Self.seen(missing, in: lines) >= 0.8 {  // the field shows it: the typer's note was wrong
+                went(step: step)
+                return .go
+            }
+            if !heldIncomplete {
+                heldIncomplete = true
+                return .hold("not sent: the field holds only part of the text (not typed: \"\(missing)\"). "
+                    + Self.listedHint + "Else type the rest first, or \(Self.clearHint) and type it all again")
+            }
+            return .ask("send: the field holds only part of the message (not typed: \"\(missing)\")")
+        }
+        if let text = pending, let lines, HanTyper.isHan(text), Self.seen(text, in: lines) < 0.5 {
+            if !heldUnseen {
+                heldUnseen = true
+                return .hold("not sent: \"\(text)\" is not seen in the field (the keyboard may have typed letters or"
+                    + " other words). Look at the field: \(Self.clearHint) and type it again if it is wrong; \(again) if it is right")
+            }
+            return .ask("send: the typed message \"\(text)\" is not seen in the field")
+        }
+        // the same text again: held once (a reply sent twice), then sent (one reply to several chats)
+        return enter(step: step, again: again).map { .hold($0) } ?? .go
+    }
+
+    /// How much of `text` the screen shows, 0-1: Chinese by its characters (any order: an OCR slip on one character,
+    /// a wrapped line), other text whole; emoji, punctuation and spaces are left out (OCR drops them).
+    static func seen(_ text: String, in lines: [DemoAnalysis.Line]) -> Double {
+        func core(_ s: String) -> [Character] {
+            Scripts.fold(s).filter { $0.isLetter || $0.isNumber }
+        }
+        let want = core(text), screen = core(lines.map(\.text).joined())
+        guard !want.isEmpty else { return 1 }
+        let han = want.filter { HanTyper.isHan(String($0)) }
+        if han.isEmpty { return String(screen).contains(String(want)) ? 1 : 0 }
+        let there = Set(screen)
+        return Double(han.filter { there.contains($0) }.count) / Double(han.count)
+    }
+
+    /// The send went out (or the user said yes to it): what was typed counts as sent, the holds start over.
+    mutating func went(step: Int) {
+        if let text = pending { sent[text] = step }
+        (pending, missing, heldIncomplete, heldRepeat, heldUnseen) = (nil, nil, false, nil, false)
+    }
+
+    /// Whether Enter sends: a 发送 / Send key or button reads in the lower half of the screen (the keyboard's return
+    /// key, or the app's button next to the field). A search field's key reads 搜索 / Search / 前往; 回复 / Reply
+    /// do not count here (a comment list shows one under every comment).
+    static let enterSendWords: Set<String> = ["发送", "发布", "send", "post"]
+    static func sendShown(_ lines: [DemoAnalysis.Line]) -> Bool {
+        lines.contains { $0.y >= 500 && enterSendWords.contains($0.text.trimmingCharacters(in: .whitespaces).lowercased()) }
+    }
+
 }

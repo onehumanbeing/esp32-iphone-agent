@@ -304,6 +304,7 @@ import UIKit
         }
         board.commands.onTimeout = { [weak self] command in await self?.commandTimedOut(command) }
         DebugLog.write("frame mode: \(FrameMode.current.rawValue)")
+        AppNames.warm()  // the app-name tables, off the main thread before the first run
         board.commands.onTiming = { [weak self] name, ms in self?.metrics.hidMs[name] = ms }
         agent.beforeFinish = { [weak self] in
             guard let self else { return }

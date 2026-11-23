@@ -21,6 +21,8 @@ import XCTest
     var barHidden = false
     /// OCR reads nothing of the field either.
     var fieldHidden = false
+    /// What OCR reads of the field (2026-11-23, iPhone X: 4 of 17 English letters read).
+    var fieldShown: (String) -> String = { $0 }
     var looks = 0
 
     init(knowing text: String) {
@@ -63,7 +65,7 @@ import XCTest
     }
 
     var seen: HanTyper.Seen {
-        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : field + composing, [20, 280, 700, 320])]
+        var words: [(text: String, box: [Int])] = [(fieldHidden ? "" : fieldShown(field + composing), [20, 280, 700, 320])]
         let row = barHidden ? [] : !composing.isEmpty ? candidates(composing) : committed ? association : []
         guard barAsOneWord else {
             for (i, w) in row.enumerated() { words.append((w, [20 + 80 * i, 1400, 80 + 80 * i, 1440])) }
@@ -87,10 +89,13 @@ import XCTest
         return HanTyper.Seen(words: words, height: 1560)
     }
 
-    func typer(screen: Bool = true) -> HanTyper {
-        HanTyper(send: { self.send($0) }, key: { self.key($0) },
+    /// `fast`: the one-go way first (HanTyper.fast); off for the tests of the careful way it falls back to.
+    func typer(screen: Bool = true, fast: Bool = false) -> HanTyper {
+        var typer = HanTyper(send: { self.send($0) }, key: { self.key($0) },
                  toggle: { self.sent.append("toggle"); self.committed = false; if self.toggles { self.pinyin.toggle() } },
                  look: { self.looks += 1; return screen ? self.seen : nil })
+        typer.fastFirst = fast
+        return typer
     }
 }
 
@@ -134,6 +139,114 @@ import XCTest
 
     /// 2026-11-20: 西岸 not offered (now typed as xi'an; here the keyboard still lacks it), then 西 not read among xi's candidates. What went in stays, the
     /// letters are cleared, and the stop says what is left to paste.
+    /// 2026-11-23 (Henry: Chinese in one go is as fast as English): each group its pinyin and a space, punctuation by
+    /// its key, one read before and one after; no backspace, no read in between.
+    func testTheFastWayTypesASentenceInOneGoWithTwoReads() async throws {
+        let ime = FakeIME(knowing: "好的明天见")
+        let stop = try await ime.typer(fast: true).attempt("好的，明天见！")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "好的,明天见!")  // the fake keyboard keeps ASCII punctuation; iOS makes it ，！
+        XCTAssertEqual(ime.looks, 2)
+        XCTAssertEqual(ime.sent, ["type haode", "key space", "type ,", "type mingtianjian", "key space", "type !"])
+    }
+
+    func testTheFastWayOnAnEnglishKeyboardDeletesItsLettersAndTheCarefulWaySwitches() async throws {
+        let ime = FakeIME(knowing: "你好")
+        ime.pinyin = false
+        let stop = try await ime.typer(fast: true).attempt("你好")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "你好", "the letters and the space deleted, then typed in pinyin")
+    }
+
+    /// 2026-11-23, iPhone X: the keyboard was English and OCR read only a few of the letters; a few were deleted,
+    /// the rest stayed and the model saw English. Letters and no Chinese = English: all deleted, ctrl+space, again.
+    func testTheFastWayOnAnEnglishKeyboardReadPoorlyDeletesAllAndToggles() async throws {
+        let ime = FakeIME(knowing: "好的明天见")
+        ime.pinyin = false
+        ime.fieldShown = { $0.allSatisfy(\.isASCII) ? String($0.prefix(4)) : $0 }
+        let stop = try await ime.typer(fast: true).attempt("好的，明天见！")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "好的,明天见!", "\(ime.sent)")
+        XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 1)
+        XCTAssertEqual(ime.looks, 3, "one read before, one after each go: no careful way")
+    }
+
+    /// 2026-11-23, iPhone X: a sentence over two lines read back short; 17 of 29 characters were deleted and the
+    /// careful way typed it all after the rest, so it went out with its first half twice.
+    func testAFastWayReadShortDeletesAllItTypedNotWhatGrew() async throws {
+        let text = "今天下午三点在公司楼下的咖啡店开会"
+        let ime = FakeIME(knowing: text)
+        var reads = 0
+        ime.fieldShown = { reads += 1; return reads <= 2 ? String($0.prefix(6)) : $0 }
+        let stop = try await ime.typer(fast: true).attempt(text)
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, text, "\(ime.sent)")
+    }
+
+    /// 2026-11-23, iPhone X: 60 characters filled WeChat's field past its lines and only the last 18 were read; the
+    /// right text was deleted and typed again the slow way. The end read (and not there before) is the text.
+    func testALongTextWhoseFieldShowsOnlyItsEndIsNotTypedAgain() async throws {
+        let text = "今天下午三点在公司楼下的咖啡店开会记得带上电脑和充电器会议结束后我们一起去吃晚饭"
+        let ime = FakeIME(knowing: text)
+        ime.fieldShown = { String($0.suffix(18)) }
+        let stop = try await ime.typer(fast: true).attempt(text)
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, text)
+        XCTAssertFalse(ime.sent.contains { $0.hasPrefix("key backspace") || $0.contains("backspace") }, "\(ime.sent)")
+        XCTAssertNil(HanTyper.shownEnd("今天下午三点"), "a short text shows whole")
+        // the same message already in the chat above the field
+        let again = FakeIME(knowing: text)
+        again.field = ""
+        again.fieldShown = { "我们一起去吃晚饭" + String($0.suffix(18)) }
+        let stopAgain = try await again.typer(fast: true).attempt(text)
+        XCTAssertNil(stopAgain)
+        XCTAssertEqual(again.field, text)
+    }
+
+    /// 2026-11-23: the model typed the end of a long text again after it went in whole.
+    func testPartOfATextJustTypedWholeIsNotTypedAgain() {
+        let whole = "今天下午三点开会，餐厅我已经订好了，七点之前到就行。"
+        let typed: JObject = ["action": .str("type"), "text": .str(whole), "result": .str(AgentLoop.typedWhole)]
+        XCTAssertNotNil(AgentLoop.typedAlready("七点之前到就行。", after: [typed]))
+        XCTAssertNil(AgentLoop.typedAlready("明天见", after: [typed]), "other text")
+        let tap: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(1)]
+        XCTAssertNil(AgentLoop.typedAlready("七点之前到就行。", after: [typed, tap]), "a tap since: maybe another field")
+        var unsure = typed; unsure["result"] = nil
+        XCTAssertNil(AgentLoop.typedAlready("七点之前到就行。", after: [unsure]), "not read back whole")
+    }
+
+    /// 2026-11-23: 测试一下搜索 read back as 测试一下搜素; one OCR slip is not a wrong typing.
+    func testOneCharacterReadOtherwiseStillCountsAsTyped() {
+        XCTAssertEqual(HanTyper.near("测试一下搜索", in: "发送测试一下搜素4"), 1)
+        XCTAssertEqual(HanTyper.near("测试一下搜索", in: "测试搜素一下"), 0)
+    }
+
+    /// 2026-11-23: a right 60-character text with one character dropped by OCR, and 西安 typed for 西岸.
+    func testTheReadBackToleratesADroppedCharacterButNotAHomophone() {
+        let want = HanTyper.core("今天下午三点在公司楼下的咖啡店开会，记得带上电脑和充电器。会议结束后我们一起去吃晚饭")
+        var read = want; read.remove(at: read.index(read.startIndex, offsetBy: 5))
+        XCTAssertTrue(HanTyper.holds(want, in: "发送" + read + "下上盘"))
+        XCTAssertFalse(HanTyper.holds("明天在西岸美术馆门口集合", in: "明天在西安美术馆门口集合"))
+        XCTAssertTrue(HanTyper.holds("测试一下搜索", in: "发送测试一下搜素4"))
+    }
+
+    func testTheFastWayNeverTypesTwiceWhenTheFieldIsNotRead() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.barHidden, ime.fieldHidden) = (true, true)
+        let stop = try await ime.typer(fast: true).attempt("上海西岸艺术中心")
+        XCTAssertEqual(ime.field, "上海西岸艺术中心", "typed once, not again on top")
+        XCTAssertEqual(stop?.rest, nil)
+        XCTAssertEqual(SendGuard.missing(stop?.note ?? "x"), "", "unsure: the send guard looks at the screen")
+    }
+
+    func testTheFastWayFallsBackToTheCarefulWayOnAWrongWord() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.decoys["shanghaixi'an"] = ["上海西安"]
+        let stop = try await ime.typer(fast: true).attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心", "\(ime.sent)")
+    }
+
     func testAWordTheKeyboardDoesNotOfferLeavesTheRestToPaste() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         ime.only["xi'an"] = ["西安", "先"]

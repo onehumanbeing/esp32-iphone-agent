@@ -235,6 +235,10 @@ extension Gestures {
     var seenLines = SeenLines(), recordAudits = 0  // RecordAudit
     var readPastStart = false  // the last screen read: its dated items all before the goal's dates
     var treeWait = FramePrep.treeWait  // a look waits this long for the on-device tree (tests on a slow runner: longer)
+    /// Trees late in a row this run. A slow phone (iPhone X: OCR 3.4-7 s) never has it in time: each look waited
+    /// 1.2 s for nothing and the OCR held the CPU (2026-11-23, 6 of 6 looks late); from `FramePrep.lateLimit` on, none is built.
+    var treesLate = 0
+    var wantsTree: Bool { screenTree && !serverTree && treesLate < FramePrep.lateLimit }
     var listRead = false, backChecked = false  // the list read past the goal's dates; a scroll back up was refused once
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     var lastServed: String?
@@ -444,7 +448,7 @@ extension Gestures {
             var frame = screen.frame
             let frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
             let requestGeometry = screen.geometry
-            let wantTree = role == "actor" && screenTree && !serverTree
+            let wantTree = role == "actor" && wantsTree
             // the frame prepared for this look when the screen has not changed since: its image and tree are
             // (being) built, a newer copy of the same screen would start them over (2026-11-18: 14 of 21 looks)
             if let now = frame, let prepared = framePrep.frame, prepared != now {
@@ -460,8 +464,11 @@ extension Gestures {
                     tree = ready.tree
                     lookClock.imageMs = ready.imageMs
                     lookClock.treeMs = ready.treeMs
-                    if ready.treeLate { DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", treeWait)) }
-                    else if let tree { DebugLog.write("step " + tree.timingLine) }
+                    if ready.treeLate {
+                        treesLate += 1
+                        DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", treeWait)
+                                       + (wantsTree ? "" : "; no tree for the rest of the run (late \(treesLate) times in a row)"))
+                    } else if let tree { treesLate = 0; DebugLog.write("step " + tree.timingLine) }
                 }
             }
             if sent == nil {
@@ -801,9 +808,13 @@ extension Gestures {
 
     /// The actor asked before a risky step. True = the run is over (stopped).
     /// Unattended never approves one on its own: no answer, or "don't ask", becomes a skip.
-    func confirm(_ reason: String) async throws -> Bool {
+    /// `always`: asked in every ask mode (the send guard: no setting lets a broken message go out unseen).
+    func confirm(_ reason: String, always: Bool = false) async throws -> Bool {
         let mode = askMode ?? .current
-        let asks = onConfirm != nil && (mode.asks(reason) || (inventory.needed && mode != .never))
+        // The batch check holds deletes and changes, not a message the task asked to send (2026-11-23: "清空输入框"
+        // in the task made the send of "好的，明天见！" wait for an answer nobody saw)
+        let batch = inventory.needed && mode != .never && AskMode.kind(reason) != .send
+        let asks = onConfirm != nil && (always || mode.asks(reason) || batch)
         if !asks {
             if policy.unattended {
                 record(nil, ["action": .str("skipped"), "confirmed_by": .str("policy"),
@@ -1005,18 +1016,26 @@ extension Gestures {
                     return false
                 }
                 if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit / max(1, scrollGain)) }
+                // the screen the model saw shows the field as typed: nothing typed or cleared earlier in this round
+                let fresh = !acts[..<i].contains { ["type", "clear", "say"].contains($0.act["action"]?.str ?? "") }
+                let check: TapCheck
                 if name == "tap" {
-                    switch await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap) {
-                    case .send: break
-                    case .held(let why):
-                        act["result"] = .str(why)
-                        record(planned.shot, act)
-                        return false
-                    case .ask(let why):  // the code's own check: a tap that pays or cannot be undone
-                        act["result"] = .str("not sent: the user is asked first (\(why))")
-                        record(planned.shot, act)
-                        return try await confirm(why)
-                    }
+                    check = await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap, fresh: fresh)
+                } else if Actions.isEnter(act) {
+                    check = await sendCheck(act, on: planned.shot ?? seen, fresh: fresh)
+                } else {
+                    check = .send
+                }
+                switch check {
+                case .send: break
+                case .held(let why):
+                    act["result"] = .str(why)
+                    record(planned.shot, act)
+                    return false
+                case .ask(let why), .askAlways(let why):  // the code's own check: a tap that pays or cannot be undone, a send
+                    act["result"] = .str("not sent: the user is asked first (\(why))")
+                    record(planned.shot, act)
+                    return try await confirm(why, always: check == .askAlways(why))
                 }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
