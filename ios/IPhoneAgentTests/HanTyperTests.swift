@@ -87,10 +87,13 @@ import XCTest
         return HanTyper.Seen(words: words, height: 1560)
     }
 
-    func typer(screen: Bool = true) -> HanTyper {
-        HanTyper(send: { self.send($0) }, key: { self.key($0) },
+    /// `fast`: the one-go way first (HanTyper.fast); off for the tests of the careful way it falls back to.
+    func typer(screen: Bool = true, fast: Bool = false) -> HanTyper {
+        var typer = HanTyper(send: { self.send($0) }, key: { self.key($0) },
                  toggle: { self.sent.append("toggle"); self.committed = false; if self.toggles { self.pinyin.toggle() } },
                  look: { self.looks += 1; return screen ? self.seen : nil })
+        typer.fastFirst = fast
+        return typer
     }
 }
 
@@ -134,6 +137,42 @@ import XCTest
 
     /// 2026-11-20: 西岸 not offered (now typed as xi'an; here the keyboard still lacks it), then 西 not read among xi's candidates. What went in stays, the
     /// letters are cleared, and the stop says what is left to paste.
+    /// 2026-11-23 (Henry: Chinese in one go is as fast as English): each group its pinyin and a space, punctuation by
+    /// its key, one read before and one after; no backspace, no read in between.
+    func testTheFastWayTypesASentenceInOneGoWithTwoReads() async throws {
+        let ime = FakeIME(knowing: "好的明天见")
+        let stop = try await ime.typer(fast: true).attempt("好的，明天见！")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "好的,明天见!")  // the fake keyboard keeps ASCII punctuation; iOS makes it ，！
+        XCTAssertEqual(ime.looks, 2)
+        XCTAssertEqual(ime.sent, ["type haode", "key space", "type ,", "type mingtianjian", "key space", "type !"])
+    }
+
+    func testTheFastWayOnAnEnglishKeyboardDeletesItsLettersAndTheCarefulWaySwitches() async throws {
+        let ime = FakeIME(knowing: "你好")
+        ime.pinyin = false
+        let stop = try await ime.typer(fast: true).attempt("你好")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "你好", "the letters and the space deleted, then typed in pinyin")
+    }
+
+    func testTheFastWayNeverTypesTwiceWhenTheFieldIsNotRead() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        (ime.barHidden, ime.fieldHidden) = (true, true)
+        let stop = try await ime.typer(fast: true).attempt("上海西岸艺术中心")
+        XCTAssertEqual(ime.field, "上海西岸艺术中心", "typed once, not again on top")
+        XCTAssertEqual(stop?.rest, nil)
+        XCTAssertEqual(SendGuard.missing(stop?.note ?? "x"), "", "unsure: the send guard looks at the screen")
+    }
+
+    func testTheFastWayFallsBackToTheCarefulWayOnAWrongWord() async throws {
+        let ime = FakeIME(knowing: "上海西岸艺术中心")
+        ime.decoys["shanghaixi'an"] = ["上海西安"]
+        let stop = try await ime.typer(fast: true).attempt("上海西岸艺术中心")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "上海西岸艺术中心", "\(ime.sent)")
+    }
+
     func testAWordTheKeyboardDoesNotOfferLeavesTheRestToPaste() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         ime.only["xi'an"] = ["西安", "先"]

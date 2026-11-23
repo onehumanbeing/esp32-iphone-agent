@@ -71,6 +71,8 @@ extension AgentLoop {
         }
     }
 
+    static let typedWhole = "typed and read back: the field shows all of it; go on (do not clear it or type it again)"
+
     /// What `open` found, or what `type` could not type: a field for the step (nil for every other action).
     @discardableResult
     func perform(_ action: JObject, aim: Bool = false) async throws -> (field: String, value: String)? {
@@ -113,7 +115,9 @@ extension AgentLoop {
                 return ("typed", SendGuard.listedHint + stop.note + "; type the rest yourself, in shorter pieces")
             }
             sendGuard.typed(text, missing: stop.flatMap { SendGuard.missing($0.note) }, at: steps.count + 1)
+            // read back whole: the model is told so, or it cleared and retyped a right field for minutes (2026-11-23)
             return stop.map { ("typed", SendGuard.listedHint + $0.note) }
+                ?? (HanTyper.isHan(text) ? ("result", Self.typedWhole) : nil)
         case "say":  // the Live Speech field: typed, then return speaks it (never the clipboard: it asks first)
             // part of it not typed: not spoken either, half a sentence would go into the call
             if let missed = try await phone.type(a["text"]?.str ?? "") { return ("typed", missed + "; not said: \(SendGuard.clearHint) and say it again") }

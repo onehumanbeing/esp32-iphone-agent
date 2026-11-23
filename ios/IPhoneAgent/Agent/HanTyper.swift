@@ -93,6 +93,8 @@ enum TypeStop {
     var toggle: () async throws -> Void
     /// The screen's words once it settled; nil = no live screen (then the pinyin is committed unchecked).
     var look: () async -> Seen?
+    /// The fast way first (`fast`); off in the tests of the careful way.
+    var fastFirst = true
     static let segment = 4
     /// Words committed unread before the field is read back. Each costs about 0.3 s of typing, a read 1–2 s; a
     /// wrong word costs retyping the words after it, so four keeps a repair short.
@@ -123,7 +125,14 @@ enum TypeStop {
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             DebugLog.write("type: \(text.count) chars in \(ms) ms, \(looks.n) screen reads")
         }
-        do { return try await counted.typeBody(text, checkLetters: checkLetters) }
+        do {
+            switch fastFirst ? try await counted.fast(text) : nil {
+            case .done?: return nil
+            case .unread?:  // typed, the field not read: never typed again on top of itself
+                return Stop(note: "typed \"\(text)\" in one go, but the field could not be read back; look at it, not typed: \"\"")
+            case .redo?, nil: return try await counted.typeBody(text, checkLetters: checkLetters)
+            }
+        }
         catch let halt as TypeHalted {
             return Stop(note: "typing stopped (\(halt.why)); not typed: \"\(halt.left)\"")
         }
@@ -361,6 +370,79 @@ enum TypeStop {
             }
         }
         return nil
+    }
+
+    /// The fast way first (Henry 2026-11-23: Chinese typed in one go is as fast as English; reading the screen every
+    /// few words made 7 characters take 22 s with 5 reads): each Han run as its pinyin and one space (runs over
+    /// `fastRun` characters in word groups), punctuation by its key, then one read of the field. true: the field
+    /// shows the text. false: it does not, and what this typing put there is deleted for the careful way. nil: not
+    /// tried (no Chinese, or no screen to check it on).
+    enum Fast { case done, redo, unread }
+
+    func fast(_ text: String) async throws -> Fast? {
+        guard Self.isHan(text), let before = await look() else { return nil }
+        var keys = 0, letters = 0, spaces = 0
+        for piece in Self.fastPieces(text) {
+            switch piece {
+            case .han(let run):
+                let pinyin = Pointer.typeable(run)
+                try await emit(pinyin)
+                try await key("space")
+                keys += pinyin.count + 1  // the space: a character itself when the keyboard is English
+                spaces += 1
+                letters += pinyin.filter(\.isLetter).count
+            case .plain(let plain):
+                let (strokes, typed) = Accents.plan(plain)
+                if !strokes.isEmpty { try await enter(strokes) }
+                keys += typed.count
+            }
+        }
+        guard let after = await look() else { return .unread }
+        let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
+        let want = Self.core(text)
+        if !want.isEmpty, Self.occurrences(want, in: now) > Self.occurrences(want, in: was) {
+            DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
+            return .done
+        }
+        // what this typing left: pinyin letters (the English keyboard, or a run not committed) and the characters
+        let newLetters = max(0, now.filter(\.isASCII).count - was.filter(\.isASCII).count)
+        // never more than the field grew by: deleting past what this typing put there would eat the field's own text
+        let grew = max(0, Self.fieldText(after, minus: []).count - Self.fieldText(before, minus: []).count)
+        guard grew > 0 else {  // nothing new read in the field: OCR missed it, or it has no focus; unknown, so kept
+            DebugLog.write("type: fast, nothing new read in the field; not typed again")
+            return .unread
+        }
+        let english = newLetters * 10 >= letters * 8
+        let drop = min(grew + (english ? spaces : 0), english ? keys : text.count + newLetters)
+        DebugLog.write("type: fast, read back wrong (\(newLetters) new letters); deleting \(drop), typing it the careful way")
+        try await erase(drop)
+        return .redo
+    }
+
+    static let fastRun = segment  // a group commits with one space; longer ones came out as other words more often
+
+    /// The text for the fast way: Han runs (a long one in groups of words up to `fastRun` characters) and the rest.
+    static func fastPieces(_ text: String) -> [Piece] {
+        var out: [Piece] = []
+        for piece in pieces(text) {
+            guard case .han(let word) = piece else { out.append(piece); continue }
+            if case .han(let last)? = out.last, last.count + word.count <= fastRun {
+                out[out.count - 1] = .han(last + word)
+            } else {
+                out.append(.han(word))
+            }
+        }
+        return out
+    }
+
+    /// Letters, digits and Han, folded: what OCR reads reliably (punctuation and spaces left out).
+    static func core(_ text: String) -> String {
+        Scripts.fold(text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text).filter { $0.isLetter || $0.isNumber }
+    }
+
+    static func occurrences(_ want: String, in text: String) -> Int {
+        guard !want.isEmpty else { return 0 }
+        return text.components(separatedBy: want).count - 1
     }
 
     /// One `type` command, split so a long run cannot sit inside the board's watchdog.

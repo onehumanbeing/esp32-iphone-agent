@@ -68,7 +68,7 @@ import XCTest
         let phone = FakeGestures()
         let agent = agent(phone)
         let result = try await agent.perform(["action": .str("type"), "text": .str("上海西岸艺术中心")])
-        XCTAssertNil(result, "pinyin typed it all")
+        XCTAssertEqual(result?.value, AgentLoop.typedWhole, "pinyin typed it all")
         XCTAssertEqual(phone.calls.last, "type")
         let paste = try XCTUnwrap(phone.keys.firstIndex(of: "cmd+v"))
         XCTAssertTrue(phone.keys[(paste + 1)...].contains("alt+backspace"), "cleared again before pinyin: \(phone.keys)")

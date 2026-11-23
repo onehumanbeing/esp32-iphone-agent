@@ -108,7 +108,7 @@ import UIKit
         XCTAssertEqual(result?.value, SendGuard.listedHint + (phone.typeNote ?? ""), "no rest: the note as it was")
         phone.typeNote = nil
         let typed = try await agent.perform(["action": .str("type"), "text": .str("上海西岸")])
-        XCTAssertNil(typed, "pinyin worked: nothing changes")
+        XCTAssertEqual(typed?.value, AgentLoop.typedWhole, "pinyin worked: nothing changes")
         XCTAssertEqual(written, [])
         XCTAssertEqual(phone.calls, ["type", "type"])
     }
