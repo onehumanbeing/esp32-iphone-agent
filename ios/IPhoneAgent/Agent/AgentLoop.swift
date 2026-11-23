@@ -804,7 +804,10 @@ extension Gestures {
     /// `always`: asked in every ask mode (the send guard: no setting lets a broken message go out unseen).
     func confirm(_ reason: String, always: Bool = false) async throws -> Bool {
         let mode = askMode ?? .current
-        let asks = onConfirm != nil && (always || mode.asks(reason) || (inventory.needed && mode != .never))
+        // The batch check holds deletes and changes, not a message the task asked to send (2026-11-23: "清空输入框"
+        // in the task made the send of "好的，明天见！" wait for an answer nobody saw)
+        let batch = inventory.needed && mode != .never && AskMode.kind(reason) != .send
+        let asks = onConfirm != nil && (always || mode.asks(reason) || batch)
         if !asks {
             if policy.unattended {
                 record(nil, ["action": .str("skipped"), "confirmed_by": .str("policy"),

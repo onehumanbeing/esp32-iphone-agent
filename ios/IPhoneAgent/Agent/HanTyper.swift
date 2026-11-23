@@ -408,13 +408,13 @@ enum TypeStop {
         if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await look() { after = again }
         let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
         let want = Self.core(text)
-        if !want.isEmpty, Self.occurrences(want, in: now) > Self.occurrences(want, in: was) {
+        if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
             return .done
         }
         // what this typing left: pinyin letters (the English keyboard, or a run not committed) and the characters
         let newLetters = max(0, now.filter(\.isASCII).count - was.filter(\.isASCII).count)
-        // never more than the field grew by: deleting past what this typing put there would eat the field's own text
+        // nothing seen growing: the keys may have gone nowhere, so nothing is deleted
         let grew = max(0, Self.fieldText(after, minus: []).count - Self.fieldText(before, minus: []).count)
         guard grew > 0 else {  // nothing new read in the field: OCR missed it, or it has no focus; unknown, so kept
             DebugLog.write("type: fast, nothing new read in the field; not typed again")
@@ -422,15 +422,20 @@ enum TypeStop {
         }
         // letters and no Chinese: the English keyboard (2026-11-23, iPhone X: OCR read 4 of 17 letters, the ratio
         // missed it, a few letters were deleted and the rest stayed). Everything typed is deleted, ctrl+space, again.
-        if !toggled, Self.wentEnglish(from: Self.fieldText(before, minus: []), to: Self.fieldText(after, minus: [])) {
+        // the text's own English letters ("See you tomorrow!") are not a sign of the English keyboard (2026-11-23)
+        let ownLatin = text.filter { $0.isASCII && $0.isLetter }.count
+        if !toggled, Self.wentEnglish(from: Self.fieldText(before, minus: []), to: Self.fieldText(after, minus: []), expected: ownLatin) {
             DebugLog.write("type: fast, letters and no Chinese (\(newLetters) new letters): English keyboard; deleting \(keys), ctrl+space")
             try await erase(keys)
             try await toggle()
             return try await fast(text, from: before)
         }
+        // what the keys put there, not what OCR saw grow: a sentence over two lines read short, 17 of 29 were
+        // deleted and the careful way typed it all after the rest (2026-11-23, sent with its first half twice).
+        // Pinyin commits a character a syllable and punctuation one each, so text.count is what went in.
         let english = newLetters * 10 >= letters * 8
-        let drop = min(grew + (english ? spaces : 0), english ? keys : text.count + newLetters)
-        DebugLog.write("type: fast, read back wrong (\(newLetters) new letters); deleting \(drop), typing it the careful way")
+        let drop = english ? keys : text.count + newLetters
+        DebugLog.write("type: fast, read back wrong (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); deleting \(drop), typing it the careful way")
         try await erase(drop)
         return .redo
     }
@@ -457,12 +462,31 @@ enum TypeStop {
     }
 
     /// New letters in the field and no new Chinese: the keys went in as English.
-    static func wentEnglish(from was: String, to now: String) -> Bool {
+    static func wentEnglish(from was: String, to now: String, expected: Int = 0) -> Bool {
         func tally(_ t: String) -> (latin: Int, han: Int) {
             (t.filter { $0.isASCII && $0.isLetter }.count, t.filter { isHan(String($0)) }.count)
         }
         let (a, b) = (tally(was), tally(now))
-        return b.latin - a.latin >= 2 && b.han <= a.han
+        return b.latin - a.latin >= expected + 2 && b.han <= a.han
+    }
+
+    /// Places in `text` that read as `want` with up to one character in ten read otherwise: OCR slips (搜索 read
+    /// as 搜素, 2026-11-23) are not a wrong typing, and retyping for them cost 20 s (Henry: tolerate OCR errors).
+    static func near(_ want: String, in text: String) -> Int {
+        let w = Array(want), t = Array(text), slack = w.count >= 4 ? 1 + w.count / 10 : 0  // a short one exactly: one char off is all of it
+        guard !w.isEmpty, t.count >= w.count else { return 0 }
+        var found = 0, i = 0
+        while i + w.count <= t.count {
+            var off = 0
+            for j in w.indices where t[i + j] != w[j] {
+                // the same pinyin is the keyboard's other candidate (西安 for 西岸), a wrong typing; only a character
+                // that reads otherwise is an OCR slip (索 read as 素)
+                if Pointer.typeable(String(t[i + j])) == Pointer.typeable(String(w[j])) { off = slack + 1 } else { off += 1 }
+                if off > slack { break }
+            }
+            if off <= slack { found += 1; i += w.count } else { i += 1 }
+        }
+        return found
     }
 
     static func occurrences(_ want: String, in text: String) -> Int {
@@ -625,7 +649,12 @@ enum TypeStop {
         let after = half(fieldText(now, minus: row)), base = half(fieldText(before, minus: Array(beforeRow)))
         let words = text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 }
         guard words.contains(where: { count($0, in: after) > count($0, in: base) }) else { return false }
-        return symbols.contains { count(String($0), in: after) <= count(String($0), in: base) }
+        // the last character sits against the cursor, where OCR drops it ("OK?" read as "OK", 2026-11-23, iPhone X:
+        // a right English message was called wrong and held from sending): only a symbol inside the text counts
+        // and what follows it on screen (the keyboard's suggestions) cannot tell OCR's miss from a wrong key: only a
+        // symbol inside the text is judged (Henry: tolerate OCR, never hold a right message for it)
+        let last = text.trimmingCharacters(in: .whitespaces).last
+        return symbols.contains { $0 != last && count(String($0), in: after) <= count(String($0), in: base) }
     }
 
     /// How a word committed unread reads in the field.

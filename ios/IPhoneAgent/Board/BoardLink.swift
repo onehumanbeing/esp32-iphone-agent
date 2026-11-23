@@ -575,7 +575,9 @@ extension BoardLink: CBPeripheralDelegate {
 /// was seen it is the app's own name, which a board on this build's firmware carries too.
 enum BoardName {
     static let key = "boardFamilyName"
-    nonisolated static var current: String { UserDefaults.standard.string(forKey: key) ?? AppName.current }
+    /// Before any board was seen: the firmware's own default, not the app's name (a store build is "Manina AI",
+    /// its board still "ESP32 Agent").
+    nonisolated static var current: String { UserDefaults.standard.string(forKey: key) ?? "ESP32 Agent" }
 
     /// "ESP32 Agent 7C3E" → "ESP32 Agent"; a name without the suffix is kept whole.
     nonisolated static func family(_ name: String) -> String? {

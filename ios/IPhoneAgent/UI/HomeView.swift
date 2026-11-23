@@ -38,10 +38,9 @@ struct HomeView: View {
                     }
                 }
                 if !recorder.busy && recorder.error == nil {
-                    Section { hero }
+                    Section { hero.id("agent-top") }  // a row, not the Section: iOS 16 crashed scrolling to a Section id
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
-                        .id("agent-top")
                 }
                 if recorder.busy || recorder.error != nil { RecordingPanel(recorder: recorder).id("recording") }
                 if app.help != nil { HelpPanel(app: app).id("agent-help") }
@@ -53,7 +52,9 @@ struct HomeView: View {
                 }
             }
             .onValueChange(of: agent.running) { _, running in
-                if running { scroll.scrollTo("agent-top", anchor: .top) }
+                // only on screen: a run starts as the app goes to the background, and iOS 16 crashed in scrollTo
+                // there (2026-11-23, iPhone X, EXC_BAD_ACCESS in SwiftUI under this closure)
+                if running, UIApplication.shared.applicationState == .active { scroll.scrollTo("agent-top", anchor: .top) }
             }
             .onValueChange(of: app.help) { _, help in
                 if help != nil { scroll.scrollTo("agent-help", anchor: .top) }

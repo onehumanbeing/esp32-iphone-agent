@@ -265,6 +265,10 @@ extension AppModel {
         #if DEBUG
         if let host = value(after: "-harness-host") { HarnessLink.shared.use(host: host) }  // harness/live.py's address
         #endif
+        if let v = value(after: "-ask") {  // harness: Settings › Ask before (payments / risky / never), read back
+            if let mode = AskMode(rawValue: v) { UserDefaults.standard.set(mode.rawValue, forKey: AskMode.key) }
+            say("harness: ask mode \(AskMode.current.rawValue)")
+        }
         if let lang = value(after: "-audiotest") { handleAppCommand("audiotest " + lang) }  // harness: Settings › Developer › Audio test
         if args.contains("-audio") { say(audio.summary + (audio.heard().isEmpty ? "" : "\n" + audio.heard())) }
     }

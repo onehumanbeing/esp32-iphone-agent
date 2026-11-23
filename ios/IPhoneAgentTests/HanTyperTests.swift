@@ -171,6 +171,24 @@ import XCTest
         XCTAssertEqual(ime.looks, 3, "one read before, one after each go: no careful way")
     }
 
+    /// 2026-11-23, iPhone X: a sentence over two lines read back short; 17 of 29 characters were deleted and the
+    /// careful way typed it all after the rest, so it went out with its first half twice.
+    func testAFastWayReadShortDeletesAllItTypedNotWhatGrew() async throws {
+        let text = "今天下午三点在公司楼下的咖啡店开会"
+        let ime = FakeIME(knowing: text)
+        var reads = 0
+        ime.fieldShown = { reads += 1; return reads <= 2 ? String($0.prefix(6)) : $0 }
+        let stop = try await ime.typer(fast: true).attempt(text)
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, text, "\(ime.sent)")
+    }
+
+    /// 2026-11-23: 测试一下搜索 read back as 测试一下搜素; one OCR slip is not a wrong typing.
+    func testOneCharacterReadOtherwiseStillCountsAsTyped() {
+        XCTAssertEqual(HanTyper.near("测试一下搜索", in: "发送测试一下搜素4"), 1)
+        XCTAssertEqual(HanTyper.near("测试一下搜索", in: "测试搜素一下"), 0)
+    }
+
     func testTheFastWayNeverTypesTwiceWhenTheFieldIsNotRead() async throws {
         let ime = FakeIME(knowing: "上海西岸艺术中心")
         (ime.barHidden, ime.fieldHidden) = (true, true)
