@@ -112,15 +112,29 @@ extension Pointer {
 
     /// "卫生纸 3卷" → "weishengzhi 3juan", "西岸" → "xi'an": Han characters to joined pinyin, accents folded, the rest dropped.
     /// `trim` false keeps spaces at the ends (a piece of a longer text).
+    /// Chinese punctuation that is not a full-width form of an ASCII one, by the key the pinyin keyboard turns into it.
+    nonisolated static let chinesePunctuation: [Character: Character] = [
+        "。": ".", "、": "\\", "“": "\"", "”": "\"", "‘": "'", "’": "'", "《": "<", "》": ">", "【": "[", "】": "]",
+        "…": "^", "—": "_", "·": "`",
+    ]
+
     nonisolated static func typeable(_ text: String, trim: Bool = true) -> String {
         guard !text.unicodeScalars.allSatisfy({ (0x20...0x7e).contains($0.value) }) else { return text }
         var out = ""
         var prevHan = false
+        var last: Character?
         for ch in text {
+            defer { last = ch }
+            if "…—".contains(ch), last == ch { continue }  // "……" and "——": one key makes the pair
             let s = String(ch)
             let isHan = s.unicodeScalars.contains { (0x4e00...0x9fff).contains($0.value) || (0x3400...0x4dbf).contains($0.value) }
-            let latin = (s.applyingTransform(.toLatin, reverse: false) ?? s)
-                .applyingTransform(.stripDiacritics, reverse: false) ?? s
+            // Chinese punctuation as the key that makes it on the pinyin keyboard (",": "，"); it was filtered out
+            // as non-ASCII, and "好的，明天见！" went in as 好的明天见 with no note (2026-11-23, iPhone X: the model
+            // cleared and retyped it for 10 minutes)
+            let punct = Self.chinesePunctuation[ch].map(String.init)
+                ?? (s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s)
+            let latin = (punct.applyingTransform(.toLatin, reverse: false) ?? punct)
+                .applyingTransform(.stripDiacritics, reverse: false) ?? punct
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
             if isHan {
                 let syllable = kept.replacingOccurrences(of: " ", with: "")

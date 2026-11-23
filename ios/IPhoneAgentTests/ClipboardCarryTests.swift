@@ -141,4 +141,16 @@ import XCTest
         XCTAssertEqual(Pointer.typeable("安全"), "anquan")
         XCTAssertEqual(Pointer.typeable("卫生纸 3卷"), "weishengzhi 3juan")
     }
+
+    /// 2026-11-23, iPhone X: "好的，明天见！" went in as 好的明天见 (the punctuation dropped, no note) and the model
+    /// cleared and retyped it for 10 minutes. Chinese punctuation goes in as the key that makes it on the pinyin keyboard.
+    func testChinesePunctuationIsTyped() {
+        XCTAssertEqual(Pointer.typeable("好的，明天见！"), "haode,mingtianjian!")
+        XCTAssertEqual(Pointer.typeable("好。真的？是：对；（行）"), "hao.zhende?shi:dui;(xing)")
+        XCTAssertEqual(Pointer.typeable("“你好”、《书》"), "\"nihao\"\\<shu>")
+        XCTAssertEqual(Pointer.typeable("等等……走——"), "dengdeng^zou_")
+        XCTAssertEqual(HanTyper.pieces("好的，明天见！").filter { if case .plain = $0 { true } else { false } },
+                       [.plain("，"), .plain("！")])
+        XCTAssertEqual(Accents.plan("，").typed, ",", "the plain piece is typed, not skipped")
+    }
 }
