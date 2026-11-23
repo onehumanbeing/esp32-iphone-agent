@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "manina",
+  "version": "0.1.0",
+  "description": "See and drive a real, non-jailbroken iPhone through an ESP32 Agent (Manina AI) board: the esp32agent MCP server (screenshot, tap, swipe, type) and the manina skill.",
+  "author": { "name": "Henry Yuan", "url": "https://manina.ai" },
+  "homepage": "https://manina.ai",
+  "repository": "https://github.com/onehumanbeing/esp32-iphone-agent",
+  "license": "MIT",
+  "keywords": ["iphone", "ios", "esp32", "mcp", "phone-automation", "manina"],
+  "extensions": {
+    "com.nousresearch.hermes": {
+      "servers": {
+        "esp32agent": { "timeout": 120 }
+      }
+    }
+  }
+}

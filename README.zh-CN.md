@@ -205,6 +205,12 @@ DeepSeek Harness（dsh）：安装 [integrations/dsh](integrations/dsh/README.md
 dsh plugin --profile web add dsh-esp32agent
 ```
 
+Hermes Agent：安装 [integrations/hermes](integrations/hermes/README.zh-CN.md) 里的插件，同样包含这个 MCP 服务器和技能：
+
+```bash
+hermes plugins install onehumanbeing/esp32-iphone-agent/integrations/hermes --enable
+```
+
 命令行工具在电脑上通过蓝牙直接连板子，板子和电脑连同一个 Wi-Fi 后改走 Wi-Fi（`esp32agent net join`），不需要 iPhone App，也不需要 TestFlight。命令和参数见[命令行文档](https://manina.ai/zh/docs/cli)和 [cli/README.md](cli/README.md)。
 
 ## 模型和提示词

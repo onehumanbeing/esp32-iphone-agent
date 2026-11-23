@@ -239,6 +239,12 @@ MCP server and skill ([demo video](https://www.youtube.com/watch?v=DzYv0QVk_No))
 dsh plugin --profile web add dsh-esp32agent
 ```
 
+Hermes Agent: install the plugin in [integrations/hermes](integrations/hermes/README.md), same MCP server and skill:
+
+```bash
+hermes plugins install onehumanbeing/esp32-iphone-agent/integrations/hermes --enable
+```
+
 The CLI talks to the board from your computer over Bluetooth, or over your Wi-Fi once both are on it (`esp32agent net join`),
 so it works without the iPhone app or TestFlight.
 Commands and options are in the [CLI reference](https://manina.ai/docs/cli) and [cli/README.md](cli/README.md).
