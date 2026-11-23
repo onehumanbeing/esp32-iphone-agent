@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "esp32agent": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "esp32agent@0.1.5", "mcp"],
+      "env": { "ESP32AGENT_DEVICE": "${ESP32AGENT_DEVICE}" }
+    }
+  }
+}
