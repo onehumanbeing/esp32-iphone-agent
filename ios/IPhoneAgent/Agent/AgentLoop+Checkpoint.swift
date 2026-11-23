@@ -33,9 +33,7 @@ struct Checkpoints {
     }
 
     /// Screens with progress between them are not going round: the notebook grew.
-    /// The planner's look at an actor's "done" (confirmDone). Off since 2026-11-23 (Henry): with Opus it overturned 27
-    /// of 112 (24%), with Gemini 4 Hydrogen 1 of 14, and it cost 4-5 s at every run's end. On again once Gemini's
-    /// overturn rate is measured on enough runs.
+    /// The planner's look at an actor's "done" (confirmDone). Off since 2026-11-23: it cost 4-5 s at every run's end.
     nonisolated(unsafe) static var doneCheck = false
 
     static let progressActions: Set<String> = ["read", "collect", "note", "progress", "remember", "write"]
