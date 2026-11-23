@@ -29,6 +29,13 @@ extension AgentLoop {
         }
         if try await pausedBeforeGesture() { return false }  // they paused; the screen may not be the one tapped
         guard !connectionChanged(since: acceptedLookLinks) else { return false }
+        // No frame at all since the tap (AirPlay repeats even a still screen): "no change" is only no video, and the
+        // second press is blind (2026-11-23, iPhone X: the WeChat icon tap opened a chat unseen, the press again hit
+        // its 发送 key and sent the field's leftover "haode"). The next look decides.
+        if let shown = screen?.updated, shown > 0, shown < lastActed {
+            DebugLog.write("step: no frame since the tap (video not coming); not pressed again")
+            return false
+        }
         DebugLog.write("step: the tap changed nothing; pressing once more with the pointer checked")
         try await phone.tap(x / 1000, y / 1000, aim: true)
         lastActed = now()

@@ -403,7 +403,9 @@ enum TypeStop {
                 keys += typed.count
             }
         }
-        guard let after = await look() else { return .unread }
+        guard var after = await look() else { return .unread }
+        // the field as it was: the frame may be from before the keys (2026-11-23, after ctrl+space); one more read
+        if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await look() { after = again }
         let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
         let want = Self.core(text)
         if !want.isEmpty, Self.occurrences(want, in: now) > Self.occurrences(want, in: was) {

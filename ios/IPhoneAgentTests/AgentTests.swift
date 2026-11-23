@@ -430,6 +430,18 @@ import XCTest
         XCTAssertNil(Actions.key(agent.steps.last!)["again"])
     }
 
+    /// 2026-11-23, iPhone X: no frame came after a tap (video stuck); the blind second press hit WeChat's 发送 key.
+    func testNoSecondPressWhenNoFrameCameSinceTheTap() async throws {
+        let phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = Self.jpeg()
+        screen.updated = 1  // a real feed whose last frame is from before the tap
+        let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in "THINK: WeChat\nDO: tap 500 500" },
+                              planner: nil, trace: nil)
+        _ = try await agent.step()
+        XCTAssertEqual(phone.taps.count, 1)
+        XCTAssertNil(agent.steps.last?["again"])
+    }
+
     func testASecondPressThatWorksReadsAsChanged() async throws {
         let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
         screen.frame = v.screen()
