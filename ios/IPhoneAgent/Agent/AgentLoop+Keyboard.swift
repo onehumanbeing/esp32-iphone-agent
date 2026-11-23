@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum HandoffRelease {
@@ -94,7 +95,8 @@ extension HIDDevice {
     UNKNOWN：无法判断、画面遮挡或正在过渡。占位文字不足以证明已经聚焦。
     """
 
-    static func restore(device: HIDDevice, screen: ScreenSource, model: ChatModel?,
+    static func restore(device: HIDDevice, screen: ScreenSource,
+                        local: ((Data) async -> Bool)? = KeyboardSeen.shown, model: ChatModel?,
                         enabled: () -> Bool = { true },
                         stillInTargetApp: () -> Bool = { true },
                         onCall: (ModelCall) -> Void = { _ in },
@@ -102,7 +104,6 @@ extension HIDDevice {
         guard enabled() else { return }
         let uncertain = DeviceError(message: String(localized: "The software keyboard state could not be verified."))
         let changed = DeviceError(message: String(localized: "The screen or board connection changed during keyboard handoff."))
-        guard let model else { throw uncertain }
         let link = device.links
 
         func checkLink() throws {
@@ -119,13 +120,14 @@ extension HIDDevice {
         }
 
         func call(_ reply: ChatResult?, _ error: Error?, _ image: Data) -> ModelCall {
-            ModelCall(role: "keyboard", model: model.model, reply: reply, error: error, imageKB: image.count / 1024)
+            ModelCall(role: "keyboard", model: model?.model ?? "", reply: reply, error: error, imageKB: image.count / 1024)
         }
 
         func classify(after boundary: Double = 0) async throws -> (State, Data) {
             try checkLink()
             try await refresh()
             let seen = try current(after: boundary)
+            guard let model else { throw uncertain }
             let reply: ChatResult
             do {
                 reply = try await model.chat(system: prompt, text: "判断当前截图的键盘和输入焦点。", image: seen,
@@ -143,6 +145,28 @@ extension HIDDevice {
             return (state, seen)
         }
 
+        // Local first: the keys read off the frame, no model call. The model's look took 8-10 s at every run's end and
+        // on an iPhone X failed 15 of 15 times on 2026-11-23 (the screen moved during the call).
+        if let shown = local {
+        try checkLink()
+        try await refresh()
+        let first = try current()
+        if await shown(first) { DebugLog.write("keyboard check: the on-screen keyboard is shown (read locally)"); return }
+        // Eject shows a keyboard hidden by the board's; with no field in focus it does nothing.
+        try await device.send("key eject")
+        let ejected = now()
+        await screen.afterAction(since: ejected, ignoring: [], busy: [])
+        try checkLink()
+        let after = try current(after: ejected)
+        if await shown(after) { DebugLog.write("keyboard check: the keyboard is back after eject (read locally)"); return }
+        // Eject only toggles the on-screen keyboard, and with the board's keyboard on it is hidden at a run's end: a
+        // change is the keyboard coming back. The keys are often not read (the fast read, 2026-11-23: two model looks
+        // then took 30 s and the second eject hid it again), so the model is not asked.
+        DebugLog.write(Vision.changed(first, after) ? "keyboard check: the screen changed after eject: the keyboard is back"
+                       : "keyboard check: eject changed nothing, no field in focus")
+        return
+        }
+        guard model != nil else { throw uncertain }
         let (state, seen) = try await classify()
         guard state == .hiddenFocused else { return }
         func stillFocused() throws {
@@ -159,5 +183,30 @@ extension HIDDevice {
         await screen.afterAction(since: sent, ignoring: [], busy: [])
         let (restored, _) = try await classify(after: sent)
         guard restored == .visible else { throw uncertain }
+    }
+}
+
+/// The on-screen keyboard read off a frame's lower half with Vision's fast level (Latin keys; in the background an
+/// accurate read took ~13 s on an iPhone X): the letter keys (QWERTY, the pinyin keyboard's too) or the 9-key pad.
+enum KeyboardSeen {
+    static let rows = ["qwert", "werty", "yuiop", "asdfg", "sdfgh", "hjkl", "zxcvb", "xcvbn"]
+    static let pad: Set<String> = ["abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz"]
+    static let letters = 8  // single-letter keys read: a keyboard
+
+    static func shown(_ jpeg: Data) async -> Bool {
+        guard let image = Vision.image(jpeg) else { return false }
+        let top = image.height / 2
+        guard let half = image.cropping(to: CGRect(x: 0, y: top, width: image.width, height: image.height - top))
+        else { return false }
+        return shown(await UITreeOCR.lines(half, languages: ["en-US"], whole: true, fast: true).map(\.text))
+    }
+
+    static func shown(_ texts: [String]) -> Bool {
+        let words = texts.flatMap { $0.lowercased().split(whereSeparator: \.isWhitespace).map(String.init) }
+        let single = Set(words.filter { $0.count == 1 && $0.first!.isLetter && $0.first!.isASCII })
+        if single.count >= letters { return true }
+        if words.filter({ pad.contains($0) }).count >= 3 { return true }
+        let joined = words.joined()
+        return rows.contains { joined.contains($0) }
     }
 }

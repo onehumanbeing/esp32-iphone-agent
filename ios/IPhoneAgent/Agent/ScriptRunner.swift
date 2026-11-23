@@ -192,6 +192,9 @@ extension AgentLoop {
     }
 
     /// A recorded move, done without the model. False = the screen did not change.
+    /// What a step's run wrote about its outcome (AgentLoop.perform's fields, the verdict): never replayed.
+    static let replayedOutcomes = ["typed", "result", "changed", "again", "landed", "opened"]
+
     private func move(_ step: Replay.Step) async throws -> Bool {
         let seen = screen?.frame
         if try await pausedBeforeGesture() { return false }  // they paused; don't replay this move on a new screen
@@ -207,9 +210,13 @@ extension AgentLoop {
             record(seen, act)
             return true
         }
+        // the recorded step's own outcome is the learning run's, not this one's: its "typed" note ("not typed:
+        // 订好了…") went to the model with a type this run read back whole, and the model typed that part again
+        // (2026-11-23). This run's result replaces it.
+        for key in Self.replayedOutcomes { act[key] = nil }
         onDoing?(.acting(act))
         let started = now()
-        try await perform(act)
+        if let result = try await perform(act) { act[result.field] = .str(result.value) }
         lastActed = now()
         act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
         let spots = [pointerAt] + pointerPath(act)

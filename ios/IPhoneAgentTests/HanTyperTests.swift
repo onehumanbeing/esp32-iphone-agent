@@ -183,6 +183,38 @@ import XCTest
         XCTAssertEqual(ime.field, text, "\(ime.sent)")
     }
 
+    /// 2026-11-23, iPhone X: 60 characters filled WeChat's field past its lines and only the last 18 were read; the
+    /// right text was deleted and typed again the slow way. The end read (and not there before) is the text.
+    func testALongTextWhoseFieldShowsOnlyItsEndIsNotTypedAgain() async throws {
+        let text = "今天下午三点在公司楼下的咖啡店开会记得带上电脑和充电器会议结束后我们一起去吃晚饭"
+        let ime = FakeIME(knowing: text)
+        ime.fieldShown = { String($0.suffix(18)) }
+        let stop = try await ime.typer(fast: true).attempt(text)
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, text)
+        XCTAssertFalse(ime.sent.contains { $0.hasPrefix("key backspace") || $0.contains("backspace") }, "\(ime.sent)")
+        XCTAssertNil(HanTyper.shownEnd("今天下午三点"), "a short text shows whole")
+        // the same message already in the chat above the field
+        let again = FakeIME(knowing: text)
+        again.field = ""
+        again.fieldShown = { "我们一起去吃晚饭" + String($0.suffix(18)) }
+        let stopAgain = try await again.typer(fast: true).attempt(text)
+        XCTAssertNil(stopAgain)
+        XCTAssertEqual(again.field, text)
+    }
+
+    /// 2026-11-23: the model typed the end of a long text again after it went in whole.
+    func testPartOfATextJustTypedWholeIsNotTypedAgain() {
+        let whole = "今天下午三点开会，餐厅我已经订好了，七点之前到就行。"
+        let typed: JObject = ["action": .str("type"), "text": .str(whole), "result": .str(AgentLoop.typedWhole)]
+        XCTAssertNotNil(AgentLoop.typedAlready("七点之前到就行。", after: [typed]))
+        XCTAssertNil(AgentLoop.typedAlready("明天见", after: [typed]), "other text")
+        let tap: JObject = ["action": .str("tap"), "x": .int(1), "y": .int(1)]
+        XCTAssertNil(AgentLoop.typedAlready("七点之前到就行。", after: [typed, tap]), "a tap since: maybe another field")
+        var unsure = typed; unsure["result"] = nil
+        XCTAssertNil(AgentLoop.typedAlready("七点之前到就行。", after: [unsure]), "not read back whole")
+    }
+
     /// 2026-11-23: 测试一下搜索 read back as 测试一下搜素; one OCR slip is not a wrong typing.
     func testOneCharacterReadOtherwiseStillCountsAsTyped() {
         XCTAssertEqual(HanTyper.near("测试一下搜索", in: "发送测试一下搜素4"), 1)

@@ -13,7 +13,7 @@ import XCTest
 
         let reopened = Settings(defaults: defaults, info: [:])
         let device = FakeDevice(), screen = HandoffScreen(), model = FakeModel { _ in "HIDDEN_FOCUSED" }
-        try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+        try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model,
                                           enabled: { reopened.restoreKeyboardAfterRun }) {
             XCTFail("A disabled keyboard check must not request a screenshot")
         }
@@ -24,7 +24,7 @@ import XCTest
     func testVisibleOrUnfocusedScreensNeedNoInput() async throws {
         for answer in ["VISIBLE", "NO_INPUT"] {
             let device = FakeDevice(), screen = HandoffScreen()
-            try await KeyboardHandoff.restore(device: device, screen: screen, model: FakeModel { _ in answer }, refresh: screen.refresh)
+            try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: FakeModel { _ in answer }, refresh: screen.refresh)
             XCTAssertTrue(device.sent.isEmpty)
         }
     }
@@ -37,7 +37,7 @@ import XCTest
         let stop = AsyncStream<Void>.makeStream()
         stop.continuation.finish()
         try await KeyboardHandoff.finish(by: .now + .seconds(30), stop: stop.stream) {
-            try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+            try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
         }
         XCTAssertEqual(model.images, [hidden, visible])
         XCTAssertEqual(device.sent, ["key eject"])
@@ -54,7 +54,7 @@ import XCTest
             let result = Task {
                 defer { ended.fulfill() }
                 try await KeyboardHandoff.finish(by: .now + .seconds(4), stop: stop.stream, stopGrace: .milliseconds(20)) {
-                    try await KeyboardHandoff.restore(device: device, screen: screen, model: model) {
+                    try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model) {
                         screen.refresh()
                         checking.fulfill()
                     }
@@ -75,7 +75,7 @@ import XCTest
             let device = FakeDevice(), screen = HandoffScreen()
             let model = FakeModel { answers[min($0 - 1, answers.count - 1)] }
             do {
-                try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+                try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
                 XCTFail("不能报告未确认的键盘状态")
             } catch {}
             XCTAssertEqual(device.sent, answers.count == 2 ? ["key eject"] : [])
@@ -90,7 +90,7 @@ import XCTest
                 return "HIDDEN_FOCUSED"
             }
             do {
-                try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+                try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
                 XCTFail("不能依据过期画面切换")
             } catch {}
             XCTAssertTrue(device.sent.isEmpty)
@@ -102,7 +102,7 @@ import XCTest
         device.onSend = { _ in screen.freeze = true }
         let model = FakeModel { $0 == 1 ? "HIDDEN_FOCUSED" : "VISIBLE" }
         do {
-            try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+            try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
             XCTFail("必须取得晚于动作的画面")
         } catch {}
         XCTAssertEqual(device.sent, ["key eject"])
@@ -121,7 +121,7 @@ import XCTest
         let verified = expectation(description: "两次截图一致，切换正在等待命令锁")
         var targetApp = true, refreshes = 0
         let handoff = Task {
-            try await KeyboardHandoff.restore(device: channel, screen: screen,
+            try await KeyboardHandoff.restore(device: channel, screen: screen, local: nil,
                                                model: FakeModel { _ in "HIDDEN_FOCUSED" },
                                                stillInTargetApp: { targetApp }) {
                 screen.refresh()
@@ -145,7 +145,7 @@ import XCTest
                 withUnsafeCurrentTask { $0?.cancel() }
                 return "HIDDEN_FOCUSED"
             }
-            try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+            try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
         }
         do { try await task.value; XCTFail("已取消的判断不能继续执行") }
         catch { XCTAssertTrue(error is CancellationError) }
@@ -202,7 +202,7 @@ import XCTest
         device.onSend = { _ in screen.frame = HandoffScreen.picture(.white) }
         var usage = ModelUsage()
         let model = FakeModel { $0 == 1 ? "HIDDEN_FOCUSED" : "VISIBLE" }
-        try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+        try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model,
                                           onCall: { usage.add($0); XCTAssertEqual($0.role, "keyboard") },
                                           refresh: screen.refresh)
         XCTAssertEqual(usage.calls, 2)
@@ -210,7 +210,7 @@ import XCTest
 
         model.error = LLMError(message: "down")
         usage = ModelUsage()
-        do { try await KeyboardHandoff.restore(device: device, screen: screen, model: model,
+        do { try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model,
                                                onCall: { usage.add($0) }, refresh: screen.refresh) } catch {}
         XCTAssertEqual(usage.calls, 1)
         XCTAssertEqual(usage.failures, 1)
@@ -260,7 +260,7 @@ import XCTest
             let handoff = InputHandoff(device: device, checkKeyboard: true, userCancelled: { userCancelled })
             let result = await handoff.run {
                 try await KeyboardHandoff.finish(by: .now + .seconds(4), stop: stop.stream, stopGrace: .milliseconds(20)) {
-                    try await KeyboardHandoff.restore(device: device, screen: screen, model: model, refresh: screen.refresh)
+                    try await KeyboardHandoff.restore(device: device, screen: screen, local: nil, model: model, refresh: screen.refresh)
                 }
             }
             XCTAssertEqual(device.sent, ["reset"])
@@ -280,6 +280,29 @@ import XCTest
         XCTAssertNil(result.release)
         XCTAssertEqual(result.notice, String(localized: "Check that the mouse and keyboard are released."))
     }
+
+    /// Read locally (no model call, 8-10 s on an iPhone X): a keyboard on screen needs nothing; none read gets one
+    /// eject, and a screen that changed after it is the keyboard back: no model call.
+    func testTheKeyboardIsReadLocallyFirst() async throws {
+        for (before, after, changes, asked, sent) in [(true, false, false, 0, [String]()), (false, true, true, 0, ["key eject"]),
+                                                      (false, false, false, 0, ["key eject"]), (false, false, true, 0, ["key eject"])] {
+            let device = FakeDevice(), screen = HandoffScreen()
+            if changes { device.onSend = { _ in screen.frame = HandoffScreen.picture(.white) } }
+            var reads = 0
+            let model = FakeModel { _ in "NO_INPUT" }
+            try await KeyboardHandoff.restore(device: device, screen: screen, local: { _ in reads += 1; return reads == 1 ? before : after },
+                                              model: model, refresh: screen.refresh)
+            XCTAssertEqual(device.sent, sent)
+            XCTAssertEqual(model.images.count, asked)
+        }
+    }
+
+    func testKeyboardKeysAreRecognisedFromOCR() {
+        XCTAssertTrue(KeyboardSeen.shown(["q", "w", "e", "r", "t", "y", "u", "i", "o"]))
+        XCTAssertTrue(KeyboardSeen.shown(["QWERTYUIOP", "ASDFGHJKL"]))
+        XCTAssertTrue(KeyboardSeen.shown(["ABC", "DEF", "GHI", "JKL"]))
+        XCTAssertFalse(KeyboardSeen.shown(["文件传输助手", "发送", "Hello world", "A"]))
+    }
 }
 
 @MainActor private final class HandoffScreen: ScreenSource {
@@ -290,7 +313,8 @@ import XCTest
     let aspect = 0.5
 
     func refresh() { if !freeze { capturedAt = now() } }
-    func afterAction(since: Double, ignoring: [CGPoint], busy: [CGRect]) async { refresh() }
+    // a frame after the action even when the clock reads the same (Date's resolution; flaky under load)
+    func afterAction(since: Double, ignoring: [CGPoint], busy: [CGRect]) async { while now() <= since {}; refresh() }
 
     static func picture(_ color: UIColor) -> Data {
         UIGraphicsImageRenderer(size: CGSize(width: 32, height: 64)).image { context in

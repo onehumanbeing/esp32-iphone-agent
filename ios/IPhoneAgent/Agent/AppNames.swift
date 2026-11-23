@@ -7,7 +7,12 @@ import Foundation
 enum AppNames {
     /// One app per row: its Chinese (zh-Hans) system name, its English name, then other names people use. The hand
     /// rows first, then the apps only the collected scheme list knows (AppSchemes.swift).
-    static let table: [[String]] = own + collected.map(\.names).filter { app in !own.contains { same(app, $0) } }
+    /// Each name is folded once: comparing rows pairwise folded the same names millions of times and held the main
+    /// thread 2.5 s at a run's start on an iPhone X (2026-11-23). `warm()` builds these off the main thread.
+    static let table: [[String]] = {
+        let mine = Set(own.joined().map(norm))
+        return own + collected.map(\.names).filter { app in !app.contains { mine.contains(norm($0)) } }
+    }()
 
     private static let own: [[String]] = [
         ["时钟", "Clock", "闹钟", "计时器", "秒表", "Alarm", "Alarms", "Timer", "Stopwatch"],
@@ -112,15 +117,22 @@ enum AppNames {
     /// no Spotlight; only from the front (iOS opens a URL only for the app in front), else the old way. A scheme
     /// that is wrong or whose app is not installed makes `open` return false, and the old way follows.
     /// The hand list first (widely documented), then the collected list's (AppSchemes.swift) for the same app.
-    static let schemes: [String: [String]] = Dictionary(table.map { row in
+    static let schemes: [String: [String]] = {
+      var byName: [String: [Int]] = [:]  // folded name -> the collected apps with it, in order
+      for (i, app) in collected.enumerated() {
+          for name in Set(app.names.map(norm)) { byName[name, default: []].append(i) }
+      }
+      return Dictionary(table.map { row in
         var list = seed[row[1]] ?? []
-        for app in collected where same(app.names, row) {
+        let mine = Set(row.flatMap { byName[norm($0)] ?? [] }).sorted()
+        for app in mine.map({ collected[$0] }) {
             for scheme in app.schemes where !list.contains(where: { $0.caseInsensitiveCompare(scheme) == .orderedSame }) {
                 list.append(scheme)
             }
         }
         return (row[1], list)
-    }.filter { !$0.1.isEmpty }, uniquingKeysWith: { first, _ in first })
+      }.filter { !$0.1.isEmpty }, uniquingKeysWith: { first, _ in first })
+    }()
 
     private static let seed: [String: [String]] = [
         "WeChat": ["weixin://"], "Alipay": ["alipay://"], "Taobao": ["taobao://"], "Weibo": ["sinaweibo://"],
@@ -131,10 +143,8 @@ enum AppNames {
         "Books": ["ibooks://"], "Podcasts": ["podcasts://"], "App Store": ["itms-apps://"],
     ]
 
-    /// Two rows are the same app when they share a name.
-    private static func same(_ a: [String], _ b: [String]) -> Bool {
-        a.contains { x in b.contains { norm($0) == norm(x) } }
-    }
+    /// Builds the tables off the main thread (at launch), so a run's first lookup finds them ready.
+    static func warm() { Task.detached(priority: .utility) { _ = schemes; _ = rowIndex } }
 
     /// The scheme URLs for `name`'s app (any of its names); empty when none is known.
     static func schemeURLs(_ name: String) -> [URL] {
@@ -187,10 +197,18 @@ enum AppNames {
     }
 
     /// The table's row for `name` (any of its names, localized ones included).
-    private static func row(_ name: String) -> [String]? {
-        let want = norm(name)
-        return table.first { row in (row + (localized[row[1]].map { Array($0.values) } ?? [])).contains { norm($0) == want } }
-    }
+    private static func row(_ name: String) -> [String]? { rowIndex[norm(name)].map { table[$0] } }
+
+    /// Folded name (localized ones included) -> its first row in `table`.
+    private static let rowIndex: [String: Int] = {
+        var index: [String: Int] = [:]
+        for (i, row) in table.enumerated() {
+            for name in row + (localized[row[1]].map { Array($0.values) } ?? []) where index[norm(name)] == nil {
+                index[norm(name)] = i
+            }
+        }
+        return index
+    }()
 
     /// The names the app's Home Screen label can have here (Chinese, English, the device language's), for reading
     /// Spotlight's results: on a Japanese iPhone "Notes" typed lists the app as メモ. Empty when the table does not

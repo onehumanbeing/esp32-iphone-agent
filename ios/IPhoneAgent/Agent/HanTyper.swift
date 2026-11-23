@@ -419,14 +419,28 @@ enum TypeStop {
         }
         let want = Self.core(text)
         // the quick check: only what changed on screen, read while the full read of the frame before still runs
+        var freshText: String?
         if let frameBefore, let grab, let readNew, let frameAfter = await grab(),
-           let fresh = await readNew(frameBefore, frameAfter), Self.holds(want, in: Self.core(Self.fieldText(fresh, minus: []))) {
-            pending?.cancel()
-            DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
-            return .done
+           let fresh = await readNew(frameBefore, frameAfter) {
+            let read = Self.core(Self.fieldText(fresh, minus: []))
+            if Self.holds(want, in: read) {
+                pending?.cancel()
+                DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
+                return .done
+            }
+            freshText = read
+            DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
         }
         if known == nil { known = await pending?.value }
         guard let before = known else { return .unread }
+        // A long text fills the field past its lines and only its end is shown: 60 characters in WeChat read as the
+        // last 18, the right text was deleted and typed again the slow way (2026-11-23). Its end read where the screen
+        // changed is the text, even when the same message sent earlier is on the screen too: that rule sent the next
+        // run (the chat held it twice) to the careful way, 98 s (Henry: speed over full protection).
+        if let end = Self.shownEnd(want), let freshText, Self.holds(end, in: freshText) {
+            DebugLog.write("type: fast, \(text.count) chars in one go, its end read back in the changed area (the field scrolls): ok")
+            return .done
+        }
         func lookAgain() async -> Seen? {  // the same read as before the keys, when there was one
             guard let grab, let read else { return await look() }
             guard let jpeg = await grab() else { return nil }
@@ -436,8 +450,12 @@ enum TypeStop {
         // the field as it was: the frame may be from before the keys (2026-11-23, after ctrl+space); one more read
         if Self.fieldText(after, minus: []) == Self.fieldText(before, minus: []), let again = await lookAgain() { after = again }
         let was = Self.core(Self.fieldText(before, minus: [])), now = Self.core(Self.fieldText(after, minus: []))
+        // a long text's shown end, read in a field that grew (the same message may be in the chat above: not asked)
+        let end = Self.shownEnd(want)
+        let fieldGrew = Self.fieldText(after, minus: []).count > Self.fieldText(before, minus: []).count
         if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was)
-            || (Self.holds(want, in: now) && !Self.holds(want, in: was)) {
+            || (Self.holds(want, in: now) && !Self.holds(want, in: was))
+            || (fieldGrew && end.map({ Self.holds($0, in: now) }) == true) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
             return .done
         }
@@ -462,11 +480,18 @@ enum TypeStop {
         // what the keys put there, not what OCR saw grow: a sentence over two lines read short, 17 of 29 were
         // deleted and the careful way typed it all after the rest (2026-11-23, sent with its first half twice).
         // Pinyin commits a character a syllable and punctuation one each, so text.count is what went in.
-        let english = newLetters * 10 >= letters * 8
-        let drop = english ? keys : text.count + newLetters
-        DebugLog.write("type: fast, read back wrong (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); deleting \(drop), typing it the careful way")
-        try await erase(drop)
-        return .redo
+        // the keyboard's other candidate read in the field (西安 for 西岸): a real wrong word, typed again the careful way
+        if Self.otherCandidate(want, in: now) {
+            DebugLog.write("type: fast, another candidate went in (read \"\(String(now.suffix(40)))\"); deleting \(text.count + newLetters), typing it the careful way")
+            try await erase(text.count + newLetters)
+            return .redo
+        }
+        // Not English: the fast way is trusted, nothing deleted (Henry 2026-11-23: "快打没有问题，问题出在你老是查").
+        // Every "read back wrong" on the iPhone X that day was the read's: the field showed only the end of a long
+        // text, the chat held the same message, the last pinyin was not up yet; each one deleted a right text and
+        // the careful way then took 1-2 minutes.
+        DebugLog.write("type: fast, read back unsure (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); trusted, not typed again")
+        return .done
     }
 
     static let fastRun = segment  // a group commits with one space; longer ones came out as other words more often
@@ -484,6 +509,11 @@ enum TypeStop {
         }
         return out
     }
+
+    /// A text this long may scroll in its field (WeChat on an iPhone X shows about 4 lines of 13): its last
+    /// `endChars` are what the read can see. Initial estimates.
+    static let scrollsFrom = 30, endChars = 16
+    static func shownEnd(_ want: String) -> String? { want.count >= scrollsFrom ? String(want.suffix(endChars)) : nil }
 
     /// Letters, digits and Han, folded: what OCR reads reliably (punctuation and spaces left out).
     static func core(_ text: String) -> String {
@@ -516,9 +546,7 @@ enum TypeStop {
         }
         // a wanted character missing while one with its pinyin, not wanted, is there: the other candidate, even when
         // the alignment would take it as a drop and an add
-        let have = Set(t), wanted = Set(w)
-        let stand = Set(t.filter { !wanted.contains($0) }.map(py))
-        if w.contains(where: { !have.contains($0) && stand.contains(py($0)) }) { return false }
+        if otherCandidate(want, in: text) { return false }
         var prev = [Int](repeating: 0, count: t.count + 1)  // free start anywhere in text
         for i in 1...w.count {
             var cur = [Int](repeating: i, count: t.count + 1)
@@ -531,16 +559,34 @@ enum TypeStop {
         return (prev.min() ?? never) <= slack  // free end anywhere in text
     }
 
+    /// A wanted character missing while one with its pinyin, not wanted, is there: the keyboard's other candidate
+    /// (西安 for 西岸), a wrong typing, not a misread.
+    static func otherCandidate(_ want: String, in text: String) -> Bool {
+        var pinyin: [Character: String] = [:]
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
+        let w = Array(want), t = Array(text), have = Set(t), wanted = Set(w)
+        let stand = Set(t.filter { !wanted.contains($0) }.map(py))
+        return w.contains { !have.contains($0) && stand.contains(py($0)) }
+    }
+
     static func near(_ want: String, in text: String) -> Int {
         let w = Array(want), t = Array(text), slack = w.count >= 4 ? 1 + w.count / 10 : 0  // a short one exactly: one char off is all of it
         guard !w.isEmpty, t.count >= w.count else { return 0 }
+        var pinyin: [Character: String] = [:]  // typeable is slow: 2 per mismatch held the main thread 3.2 s (2026-11-23)
+        func py(_ c: Character) -> String {
+            if let p = pinyin[c] { return p }
+            let p = Pointer.typeable(String(c)); pinyin[c] = p; return p
+        }
         var found = 0, i = 0
         while i + w.count <= t.count {
             var off = 0
             for j in w.indices where t[i + j] != w[j] {
                 // the same pinyin is the keyboard's other candidate (西安 for 西岸), a wrong typing; only a character
                 // that reads otherwise is an OCR slip (索 read as 素)
-                if Pointer.typeable(String(t[i + j])) == Pointer.typeable(String(w[j])) { off = slack + 1 } else { off += 1 }
+                if py(t[i + j]) == py(w[j]) { off = slack + 1 } else { off += 1 }
                 if off > slack { break }
             }
             if off <= slack { found += 1; i += w.count } else { i += 1 }

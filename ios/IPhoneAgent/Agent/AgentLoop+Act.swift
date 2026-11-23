@@ -71,7 +71,19 @@ extension AgentLoop {
         }
     }
 
-    static let typedWhole = "typed and read back: the field shows all of it; go on (do not clear it or type it again)"
+    static let typedWhole = "typed and read back: the field holds all of it (a long text shows only its end there, the start scrolled out of view); go on (do not clear it or type it again)"
+
+    /// The last gesture typed a text and read it back whole, and this `type` is part of it: the model saw only the end
+    /// of a long text in its field and typed that end again, on top (2026-11-23, three runs in a row: "订好了，七点之前
+    /// 到就行。", "七点之前到就行。"). Not typed; the model is told the field already holds it.
+    static func typedAlready(_ text: String, after steps: [JObject]) -> String? {
+        guard let last = steps.last(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              last["action"]?.str == "type", last["result"]?.str == typedWhole, let whole = last["text"]?.str else { return nil }
+        let part = HanTyper.core(text)
+        guard !part.isEmpty, HanTyper.core(whole).contains(part) else { return nil }
+        return "not typed: the field already holds \"\(text)\" (the last type put all of \"\(whole.suffix(40))\" in and read "
+            + "it back; a long text shows only its end in the field). Go on to the next step of the goal, e.g. send"
+    }
 
     /// What `open` found, or what `type` could not type: a field for the step (nil for every other action).
     @discardableResult
@@ -88,6 +100,10 @@ extension AgentLoop {
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)
         case "type":
             let text = a["text"]?.str ?? ""
+            if let note = Self.typedAlready(text, after: steps) {
+                DebugLog.write("type: \"\(text)\" is part of the text the last type put in the field whole; not typed again")
+                return ("result", note)
+            }
             if Scripts.needsPaste(text) {  // the board can't type it
                 let note = try await pasteInstead(text)
                 typeStats.pasted(note, pinyin: false)

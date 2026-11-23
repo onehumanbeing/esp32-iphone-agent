@@ -18,6 +18,7 @@ import Foundation
 
     /// The longest a look waits for the tree of its frame (initial estimate; tuned from the `tree late` log lines).
     static let treeWait = 1.2
+    static let lateLimit = 2  // trees late in a row: the rest of the run goes without (AgentLoop.treesLate)
 
     private var imageTask: Task<(Data, Double), Never>?
     private var treeTask: Task<(UITree?, Double), Never>?
@@ -149,7 +150,7 @@ extension AgentLoop {
 
     func prepareFrame(_ jpeg: Data?) {
         guard let jpeg else { return }
-        framePrep.start(jpeg, wantTree: screenTree && !serverTree)
+        framePrep.start(jpeg, wantTree: wantsTree)
     }
 
     func startSpeculative() {

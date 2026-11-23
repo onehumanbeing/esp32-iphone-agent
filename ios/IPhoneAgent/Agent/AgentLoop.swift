@@ -235,6 +235,10 @@ extension Gestures {
     var seenLines = SeenLines(), recordAudits = 0  // RecordAudit
     var readPastStart = false  // the last screen read: its dated items all before the goal's dates
     var treeWait = FramePrep.treeWait  // a look waits this long for the on-device tree (tests on a slow runner: longer)
+    /// Trees late in a row this run. A slow phone (iPhone X: OCR 3.4-7 s) never has it in time: each look waited
+    /// 1.2 s for nothing and the OCR held the CPU (2026-11-23, 6 of 6 looks late); from `FramePrep.lateLimit` on, none is built.
+    var treesLate = 0
+    var wantsTree: Bool { screenTree && !serverTree && treesLate < FramePrep.lateLimit }
     var listRead = false, backChecked = false  // the list read past the goal's dates; a scroll back up was refused once
     /// Who answered the last request (servedModel, e.g. "handsy-jev" when Jev took the step).
     var lastServed: String?
@@ -444,7 +448,7 @@ extension Gestures {
             var frame = screen.frame
             let frameAt = screen.capturedAt, started = now(), requestLinks = phone?.device.links
             let requestGeometry = screen.geometry
-            let wantTree = role == "actor" && screenTree && !serverTree
+            let wantTree = role == "actor" && wantsTree
             // the frame prepared for this look when the screen has not changed since: its image and tree are
             // (being) built, a newer copy of the same screen would start them over (2026-11-18: 14 of 21 looks)
             if let now = frame, let prepared = framePrep.frame, prepared != now {
@@ -460,8 +464,11 @@ extension Gestures {
                     tree = ready.tree
                     lookClock.imageMs = ready.imageMs
                     lookClock.treeMs = ready.treeMs
-                    if ready.treeLate { DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", treeWait)) }
-                    else if let tree { DebugLog.write("step " + tree.timingLine) }
+                    if ready.treeLate {
+                        treesLate += 1
+                        DebugLog.write(String(format: "tree late: not built within %.1f s, the look goes without it", treeWait)
+                                       + (wantsTree ? "" : "; no tree for the rest of the run (late \(treesLate) times in a row)"))
+                    } else if let tree { treesLate = 0; DebugLog.write("step " + tree.timingLine) }
                 }
             }
             if sent == nil {

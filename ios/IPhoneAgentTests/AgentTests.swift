@@ -213,8 +213,15 @@ import XCTest
         }
     }
 
-    func testParseRequiresADoLine() {
+    func testParseRequiresADoLine() throws {
         XCTAssertThrowsError(try Actions.parseActions("THINK: I am not sure what to do."))
+        // 2026-11-23: Qwen's "tap 发送" without quotes made the whole reply off-format, and it was asked again (5 s)
+        let bare = try Actions.parseActions("THINK: send it.\n\nDO: type 七点之前到就行。\nDO: tap 发送")
+        XCTAssertEqual(bare.first?["text"]?.str, "七点之前到就行。")
+        XCTAssertEqual(try Actions.parseCommand("tap 发送")["text"]?.str, "发送")
+        XCTAssertEqual(try Actions.parseCommand("tap 100 200")["x"]?.int, 100)
+        let kept = try Actions.parseActions("DO: tap 100 200\nDO: frobnicate now")
+        XCTAssertEqual(kept.count, 1, "the good line before an odd one stays")
     }
 
     func testParsePlanWithAndWithoutLanguages() {

@@ -6,6 +6,8 @@ import Foundation
 /// field is cleared and pasted once more, with no hop back to this app (Henry 2026-11-20: the Spotlight hop looked
 /// bizarre and missed with many apps open). The write is local only; logs carry counts, never the text.
 struct ClipboardCarry: Equatable {
+    /// The carry at a run's start (AppModel.carryClipboard); off since 2026-11-23 (Henry: no clipboard).
+    nonisolated(unsafe) static var enabled = false
     var text: String
     var changeCount: Int  // UIPasteboard.changeCount right after the write: any later write changes it
     var source: String  // "plan" or "prompt"

@@ -265,6 +265,21 @@ extension AppModel {
         #if DEBUG
         if let host = value(after: "-harness-host") { HarnessLink.shared.use(host: host) }  // harness/live.py's address
         #endif
+        // harness: a saved plan for an intent, from Documents/<file> {"intent": "<name>", "plan": "..."}, read back
+        if let name = value(after: "-save-plan"), !name.contains("/"),
+           let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+           let data = try? Data(contentsOf: docs.appendingPathComponent(name)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+           let plan = json["plan"], let intent = intents.items.first(where: { $0.name == json["intent"] }) {
+            planCache.save(plan, for: intent, run: "harness")
+            say("harness: plan for \"\(intent.name)\" " + (planCache.entry(for: intent) != nil ? "saved" : "not saved"))
+        }
+        // harness: drop an intent's learned steps (by name); the next run goes to the model and learns them again
+        if let name = value(after: "-forget-steps"), var item = intents.items.first(where: { $0.name == name }) {
+            (item.steps, item.previousSteps, item.learnedFrom) = (nil, nil, nil)
+            intents.upsert(item)
+            say("harness: steps of \"\(name)\" " + ((intents.item(item.id)?.steps ?? []).isEmpty ? "forgotten" : "still there"))
+        }
         if let v = value(after: "-ask") {  // harness: Settings › Ask before (payments / risky / never), read back
             if let mode = AskMode(rawValue: v) { UserDefaults.standard.set(mode.rawValue, forKey: AskMode.key) }
             say("harness: ask mode \(AskMode.current.rawValue)")

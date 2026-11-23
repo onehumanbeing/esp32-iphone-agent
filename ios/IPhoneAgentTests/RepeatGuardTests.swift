@@ -215,6 +215,8 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertTrue(DoneGuard.premature(done, after: [g("tap", 5, 5, changed: false)], earlierRuns: true))
         XCTAssertFalse(DoneGuard.premature(done, after: [g("tap", 5, 5, changed: true)], earlierRuns: true))
         XCTAssertFalse(DoneGuard.premature(done, after: [["action": .str("resumed")]], earlierRuns: true))
+        let autoOpen: JObject = ["action": .str("open"), "app": .str("微信"), "auto": .bool(true), "changed": .bool(true)]
+        XCTAssertTrue(DoneGuard.premature(done, after: [autoOpen], earlierRuns: true), "the app's own open is not the run's doing")
         let asked: JObject = ["action": .str(RepeatGuard.action), "reason": .str(DoneGuard.reason)]
         XCTAssertFalse(DoneGuard.premature(done, after: [asked], earlierRuns: true), "the second done stands")
     }

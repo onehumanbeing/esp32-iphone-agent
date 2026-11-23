@@ -33,6 +33,11 @@ struct Checkpoints {
     }
 
     /// Screens with progress between them are not going round: the notebook grew.
+    /// The planner's look at an actor's "done" (confirmDone). Off since 2026-11-23 (Henry): with Opus it overturned 27
+    /// of 112 (24%), with Gemini 4 Hydrogen 1 of 14, and it cost 4-5 s at every run's end. On again once Gemini's
+    /// overturn rate is measured on enough runs.
+    nonisolated(unsafe) static var doneCheck = false
+
     static let progressActions: Set<String> = ["read", "collect", "note", "progress", "remember", "write"]
 
     /// The screen the last gesture was decided on came back for the third time since `from` (the last checkpoint)
@@ -117,7 +122,7 @@ extension AgentLoop {
     /// The actor said done (and the planner hasn't answered this round): the planner looks at the same screen.
     /// Its reply stands, whether it confirms done (often with a fuller answer) or goes on. nil = keep the actor's.
     func confirmDone(_ acts: [JObject], _ prompt: String) async throws -> (String, Double, Data?)? {
-        guard let planner = checkpointModel, acts.contains(where: { $0["action"]?.str == "done" }) else { return nil }
+        guard Checkpoints.doneCheck, let planner = checkpointModel, acts.contains(where: { $0["action"]?.str == "done" }) else { return nil }
         if Self.doneIsShown(notebook.count, wrote: resultWritten) {
             // 2026-11-18: progress 3/3, README written, and the check still took 19 s to say done
             DebugLog.write("checkpoint (done check): skipped, progress \(notebook.progress) reached and the result written")
