@@ -75,6 +75,7 @@ struct ModelSettingsView: View {
         .autocorrectionDisabled()
         .navigationTitle("Model")
         .navigationBarTitleDisplayMode(.inline)
+        .chatGPTSignInHost(enabled: !Trial.available)  // with the free line, ModelFieldsSheet hosts it
 
     }
 }

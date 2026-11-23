@@ -5,7 +5,6 @@ import SwiftUI
 /// usage. Rows for ProviderFields' stack (dividers between them).
 struct ChatGPTAccountRows: View {
     @ObservedObject private var auth = ChatGPTAuth.shared
-    @State private var signingIn = false
 
     var body: some View {
         if let account = auth.account {
@@ -28,7 +27,7 @@ struct ChatGPTAccountRows: View {
             }
         } else {
             VStack(alignment: .leading, spacing: Space.s) {
-                Button { signingIn = true } label: {
+                Button { ChatGPTSignInPresenter.shared.presented = true } label: {
                     Text("Sign in with ChatGPT").font(.body.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
@@ -36,7 +35,6 @@ struct ChatGPTAccountRows: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .padding(.vertical, Space.s)
-            .sheet(isPresented: $signingIn) { ChatGPTSignInSheet() }
         }
     }
 
@@ -64,6 +62,29 @@ private struct UsageBar: View {
                 Text("Resets \(reset.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// Whether the sign-in sheet is up. Kept out of ChatGPTAccountRows (#965): a sheet presented from a Form row was
+/// rebuilt mid sign-in when the row was hosted again, restarting the attempt and closing the browser page.
+@MainActor final class ChatGPTSignInPresenter: ObservableObject {
+    static let shared = ChatGPTSignInPresenter()
+    @Published var presented = false
+}
+
+extension View {
+    /// Presents the ChatGPT sign-in sheet. Attach to a stable container (a NavigationStack, a Form), never to a row,
+    /// and to one container per screen: `enabled: false` where a sheet above hosts it instead.
+    @ViewBuilder func chatGPTSignInHost(enabled: Bool = true) -> some View {
+        if enabled { modifier(ChatGPTSignInHost()) } else { self }
+    }
+}
+
+private struct ChatGPTSignInHost: ViewModifier {
+    @ObservedObject private var presenter = ChatGPTSignInPresenter.shared
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $presenter.presented) { ChatGPTSignInSheet() }
     }
 }
 
