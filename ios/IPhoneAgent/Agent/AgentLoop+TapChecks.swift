@@ -7,42 +7,75 @@ extension AgentLoop {
     /// another frame: read once and kept for the next check (2026-11-19: three full reads of one frame before
     /// every tap, 4 s with the app in the background).
     func lookLines(for shot: Data) async -> [DemoAnalysis.Line] {
-        if shot == limitFrame, !limitLines.isEmpty { return limitLines }
-        if shot == lookFrame, let tree = lookTree { return DemoAnalysis.texts(of: tree, limit: 200) }
-        if let kept = shotLines, kept.shot == shot { return kept.lines }
+        if let read = readLines(for: shot) { return read }
         let lines = await Self.screenLines(shot)
         shotLines = (shot, lines)
         return lines
     }
 
-    /// A tap on a send button goes through SendGuard like Enter: the label under the tap, or a text tap's words.
-    func sendTapHold(_ act: JObject, on shot: Data?) async -> String? {
-        guard act["action"]?.str == "tap" else { return nil }
-        var under: String?
-        if let x = act["x"]?.int, let y = act["y"]?.int, let shot {
-            under = IntentLearner.label(at: x, y, in: await lookLines(for: shot))
+    /// The lines of `shot` only when they are already read (the look's tree, or kept): Enter never waits for a read.
+    func readLines(for shot: Data) -> [DemoAnalysis.Line]? {
+        if shot == limitFrame, !limitLines.isEmpty { return limitLines }
+        if shot == lookFrame, let tree = lookTree { return DemoAnalysis.texts(of: tree, limit: 200) }
+        if let kept = shotLines, kept.shot == shot { return kept.lines }
+        return nil
+    }
+
+    /// A real send (a tap on a send button: the label under the tap, or a text tap's words; Enter while a send key
+    /// or button shows) goes through SendGuard's hard gate. `fresh`: nothing was typed since `shot` was taken, so it
+    /// shows what the field holds. A tap: the lines the tap checks read anyway (PayGuard, kept). Enter: only lines
+    /// already read; none read = not known as a send, the soft hold in perform as before. Never a new read for Enter.
+    func sendCheck(_ act: JObject, on shot: Data?, fresh: Bool) async -> TapCheck {
+        var lines: [DemoAnalysis.Line] = []
+        if let shot { lines = act["action"]?.str == "tap" ? await lookLines(for: shot) : readLines(for: shot) ?? [] }
+        let again: String
+        if act["action"]?.str == "tap" {
+            var under: String?
+            if let x = act["x"]?.int, let y = act["y"]?.int { under = IntentLearner.label(at: x, y, in: lines) }
+            guard SendGuard.isSend(under) || SendGuard.isSend(act["text"]?.str) else { return .send }
+            again = "tap it again"
+        } else if Actions.isEnter(act), SendGuard.sendShown(lines) {
+            again = "key enter again"
+        } else {
+            return .send  // not a send: Enter in a search field stays with the soft hold in perform
         }
-        guard SendGuard.isSend(under) || SendGuard.isSend(act["text"]?.str) else { return nil }
-        return sendGuard.enter(step: steps.count + 1, again: "tap it again")
+        let step = steps.count + 1
+        switch sendGuard.send(step: step, lines: fresh && !lines.isEmpty ? lines : nil, again: again) {
+        case .go: return .send
+        case .hold(let why):
+            DebugLog.write("send guard: not sent, held once (\(why.prefix(60)))")
+            return .held(why)
+        case .ask(let why):
+            // the user already answered this very send in the last few steps
+            let answer = steps.suffix(PayGuard.recent).last { ($0["reason"]?.str ?? "").contains(why) }?["action"]?.str
+            if answer == "confirmed" {
+                sendGuard.went(step: step)
+                return .send
+            }
+            if answer == "skipped" {
+                return .held("not sent: the user did not want it sent as it is (\(why)). "
+                    + "\(SendGuard.clearHint) and type the message again, or stop")
+            }
+            DebugLog.write("send guard: asking the user (\(why.prefix(60)))")
+            return .askAlways(why)
+        }
     }
 
     enum TapCheck: Equatable {
         case send
         case held(String)
         case ask(String)
+        case askAlways(String)  // asked in every ask mode: the send guard, where no setting lets a broken send go out
     }
 
-    func checkTap(_ act: inout JObject, shot: Data?, earlierTap: Bool) async -> TapCheck {
+    func checkTap(_ act: inout JObject, shot: Data?, earlierTap: Bool, fresh: Bool) async -> TapCheck {
         if let unplaced = await placeTextTap(&act, settleFirst: earlierTap) { return .held(unplaced) }
         if let off = OffScreen.reason(act, image: OffScreen.modelSize(shot)) {  // y 1108 tapped the home bar's edge (2026-11-13)
             DebugLog.write("step: tap not sent, \(off)")
             return .held(off)
         }
         if let ask = await payGuardReason(act, on: shot) { return .ask(ask) }
-        if let held = await sendTapHold(act, on: shot) {
-            DebugLog.write("step: tap not sent, a send button after a type that needs a look")
-            return .held(held)
-        }
+        if case let check = await sendCheck(act, on: shot, fresh: fresh), check != .send { return check }
         if let held = await inventoryHold(act, on: shot) { return .held(held) }
         if let x = act["x"]?.double, let y = act["y"]?.double, let held = AssistiveTouchGuard.held(x, y, hits: assistiveHits) {
             DebugLog.write("step: tap not sent, on the AssistiveTouch button")

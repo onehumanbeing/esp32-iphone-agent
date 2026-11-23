@@ -801,9 +801,10 @@ extension Gestures {
 
     /// The actor asked before a risky step. True = the run is over (stopped).
     /// Unattended never approves one on its own: no answer, or "don't ask", becomes a skip.
-    func confirm(_ reason: String) async throws -> Bool {
+    /// `always`: asked in every ask mode (the send guard: no setting lets a broken message go out unseen).
+    func confirm(_ reason: String, always: Bool = false) async throws -> Bool {
         let mode = askMode ?? .current
-        let asks = onConfirm != nil && (mode.asks(reason) || (inventory.needed && mode != .never))
+        let asks = onConfirm != nil && (always || mode.asks(reason) || (inventory.needed && mode != .never))
         if !asks {
             if policy.unattended {
                 record(nil, ["action": .str("skipped"), "confirmed_by": .str("policy"),
@@ -1005,18 +1006,26 @@ extension Gestures {
                     return false
                 }
                 if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit / max(1, scrollGain)) }
+                // the screen the model saw shows the field as typed: nothing typed or cleared earlier in this round
+                let fresh = !acts[..<i].contains { ["type", "clear", "say"].contains($0.act["action"]?.str ?? "") }
+                let check: TapCheck
                 if name == "tap" {
-                    switch await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap) {
-                    case .send: break
-                    case .held(let why):
-                        act["result"] = .str(why)
-                        record(planned.shot, act)
-                        return false
-                    case .ask(let why):  // the code's own check: a tap that pays or cannot be undone
-                        act["result"] = .str("not sent: the user is asked first (\(why))")
-                        record(planned.shot, act)
-                        return try await confirm(why)
-                    }
+                    check = await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap, fresh: fresh)
+                } else if Actions.isEnter(act) {
+                    check = await sendCheck(act, on: planned.shot ?? seen, fresh: fresh)
+                } else {
+                    check = .send
+                }
+                switch check {
+                case .send: break
+                case .held(let why):
+                    act["result"] = .str(why)
+                    record(planned.shot, act)
+                    return false
+                case .ask(let why), .askAlways(let why):  // the code's own check: a tap that pays or cannot be undone, a send
+                    act["result"] = .str("not sent: the user is asked first (\(why))")
+                    record(planned.shot, act)
+                    return try await confirm(why, always: check == .askAlways(why))
                 }
                 if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()

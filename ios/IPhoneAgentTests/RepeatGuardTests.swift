@@ -301,6 +301,61 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertFalse(Actions.isEnter(["action": .str("key"), "combo": .str("cmd+enter")]))
     }
 
+    private func screen(_ texts: String...) -> [DemoAnalysis.Line] { texts.map { .init(text: $0, x: 400, y: 600) } }
+
+    /// 2026-11-23 (Wiki #1007): a real send with part of the text missing is held once, then asked, never sent.
+    func testARealSendWithPartOfTheTextIsAskedNeverSent() {
+        var g = SendGuard()
+        g.typed("我们晚上七点见", missing: "七点见", at: 2)
+        guard case .hold(let why) = g.send(step: 3, lines: nil, again: "tap it again") else { return XCTFail() }
+        XCTAssertTrue(why.contains("七点见"), why)
+        guard case .ask(let reason) = g.send(step: 4, lines: screen("我们晚上"), again: "tap it again") else { return XCTFail("sent half") }
+        XCTAssertTrue(reason.hasPrefix("send:"), reason)
+        g.went(step: 5)  // the user said yes
+        g.typed("好的", missing: nil, at: 6)
+        XCTAssertEqual(g.send(step: 7, lines: screen("好的"), again: "tap it again"), .go, "typed in full: sent at once")
+    }
+
+    /// The guard must not stop a normal run: each of these goes out at once or after the old single hold.
+    func testANormalSendIsNeverAsked() {
+        var g = SendGuard()
+        g.typed("我们晚上七点见", missing: "", at: 2)  // the typer was unsure, the field shows it all
+        XCTAssertEqual(g.send(step: 3, lines: screen("我们晚上七点见"), again: "tap it again"), .go, "the screen overrules the typer")
+        g.typed("好的👍，明天见!", missing: nil, at: 4)  // OCR drops emoji and punctuation, misreads 见 as 贝
+        XCTAssertEqual(g.send(step: 5, lines: screen("好的 明天贝"), again: "tap it again"), .go)
+        g.typed("hello there", missing: nil, at: 6)  // Latin text is not read back
+        XCTAssertEqual(g.send(step: 7, lines: screen("helo"), again: "key enter again"), .go)
+        g.typed("西岸", missing: "岸", at: 8)  // a search typed part way, a result tapped, never entered
+        XCTAssertEqual(g.send(step: 20, lines: screen("回复"), again: "tap it again").isHold, true, "old: the soft hold only")
+        XCTAssertEqual(g.send(step: 21, lines: screen("回复"), again: "tap it again"), .go)
+        for (i, step) in [30, 34, 38].enumerated() {  // one reply to three chats
+            g.typed("收到", missing: nil, at: step)
+            let first = g.send(step: step + 1, lines: screen("收到"), again: "tap it again")
+            if i == 0 { XCTAssertEqual(first, .go) } else {
+                XCTAssertTrue(first.isHold, "the same text: held once")
+                XCTAssertEqual(g.send(step: step + 2, lines: screen("收到"), again: "tap it again"), .go, "then sent, never asked")
+            }
+        }
+    }
+
+    func testChineseNotOnScreenIsHeldThenAsked() {
+        var g = SendGuard()
+        g.typed("明天见", missing: nil, at: 2)
+        XCTAssertTrue(g.send(step: 3, lines: screen("mingtianjian"), again: "key enter again").isHold)
+        guard case .ask = g.send(step: 4, lines: screen("mingtianjian"), again: "key enter again") else { return XCTFail() }
+        g.cleared()
+        g.typed("明天见", missing: nil, at: 5)
+        XCTAssertEqual(g.send(step: 6, lines: nil, again: "key enter again"), .go, "typed in this round: not known, not held")
+    }
+
+    func testEnterSendsOnlyWithASendKeyLowOnTheScreen() {
+        XCTAssertTrue(SendGuard.sendShown([.init(text: "发送", x: 900, y: 960)]))
+        XCTAssertFalse(SendGuard.sendShown([.init(text: "搜索", x: 900, y: 960)]), "a search field: Enter is not a send")
+        XCTAssertFalse(SendGuard.sendShown([.init(text: "回复", x: 900, y: 700)]), "a comment list's reply links")
+        XCTAssertFalse(SendGuard.sendShown([.init(text: "Send", x: 500, y: 120)]), "a title up top is not the key")
+        XCTAssertEqual(SendGuard.seen("今天我们晚上七点", in: [.init(text: "我们晚上七点", x: 400, y: 600)]), 0.75)
+    }
+
     func testPersonalHotspotIsTheBridgeOnItsSubnet() {
         XCTAssertTrue(Hotspot.sharing([("en0", "192.168.4.2"), ("bridge100", "172.20.10.1")]))
         XCTAssertFalse(Hotspot.sharing([("en0", "172.20.10.3")]), "joined to another iPhone's hotspot: not sharing")
