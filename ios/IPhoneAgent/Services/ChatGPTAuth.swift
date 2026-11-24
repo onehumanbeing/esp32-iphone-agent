@@ -4,7 +4,7 @@ import Foundation
 /// The sign-in is Codex's device-code flow (codex-rs/login/src/device_code_auth.rs): the user enters a short code
 /// on OpenAI's page, the app polls, then trades the result for tokens. The tokens stay in the Keychain.
 @MainActor final class ChatGPTAuth: ObservableObject {
-    static let shared = ChatGPTAuth()
+    static let shared = ChatGPTAuth(store: SystemKeychain(), session: .shared)
 
     static let issuer = "https://auth.openai.com"
     static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"  // Codex's public OAuth client
@@ -48,8 +48,15 @@ import Foundation
         }
     }
 
-    private init() {
-        if let raw = Keychain.get(Self.keychainAccount), let saved = try? JSONDecoder().decode(Tokens.self, from: Data(raw.utf8)) {
+    private let store: KeychainStoring
+    private let session: URLSession
+
+    /// The app uses `shared` (the Keychain, the real network). Tests make their own: an in-memory store and a
+    /// stubbed session, never the app's sign-in.
+    init(store: KeychainStoring, session: URLSession) {
+        self.store = store
+        self.session = session
+        if let raw = store.get(Self.keychainAccount), let saved = try? JSONDecoder().decode(Tokens.self, from: Data(raw.utf8)) {
             tokens = saved
             account = Self.account(fromIDToken: saved.idToken)
             DebugLog.redact([saved.accessToken, saved.refreshToken, saved.idToken])
@@ -61,7 +68,7 @@ import Foundation
     // MARK: - sign-in
 
     func requestDeviceCode() async throws -> DeviceCode {
-        let json = try await Self.postJSON("\(Self.issuer)/api/accounts/deviceauth/usercode", ["client_id": Self.clientID])
+        let json = try await postJSON("\(Self.issuer)/api/accounts/deviceauth/usercode", ["client_id": Self.clientID])
         guard let id = json["device_auth_id"] as? String,
               let code = (json["user_code"] ?? json["usercode"]) as? String else {
             throw LLMError(message: String(localized: "OpenAI's sign-in did not return a code. Try again."))
@@ -77,7 +84,7 @@ import Foundation
         var granted: [String: Any]?
         while granted == nil {
             try Task.checkCancellation()
-            let (status, json) = try await Self.post("\(Self.issuer)/api/accounts/deviceauth/token",
+            let (status, json) = try await post("\(Self.issuer)/api/accounts/deviceauth/token",
                                                      ["device_auth_id": code.deviceAuthID, "user_code": code.userCode])
             if (200..<300).contains(status) { granted = json; break }
             guard status == 403 || status == 404 else {
@@ -94,7 +101,7 @@ import Foundation
         }
         let form = ["grant_type": "authorization_code", "client_id": Self.clientID, "code": authCode,
                     "redirect_uri": "\(Self.issuer)/deviceauth/callback", "code_verifier": verifier]
-        let json = try await Self.postForm("\(Self.issuer)/oauth/token", form)
+        let json = try await postForm("\(Self.issuer)/oauth/token", form)
         guard let id = json["id_token"] as? String, let access = json["access_token"] as? String,
               let refresh = json["refresh_token"] as? String, Self.account(fromIDToken: id) != nil else {
             throw LLMError(message: String(localized: "This ChatGPT account has no plan the app can use."))
@@ -106,18 +113,31 @@ import Foundation
     func signOut() {
         tokens = nil
         limits = (nil, nil)
-        Keychain.set("", for: Self.keychainAccount)
+        store.set("", for: Self.keychainAccount)
         DebugLog.write("chatgpt: signed out")
     }
 
     // MARK: - requests
 
+    /// The renewal in flight, if any: while it runs, every caller waits for its result instead of sending another
+    /// (a second renewal would spend the rotated refresh token twice, and its refusal signs out).
+    private var renewal: Task<String, Error>?
+
     /// The access token, refreshed first when it expires within 10 minutes (or `force`, after a 401).
     func accessToken(force: Bool = false) async throws -> String {
-        guard var current = tokens else { throw Self.signInAgain }
+        if let renewal { return try await renewal.value }
+        guard let current = tokens else { throw Self.signInAgain }
         let expires = Self.claims(current.accessToken)?["exp"] as? Double ?? 0
         guard force || Date(timeIntervalSince1970: expires).timeIntervalSinceNow < 600 else { return current.accessToken }
-        let (status, json) = try await Self.post("\(Self.issuer)/oauth/token",
+        let task = Task { [self] in try await renew(current) }
+        renewal = task
+        defer { renewal = nil }  // done or failed: the next caller decides afresh
+        return try await task.value
+    }
+
+    private func renew(_ old: Tokens) async throws -> String {
+        var current = old
+        let (status, json) = try await post("\(Self.issuer)/oauth/token",
                                                  ["grant_type": "refresh_token", "client_id": Self.clientID,
                                                   "refresh_token": current.refreshToken])
         guard (200..<300).contains(status), let access = json["access_token"] as? String else {
@@ -157,7 +177,7 @@ import Foundation
                                  timeoutInterval: 20)
         request.setValue("Bearer \(try await accessToken())", forHTTPHeaderField: "Authorization")
         for (name, value) in try headers() { request.setValue(value, forHTTPHeaderField: name) }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             throw LLMError(message: "GET /models: HTTP \(status) \(String(decoding: data.prefix(200), as: UTF8.self))", status: status)
@@ -176,7 +196,7 @@ import Foundation
 
     private func save(_ new: Tokens) {
         tokens = new
-        if let data = try? JSONEncoder().encode(new) { Keychain.set(String(decoding: data, as: UTF8.self), for: Self.keychainAccount) }
+        if let data = try? JSONEncoder().encode(new) { store.set(String(decoding: data, as: UTF8.self), for: Self.keychainAccount) }
     }
 
     static func account(fromIDToken token: String) -> Account? {
@@ -198,16 +218,16 @@ import Foundation
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    private static func post(_ url: String, _ body: [String: String]) async throws -> (Int, [String: Any]) {
+    private func post(_ url: String, _ body: [String: String]) async throws -> (Int, [String: Any]) {
         var request = URLRequest(url: URL(string: url)!, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         return ((response as? HTTPURLResponse)?.statusCode ?? 0, (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
     }
 
-    private static func postJSON(_ url: String, _ body: [String: String]) async throws -> [String: Any] {
+    private func postJSON(_ url: String, _ body: [String: String]) async throws -> [String: Any] {
         let (status, json) = try await post(url, body)
         guard (200..<300).contains(status) else {
             throw LLMError(message: status == 404
@@ -217,14 +237,14 @@ import Foundation
         return json
     }
 
-    private static func postForm(_ url: String, _ form: [String: String]) async throws -> [String: Any] {
+    private func postForm(_ url: String, _ form: [String: String]) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: url)!, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var parts = URLComponents()
         parts.queryItems = form.map { URLQueryItem(name: $0.key, value: $0.value) }
         request.httpBody = Data((parts.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B").utf8)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             throw LLMError(message: String(localized: "ChatGPT sign-in failed (HTTP \(status)). Try again."), status: status)
@@ -232,3 +252,4 @@ import Foundation
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
     }
 }
+

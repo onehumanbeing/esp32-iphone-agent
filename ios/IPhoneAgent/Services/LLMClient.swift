@@ -127,6 +127,7 @@ struct LLMError: LocalizedError {
     let model: String
     let baseURL: URL
     private var apiKey: String  // ChatGPT sign-in: the access token, renewed after a 401
+    private let chatGPTAuth: ChatGPTAuth  // whose tokens renew it: the app's sign-in (tests: their own)
     let extra: [String: Any]
     private let headers: (() throws -> [String: String])?  // extra per-request headers (e.g. the free line's lease)
     /// false for the record reader: a 503 call_in_progress (the actor's call on the same lease) is not waited out.
@@ -148,7 +149,9 @@ struct LLMError: LocalizedError {
     }
 
     init(baseURL: String, model: String, apiKey: String = "", extra: [String: Any] = [:],
-         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil) {
+         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil,
+         chatGPTAuth: ChatGPTAuth? = nil) {
+        self.chatGPTAuth = chatGPTAuth ?? .shared
         var trimmed = baseURL
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
         self.baseURL = URL(string: trimmed) ?? URL(string: "http://invalid")!
@@ -234,7 +237,7 @@ struct LLMError: LocalizedError {
             }
             // ChatGPT sign-in: an access token refused mid-run is renewed once.
             if speaksResponses && status == 401 {
-                apiKey = try await ChatGPTAuth.shared.accessToken(force: true)
+                apiKey = try await chatGPTAuth.accessToken(force: true)
                 (status, result, errorText) = try await send(body)
             }
             // A busy upstream: once more. A per-minute rate limit: wait as told (Retry-After, at most 20 s), up
