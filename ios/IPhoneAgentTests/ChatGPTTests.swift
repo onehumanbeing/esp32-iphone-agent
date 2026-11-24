@@ -321,6 +321,30 @@ import XCTest
         assertOnlyStubbedEndpoints()
     }
 
+    /// A /models reply keeps the listed models in priority order and names the client version; one in another
+    /// shape says so instead of reading as "no models".
+    func testTheModelListSaysWhenItCannotReadTheReply() async throws {
+        let s = isolated(expiresIn: 3600)
+        StubProtocol.respond = { _ in
+            (200, "application/json", #"{"models": [{"slug": "b", "priority": 2}, {"slug": "hidden", "visibility": "hide"}, {"slug": "a", "priority": 1, "visibility": "list"}]}"#)
+        }
+        let list = try await s.auth.models()
+        XCTAssertEqual(list, ["a", "b"])
+        let query = URLComponents(url: try XCTUnwrap(StubProtocol.urls.last), resolvingAgainstBaseURL: false)?.queryItems
+        XCTAssertEqual(query?.first { $0.name == "client_version" }?.value, ChatGPTAuth.codexVersion)
+        XCTAssertEqual(StubProtocol.urls.last?.absoluteString.components(separatedBy: "?")[0], ModelProvider.chatGPT.baseURL + "/models")
+
+        for body in ["<html>busy</html>", #"{"data": []}"#] {
+            StubProtocol.respond = { _ in (200, "application/json", body) }
+            do {
+                _ = try await s.auth.models()
+                XCTFail("expected an error, not an empty list: \(body)")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains("unexpected body"), error.localizedDescription)
+            }
+        }
+    }
+
     func testAReachedUsageLimitIsFinalAndSaysWhenItResets() async {
         StubProtocol.seen = []
         StubProtocol.respond = { _ in

@@ -182,7 +182,10 @@ import Foundation
         guard (200..<300).contains(status) else {
             throw LLMError(message: "GET /models: HTTP \(status) \(String(decoding: data.prefix(200), as: UTF8.self))", status: status)
         }
-        let list = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["models"] as? [[String: Any]] ?? []
+        guard let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let list = body["models"] as? [[String: Any]] else {  // not the expected shape: say so, not "no models"
+            throw LLMError(message: "GET /models: unexpected body (HTTP \(status), \(data.count) bytes)", status: status)
+        }
         return list.filter { ($0["visibility"] as? String ?? "list") == "list" }
             .sorted { ($0["priority"] as? Int ?? 0) < ($1["priority"] as? Int ?? 0) }
             .compactMap { $0["slug"] as? String }
