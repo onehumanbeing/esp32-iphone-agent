@@ -26,6 +26,7 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 <p align="center">
   If this is useful, a <a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers">⭐ helps a lot</a>
   &nbsp;<a href="https://github.com/onehumanbeing/esp32-iphone-agent/stargazers"><img src="https://img.shields.io/github/stars/onehumanbeing/esp32-iphone-agent?style=flat-square&color=111111&logo=github" alt="GitHub stars"></a>
+  &nbsp;<a href="https://glama.ai/mcp/servers/onehumanbeing/esp32-iphone-agent"><img src="https://glama.ai/mcp/servers/onehumanbeing/esp32-iphone-agent/badges/score.svg" alt="esp32-iphone-agent MCP server on Glama" height="20"></a>
 </p>
 
 <p align="center">
