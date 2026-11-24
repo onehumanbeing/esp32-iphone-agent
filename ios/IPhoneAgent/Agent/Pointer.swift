@@ -379,7 +379,8 @@ import UIKit
             // landing asks Recalibration for a new calibration (within its limits); then the move once more.
             guard let again = try await measureSure(x, y) else { return }
             learn(x, y, again)
-            if recalibration.take() {
+            let farAgain = max(abs(Double(again.x) - x), abs(Double(again.y) - y)) > Self.maxMiss
+            if recalibration.take() || (farAgain && recalibration.farFromCorner()) {
                 try await recalibrate()
                 try await moveTo(dx(x), dy(y))
             } else if max(abs(Double(again.x) - x), abs(Double(again.y) - y)) <= Self.maxMiss {
@@ -409,6 +410,7 @@ import UIKit
         let far = max(abs(Double(found.x) - x), abs(Double(found.y) - y)) > Self.maxMiss
         let rehome = recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels, confirmed: far)
         if rehome { log("pointer: far landing seen twice; re-homing, calibrating again only if the next one is far too") }
+        if far { StepReport.shared.farLanding() }
         guard !far else { return rehome }
         remember("x", (fix(x, "x"), Double(found.x)))
         remember("y", (fix(y, "y"), Double(found.y)))

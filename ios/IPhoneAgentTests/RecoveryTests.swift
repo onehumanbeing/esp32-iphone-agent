@@ -201,6 +201,23 @@ import XCTest
         XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(789), "y": .int(705)]))
     }
 
+    /// Two taps in a row that opened something the model backed out of at once: the next tap finds the pointer first.
+    func testTapsUndoneByBackTwiceFindThePointerFirst() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        let tap: JObject = ["action": .str("tap"), "x": .int(500), "y": .int(300), "changed": .bool(true)]
+        let back: JObject = ["action": .str("back"), "changed": .bool(true)]
+        agent.steps = [tap, back, tap]
+        XCTAssertFalse(agent.backedOut, "once is a normal detour")
+        agent.steps = [tap, back, ["action": .str("plan")], tap, back]
+        XCTAssertTrue(agent.backedOut)
+        agent.steps = [tap, back, ["action": .str("swipe")], back]
+        XCTAssertFalse(agent.backedOut)
+        var unchanged = tap
+        unchanged["changed"] = .bool(false)
+        agent.steps = [unchanged, back, tap, back]
+        XCTAssertFalse(agent.backedOut, "a tap that changed nothing is checked already (missed)")
+    }
+
     func testARunFromRunsIsRestoredWithItsLastPlan() {
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
         agent.restore(task: "Duolingo lesson", steps: [["action": .str("plan"), "plan": .str("1. Open it")],

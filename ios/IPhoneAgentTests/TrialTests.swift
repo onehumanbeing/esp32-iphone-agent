@@ -379,4 +379,19 @@ import XCTest
         report.clear()  // a new run
         XCTAssertEqual(report.take(), [:])
     }
+
+    /// The run's far landings and recalibrations ride along, counts only; none: the header is as before.
+    func testStepReportCarriesThePointersTrouble() {
+        let report = StepReport()
+        report.farLanding(); report.farLanding(); report.recalibrated()
+        report.replied(at: 100)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        let value = report.take(at: 104)[StepReport.header] ?? ""
+        XCTAssertEqual(value, "llm=2.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=4.0,far=2,recal=1")
+        XCTAssertLessThanOrEqual(value.count, 160, "the gateway drops a longer value")
+        report.clear()
+        report.replied(at: 200)
+        report.finished(Metrics.Step())
+        XCTAssertFalse((report.take(at: 201)[StepReport.header] ?? "").contains("far="), "a new run starts at 0")
+    }
 }

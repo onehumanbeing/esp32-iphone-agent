@@ -144,6 +144,29 @@ import XCTest
         XCTAssertFalse(other.pending, "off the other way: a stray reading, wait as before")
     }
 
+    /// 2026-11-24: taps ~500 units low for 133 steps. Far again right after a re-home calibrates now, even soon after
+    /// the last calibration; failed tries wait longer each time but are never given up.
+    func testFarFromTheCornerCalibratesNowAndFailuresBackOffWithoutGivingUp() {
+        var r = Recalibration()
+        _ = r.tap()
+        r.measured(CGPoint(x: 0.2, y: 0.2), CGPoint(x: 0.2, y: 0.3), pixels: CGSize(width: 1000, height: 2000))
+        XCTAssertTrue(r.tap(), "calibrated")
+        _ = r.tap()
+        XCTAssertTrue(r.farFromCorner(), "one tap later, not 15: the calibration is off")
+        var waits: [Int] = []
+        for _ in 0..<6 {
+            r.finished(ok: false)
+            var n = 0
+            while !r.tap() { n += 1 }
+            waits.append(n + 1)
+        }
+        XCTAssertEqual(waits, [3, 6, 12, 24, 48, 96], "doubling, never given up")
+        r.finished(ok: false)
+        XCTAssertFalse(r.farFromCorner(), "within the wait after a failure: not again at once")
+        r.finished(ok: true)
+        XCTAssertTrue(r.farFromCorner(), "after a good one: at once")
+    }
+
     /// The far reading is confirmed from the same wiggle's move back (one wiggle, not two); the next tap starts from
     /// the corner instead of a recalibration. A screen still for a while is not watched another 0.3 s first.
     func testAFarLandingIsConfirmedByTheMoveBackAndReHomes() async throws {

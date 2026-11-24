@@ -14,6 +14,18 @@ extension AgentLoop {
     /// The previous round changed nothing on screen, so a tap may have landed off target.
     var missed: Bool { lastSent?["changed"] == .bool(false) }
 
+    /// Twice in a row a tap that changed the screen was undone at once (back): the taps open the wrong thing, so the
+    /// next one finds the pointer before it presses (aim, ~2 s; it also feeds Recalibration). 2026-11-24: a phone
+    /// whose taps landed ~500 units low opened a wrong page every time; the screen changed, so no landing was ever
+    /// checked and nothing was recalibrated for 133 steps.
+    var backedOut: Bool {
+        let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }.suffix(4)
+        guard sent.count == 4 else { return false }
+        let a = Array(sent)
+        return stride(from: 0, to: 4, by: 2).allSatisfy { a[$0]["action"]?.str == "tap" && a[$0]["changed"] == .bool(true)
+            && a[$0 + 1]["action"]?.str == "back" }
+    }
+
     /// A tap where the last one went: that one didn't do what was meant even if the screen moved (Duolingo's
     /// animated mascot read three misses just above the "water" tile as changed, 2026-11-06).
     func retaps(_ a: JObject) -> Bool {
@@ -94,7 +106,7 @@ extension AgentLoop {
         let a = try geometry.map { try PadGeometry.toScreen(action, $0) } ?? action
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
-        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a))
+        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)

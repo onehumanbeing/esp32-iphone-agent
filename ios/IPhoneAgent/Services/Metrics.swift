@@ -184,19 +184,26 @@ final class StepReport: @unchecked Sendable {
     private let lock = NSLock()
     private var pending: Metrics.Step?
     private var repliedAt: Double?
+    /// This run's pointer trouble so far: landings found past Pointer.maxMiss, and recalibrations tried. Counts only,
+    /// sent with the timing (`far=`, `recal=`) so a run that tapped wrong for long shows why (2026-11-24: 133 steps
+    /// of taps ~500 units low, and nothing in the records said so).
+    private var far = 0, recal = 0
+    func farLanding() { lock.withLock { far += 1 } }
+    func recalibrated() { lock.withLock { recal += 1 } }
 
     /// The actor's reply arrived: `gap` counts from here.
     func replied(at t: Double = now()) { lock.withLock { repliedAt = t } }
     /// The step after that reply is over.
     func finished(_ step: Metrics.Step) { lock.withLock { pending = step } }
-    func clear() { lock.withLock { pending = nil; repliedAt = nil } }
+    func clear() { lock.withLock { (pending, repliedAt, far, recal) = (nil, nil, 0, 0) } }
 
     /// The header for the next request, once per step.
     func take(at t: Double = now()) -> [String: String] {
         lock.withLock {
             defer { pending = nil }
             guard let pending, let repliedAt else { return [:] }
-            return [Self.header: pending.header(gap: t - repliedAt)]
+            let pointer = far + recal > 0 ? ",far=\(far),recal=\(recal)" : ""  // an old gateway drops unknown keys
+            return [Self.header: pending.header(gap: t - repliedAt) + pointer]
         }
     }
 }
