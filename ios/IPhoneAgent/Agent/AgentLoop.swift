@@ -1056,6 +1056,7 @@ extension Gestures {
                 }
                 if !(try await tapChanged(seen, &spots, quiet: await still(), confirmed: confirmed)) {
                     verdict(false)
+                    confirmStill(quiet: await still())
                     return false  // skip the rest; the actor looks again
                 }
             }
@@ -1087,6 +1088,7 @@ extension Gestures {
             let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
             if !needsLanding {
                 verdict(small)
+                confirmStill(quiet: busy, final: false)  // before the speculative prompt is built from the steps
                 prepareFrame(early)
                 startSpeculative()
                 let rest = now()
@@ -1098,6 +1100,7 @@ extension Gestures {
                     verdict(await Vision.off { Vision.changed(seen, later, ignore: mask, quiet: busy) })
                     prepareFrame(later)
                 }
+                confirmStill(quiet: busy)  // the rest of the wait is done: a frame that came in it counts now
                 try await timed("follow cache") { try await followCache(seen: seen) }
                 timed("checkpoint") { saveCheckpoint() }
                 return false
@@ -1125,6 +1128,7 @@ extension Gestures {
             pageFrames = steps.last?["action"]?.str == "swipe" ? Array((pageFrames + [now]).suffix(NoteCheck.pageScreens)) : [now]
         }
         verdict(changed)
+        confirmStill(quiet: moving)
         if screen?.frame != frame { prepareFrame(screen?.frame) }
         try await timed("follow cache") { try await followCache(seen: seen) }
         timed("checkpoint") { saveCheckpoint() }
