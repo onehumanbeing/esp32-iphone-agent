@@ -33,6 +33,7 @@ extension Pointer {
             guard let image = screen.frame.flatMap(Vision.image) else { return nil }
             return HanTyper.Seen(words: await UITreeOCR.lines(image, cells: true), height: image.height)
         })
+        typer.source = InputSource.shared
         typer.grab = { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.25, least: 0.4, most: 1.2)
