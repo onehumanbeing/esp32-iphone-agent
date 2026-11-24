@@ -490,6 +490,7 @@ static void uiTask(void *) {
     v.pair = (ble_pair_left_ms() + 999) / 1000;
     v.pairing = pairShown;
     v.connecting = btConnecting, v.wifi = wifiPhone, v.mirror = (uint8_t)mirrorState;
+    v.own = alive && c.ui.own_screen;
     v.charging = charging >= 0;
     v.charge = charging < 0 || battery >= 100 ? -1 : v.screen == SW_SCR_IDLE && c.sel < 0 ? (int8_t)(now / 120 % 16) : 0;  // pulse on the face only
     v.low = low;

@@ -23,6 +23,8 @@ import UIKit
     func afterAction(since: Double, ignoring: [CGPoint], busy: [CGRect]) async
     /// A frame captured from now on, not the shown one (LinkCheck): false when none arrives; nil = can't tell.
     func freshFrame() async -> Bool?
+    /// Throw when a source cannot recover without starting a new session (the phone's own capture was stopped).
+    func checkAvailability() throws
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -61,6 +63,7 @@ enum FrameMode: String {
 }
 
 extension ScreenSource {
+    func checkAvailability() throws {}
     var changed: Double { updated }
     var stale: Bool { false }
     var geometry: ScreenGeometry? { nil }

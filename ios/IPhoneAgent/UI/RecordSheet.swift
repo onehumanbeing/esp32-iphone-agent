@@ -18,7 +18,7 @@ struct RecordSheet: View {
         if recorder.canRetry { return (String(localized: "Retry or discard the unfinished recording on the Agent tab."), nil) }
         if agent.running || app.startingAgent { return (String(localized: "Wait for the current task to finish."), nil) }
         if !board.connected { return (String(localized: "Connect the board"), .connect) }
-        if board.status?.ap != "streaming" { return (String(localized: "Start Screen Mirroring"), .see) }
+        if !app.onDeviceCapture && board.status?.ap != "streaming" { return (String(localized: "Start Screen Mirroring"), .see) }
         if !app.modelReady { return (String(localized: "Set up the model"), .brain) }
         return nil
     }

@@ -227,6 +227,11 @@ int sw_parse(const char *arg, sw_ui *u) {
       int32_t v = 0;
       ok = w >= 0 || num(&r, &v);
       u->voice = w == 1 || v != 0;
+    } else if (!strcmp(key, "o")) {
+      int w = word(&r);
+      int32_t v = 0;
+      ok = w >= 0 || num(&r, &v);
+      u->own_screen = w == 1 || v != 0;
     } else if (!strcmp(key, "f")) {
       int w = word(&r);
       ok = w >= 0 || num(&r, NULL);
@@ -497,6 +502,12 @@ int sw_progress(const sw_ui *u) {
   if (den <= 0) return -1;
   if (num <= 0) return 0;
   return num >= den ? 1000 : (int)((int64_t)num * 1000 / den);
+}
+
+int sw_screen_state(bool alive, bool own, int mirror) { return alive && own ? 2 : mirror; }
+
+bool sw_linked(bool hid, bool alive, bool own, bool wifi, int mirror) {
+  return hid && alive && (own || wifi) && sw_screen_state(alive, own, mirror) == 2;
 }
 
 int sw_hold(const sw_ctl *c, uint32_t now) {

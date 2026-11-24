@@ -14622,6 +14622,184 @@
           }
         }
       }
+    },
+    "AirPlay" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AirPlay"
+          }
+        }
+      }
+    },
+    "No screen image arrived. Stop sharing and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未收到屏幕画面，请停止共享后重试。"
+          }
+        }
+      }
+    },
+    "Open the app to allow screen sharing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请打开 App 以授权屏幕共享。"
+          }
+        }
+      }
+    },
+    "Screen Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录屏"
+          }
+        }
+      }
+    },
+    "Screen Source" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕来源"
+          }
+        }
+      }
+    },
+    "Screen capture requires a physical iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕采集需要在真实 iPhone 上运行。"
+          }
+        }
+      }
+    },
+    "Screen recording is unavailable on this device. Use AirPlay instead." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen recording is unavailable on this device. Use AirPlay instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持录屏，请使用 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing is already starting." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享正在启动。"
+          }
+        }
+      }
+    },
+    "Screen sharing stopped. Start the task again to allow sharing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing stopped. Start the task again to allow sharing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享已停止。请重新开始任务并允许共享。"
+          }
+        }
+      }
+    },
+    "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消屏幕共享。请重新开始并允许共享，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing was not allowed. Start the task again and allow it, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未允许共享屏幕。请重新开始任务并允许，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
+    "Share the entire screen, not only this app. Start the task again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请共享整个屏幕，而不只是这个 App。然后重新开始任务。"
+          }
+        }
+      }
+    },
+    "The board receives the screen through Screen Mirroring over its Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子通过它的 Wi-Fi，以屏幕镜像接收画面。"
+          }
+        }
+      }
+    },
+    "This build can't share the screen in the background. Choose AirPlay in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本无法在后台共享屏幕。请在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
+    "This iPhone records its own screen while a task, a demonstration or a calibration runs: iOS asks each time and shows that it is recording. The board only moves the pointer; no Wi-Fi or Screen Mirroring is needed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务、演示或校准进行时，这台 iPhone 录制自己的屏幕：iOS 每次都会询问，并显示正在录屏。板子只移动指针，不需要 Wi-Fi 或屏幕镜像。"
+          }
+        }
+      }
+    },
+    "Waiting for a screen image…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待屏幕画面…"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

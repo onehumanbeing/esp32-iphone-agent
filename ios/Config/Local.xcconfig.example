@@ -13,3 +13,7 @@ IA_WIDGET_ENTITLEMENTS = AgentActivity/AgentActivity.entitlements
 IA_PRESET_BASE_URL =
 IA_PRESET_MODEL =
 IA_PRESET_KEY =
+
+// Screen Recording on iOS 27+ (needs Xcode 27; see Shared.xcconfig and docs/screen-recording-device-test.md).
+// IA_CAPTURE_BACKGROUND_MODE = screen-capture
+// IA_ENTITLEMENTS = IPhoneAgent/IPhoneAgentScreenCapture.entitlements

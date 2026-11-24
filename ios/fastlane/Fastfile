@@ -54,9 +54,14 @@ platform :ios do
     auth = "-allowProvisioningUpdates"
     export_auth = "#{auth} -authenticationKeyPath '#{key_path}' " \
                   "-authenticationKeyID #{ENV['ASC_KEY_ID']} -authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}"
+    # Screen Recording (iOS 27+, Config/Shared.xcconfig): IA_SCREEN_CAPTURE=1 in config.env, with Xcode 27, adds the
+    # screen-capture background mode and the screen-recording entitlement. Off until docs/screen-recording-device-test.md passes.
+    capture = ENV["IA_SCREEN_CAPTURE"] == "1"
+    UI.important("IA_SCREEN_CAPTURE=1: Screen Recording is in this build") if capture
     settings = {
       IA_BUNDLE_ID: bundle_id,
-      IA_ENTITLEMENTS: "IPhoneAgent/IPhoneAgent.entitlements",
+      IA_ENTITLEMENTS: capture ? "IPhoneAgent/IPhoneAgentScreenCapture.entitlements" : "IPhoneAgent/IPhoneAgent.entitlements",
+      IA_CAPTURE_BACKGROUND_MODE: capture ? "screen-capture" : "bluetooth-central",
       IA_WIDGET_ENTITLEMENTS: "AgentActivity/AgentActivity.entitlements",
       IA_PRESET_BASE_URL: "", IA_PRESET_MODEL: "", IA_PRESET_KEY: "",
       IA_POSTHOG_KEY: ENV["IA_POSTHOG_KEY"].to_s,

@@ -122,6 +122,9 @@ extension AppModel {
                 : String(localized: "Already running: \(agent.task)")
         }
         if !MockMode.on {
+            if onDeviceCapture && !DeviceScreen.foreground {
+                return String(localized: "Open the app to allow screen sharing.")
+            }
             guard settings.isConfigured else { return String(localized: "Set up the model in Settings first.") }
             guard pointer.calibrated else { return String(localized: "Calibrate the pointer in \(AppName.current) first.") }
             guard await waitReady(mirroring: true, timeout: 20) else {
@@ -140,8 +143,12 @@ extension AppModel {
         var lines: [String] = []
         if MockMode.on { lines.append(String(localized: "Demo data is on.")) }
         lines.append(board.connected ? String(localized: "Board connected") : String(localized: "Board not connected"))
-        lines.append(feed.live || s?.ap == "streaming" ? String(localized: "Screen Mirroring on")
-                     : String(localized: "Screen Mirroring off"))
+        if onDeviceCapture {
+            lines.append(String(localized: "Screen Recording"))
+        } else {
+            lines.append(feed.live || s?.ap == "streaming" ? String(localized: "Screen Mirroring on")
+                         : String(localized: "Screen Mirroring off"))
+        }
         if pointer.calibrated {
             lines.append(pointer.quality.map { String(localized: "Calibrated, \(CalibrationText.percent($0))") }
                          ?? String(localized: "Calibrated"))

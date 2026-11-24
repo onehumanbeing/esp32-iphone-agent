@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("blurScreens") private var blurScreens = true
 
     var body: some View {
+        let captureAvailable = CaptureBackend.onDeviceAvailable
         NavigationStack {
             List {
                 Section {
@@ -32,6 +33,22 @@ struct SettingsView: View {
                     .tint(.primary)
                 } footer: {
                     Text("\(AppName.current) follows your iPhone's language. To change it just for this app, open Settings › \(AppName.current) › Language.")
+                }
+                if captureAvailable {  // iOS 27+ only (CaptureBackend.Support): before that, AirPlay is the one way
+                    Section {
+                        Picker(selection: Binding(get: { app.captureBackend }, set: { app.setCaptureBackend($0) })) {
+                            Text("AirPlay").tag(CaptureBackend.airPlay)
+                            Text("Screen Recording").tag(CaptureBackend.onDevice)
+                        } label: {
+                            SettingsLabel(title: "Screen Source", symbol: "rectangle.inset.filled", color: .blue)
+                        }
+                        .accessibilityIdentifier("capture-backend")
+                        .disabled(app.agent.running || app.startingAgent || app.recorder.busy || app.calibrator.busy)
+                    } footer: {
+                        Text(app.onDeviceCapture
+                             ? "This iPhone records its own screen while a task, a demonstration or a calibration runs: iOS asks each time and shows that it is recording. The board only moves the pointer; no Wi-Fi or Screen Mirroring is needed."
+                             : "The board receives the screen through Screen Mirroring over its Wi-Fi.")
+                    }
                 }
                 Section {
                     Button { UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!) } label: {

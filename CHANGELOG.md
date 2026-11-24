@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- iOS 27+: optional Screen Recording (Settings › Screen Source). The phone records its own screen with ScreenCaptureKit and the board only moves the pointer: no Wi-Fi or Screen Mirroring. Off in default builds (needs Xcode 27 and `IA_CAPTURE_BACKGROUND_MODE = screen-capture`); AirPlay is unchanged and stays the default. StopWatch firmware shows "Screen Recording on" when the app sends `o`. Based on PR #78 by await-ovo. Device checklist: [docs/screen-recording-device-test.md](docs/screen-recording-device-test.md).
+
 ## App 1.0.10.1 (TestFlight, a new build of 1.0.10)
 
 **Significantly faster Chinese input.**

@@ -188,11 +188,13 @@ static void voicePage(const sw_ctl &c, const swf_pose &pose, int level) {
   }
 }
 
-// Under the idle face: Bluetooth, Wi-Fi, Mirroring, each with a dot, green when up, amber on the way (Henry 2026-11-21)
+// Under the idle face: Bluetooth, Wi-Fi, Mirroring, each with a dot, green when up, amber on the way (Henry 2026-11-21).
+// With the phone recording its own screen (`o`) the last dot is that, green: Wi-Fi and mirroring are not needed.
 static void statusDots(const View &v) {
-  const int ids[] = {SWT_DOT_BT, SWT_DOT_WIFI, SWT_DOT_MIRROR};
+  const int ids[] = {SWT_DOT_BT, SWT_DOT_WIFI, v.own ? SWT_DOT_OWN : SWT_DOT_MIRROR};
+  int screen = sw_screen_state(v.alive, v.own, v.mirror);
   const uint16_t col[] = {v.hid ? C_GREEN : v.connecting || v.pair ? C_AMBER : C_DIM, v.wifi ? C_GREEN : C_DIM,
-                          v.mirror == 2 ? C_GREEN : v.mirror ? C_AMBER : C_DIM};
+                          screen == 2 ? C_GREEN : screen ? C_AMBER : C_DIM};
   font(&fonts::efontCN_24);
   for (int i = 0; i < 3; i++) {
     int x = CX + (i - 1) * 110, y = CY + 128;
@@ -262,11 +264,12 @@ static void statusPage(const View &v) {
   // each row: its text and its colour (green on, amber on the way, grey off)
   const char *bt = v.hid ? T(SWT_BT_ON) : v.connecting ? T(SWT_BT_CONNECTING) : v.pair ? pairing : T(SWT_BT_OFF);
   uint16_t btc = v.hid ? C_GREEN : v.connecting || v.pair ? C_AMBER : C_GREY;
+  int screen = sw_screen_state(v.alive, v.own, v.mirror);
   const char *rows[] = {bt, T(v.alive ? SWT_APP_ON : SWT_APP_OFF), T(v.wifi ? SWT_WIFI_ON : SWT_WIFI_OFF),
-                        T(v.mirror == 2 ? SWT_MIRROR_ON : v.mirror ? SWT_MIRROR_WAIT : SWT_MIRROR_OFF), fw, boardName,
-                        T(SWT_LANGUAGE)};
+                        T(v.own ? SWT_SCREEN_OWN : v.mirror == 2 ? SWT_MIRROR_ON : v.mirror ? SWT_MIRROR_WAIT : SWT_MIRROR_OFF),
+                        fw, boardName, T(SWT_LANGUAGE)};
   const uint16_t colors[] = {btc, v.alive ? C_GREEN : C_GREY, v.wifi ? C_GREEN : C_GREY,
-                             v.mirror == 2 ? C_GREEN : v.mirror ? C_AMBER : C_GREY, TFT_WHITE, C_GREY, C_AMBER};
+                             screen == 2 ? C_GREEN : screen ? C_AMBER : C_GREY, TFT_WHITE, C_GREY, C_AMBER};
   for (int i = 0; i < 7; i++) {
     canvas->setTextColor(colors[i]);
     fontFor(rows[i]);
@@ -376,7 +379,7 @@ void draw(const View &v, const sw_ctl &c, const swf_pose &pose) {
     default:  // idle: the character, awake while the app is there (AppModel.mood), the picks when selecting
       face(pose, CX, CY - 10, GLOW_INK, true);
       // all linked: only the character; the states are on the status page (blue). Until then, the dots (Henry 2026-11-21)
-      bool linked = v.hid && v.alive && v.wifi && v.mirror == 2;
+      bool linked = sw_linked(v.hid, v.alive, v.own, v.wifi, v.mirror);
       if (c.sel < 0 && !u.npicks && !linked) statusDots(v);
       font(&fonts::efontCN_24);
       if (v.clock[0] && c.sel < 0) {  // asleep or without the app: the time (the RTC, set from the phone)
