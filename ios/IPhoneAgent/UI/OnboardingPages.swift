@@ -6,6 +6,7 @@ import UIKit
 struct WelcomePage: View {
     var accepted: Bool
     let wireless: Bool
+    var boardQuestion: BoardQuestionPanel?  // first launch only
     @State private var awake = false
 
     var body: some View {
@@ -14,6 +15,7 @@ struct WelcomePage: View {
                        message: wireless
                            ? "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and control the pointer."
                            : "Tell me a task and I'll do it on this iPhone: I see the screen through Screen Mirroring and tap with a USB mouse.")
+            if let boardQuestion { boardQuestion }
             Panel {
                 if accepted {
                     DisclosureGroup {

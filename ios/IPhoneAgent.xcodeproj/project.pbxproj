@@ -24,6 +24,7 @@
 		12CB60794EF25D7E46829057 /* InventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 367988E9889C1393CC8584F8 /* InventoryTests.swift */; };
 		7DD892B0E4372254A2F7F011 /* LongRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */; };
 		C7F1E5000000000000000E01 /* ModelListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000E02 /* ModelListTests.swift */; };
+		B0A2D00000000000000000A3 /* BoardQuestionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A2D00000000000000000A4 /* BoardQuestionTests.swift */; };
 		3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935598F169616E6F22321BD4 /* StandbyTests.swift */; };
 		041DFAB6BE68032D48592AC2 /* HomeParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406D13832E556B804F6F3887 /* HomeParts.swift */; };
 		042350D6CB7A39009DC39CD2 /* LanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A414BF4F4162E2C1E36FC4F5 /* LanTests.swift */; };
@@ -61,6 +62,7 @@
 		173BD54931BD69B83D7F6FD3 /* CalibrationToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E3712143A195602610004B /* CalibrationToast.swift */; };
 		180133912100FC228377AE9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F960AA3F536A5DF20F8E908A /* Assets.xcassets */; };
 		189667BD260B5751915C28AF /* OnboardingPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22464AAA35416D0351B8063C /* OnboardingPages.swift */; };
+		B0A2D00000000000000000A1 /* BoardQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A2D00000000000000000A2 /* BoardQuestion.swift */; };
 		18F3E61E78D5E2FAF4926DB8 /* UITree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B92AE54E2CEB0DEA588E1E4 /* UITree.swift */; };
 		19731EC42F4FE58F8B9724CD /* DemoAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1030F3785F036B7A18C44A32 /* DemoAnalysis.swift */; };
 		9131CA6226EAF41652E5B515 /* Replan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AB734C6D2C5BEC7112461A /* Replan.swift */; };
@@ -459,6 +461,7 @@
 		2169FBFC7A60B9FC1FF1E724 /* StepText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepText.swift; sourceTree = "<group>"; };
 		21DB18A6A75B6E0EE6BDF44B /* IntentFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentFlowTests.swift; sourceTree = "<group>"; };
 		22464AAA35416D0351B8063C /* OnboardingPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPages.swift; sourceTree = "<group>"; };
+		B0A2D00000000000000000A2 /* BoardQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardQuestion.swift; sourceTree = "<group>"; };
 		226739C44752297294C75671 /* TraceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceStore.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000025 /* RunOutputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunOutputs.swift; sourceTree = "<group>"; };
 		23620E56B422EF8E37A7D2D0 /* ChineseOCRTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChineseOCRTests.swift; sourceTree = "<group>"; };
@@ -543,6 +546,7 @@
 		367988E9889C1393CC8584F8 /* InventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryTests.swift; sourceTree = "<group>"; };
 		5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongRunTests.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000E02 /* ModelListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelListTests.swift; sourceTree = "<group>"; };
+		B0A2D00000000000000000A4 /* BoardQuestionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardQuestionTests.swift; sourceTree = "<group>"; };
 		935598F169616E6F22321BD4 /* StandbyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandbyTests.swift; sourceTree = "<group>"; };
 		541D1A2837E5F270700EAF55 /* Redactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redactor.swift; sourceTree = "<group>"; };
 		54211E1AF9F25DF548064BA9 /* RunCardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCardSnapshot.swift; sourceTree = "<group>"; };
@@ -968,6 +972,7 @@
 				367988E9889C1393CC8584F8 /* InventoryTests.swift */,
 				5194DBA495C66E1F2CFB3F7B /* LongRunTests.swift */,
 				C7F1E5000000000000000E02 /* ModelListTests.swift */,
+				B0A2D00000000000000000A4 /* BoardQuestionTests.swift */,
 				935598F169616E6F22321BD4 /* StandbyTests.swift */,
 				794E46A6A28E406A3D606661 /* ReviewTests.swift */,
 				C7F1E5000000000000000046 /* LiveNotesTests.swift */,
@@ -1082,6 +1087,7 @@
 				DEED5F769F5BADCB3C21CE54 /* NetworkForm.swift */,
 				D17A722B1C48BF8FBF8B4222 /* OnboardingDemos.swift */,
 				22464AAA35416D0351B8063C /* OnboardingPages.swift */,
+				B0A2D00000000000000000A2 /* BoardQuestion.swift */,
 				99381FBF82EA7EB76556866E /* OnboardingView.swift */,
 				A409B3696F547E712B4D4D14 /* PokeableFace.swift */,
 				8C498727CAF51C5A955A8A10 /* PrivacyViews.swift */,
@@ -1552,6 +1558,7 @@
 				12CB60794EF25D7E46829057 /* InventoryTests.swift in Sources */,
 				7DD892B0E4372254A2F7F011 /* LongRunTests.swift in Sources */,
 				C7F1E5000000000000000E01 /* ModelListTests.swift in Sources */,
+				B0A2D00000000000000000A3 /* BoardQuestionTests.swift in Sources */,
 				3BC392087170CF25B0EF6C66 /* StandbyTests.swift in Sources */,
 				90594045D55F83E5EEE53574 /* ReviewTests.swift in Sources */,
 				C7F1E5000000000000000047 /* LiveNotesTests.swift in Sources */,
@@ -1777,6 +1784,7 @@
 				4CA70811574C401EB0012355 /* Notifier.swift in Sources */,
 				CFDC07BA9E09D3446164B1B9 /* OnboardingDemos.swift in Sources */,
 				189667BD260B5751915C28AF /* OnboardingPages.swift in Sources */,
+				B0A2D00000000000000000A1 /* BoardQuestion.swift in Sources */,
 				8738C1055CD8FE6AFD6B9204 /* OnboardingView.swift in Sources */,
 				5EC81FBCFE439052A8F26EA2 /* Pointer.swift in Sources */,
 				A271DC80F0EB0BA42FD7D022 /* PokeableFace.swift in Sources */,

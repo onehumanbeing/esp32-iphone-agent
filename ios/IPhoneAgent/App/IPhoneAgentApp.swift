@@ -156,6 +156,7 @@ struct RootView: View {
 
     private func setUp() {
         privacyAsked = true
+        BoardQuestion.skipIfOnboarded(settings.onboarded)  // set up before the board question: never asked
         if !settings.onboarded && app.setupPage == nil { app.setupPage = .welcome }
     }
 }

@@ -391,6 +391,22 @@
         }
       }
     },
+    "Do you have an ESP32 board?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you have an ESP32 board?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有 ESP32 板子吗？"
+          }
+        }
+      }
+    },
     "Edit plan with AI" : {
       "localizations" : {
         "zh-Hans" : {
@@ -487,6 +503,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "来自：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Get a board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get a board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取板子"
+          }
+        }
+      }
+    },
+    "I have a board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I have a board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我有板子"
+          }
+        }
+      }
+    },
+    "I see and tap this iPhone through a small ESP32 board." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I see and tap this iPhone through a small ESP32 board."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我通过一块小小的 ESP32 板子看这台 iPhone 的屏幕并点按。"
           }
         }
       }
@@ -797,6 +861,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是工具文件。"
+          }
+        }
+      }
+    },
+    "Not yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有"
           }
         }
       }
@@ -1147,6 +1227,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点这里，马上设置"
+          }
+        }
+      }
+    },
+    "Set up the app now and connect the board when it arrives." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set up the app now and connect the board when it arrives."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先把 App 设置好，板子到了再连接。"
           }
         }
       }
@@ -1897,6 +1993,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次运行对吗？"
+          }
+        }
+      }
+    },
+    "Yes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有"
           }
         }
       }

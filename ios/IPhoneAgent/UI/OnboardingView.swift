@@ -21,6 +21,8 @@ struct OnboardingView: View {
     @State private var lanPass = ""
     @State private var lanRemember = true
     @State private var toBluetooth = false  // Connect page: the board was switched to Bluetooth (BluetoothSteps)
+    @State private var askBoard = false  // first launch: "Do you have an ESP32 board?" on the Welcome page
+    @State private var boardAnswer: BoardQuestion.Answer?
 
     init(app: AppModel, board: BoardLink, feed: VideoFeed, settings: Settings, calibrator: AutoCalibrator,
          pointer: Pointer, start: SetupPage) {
@@ -30,6 +32,7 @@ struct OnboardingView: View {
         _accepted = State(initialValue: settings.acceptedDisclaimer)
         _onWiFi = State(initialValue: app.hotspotSSID != nil)
         _lanChoice = State(initialValue: app.lanMode || !DeviceCaps.hasCellular)
+        _askBoard = State(initialValue: start == .welcome && BoardQuestion.shouldAsk(onboarded: settings.onboarded))
     }
 
     var body: some View {
@@ -120,6 +123,14 @@ struct OnboardingView: View {
 
     // MARK: - per page state
 
+    /// Yes goes on as before (once the risks were accepted); Not yet opened the where-to-buy page and stays here.
+    private func answerBoard(_ answer: BoardQuestion.Answer) {
+        BoardQuestion.record(answer)
+        boardAnswer = answer
+        Haptics.tick()
+        if answer == .yes && accepted { advance() }
+    }
+
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
 
     /// The page's goal is reached (drives auto-advance).
@@ -181,7 +192,7 @@ struct OnboardingView: View {
 
     var primaryEnabled: Bool {
         switch page {
-        case .welcome: return true
+        case .welcome: return !askBoard || boardAnswer != nil
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
         case .act: return calibrator.hasValidCalibration ? pageDone : !calibrator.busy && actReady
@@ -223,7 +234,9 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning)
+        case .welcome:
+            WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning,
+                        boardQuestion: askBoard ? BoardQuestionPanel(answer: boardAnswer) { answerBoard($0) } : nil)
         case .connect: ConnectPage(board: board, toBluetooth: $toBluetooth)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
                            lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)
