@@ -102,6 +102,8 @@ enum TypeStop {
     var readNew: ((Data, Data) async -> Seen?)? = nil
     /// The fast way first (`fast`); off in the tests of the careful way.
     var fastFirst = true
+    /// The run's input method (InputSource.shared); nil in tests that do not look at it.
+    var source: InputSource? = nil
     static let segment = 4
     /// Words committed unread before the field is read back. Each costs about 0.3 s of typing, a read 1–2 s; a
     /// wrong word costs retyping the words after it, so four keeps a repair short.
@@ -115,6 +117,8 @@ enum TypeStop {
     struct Stop: Equatable {
         var note: String
         var rest: String? = nil
+        /// No Pinyin input source could be reached (InputSource): the user is told.
+        var noPinyin = false
     }
 
     /// Types `text`; nil = typed and checked (or no screen to check), else what went wrong and what is left.
@@ -132,9 +136,13 @@ enum TypeStop {
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             DebugLog.write("type: \(text.count) chars in \(ms) ms, \(looks.n) screen reads")
         }
+        if Self.isHan(text), case .unreachable(let kind)? = source?.state {  // found this run: no keys, no retyping
+            return Stop(note: Self.noPinyinNote(kind, text: text), noPinyin: true)
+        }
         do {
             switch fastFirst ? try await counted.fast(text) : nil {
             case .done?: return nil
+            case .noPinyin(let kind)?: return Stop(note: Self.noPinyinNote(kind, text: text), noPinyin: true)
             case .unread?:  // typed, the field not read: never typed again on top of itself
                 return Stop(note: "typed \"\(text)\" in one go; it is most likely in the field, only the read back was unclear:"
                     + " look at the field and do not type it again unless it is missing, not typed: \"\"")
@@ -386,11 +394,11 @@ enum TypeStop {
     /// `fastRun` characters in word groups), punctuation by its key, then one read of the field. true: the field
     /// shows the text. false: it does not, and what this typing put there is deleted for the careful way. nil: not
     /// tried (no Chinese, or no screen to check it on).
-    enum Fast { case done, redo, unread }
+    enum Fast: Equatable { case done, redo, unread, noPinyin(Foreign) }
 
-    /// `from`: the field before (after an English go is deleted it is as it was: not read again).
-    func fast(_ text: String, from: Seen? = nil) async throws -> Fast? {
-        let toggled = from != nil
+    /// `from`: the field before (after a go is deleted it is as it was: not read again). `tried`: what the goes
+    /// before this one came out as, each followed by ctrl+space.
+    func fast(_ text: String, from: Seen? = nil, tried: [Foreign] = []) async throws -> Fast? {
         guard Self.isHan(text) else { return nil }
         var known = from, pending: Task<Seen?, Never>?, frameBefore: Data?
         if known == nil, let grab, let read {
@@ -426,7 +434,7 @@ enum TypeStop {
             if Self.holds(want, in: read) {
                 pending?.cancel()
                 DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
-                return .done
+                return confirmed()
             }
             freshText = read
             DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
@@ -439,7 +447,7 @@ enum TypeStop {
         // run (the chat held it twice) to the careful way, 98 s (Henry: speed over full protection).
         if let end = Self.shownEnd(want), let freshText, Self.holds(end, in: freshText) {
             DebugLog.write("type: fast, \(text.count) chars in one go, its end read back in the changed area (the field scrolls): ok")
-            return .done
+            return confirmed()
         }
         func lookAgain() async -> Seen? {  // the same read as before the keys, when there was one
             guard let grab, let read else { return await look() }
@@ -457,7 +465,7 @@ enum TypeStop {
             || (Self.holds(want, in: now) && !Self.holds(want, in: was))
             || (fieldGrew && end.map({ Self.holds($0, in: now) }) == true) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
-            return .done
+            return confirmed()
         }
         // what this typing left: pinyin letters (the English keyboard, or a run not committed) and the characters
         let newLetters = max(0, now.filter(\.isASCII).count - was.filter(\.isASCII).count)
@@ -467,15 +475,21 @@ enum TypeStop {
             DebugLog.write("type: fast, nothing new read in the field; not typed again")
             return .unread
         }
-        // letters and no Chinese: the English keyboard (2026-11-23, iPhone X: OCR read 4 of 17 letters, the ratio
-        // missed it, a few letters were deleted and the rest stayed). Everything typed is deleted, ctrl+space, again.
-        // the text's own English letters ("See you tomorrow!") are not a sign of the English keyboard (2026-11-23)
-        let ownLatin = text.filter { $0.isASCII && $0.isLetter }.count
-        if !toggled, Self.wentEnglish(from: Self.fieldText(before, minus: []), to: Self.fieldText(after, minus: []), expected: ownLatin) {
-            DebugLog.write("type: fast, letters and no Chinese (\(newLetters) new letters): English keyboard; deleting \(keys), ctrl+space")
+        // another input method (InputSource): letters and no Chinese (2026-11-23, iPhone X: OCR read 4 of 17
+        // letters, the ratio missed it, a few letters were deleted and the rest stayed), Zhuyin symbols, digits,
+        // other characters. Everything typed is deleted (a key makes at most one character), ctrl+space, again;
+        // the same result twice means ctrl+space went round (or did nothing) without Pinyin: stop, never a loop.
+        if let kind = Self.foreign(text, before: before, after: after, pinyinKnown: source?.state == .pinyin) {
             try await erase(keys)
+            // iPad: the first ctrl+space right after Spotlight did nothing (2026-11-17): one more press there
+            if tried.contains(kind), !(DeviceKind.isPad && tried == [kind]) {
+                DebugLog.write("type: fast, came out as \(kind.rawValue) again after ctrl+space (\(tried.map(\.rawValue))): no Pinyin input source; deleted \(keys)")
+                source?.state = .unreachable(kind)
+                return .noPinyin(kind)
+            }
+            DebugLog.write("type: fast, came out as \(kind.rawValue) (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"): not Pinyin; deleted \(keys), ctrl+space")
             try await toggle()
-            return try await fast(text, from: before)
+            return try await fast(text, from: before, tried: tried + [kind])
         }
         // what the keys put there, not what OCR saw grow: a sentence over two lines read short, 17 of 29 were
         // deleted and the careful way typed it all after the rest (2026-11-23, sent with its first half twice).
@@ -491,6 +505,12 @@ enum TypeStop {
         // text, the chat held the same message, the last pinyin was not up yet; each one deleted a right text and
         // the careful way then took 1-2 minutes.
         DebugLog.write("type: fast, read back unsure (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); trusted, not typed again")
+        return .done
+    }
+
+    /// Read back right: the input method is Pinyin, kept for the run.
+    private func confirmed() -> Fast {
+        if source?.state == .unknown { source?.state = .pinyin }
         return .done
     }
 

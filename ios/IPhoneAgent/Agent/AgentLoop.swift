@@ -266,6 +266,7 @@ extension Gestures {
         }
         StepReport.shared.clear()
         UITree.ocrCache.clear()  // a new run never reuses the last run's OCR
+        InputSource.shared.reset()  // the user may have switched keyboards between runs
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         tools = ToolStore.shared.active
         DebugLog.write("tools: " + (tools.isEmpty ? "none" : tools.map(\.id).joined(separator: ", ")))  // the system prompt is not in the trace

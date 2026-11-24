@@ -129,6 +129,11 @@ extension AgentLoop {
                 return ("result", "typed: pasted from the clipboard, which held this text; read back: the field holds all of it")
             }
             let stop = try await phone.typeStop(text)
+            // no Pinyin input source on the phone: only the user can add or pick it (InputSource), told once a run
+            if stop?.noPinyin == true, !InputSource.shared.noticed {
+                InputSource.shared.noticed = true
+                onNotice?(String(localized: "Chinese can't be typed: the iPhone's keyboard isn't Pinyin. Add Chinese (Simplified) Pinyin – QWERTY in Settings > General > Keyboard > Keyboards and switch to it."), .trouble)
+            }
             // the pinyin keyboard did not offer a word (2026-11-20: 西 not read among xi's candidates, 上海 typed and
             // 西岸艺术中心 not): the text carried on the clipboard since the start is pasted when it is this text
             // (ClipboardCarry); never a hop back to this app. Otherwise the model types the rest itself.

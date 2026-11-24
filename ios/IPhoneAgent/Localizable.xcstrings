@@ -14652,6 +14652,16 @@
           }
         }
       }
+    },
+    "Chinese can't be typed: the iPhone's keyboard isn't Pinyin. Add Chinese (Simplified) Pinyin – QWERTY in Settings > General > Keyboard > Keyboards and switch to it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法输入中文：iPhone 当前键盘不是拼音。请在“设置 > 通用 > 键盘 > 键盘”中添加“简体中文 拼音 – 全键盘”并切换到它。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
