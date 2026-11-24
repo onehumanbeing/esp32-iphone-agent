@@ -127,6 +127,17 @@ import UIKit
         }
     }
 
+    /// Wubi and Zhuyin make fewer characters than keys: clearing them leaves the field's own text as it was.
+    func testClearingAnotherMethodKeepsWhatTheFieldHeldBefore() async throws {
+        for method in [FakeKeyboards.Method.wubi, .zhuyin, .digits] {
+            let ime = FakeKeyboards([method, .pinyin], knowing: "你好明天")
+            ime.field = "早上好"
+            let stop = try await ime.typer(InputSource()).attempt("你好明天")
+            XCTAssertNil(stop, "\(method)")
+            XCTAssertEqual(ime.field, "早上好你好明天", "\(method): \(ime.sent)")
+        }
+    }
+
     /// Two keyboards and neither is Pinyin: ctrl+space goes round once, everything typed is cleared, the stop says
     /// so, the send guard holds Enter, and the next Chinese type of the run sends no keys at all.
     func testNoPinyinReachedClearsStopsAndIsRemembered() async throws {

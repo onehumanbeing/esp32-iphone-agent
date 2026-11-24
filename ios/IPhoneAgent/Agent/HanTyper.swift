@@ -480,7 +480,7 @@ enum TypeStop {
         // other characters. Everything typed is deleted (a key makes at most one character), ctrl+space, again;
         // the same result twice means ctrl+space went round (or did nothing) without Pinyin: stop, never a loop.
         if let kind = Self.foreign(text, before: before, after: after, pinyinKnown: source?.state == .pinyin) {
-            try await erase(keys)
+            let keys = try await eraseForeign(kind, keys: keys, grew: grew, before: before)
             // iPad: the first ctrl+space right after Spotlight did nothing (2026-11-17): one more press there
             if tried.contains(kind), !(DeviceKind.isPad && tried == [kind]) {
                 DebugLog.write("type: fast, came out as \(kind.rawValue) again after ctrl+space (\(tried.map(\.rawValue))): no Pinyin input source; deleted \(keys)")
@@ -635,6 +635,25 @@ enum TypeStop {
 
     private func erase(_ count: Int) async throws {
         for _ in 0..<count { try await key("backspace") }
+    }
+
+    /// Clears what another input method made of the keys; returns how many were deleted. English makes one letter a
+    /// key, so all the keys go. Zhuyin, Wubi and stroke keyboards make fewer characters than keys: deleting one a key
+    /// ate the end of what the field held before. There only what was read new goes, then the field is read again
+    /// and what is still over goes too (OCR can read short), never more than the keys typed.
+    func eraseForeign(_ kind: Foreign, keys: Int, grew: Int, before: Seen) async throws -> Int {
+        guard kind != .letters else { try await erase(keys); return keys }
+        var done = min(grew, keys)
+        try await erase(done)
+        for _ in 0..<2 where done < keys {
+            guard let seen = await look() else { break }
+            let over = Self.fieldText(seen, minus: []).count - Self.fieldText(before, minus: []).count
+            guard over > 0 else { break }
+            let more = min(over, keys - done)
+            try await erase(more)
+            done += more
+        }
+        return done
     }
 
     /// The candidate to pick for `word` (0 = the first): an exact one among the first nine, or a first candidate
