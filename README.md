@@ -42,6 +42,8 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 
 <p align="center"><sub>Follow along: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demo</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demo</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
 
+<p align="center"><sub>Guides: <a href="https://manina.ai/ai-control-iphone?ref=github">Let an AI control an iPhone</a> · <a href="https://manina.ai/iphone-mcp?ref=github">iPhone MCP server</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Control an iPhone from Claude Code</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">iPhone automation without jailbreak</a></sub></p>
+
 <p align="center"><b>Building on this project?</b> Keep the <a href="LICENSE">LICENSE</a> and credit <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b> in your README and posts. See <a href="NOTICE">NOTICE</a>.</p>
 
 <p align="center">Don't want to flash a board yourself? A ready-to-plug Manina AI device is coming. <a href="https://manina.ai/hardware">Join the waitlist</a>.</p>
