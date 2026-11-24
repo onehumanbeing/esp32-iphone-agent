@@ -104,7 +104,11 @@ enum OpenResult: String {
             try await home()
             try await pause(0.4)
             let homeFrame = await look()
-            if query != name { onHome = Self.count(name, in: await homeFrame.asyncMap(read) ?? []) }
+            // the Home Screen's words are read while Spotlight opens and the name is typed, not before it (an OCR
+            // read is 1-3 s, 13 s on an iPhone X; 2026-11-25: an open took 21 s at the median)
+            let reading = homeFrame.map { frame in Task { await read(frame) } }
+            defer { reading?.cancel() }
+            func homeLines() async -> [String] { await reading?.value ?? [] }
             if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
             try await pause(0.7)
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
@@ -116,6 +120,7 @@ enum OpenResult: String {
             // Read first: with the board's keyboard iOS shows no on-screen one, so on a plain wallpaper Spotlight
             // looks much like the Home Screen (2026-11-11: WeChat listed, judged "did not come up" twice).
             var lines = await read(results)
+            if query != name { onHome = Self.count(name, in: await homeLines()) }
             // The field and the results lag the typing by up to ~1.5 s: the first look still had an empty field over
             // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
             // (not "while the screen changes": the typed name in the field alone is too small a change for `same`).
@@ -130,7 +135,7 @@ enum OpenResult: String {
                 // The typed name is nowhere new on screen: cmd+space did nothing and the frames differ only where
                 // something moves (the Live Activity). 2026-11-13: read as "no such app", so it went on to 电话 on an
                 // English iPhone and Return opened a note; the Search button next time instead.
-                let before = await homeFrame.asyncMap(read) ?? []
+                let before = await homeLines()
                 if Self.count(query, in: lines) <= Self.count(query, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
