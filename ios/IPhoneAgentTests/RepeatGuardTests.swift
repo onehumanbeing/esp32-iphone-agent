@@ -94,6 +94,7 @@ import XCTest
     func testAHeldBackActionIsNoMoveForNoProgress() async {
         let screen = FakeScreen(), phone = FakeGestures()
         screen.frame = AgentTests.jpeg()
+        screen.updated = 1  // no frame after any action: an unknown result, which StillRepeat never counts
         phone.pointerVisible = true
         let model = FakeModel { _ in "THINK: try\nDO: tap 500 500" }
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)

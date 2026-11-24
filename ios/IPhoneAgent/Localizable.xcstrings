@@ -381,6 +381,16 @@
         }
       }
     },
+    "Do this step yourself, or let me try another way." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你可以自己完成这一步，或者让我换个方法试试。"
+          }
+        }
+      }
+    },
     "Edit plan with AI" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1437,6 +1447,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台 iPhone 上的运行记录不会上传。运行过程中发送的内容只会发给你允许的 AI 服务（打开 Jev 时也发给 Jev）；免费线路会自己保存每次运行的记录。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "The same step changed nothing three times, even after a longer wait." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一步做了三次，屏幕都没有变化，多等一会儿也没有。"
+          }
+        }
+      }
+    },
+    "The same step did nothing three times" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一步试了三次都没反应"
           }
         }
       }

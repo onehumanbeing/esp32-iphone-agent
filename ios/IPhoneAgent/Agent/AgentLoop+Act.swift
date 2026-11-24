@@ -26,7 +26,8 @@ extension AgentLoop {
     /// What an action did, the way a terminal shows a command's result.
     static func effect(_ s: JObject) -> String {
         guard let changed = s["changed"]?.bool else { return s["stale"] == .bool(true) ? staleEffect : "" }  // stale: iPad
-        var out = changed ? " -> screen changed" : " -> screen did NOT change"
+        // no frame came after it (confirmStill): unknown, not "did NOT change", which sent models into a repeat
+        var out = changed ? " -> screen changed" : s["noframe"] == .bool(true) ? staleEffect : " -> screen did NOT change"
         let app = s["app"]?.str ?? ""
         switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
         case .opened?: out += "; \(app) is open"

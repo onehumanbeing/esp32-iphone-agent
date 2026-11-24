@@ -10,6 +10,7 @@
 		006434261FDDF11EA3BF16E6 /* DebugEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8435B1585E5ECE113AC49 /* DebugEntry.swift */; };
 		00C75A50DDD6C7DE7882E9DA /* StartupFrameBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */; };
 		01525448B3D1AD4DFB9CDCE1 /* NoProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */; };
+		D1E2F30415263748596A7B8C /* StillRepeatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F405162738495A6B7C /* StillRepeatTests.swift */; };
 		01BAE28C7BD64CE7AE0D2303 /* ProviderSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7439B820D6DA2D4C35103F /* ProviderSelectionView.swift */; };
 		025E9703736BC9E4EC229C2A /* AgentLoop+Verdict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55906194C6B282EB2D701EBA /* AgentLoop+Verdict.swift */; };
 		CA560E1C3ACF7FD4DCD59021 /* AgentLoop+Steer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C4B012D04DA2571CF9F564 /* AgentLoop+Steer.swift */; };
@@ -67,6 +68,7 @@
 		1A7D2489492CA4E34CC124AE /* FirmwareUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B2BB17E154CD835C045D9E /* FirmwareUpdater.swift */; };
 		1BBB78AF1CD2B329778F6E01 /* AutoCalibrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65736EFE5D5C4AF40EDC5F92 /* AutoCalibrator.swift */; };
 		1C5BD5CEA0417EC07F85ED5B /* AgentLoop+Pad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752C0C0B77F4469906637145 /* AgentLoop+Pad.swift */; };
+		B1C2D3E4F5061728394A5B6C /* AgentLoop+Still.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5B /* AgentLoop+Still.swift */; };
 		1DBE4EFF0FB05C1390236410 /* IntentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D222722DF7856F9253B9784E /* IntentDetailView.swift */; };
 		57E59A9326F03702CAACF9CD /* ReplanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B58735DC48593634E9FE445 /* ReplanSheet.swift */; };
 		A3EF416CB741FF2857A1D4B7 /* QuickAskSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0945C991BB98DA2D1226B2 /* QuickAskSheet.swift */; };
@@ -431,6 +433,7 @@
 		08C142F7A438B5EC2A82FA99 /* AppDeparture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDeparture.swift; sourceTree = "<group>"; };
 		0B88A1538529C9674B323370 /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
 		0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoProgressTests.swift; sourceTree = "<group>"; };
+		C1D2E3F405162738495A6B7C /* StillRepeatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StillRepeatTests.swift; sourceTree = "<group>"; };
 		0DFECC30B2ADEB1BB69072EC /* BoardProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardProtocol.swift; sourceTree = "<group>"; };
 		0FB6A431F87BEDCFBF1201C4 /* CrashReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReports.swift; sourceTree = "<group>"; };
 		1030F3785F036B7A18C44A32 /* DemoAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAnalysis.swift; sourceTree = "<group>"; };
@@ -584,6 +587,7 @@
 		724EBABF2F5228B5112C3643 /* IntentArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchive.swift; sourceTree = "<group>"; };
 		74060C297931361BA5916910 /* BoardLogDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLogDumpTests.swift; sourceTree = "<group>"; };
 		752C0C0B77F4469906637145 /* AgentLoop+Pad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Pad.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304A5B /* AgentLoop+Still.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentLoop+Still.swift"; sourceTree = "<group>"; };
 		75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCheckTests.swift; sourceTree = "<group>"; };
 		769290C5E01DE7CA97412DDA /* prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = prompts; path = ../prompts; sourceTree = SOURCE_ROOT; };
 		7705F1A6E2D9AF3B143B5454 /* HarnessOTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessOTA.swift; sourceTree = "<group>"; };
@@ -794,6 +798,7 @@
 				980B938CFEFE913028935F21 /* AgentLoop+Keyboard.swift */,
 				6060A21F7A27EFFBD9E64E92 /* AgentLoop+Memory.swift */,
 				752C0C0B77F4469906637145 /* AgentLoop+Pad.swift */,
+				A1B2C3D4E5F6071829304A5B /* AgentLoop+Still.swift */,
 				55906194C6B282EB2D701EBA /* AgentLoop+Verdict.swift */,
 				42C4B012D04DA2571CF9F564 /* AgentLoop+Steer.swift */,
 				F2C0E3B5CA168C9B083105D7 /* AgentLoop+Inventory.swift */,
@@ -972,6 +977,7 @@
 				75455FA3E5A55F02E6903427 /* LinkCheckTests.swift */,
 				CF617B736D526076BF940A68 /* TouchCheckTests.swift */,
 				0C4078E3DA5DDE7131408891 /* NoProgressTests.swift */,
+				C1D2E3F405162738495A6B7C /* StillRepeatTests.swift */,
 				9A1510EBCE43891B8A1A72A4 /* RepeatGuardTests.swift */,
 				1634024FD8D5EBF774C4483C /* ManualCalibrationTests.swift */,
 				5D1A7E0C2B9F4E61A3C80D12 /* ActionSpeedTests.swift */,
@@ -1554,6 +1560,7 @@
 				701DB1C5BDCDD4E8B1216F2C /* LinkCheckTests.swift in Sources */,
 				2D5F3E3546B0DF18896126D2 /* TouchCheckTests.swift in Sources */,
 				01525448B3D1AD4DFB9CDCE1 /* NoProgressTests.swift in Sources */,
+				D1E2F30415263748596A7B8C /* StillRepeatTests.swift in Sources */,
 				701D5C439005CD2721678A34 /* RepeatGuardTests.swift in Sources */,
 				DA686D4B8FF55BF3FB9E2F34 /* ManualCalibrationTests.swift in Sources */,
 				5D1A7E0C2B9F4E61A3C80D11 /* ActionSpeedTests.swift in Sources */,
@@ -1588,6 +1595,7 @@
 				48738AD320FB971E272268C5 /* AgentLoop+Keyboard.swift in Sources */,
 				F7E73EABE70603DF30BE6233 /* AgentLoop+Memory.swift in Sources */,
 				1C5BD5CEA0417EC07F85ED5B /* AgentLoop+Pad.swift in Sources */,
+				B1C2D3E4F5061728394A5B6C /* AgentLoop+Still.swift in Sources */,
 				025E9703736BC9E4EC229C2A /* AgentLoop+Verdict.swift in Sources */,
 				CA560E1C3ACF7FD4DCD59021 /* AgentLoop+Steer.swift in Sources */,
 				2DA1AB4B30D5BFC86F6ADE76 /* AgentLoop+Inventory.swift in Sources */,
