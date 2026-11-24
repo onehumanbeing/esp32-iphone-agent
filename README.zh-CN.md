@@ -42,6 +42,8 @@ AI 编程助手（Claude Code、Codex、Cursor、Copilot 等）：如果复制�
 
 <p align="center"><sub>关注更新：<a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">小红书 袁老板讲黑客松（Henry）</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 演示</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 演示</a> · <a href="https://manina.ai/zh?ref=github">manina.ai</a></sub></p>
 
+<p align="center"><sub>使用指南：<a href="https://manina.ai/zh/ai-control-iphone?ref=github">让 AI 操作 iPhone</a> · <a href="https://manina.ai/zh/iphone-mcp?ref=github">iPhone MCP 服务器</a> · <a href="https://manina.ai/zh/claude-code-iphone?ref=github">用 Claude Code 控制 iPhone</a> · <a href="https://manina.ai/zh/iphone-automation-without-jailbreak?ref=github">不越狱的 iPhone 自动化</a></sub></p>
+
 <p align="center"><b>基于本项目开发？</b>请保留 <a href="LICENSE">LICENSE</a>，并在你的 README 和帖子中注明 <b><a href="https://github.com/onehumanbeing/esp32-iphone-agent">ESP32 iPhone Agent by Henry Yuan</a></b>。详见 <a href="NOTICE">NOTICE</a>。</p>
 
 <p align="center">不想自己刷板子？即插即用的 Manina AI 设备快来了，<a href="https://manina.ai/zh/hardware">加入等候名单</a>。</p>
