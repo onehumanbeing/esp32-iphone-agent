@@ -92,6 +92,7 @@ extension AgentLoop {
         lastActed = now()
         act["act_s"] = .num(((lastActed - started) * 100).rounded() / 100)
         _ = await settle()
+        StepReport.shared.opened(seconds: now() - started)
         act["changed"] = .bool(Vision.changed(seen, screen?.frame))
         record(seen, act)
     }

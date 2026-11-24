@@ -381,6 +381,26 @@ import XCTest
     }
 
     /// The run's far landings and recalibrations ride along, counts only; none: the header is as before.
+    /// Where llm and gap went (first token, the time after the gesture, …), within the gateway's 12 pairs and 160
+    /// characters, the pointer counts kept; the run's first request says how long the start took.
+    func testStepReportSplitsTheStepAndTheStart() {
+        let report = StepReport()
+        report.runStarted(at: 10)
+        report.opened(seconds: 6.25)
+        XCTAssertEqual(report.take(at: 31)[StepReport.header], "start=21.0,open=6.2")
+        XCTAssertNil(report.take(at: 32)[StepReport.header], "the start is sent once")
+        report.farLanding()
+        report.replied(at: 100)
+        var step = Metrics.Step(frameMs: 500, llmMs: 6000, hidMs: 100)
+        (step.firstTokenMs, step.afterMs, step.verdictMs, step.landingMs, step.imageMs, step.treeMs) = (2600, 3100, 400, 900, 120, 30)
+        report.finished(step)
+        let value = report.take(at: 105)[StepReport.header] ?? ""
+        XCTAssertTrue(value.hasPrefix("llm=6.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=5.0,far=1,recal=0,ttft=2.6,after=3.1"), value)
+        XCTAssertFalse(value.contains("treems"), "under 50 ms: not sent")
+        XCTAssertLessThanOrEqual(value.split(separator: ",").count, StepReport.maxPairs, value)
+        XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
+    }
+
     func testStepReportCarriesThePointersTrouble() {
         let report = StepReport()
         report.farLanding(); report.farLanding(); report.recalibrated()

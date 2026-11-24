@@ -531,6 +531,22 @@ final class StubProtocol: URLProtocol {
         XCTAssertEqual(StubProtocol.seen.map { $0["temperature"] != nil }, [true, false, false])
     }
 
+    /// The lease's own previous call (a dropped look ahead) still held: asked again within a second, not after 3 s.
+    func testACallStillInProgressIsAskedAgainQuickly() async throws {
+        let llm = client("gpt")
+        StubProtocol.seen = []
+        StubProtocol.respond = { _ in
+            StubProtocol.seen.count < 3
+                ? (503, "application/json", #"{"status":"busy","reason":"call_in_progress"}"#)
+                : (200, "application/json", "{\"choices\": [{\"message\": {\"content\": \"DO: wait\"}}]}")
+        }
+        let started = Date()
+        let reply = try await llm.chat(system: "sys", text: "hi", image: nil, maxTokens: 600, temperature: 0)
+        XCTAssertEqual(reply.text, "DO: wait")
+        XCTAssertEqual(StubProtocol.seen.count, 3)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2.5, "two quick asks, not the 3 s wait")
+    }
+
     func testBothRefusedParametersAreDroppedTemperatureFirst() async throws {
         let llm = client("gpt")
         StubProtocol.seen = []

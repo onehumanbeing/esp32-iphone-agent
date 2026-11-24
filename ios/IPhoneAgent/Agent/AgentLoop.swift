@@ -592,6 +592,10 @@ extension Gestures {
         var failures = 0, stalls = 0, rounds = 0
         var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
+        // the task's app guide is read from the server (up to 5 s) while the app opens, not after it (2026-11-25:
+        // the wait from the line's lease to the first model call was 23 s for one run in ten)
+        let guiding = Task { @MainActor in await self.guideAtStart() }
+        defer { guiding.cancel() }
         do {
             if startsOnHome, !scripting, !steps.contains(where: { Actions.gestures.contains($0["action"]?.str ?? "") || $0["action"]?.str == "resumed" }),
                let app = AppNames.only(in: task) {
@@ -604,7 +608,7 @@ extension Gestures {
                 runFolder = RunFolder.from(steps) ?? LiveNotes.newFolder(resultName ?? task, since: filesSince, files: MemoryFiles.open(since: filesSince))
             }
             if let runFolder { liveNotes.use(runFolder, files: MemoryFiles.open()) }
-            await guideAtStart()
+            await guiding.value
             while true {
                 try await holdForPower()
                 rounds += 1

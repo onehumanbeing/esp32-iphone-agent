@@ -240,6 +240,16 @@ struct LLMError: LocalizedError {
                 } else { break }
                 (status, result, errorText) = try await send(body)
             }
+            // The lease's own call still in progress: a look ahead just dropped (LookAhead), whose slot the gateway
+            // frees once it sees the disconnect, mostly well under a second. Asked again every 0.4 s for up to 6 s
+            // instead of the 3 s wait below, which every dropped look paid (2026-11-25: 8 such refusals a day).
+            var held = 0.0
+            while retriesBusy, status == 503, Self.busyReason(errorText) == "call_in_progress", held < Self.inProgressWait {
+                try await Task.sleep(for: .milliseconds(400))
+                held += 0.4
+                (status, result, errorText) = try await send(body)
+            }
+            if held > 0 { DebugLog.write(String(format: "llm: the lease's previous call held it %.1f s", held)) }
             // A busy upstream: once more. A per-minute rate limit: wait as told (Retry-After, at most 20 s), up
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             // 5xx: Cloudflare's 520-524 too (2026-11-17: one 520 paused a run that a retry 3 s later carried on)
@@ -293,6 +303,9 @@ struct LLMError: LocalizedError {
 
     /// The free line refused because this run's lease is over (idle too long, out of time, paused, call limit):
     /// every further call would be refused too.
+    /// How long a `call_in_progress` refusal is asked again quickly (then the usual 3 s retry).
+    static let inProgressWait = 6.0
+
     /// The free line's reason in a 503 `{"status":"busy","reason":…}`, else nil.
     nonisolated static func busyReason(_ errorText: String) -> String? {
         guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],

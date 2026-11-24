@@ -49,6 +49,16 @@ import Foundation
             return "llm=\(s(llmMs / 1000)),frame=\(s(frameMs / 1000)),hid=\(s(hidMs / 1000)),"
                 + "settle=\(s(settleMs / 1000)),mode=\(snap ? "snap" : "stream"),gap=\(s(gap))"
         }
+
+        /// Where `llm` and `gap` went, for the gateway to tell the network from the phone (2026-11-25: the app's llm
+        /// was 2-6 s over the gateway's own call and nothing said why): first token as the app saw it, the image and
+        /// the on-device tree made before the request, the change check, the pointer check, all after the gesture.
+        /// Only parts that took time, most telling first; an old gateway drops keys it does not know.
+        var parts: [String] {
+            let all = [("ttft", firstTokenMs), ("after", afterMs), ("verdict", verdictMs), ("land", landingMs),
+                       ("img", imageMs), ("treems", treeMs)]
+            return all.filter { $0.1 >= 50 }.map { "\($0.0)=" + String(format: "%.1f", min($0.1 / 1000, 999.9)) }
+        }
     }
 
     // board, from status
@@ -181,6 +191,7 @@ import Foundation
 final class StepReport: @unchecked Sendable {
     static let shared = StepReport()
     static let header = "X-Handsy-Step"
+    static let maxPairs = 12, maxLength = 160  // gateway validation.step_timing
     private let lock = NSLock()
     private var pending: Metrics.Step?
     private var repliedAt: Double?
@@ -190,6 +201,12 @@ final class StepReport: @unchecked Sendable {
     private var far = 0, recal = 0
     func farLanding() { lock.withLock { far += 1 } }
     func recalibrated() { lock.withLock { recal += 1 } }
+    /// The run's start, sent once with its first request: seconds from the Run tap (`start`) and of them the app
+    /// opened by name before the first look (`open`). 2026-11-25: the claim-to-first-call wait was 23 s for one run
+    /// in ten and no record said where it went.
+    private var startedAt: Double?, openSeconds: Double?
+    func runStarted(at t: Double) { lock.withLock { (startedAt, openSeconds) = (t, nil) } }
+    func opened(seconds: Double) { lock.withLock { openSeconds = seconds } }
 
     /// The actor's reply arrived: `gap` counts from here.
     func replied(at t: Double = now()) { lock.withLock { repliedAt = t } }
@@ -201,9 +218,18 @@ final class StepReport: @unchecked Sendable {
     func take(at t: Double = now()) -> [String: String] {
         lock.withLock {
             defer { pending = nil }
+            if let startedAt, repliedAt == nil {  // the run's first request
+                self.startedAt = nil
+                let open = openSeconds.map { String(format: ",open=%.1f", min(max($0, 0), 999.9)) } ?? ""
+                return [Self.header: String(format: "start=%.1f", min(max(t - startedAt, 0), 999.9)) + open]
+            }
             guard let pending, let repliedAt else { return [:] }
-            let pointer = far + recal > 0 ? ",far=\(far),recal=\(recal)" : ""  // an old gateway drops unknown keys
-            return [Self.header: pending.header(gap: t - repliedAt) + pointer]
+            var value = pending.header(gap: t - repliedAt)
+            if far + recal > 0 { value += ",far=\(far),recal=\(recal)" }  // an old gateway drops unknown keys
+            // the gateway reads at most 12 pairs of a value up to 160 characters: the parts fill what is left
+            for part in pending.parts where value.split(separator: ",").count < Self.maxPairs
+                && value.count + part.count + 1 <= Self.maxLength { value += "," + part }
+            return [Self.header: value]
         }
     }
 }

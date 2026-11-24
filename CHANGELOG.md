@@ -4,6 +4,14 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- App: a task that names an app no longer opens a system app whose plain name (音乐, 地图, 天气, Music, Maps…) is part of that app's longer name.
+- App: a tap that lands far from its target calibrates the pointer at once, even when the screen changed; failed calibrations try again after 3, 6, 12… taps and never stop for the run. Taps undone by back twice in a row find the pointer first.
+- App: "no change" counts only when a new screen image came after the action. The same action with no change twice gives the model a hint; three times, one longer look, then the run asks you.
+- App: a keyboard that is not system Pinyin (Zhuyin, Wubi, 9-key, a third-party keyboard) is switched once with ctrl+space and the text typed again; if Pinyin can't be reached the typing stops, nothing is sent, and you are told how to add it. Clearing what came out deletes only that, never the field's own text.
+- App: Settings › Look ahead is on by default: the next model request starts while the screen settles (cancelled if the screen moves). A request refused because the run's previous one is still open is asked again every 0.4 s instead of after 3 s.
+- App: the task's app guide loads while the app opens, not after it.
+- App: the free line gets each step's first token, image, change check, pointer check and after-gesture time, and the run's start time, as seconds only.
+
 ## App 1.0.10.1 (TestFlight, a new build of 1.0.10)
 
 **Significantly faster Chinese input.**
