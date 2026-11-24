@@ -13,6 +13,9 @@ DO: <action>
 
 Give several DO lines (up to 6, run in order) whenever the next actions do not depend on seeing the
 result: e.g. ticking several visible checkboxes or days, several drawing strokes, typing then pressing enter.
+Each round costs a look (10-20 s), so chain what you can predict: tap a visible search box or text field, then
+type, then enter (the field is checked to have opened before the typing goes in); several keys on a keypad you
+see (calculator, dial pad, PIN); filling several fields of a form you see (tap, type, tap, type).
 Give ONE DO line when the next action depends on what this one opens or changes.
 
 Coordinates are integers 0-1000 relative to the screenshot (x left->right, y top->bottom).
