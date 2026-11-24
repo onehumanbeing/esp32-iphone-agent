@@ -211,8 +211,11 @@ extension AgentLoop {
         }
         // a page with no back arrow (an app's home: a city or a title up there) is left alone
         if let after, let image = Vision.image(after) {
+            // only the top-left corner is read (the whole frame's OCR was 1-3 s of a back that took 5.4 s at the
+            // median, 2026-11-25); a line that starts in it is kept whole
             let size = CGSize(width: image.width, height: image.height)
-            let words = await UITreeOCR.lines(image).filter { line in
+            let corner = image.cropping(to: CGRect(x: 0, y: 0, width: size.width * 0.6, height: size.height * 0.13)) ?? image
+            let words = await UITreeOCR.lines(corner).filter { line in
                 line.box.count == 4 && Double(line.box[0]) < 0.15 * size.width  // below the status bar's clock, above 12%
                     && Double(line.box[1] + line.box[3]) / 2 > 0.055 * size.height && Double(line.box[1] + line.box[3]) / 2 < 0.12 * size.height
             }.map(\.text)
