@@ -4,6 +4,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- App: `open` presses Return when the app is Spotlight's Top Hit and its name went in as plain letters, instead of finding the pointer to tap the row (about 5 s less per open). Letters still composing on the pinyin keyboard fall back to the tap.
 - App: a second task in a row saves its notes and files in its own folder; before, it reused the folder of the task before it.
 - App: Chinese is typed as the pinyin of each word (音乐 is yinyue, so Spotlight finds 汽水音乐). The check for another input method no longer counts the on-screen keyboard's keys or Spotlight's suggestions as typed letters, and one failed typing no longer stops Chinese for the rest of the run.
 - App: the first launch asks once on the Welcome page whether you have an ESP32 board. Not yet opens manina.ai's page on where to get one (manina.ai/where-to-buy-esp32), then setup goes on. Users who already finished setup are never asked. With usage stats on, only the answer (yes/no) is counted.

@@ -155,11 +155,23 @@ enum OpenResult: String {
             var shown = results, closed = false, changed = false
             for round in 0..<2 {
                 changed = false
-                let (spots, web) = await spots(shown, name, labels)
+                let (spots, web, topHit) = await spots(shown, name, labels)
                 if web {  // not installed: tapping it or Return opens a web search
                     seen.webOnly = true
                     log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
                     return .notFound
+                }
+                // The app's row is Spotlight's Top Hit and the name went in as plain letters: Return opens it at once,
+                // the tap first finds the pointer (5 s of an 18.6 s open, 2026-11-26). Still on Spotlight after it
+                // (letters composing on the pinyin keyboard, 2026-11-20): the rows are read again and tapped.
+                if round == 0, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                    log("open \(name) via Spotlight: typed, its row is the top hit → enter")
+                    try await key("enter")
+                    guard let now = await look() else { return .unchecked }
+                    let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
+                    if after == .left { return .opened }
+                    if after == .closed { closed = true; break }
+                    if !same(now, shown) { shown = now; continue }
                 }
                 for spot in spots.prefix(2) {
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
@@ -222,11 +234,11 @@ enum OpenResult: String {
     }
 
     /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
-    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> (spots: [CGPoint], web: Bool) {
-        guard let readBoxes, tapAt != nil else { return ([], false) }
+    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> (spots: [CGPoint], web: Bool, topHit: Bool) {
+        guard let readBoxes, tapAt != nil else { return ([], false, false) }
         let (found, size) = await readBoxes(frame)
-        return (Self.resultSpots(found, labels: [name] + labels, size: size),
-                Self.onlyOnTheWeb(found, labels: [name] + labels, size: size))
+        let rows = Self.resultRows(found, labels: [name] + labels, size: size)
+        return (rows.filter { !$0.web }.map(\.at), rows.first?.web == true, Self.isTopHit(rows))
     }
 
     private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
@@ -234,6 +246,16 @@ enum OpenResult: String {
     /// Spotlight's header over web search suggestions, per language (folded).
     static let webHeaders: Set<String> = Set(["Suggestions", "建议", "建議", "候補", "제안", "Vorschläge", "Suggestioni",
                                               "Sugerencias", "Suggestões"].map(Scripts.fold))
+    /// Spotlight's header over its Top Hit (the row Return opens), per language (folded).
+    static let topHitHeaders: Set<String> = Set(["Top Hit", "最佳匹配", "最佳搜尋結果", "トップヒット", "상위 히트",
+                                                 "Toptreffer", "Meilleur résultat"].map(Scripts.fold))
+
+    /// The app's first row is under the Top Hit header: Return opens the app (never a field, a web suggestion,
+    /// or another result that came first).
+    static func isTopHit(_ rows: [(at: CGPoint, web: Bool, header: String?)]) -> Bool {
+        guard let first = rows.first, !first.web, let header = first.header else { return false }
+        return topHitHeaders.contains(Scripts.fold(header))
+    }
 
     /// Where to tap a listed result: the centers (screen fractions) of the lines that are one of `labels` (folded,
     /// a label cut short with "…" counts), below the status bar and above the home bar, top first.
@@ -250,7 +272,8 @@ enum OpenResult: String {
     /// "Suggestions" are web searches (they open the browser), and an app that is not installed is listed only there
     /// (2026-11-25, 汽水音乐 on an iPhone without it opened Chrome). Section headers start at the left margin, a row's
     /// text after its icon: a row whose nearest header above is a web one is a web suggestion.
-    static func resultRows(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> [(at: CGPoint, web: Bool)] {
+    static func resultRows(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize)
+        -> [(at: CGPoint, web: Bool, header: String?)] {
         guard size.width > 0, size.height > 0 else { return [] }
         let wants = Set(labels.map(Scripts.fold).filter { !$0.isEmpty })
         func isLabel(_ text: String) -> Bool {
@@ -261,14 +284,15 @@ enum OpenResult: String {
         }
         let boxed = lines.filter { $0.box.count == 4 }
         let margin = (boxed.map { $0.box[0] }.min() ?? 0) + Int(size.width * 0.03)
-        func web(_ line: (text: String, box: [Int])) -> Bool {
-            let header = boxed.filter { $0.box[0] <= margin && $0.box[3] <= line.box[1] }.max { $0.box[3] < $1.box[3] }
-            return header.map { webHeaders.contains(Scripts.fold($0.text)) } ?? false
+        func header(_ line: (text: String, box: [Int])) -> String? {
+            boxed.filter { $0.box[0] <= margin && $0.box[3] <= line.box[1] }.max { $0.box[3] < $1.box[3] }?.text
         }
-        return boxed.compactMap { line -> (at: CGPoint, web: Bool)? in
+        return boxed.compactMap { line -> (at: CGPoint, web: Bool, header: String?)? in
             guard isLabel(line.text) else { return nil }
             let p = CGPoint(x: Double(line.box[0] + line.box[2]) / 2 / size.width, y: Double(line.box[1] + line.box[3]) / 2 / size.height)
-            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x) ? (p, web(line)) : nil
+            let over = header(line)
+            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x)
+                ? (p, over.map { webHeaders.contains(Scripts.fold($0)) } ?? false, over) : nil
         }.sorted { $0.at.y < $1.at.y }
     }
 

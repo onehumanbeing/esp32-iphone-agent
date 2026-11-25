@@ -127,6 +127,35 @@ import XCTest
         }
     }
 
+    /// The app's row is the Top Hit and the name went in as letters: Return opens it, no pointer search for a tap
+    /// (2026-11-26: the tap's pointer search was 5 s of an 18.6 s open). Letters still composing (Return only
+    /// commits them, Spotlight stays): the row is tapped after all. A name under another header is tapped.
+    func testTheTopHitIsOpenedWithReturn() async throws {
+        let committed = Data([5])
+        let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440]),
+                                                    ("Settings", [140, 1100, 400, 1140])]
+        for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
+                                     ([home, spotlight, committed, app], ["enter"], 1)] {
+            var queue: [Data?] = frames
+            var sent: [String] = [], tapped = 0
+            var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                                   read: { [home, app] in $0 == home ? [] : $0 == app ? ["General", "Privacy"] : ["Settings", "Settings", "Top Hit"] },
+                                   same: { $0 == $1 }, pause: { _ in })
+            opener.readBoxes = { _ in (topHit, CGSize(width: 1000, height: 2000)) }
+            opener.tapAt = { _ in tapped += 1 }
+            let result = try await opener.open("Settings")
+            XCTAssertEqual(result, .opened)
+            XCTAssertEqual(sent.filter { $0 == "enter" }, keys)
+            XCTAssertEqual(tapped, taps)
+        }
+        let size = CGSize(width: 1000, height: 2000)
+        let other: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("BlockThreat", [140, 250, 400, 290]),
+                                                   ("Applications", [40, 350, 300, 390]), ("Settings", [140, 450, 400, 490])]
+        XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows(other, labels: ["Settings"], size: size)))
+        XCTAssertTrue(AppOpener.isTopHit(AppOpener.resultRows(topHit, labels: ["Settings"], size: size)))
+        XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows([("Settings", [140, 400, 400, 440])], labels: ["Settings"], size: size)))
+    }
+
     /// Pinyin keyboard on (2026-11-20): the typed letters are still composing, only the field reads the name and a
     /// tap there does nothing. Return commits them, Spotlight stays (a new frame, its words still there), and the
     /// result row read then is tapped.
