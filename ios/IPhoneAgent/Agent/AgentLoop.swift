@@ -261,6 +261,7 @@ extension Gestures {
             recorder.task?.cancel(); recorder = RecorderState()
             notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; autoResult = nil; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
             filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
+            runFolder = nil; foldersAtStart = []  // a new task gets its own folder, not the last run's
             limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
         }
