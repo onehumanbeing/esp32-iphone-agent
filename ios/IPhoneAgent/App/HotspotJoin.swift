@@ -11,6 +11,32 @@ enum JoinState: Equatable {
     var busy: Bool { self == .joining || self == .verifying }
 }
 
+/// Whether the phone should join the board's hotspot. Not when the board is a client of another network: a router
+/// (LAN mode), or this iPhone's own Personal Hotspot (the phone is the access point; the board is reached at its IP
+/// over the bridge interface). The board's `net` then holds that network's credentials, and applying them made the
+/// hotspot host try to join itself (2026-11-25).
+enum HotspotJoinDecision: Equatable {
+    case join
+    case phoneHostsBoard(ip: String)
+    case boardOnOtherWiFi
+
+    static func decide(netMode: String?, statusNet: String?, boardIP: String?,
+                       interfaces: [(name: String, ipv4: String)]) -> HotspotJoinDecision {
+        if let ip = boardIP, Hotspot.hostsBoard(boardIP: ip, interfaces) { return .phoneHostsBoard(ip: ip) }
+        if netMode == "sta" || statusNet == "sta" || statusNet == "none" { return .boardOnOtherWiFi }
+        return .join
+    }
+
+    /// The line for the debug log when there is nothing to join.
+    var skipLine: String? {
+        switch self {
+        case .join: nil
+        case .phoneHostsBoard(let ip): "hotspot: board on this iPhone's Personal Hotspot at \(ip); not joining"
+        case .boardOnOtherWiFi: "hotspot: the board is a client of another Wi-Fi, not its own hotspot; not joining"
+        }
+    }
+}
+
 extension AppModel {
     /// Start (or restart) the join. `auto`: the page appeared; skipped once it was tried or is done.
     func startJoin(auto: Bool = false) {
@@ -25,6 +51,7 @@ extension AppModel {
     /// the router by itself and the phone never left its network, so there is nothing to redo.
     func rejoinAfterReboot() {
         guard !lanMode else { return }
+        if let line = hotspotJoinDecision().skipLine { return DebugLog.write(line) }
         Task { [weak self] in
             for _ in 0..<4 {  // the access point needs a few seconds after boot
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -32,10 +59,25 @@ extension AppModel {
                 if (self.board.status?.sta ?? 0) > 0 { return DebugLog.write("hotspot: back on the board's Wi-Fi after its restart") }
             }
             guard let self, self.board.connected, !self.join.busy else { return }
+            // the status read before the connection finished may not have said yet (2026-11-25)
+            if let line = self.hotspotJoinDecision().skipLine { return DebugLog.write(line) }
             DebugLog.write("hotspot: the board restarted and the phone didn't come back to its Wi-Fi; joining again")
             self.join = .idle
             self.startJoin()
         }
+    }
+
+    /// The decision for the board as it is now (its status and the last `net` read).
+    func hotspotJoinDecision(net: NetConfig? = nil) -> HotspotJoinDecision {
+        let net = net ?? board.net
+        let ip = [board.status?.ip, net?.ip].compactMap { $0 }.first { !$0.isEmpty && $0 != "0.0.0.0" }
+        return .decide(netMode: net?.mode, statusNet: board.status?.net, boardIP: ip, interfaces: Hotspot.interfaces())
+    }
+
+    /// The board is a client on this iPhone's own Personal Hotspot.
+    var phoneHostsBoard: Bool {
+        if case .phoneHostsBoard = hotspotJoinDecision() { return true }
+        return false
     }
 
     private func runJoin() async {
@@ -55,6 +97,11 @@ extension AppModel {
             return
         }
         guard !Task.isCancelled else { return }
+        if let line = hotspotJoinDecision(net: net).skipLine {
+            say(line)
+            join = .idle
+            return
+        }
         let ssid = net.ssid ?? "?"
         if await onBoardWiFi(ssid) {  // already there: iOS would show no prompt
             say("hotspot: already on \(ssid)")
@@ -104,7 +151,7 @@ extension AppModel {
     func onBoardHotspot(manual: Bool) -> Bool {
         if lanMode {
             if board.connected, board.status?.net == "sta" {
-                return wifiVideo.active || board.status?.ap == "streaming" || phoneOnBoardLAN
+                return wifiVideo.active || board.status?.ap == "streaming" || phoneOnBoardLAN || phoneHostsBoard
             }
             return manual || lanJoin == .joined
         }
@@ -129,7 +176,7 @@ extension AppModel {
         if lanMode {
             let current = await Hotspot.currentSSID()
             let boardSSID = lanSSID ?? board.net?.ssid
-            let on = board.status?.net == "sta" && (wifiVideo.active || (current != nil && current == boardSSID))
+            let on = board.status?.net == "sta" && (wifiVideo.active || (current != nil && current == boardSSID) || phoneHostsBoard)
             if phoneOnBoardLAN != on { phoneOnBoardLAN = on }
             if board.status?.net == "sta", let s = board.net?.ssid, lanSSID != s {
                 lanSSID = s

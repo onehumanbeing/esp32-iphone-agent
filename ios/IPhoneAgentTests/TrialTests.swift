@@ -3,7 +3,23 @@ import XCTest
 
 /// The free line stays out of builds without IA_TRIAL_ORIGIN, and only adds headers to model requests.
 @MainActor final class TrialTests: XCTestCase {
-    func testOpenSourceBuildHasNoFreeLine() {
+    private var keysOffered = Trial.keysOffered
+    override func setUp() { super.setUp(); keysOffered = Trial.keysOffered; Trial.keysOffered = true }  // the store build's key path
+    override func tearDown() { Trial.keysOffered = keysOffered; super.tearDown() }
+
+    func testOnlyTheStoreBuildHasKeys() {
+        Trial.keysOffered = false  // TestFlight and builds from this repository
+        let trial = Trial.shared
+        trial.setKey(Self.testKey)
+        defer { trial.setKey("") }
+        XCTAssertFalse(trial.hasKey)
+        XCTAssertFalse(trial.keyed)  // a saved key never turns the free line off there
+        XCTAssertTrue(HandsyKeyOffer.handle(URL(string: "iphoneagent://key?k=" + Self.testKey)!))  // the link is taken...
+        XCTAssertNil(trial.offeredKey)  // ...and offers nothing
+    }
+
+    func testOpenSourceBuildHasNoFreeLine() throws {
+        try XCTSkipIf(Trial.available, "this build has IA_TRIAL_ORIGIN (Config/Local.xcconfig): not the open-source build")
         XCTAssertFalse(Trial.available)
         XCTAssertFalse(Trial.isTrial("https://api.openai.com/v1"))
         XCTAssertNotEqual(ModelProvider.infer(baseURL: "", model: ""), .handsyTrial)
@@ -17,16 +33,32 @@ import XCTest
 
     // MARK: - Manina AI key (a plan's key instead of the free runs)
 
+    static let testKey = "hsk_test_" + String(repeating: "a", count: 43)
+
+    func testOnlyAWholeKeyCountsAsAKey() {
+        XCTAssertTrue(Trial.looksLikeKey(Self.testKey))
+        XCTAssertTrue(Trial.looksLikeKey("hsk_live_" + String(repeating: "Z9_-", count: 10) + "abc"))
+        for bad in ["", "hsk_", "hsk_live_abc", "sk-" + String(repeating: "a", count: 48), "hsk_prod_" + String(repeating: "a", count: 43),
+                    Self.testKey + "a", "hsk_test_" + String(repeating: "a", count: 42) + "!"] {
+            XCTAssertFalse(Trial.looksLikeKey(bad), bad)
+        }
+        let trial = Trial.shared
+        trial.setKey("hsk_live_abc")  // an old build saved such text: it is no key, the free line stays
+        defer { trial.setKey("") }
+        XCTAssertFalse(trial.hasKey)
+        XCTAssertFalse(trial.keyed)
+    }
+
     func testAKeyedRunSendsTheKeyAndNoLease() async throws {
         let trial = Trial.shared
-        trial.setKey("  hsk_test_abc \n")
+        trial.setKey("  " + Self.testKey + " \n")
         defer { trial.setKey("") }
-        XCTAssertEqual(trial.key, "hsk_test_abc")
+        XCTAssertEqual(trial.key, Self.testKey)
         XCTAssertThrowsError(try trial.headers())  // still runs only
         try await trial.precheck()
         try await trial.begin()  // no enrollment, no lease request
         let headers = try trial.headers()
-        XCTAssertEqual(headers["Authorization"], "Bearer hsk_test_abc")
+        XCTAssertEqual(headers["Authorization"], "Bearer " + Self.testKey)
         XCTAssertNotNil(UUID(uuidString: headers["X-Run-ID"] ?? ""))
         XCTAssertNil(headers["X-Lease-ID"])
         XCTAssertNil(headers["X-Device-ID"])
@@ -58,13 +90,44 @@ import XCTest
     func testTheHeldRunIsOnRecordUntilItIsReleased() async throws {
         let trial = Trial.shared
         Trial.leftover = nil
-        trial.setKey("hsk_test_abc")
+        trial.setKey(Self.testKey)
         defer { trial.setKey(""); Trial.leftover = nil }
         try await trial.begin()
         XCTAssertNotNil(Trial.leftover?.keyRun)
         XCTAssertEqual(Trial.leftover?.keyRun, trial.runID)
         trial.end(RunEnd(reason: .userStop, stage: .running))
         XCTAssertNil(Trial.leftover)
+    }
+
+    func testASlowPhoneIsThreeLongStallsInTwoMinutes() {
+        XCTAssertFalse(PhoneLoad.isSlow([0, 10], at: 20))
+        XCTAssertTrue(PhoneLoad.isSlow([0, 10, 20], at: 30))
+        XCTAssertFalse(PhoneLoad.isSlow([0, 10, 20], at: 125))  // the first one is out of the window
+    }
+
+    func testAnUpdateIsNamedForTwoDaysAndNotOnTheFirstLaunch() {
+        let d = UserDefaults(suiteName: "os-update-test")!
+        d.removePersistentDomain(forName: "os-update-test")
+        OSUpdate.note("26.3", at: 0, defaults: d)
+        XCTAssertNil(OSUpdate.recent(at: 1, defaults: d))  // first launch: no update seen
+        OSUpdate.note("27.2.1", at: 100, defaults: d)
+        XCTAssertEqual(OSUpdate.recent(at: 200, defaults: d), "27.2.1")
+        XCTAssertNil(OSUpdate.recent(at: 100 + OSUpdate.recentFor + 1, defaults: d))
+    }
+
+    func testAPlayTapThatEndsAPullDoesNotRun() {
+        let now = Date()
+        XCTAssertTrue(HomeView.pullTapped(pulling: true, ended: .distantPast, now: now))
+        XCTAssertTrue(HomeView.pullTapped(pulling: false, ended: now.addingTimeInterval(-0.3), now: now))
+        XCTAssertFalse(HomeView.pullTapped(pulling: false, ended: now.addingTimeInterval(-2), now: now))
+        XCTAssertFalse(HomeView.pullTapped(pulling: false, ended: .distantPast, now: now))
+    }
+
+    func testAStoppedRunSaysWhoStoppedIt() {
+        var end = RunEnd(reason: .userStop, stage: .running)
+        XCTAssertNil(end.json["by"])
+        end.by = "live_activity"
+        XCTAssertEqual(end.json["by"] as? String, "live_activity")
     }
 
     func testARefusedKeyKeepsItsOwnTextAndIsFinal() {
@@ -378,5 +441,40 @@ import XCTest
         report.finished(Metrics.Step())
         report.clear()  // a new run
         XCTAssertEqual(report.take(), [:])
+    }
+
+    /// The run's far landings and recalibrations ride along, counts only; none: the header is as before.
+    /// Where llm and gap went (first token, the time after the gesture, …), within the gateway's 12 pairs and 160
+    /// characters, the pointer counts kept; the run's first request says how long the start took.
+    func testStepReportSplitsTheStepAndTheStart() {
+        let report = StepReport()
+        report.runStarted(at: 10)
+        report.opened(seconds: 6.25)
+        XCTAssertEqual(report.take(at: 31)[StepReport.header], "start=21.0,open=6.2")
+        XCTAssertNil(report.take(at: 32)[StepReport.header], "the start is sent once")
+        report.farLanding()
+        report.replied(at: 100)
+        var step = Metrics.Step(frameMs: 500, llmMs: 6000, hidMs: 100)
+        (step.firstTokenMs, step.afterMs, step.verdictMs, step.landingMs, step.imageMs, step.treeMs) = (2600, 3100, 400, 900, 120, 30)
+        report.finished(step)
+        let value = report.take(at: 105)[StepReport.header] ?? ""
+        XCTAssertTrue(value.hasPrefix("llm=6.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=5.0,far=1,recal=0,ttft=2.6,after=3.1"), value)
+        XCTAssertFalse(value.contains("treems"), "under 50 ms: not sent")
+        XCTAssertLessThanOrEqual(value.split(separator: ",").count, StepReport.maxPairs, value)
+        XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
+    }
+
+    func testStepReportCarriesThePointersTrouble() {
+        let report = StepReport()
+        report.farLanding(); report.farLanding(); report.recalibrated()
+        report.replied(at: 100)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        let value = report.take(at: 104)[StepReport.header] ?? ""
+        XCTAssertEqual(value, "llm=2.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=4.0,far=2,recal=1")
+        XCTAssertLessThanOrEqual(value.count, 160, "the gateway drops a longer value")
+        report.clear()
+        report.replied(at: 200)
+        report.finished(Metrics.Step())
+        XCTAssertFalse((report.take(at: 201)[StepReport.header] ?? "").contains("far="), "a new run starts at 0")
     }
 }

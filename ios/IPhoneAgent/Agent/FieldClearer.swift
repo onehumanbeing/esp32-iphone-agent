@@ -8,13 +8,17 @@ import Foundation
     var key: (String) async throws -> Void
     /// The screen's text once it settled; nil = no live screen (then two bursts go out unchecked).
     var read: () async -> [String]?
+    /// The screen's text before the keys, read off the frame already shown while the first keys go out; nil = `read`
+    /// it first. 2026-11-25: a clear took 14 s at the median, three settle-and-OCR reads one after another.
+    var initial: (() async -> [String]?)? = nil
     static let burst = 12, rounds = 8
 
     /// nil = the field is empty; else a note for the model.
     func clear() async throws -> String? {
         try await key("cmd+down")
         try await key("cmd+right")
-        guard var before = await read() else {
+        let first = initial == nil ? await read() : nil
+        guard var before = initial == nil ? first : await initial?() else {
             for _ in 0..<2 { try await deleteBurst() }
             return "deleted \(2 * Self.burst) words unchecked (no screen to read)"
         }
@@ -46,13 +50,21 @@ extension Gestures {
 extension Pointer {
     /// The focused field emptied (FieldClearer); nil when it is, else a note for the model.
     func clearField() async throws -> String? {
-        let clearer = FieldClearer(key: { [self] in try await key($0) }, read: { [weak self] in
-            guard let screen = self?.screen, screen.live else { return nil }
-            await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
-            guard let image = screen.frame.flatMap(Vision.image) else { return nil }
+        func text(_ frame: Data?) async -> [String]? {
+            guard let image = frame.flatMap(Vision.image) else { return nil }
             let top = image.height * 6 / 100  // the status bar's clock is no progress
             return await UITreeOCR.lines(image).filter { $0.box[1] > top }.map(\.text)
+        }
+        // the frame the agent last looked at is the field before the keys: read while the keys go out
+        let shown = screen?.live == true ? screen?.frame : nil
+        let before = shown.map { frame in Task { await text(frame) } }
+        defer { before?.cancel() }
+        var clearer = FieldClearer(key: { [self] in try await key($0) }, read: { [weak self] in
+            guard let screen = self?.screen, screen.live else { return nil }
+            await screen.settled(quiet: 0.3, least: 0.5, most: 2.0)
+            return await text(screen.frame)
         })
+        if let before { clearer.initial = { await before.value } }
         let note = try await clearer.clear()
         log("clear: \(note ?? "the field is empty")")
         return note

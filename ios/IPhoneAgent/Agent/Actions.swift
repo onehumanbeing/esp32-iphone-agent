@@ -29,6 +29,14 @@ enum Actions {
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool", "guide", "file", "snap"]
 
+    /// "tap X Y twice": two clicks at one spot, the second where the first landed (a game's "tap twice", choose
+    /// then confirm). Kingdom Rush, 2026-11-26: the second of two taps was aimed again, landed 15 units off, and
+    /// neither the tower nor the wave call took.
+    static func twice(_ rest: String) -> Bool {
+        let r = rest.lowercased()
+        return r.contains("twice") || r.contains("double")
+    }
+
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
         let (head, rest) = partition(line.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -52,6 +60,9 @@ enum Actions {
             return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
+        if name == "wait", let n = numbers.first {  // wait 10: that long, for a video or an ad to end
+            return ["action": .str(name), "seconds": .num(min(max(Double(n), 1), WaitFor.most))]
+        }
         // tap 发送: words without quotes and no numbers are the words too (Qwen wrote it so; the whole reply was taken
         // as off-format and asked again, 5 s, in most runs of 2026-11-23)
         if name == "tap", numbers.isEmpty {
@@ -77,6 +88,7 @@ enum Actions {
         var action: JObject = ["action": .str(name)]
         for (k, n) in zip(keys, numbers) { action[k] = .int(n) }
         if name == "tap" && rest.lowercased().contains("precise") { action["precise"] = .bool(true) }
+        if name == "tap", Self.twice(rest) { action["count"] = .int(2) }
         return action
     }
 
@@ -102,6 +114,14 @@ enum Actions {
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
         acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
+        // a bare `DO: fail` or `DO: done` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only
+        // in THINK; 你好明天 written, done with no answer): the model's own words go in
+        for (name, key) in [("fail", "reason"), ("done", "answer")] {
+            if let i = acts.firstIndex(where: { $0["action"]?.str == name }), (acts[i][key]?.str ?? "").isEmpty,
+               let why = [zh, thought].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
+                acts[i][key] = .str(why)
+            }
+        }
         return acts
     }
 

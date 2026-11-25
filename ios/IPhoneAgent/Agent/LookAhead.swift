@@ -97,7 +97,7 @@ extension AgentLoop {
     func actorUserPrompt() -> String {
         let hidden: Set<String> = ["t", "plan", "plan_zh", "think_s", "act_s", "shot", "thought", "thought_zh", "changed",
                                    "replay", "jev", "planner", "landed", "opened", "typed", "again", "demo", "sure", "cached",
-                                   "timing", "repaired", "stale", "recorded"]
+                                   "timing", "repaired", "stale", "recorded", "still", "noframe"]
         let history = steps.suffix(8).filter {
             $0["plan"] == nil && $0["action"]?.str != Self.steerAction && $0["action"]?.str != Self.checkpointAction
         }.map { s -> String in
@@ -114,9 +114,11 @@ extension AgentLoop {
         let sound = heard?() ?? ""
         return "Goal: \(task)\(steeredSection)\(guide)\n\nPlan:\n\(plan.isEmpty ? "(none yet: write one)" : plan)\n\nRecent actions:\n"
             + (history.isEmpty ? "(none)" : history) + pinned + collected + (sound.isEmpty ? "" : "\n\n" + sound)
-            + (steps.last?["stale"] == .bool(true) ? Self.staleNote : "")  // iPad only: no frame after the last action
+            // no frame after the last action (an iPad's held frames, or a stalled stream: confirmStill)
+            + (steps.last?["stale"] == .bool(true) || steps.last?["noframe"] == .bool(true) ? Self.staleNote : "")
             + (handedBack ? HandBack.note(saved: savedInRunFolder()) : "")
             + recordHint
+            + StillRepeat.hint(steps)
             + "\n\n" + Self.replyFormat
     }
 

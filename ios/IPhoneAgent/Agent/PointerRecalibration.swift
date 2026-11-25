@@ -19,9 +19,11 @@ struct Recalibration {
     static let fraction = 0.06
     /// Taps after one recalibration before the next may run.
     static let every = 15
-    /// A recalibration that failed (pointer not found: a busy screen) is tried again this many taps later, at most
-    /// `retries` times in a row; the old calibration had already missed far (Henry 2026-11-11: lost = calibrate again).
-    static let retryAfter = 3, retries = 3
+    /// A recalibration that failed (pointer not found: a busy screen) is tried again this many taps later, the wait
+    /// doubling after each failure in a row (3, 6, 12 ... taps), never given up: the old calibration had already missed
+    /// far (Henry 2026-11-11: lost = calibrate again). It used to stop for good after 3 failures, and taps that
+    /// landed far off went on tapping wrong for the rest of the run.
+    static let retryAfter = 3
     private(set) var failures = 0
 
     private(set) var pending = false
@@ -60,7 +62,19 @@ struct Recalibration {
     /// Before a tap: true = recalibrate first (the miss is then dealt with, whatever the result).
     mutating func tap() -> Bool {
         taps += 1
-        if failures > 0 && failures <= Self.retries && !pending, let last, taps - last >= Self.retryAfter { pending = true }
+        if failures > 0 && !pending, let last, taps - last >= backoff { pending = true }
+        return take()
+    }
+
+    /// Taps to wait before trying again after `failures` failed recalibrations in a row.
+    var backoff: Int { Self.retryAfter << min(max(failures - 1, 0), 5) }
+
+    /// Far from the target again right after a re-home (two far landings around it): the calibration is off, not the
+    /// tracked position, so calibrate again now rather than press where the pointer is known to be wrong. Only the
+    /// wait after failed tries holds it (`backoff`), not the `every` taps that guard against stray single readings.
+    mutating func farFromCorner() -> Bool {
+        if failures > 0, let last, taps - last < backoff { return false }
+        pending = true
         return take()
     }
 
@@ -90,11 +104,11 @@ extension Pointer {
         locate = nil
         defer { locate = model }
         log("pointer: landed far from the target; calibrating again")
+        StepReport.shared.recalibrated()
         do {
             guard try await startCalibration(), let error = try await verify(), error <= AutoCalibrator.rejectAbove else {
                 recalibration.finished(ok: false)
-                let again = recalibration.failures <= Recalibration.retries
-                log("pointer: calibration again failed; the previous one stays" + (again ? ", trying again in \(Recalibration.retryAfter) taps" : ""))
+                log("pointer: calibration again failed; the previous one stays, trying again in \(recalibration.backoff) taps")
                 return restore(before)
             }
             recalibration.finished(ok: true)

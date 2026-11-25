@@ -127,6 +127,58 @@ import XCTest
         }
     }
 
+    /// The pinyin letters stayed composing and the name is only in the candidate bar: space, never a tap there
+    /// (2026-11-26: the tap's pointer search and settle took 13 s). Then the web-only result says not installed.
+    func testTheNameInTheCandidateBarIsPutInWithSpace() async throws {
+        let committed = Data([5])
+        var queue: [Data?] = [home, spotlight, committed]
+        var sent: [String] = [], tapped = 0
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["汽水音乐", "qi shui yin yue"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.language = "zh-Hans"
+        opener.readBoxes = { [committed] frame in
+            (frame == committed ? [("Suggestions", [40, 300, 300, 340]), ("汽水音乐", [140, 400, 400, 440])]
+                                : [("汽水音乐", [20, 1270, 240, 1300])], CGSize(width: 1000, height: 2000))
+        }
+        opener.tapAt = { _ in tapped += 1 }
+        let result = try await opener.open("汽水音乐")
+        XCTAssertEqual(result, .notFound)
+        XCTAssertEqual(tapped, 0)
+        XCTAssertTrue(sent.contains("space"))
+    }
+
+    /// The app's row is the Top Hit and the name went in as letters: Return opens it, no pointer search for a tap
+    /// (2026-11-26: the tap's pointer search was 5 s of an 18.6 s open). Letters still composing (Return only
+    /// commits them, Spotlight stays): the row is tapped after all. A name under another header is tapped.
+    func testTheTopHitIsOpenedWithReturn() async throws {
+        let committed = Data([5])
+        let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440]),
+                                                    ("Settings", [140, 1100, 400, 1140])]
+        for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
+                                     ([home, spotlight, committed, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, spotlight, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 1)] {
+            var queue: [Data?] = frames
+            var sent: [String] = [], tapped = 0
+            var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                                   read: { [home, app] in $0 == home ? [] : $0 == app ? ["General", "Privacy"] : ["Settings", "Settings", "Top Hit"] },
+                                   same: { $0 == $1 }, pause: { _ in })
+            opener.readBoxes = { _ in (topHit, CGSize(width: 1000, height: 2000)) }
+            opener.tapAt = { _ in tapped += 1 }
+            let result = try await opener.open("Settings")
+            XCTAssertEqual(result, .opened)
+            XCTAssertEqual(sent.filter { $0 == "enter" }, keys)
+            XCTAssertEqual(tapped, taps)
+        }
+        let size = CGSize(width: 1000, height: 2000)
+        let other: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("BlockThreat", [140, 250, 400, 290]),
+                                                   ("Applications", [40, 350, 300, 390]), ("Settings", [140, 450, 400, 490])]
+        XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows(other, labels: ["Settings"], size: size)))
+        XCTAssertTrue(AppOpener.isTopHit(AppOpener.resultRows(topHit, labels: ["Settings"], size: size)))
+        XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows([("Settings", [140, 400, 400, 440])], labels: ["Settings"], size: size)))
+    }
+
     /// Pinyin keyboard on (2026-11-20): the typed letters are still composing, only the field reads the name and a
     /// tap there does nothing. Return commits them, Spotlight stays (a new frame, its words still there), and the
     /// result row read then is tapped.
@@ -189,6 +241,22 @@ import XCTest
                                           labels: ["WeChat", "微信"], size: size)
         XCTAssertEqual(spots.map { Double($0.y) }, [0.26, 0.41])
         XCTAssertTrue(AppOpener.resultSpots([("WeChat", [0, 0, 1, 1])], labels: ["WeChat"], size: .zero).isEmpty)
+    }
+
+    func testAWebSuggestionIsNotTheApp() {
+        // 2026-11-25: 汽水音乐 not installed; Spotlight listed it only under Suggestions (a Chrome search)
+        let size = CGSize(width: 1000, height: 2000)
+        let lines: [(text: String, box: [Int])] = [
+            ("Suggestions", [40, 150, 300, 190]), ("汽水音乐", [140, 250, 400, 290]),
+            ("Manina AI", [40, 400, 300, 440]), ("测1 汽水音乐", [140, 520, 500, 560]),
+            ("Search in Apps", [40, 700, 400, 740]), ("Search App Store", [140, 800, 600, 840]),
+        ]
+        XCTAssertTrue(AppOpener.resultSpots(lines, labels: ["汽水音乐"], size: size).isEmpty)
+        XCTAssertTrue(AppOpener.onlyOnTheWeb(lines, labels: ["汽水音乐"], size: size))
+        let installed: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("汽水音乐", [140, 250, 400, 290]),
+                                                       ("Suggestions", [40, 350, 300, 390]), ("汽水音乐", [140, 450, 400, 490])]
+        XCTAssertEqual(AppOpener.resultSpots(installed, labels: ["汽水音乐"], size: size).map { Double($0.y) }, [0.135])
+        XCTAssertFalse(AppOpener.onlyOnTheWeb(installed, labels: ["汽水音乐"], size: size))
     }
 
     func testSpotlightThatNeverCameUpIsTriedAgainWithoutReturn() async throws {

@@ -187,13 +187,50 @@ enum AppNames {
                 }
                 return task.contains(name)
             }
-            if let hit, !found.contains(where: { $0.row == i }) { found.append((i, hit)) }
+            if let hit, !found.contains(where: { $0.row == i }), standsAlone(hit, in: task) { found.append((i, hit)) }
         }
         // a name inside a longer one is that app's, not another: 美团外卖 is not 美团 (2026-11-17)
         let all = found
         found.removeAll { short in all.contains { $0.row != short.row && $0.name.count > short.name.count
             && $0.name.localizedCaseInsensitiveContains(short.name) } }
         return found.count == 1 ? found[0].name : nil
+    }
+
+    /// System apps named with a plain noun, which other apps' names end in: 网易云音乐, QQ音乐, 墨迹天气, 腾讯视频,
+    /// QQ Music, Google Maps. A task naming a music app not in the table matched 音乐 and opened Apple Music, then
+    /// ended with a wrong "done" there.
+    static let generic: Set<String> = ["音乐", "Music", "地图", "Maps", "天气", "Weather", "视频", "Videos", "文件", "Files",
+                                       "邮件", "Mail", "信息", "Messages", "短信", "相机", "Camera", "照片", "Photos",
+                                       "相册", "日历", "Calendar", "时钟", "Clock", "电话", "Phone", "计算器", "Calculator",
+                                       "翻译", "Translate", "钱包", "Wallet", "健康", "Health", "图书", "Books", "播客",
+                                       "Podcasts", "股市", "Stocks"]
+    /// What may come right before a plain-noun name that means the system app itself: a verb or preposition
+    /// (打开音乐, 在地图里, 发短信, 播放音乐, 设个闹钟 …, "open Maps", "in Music").
+    static let leadIn: Set<Character> = Set("开在用去到进入从回上发给和跟与把让帮叫打找看听玩查搜点启动个的设定建写记存拍放过使")
+    static let leadWords: Set<String> = ["open", "in", "on", "use", "using", "launch", "start", "to", "into", "from", "the",
+                                         "my", "with", "via", "go", "check", "and", "then", "apple", "iphone", "ios"]
+
+    /// A plain-noun name counts only where it is not the end of a longer name: what stands right before it is the
+    /// start, punctuation, a space after a lead-in word, or a lead-in character. Other names always count.
+    static func standsAlone(_ name: String, in task: String) -> Bool {
+        guard generic.contains(name) else { return true }
+        var from = task.startIndex
+        while let r = task.range(of: name, options: .caseInsensitive, range: from..<task.endIndex) {
+            from = r.upperBound
+            guard r.lowerBound > task.startIndex else { return true }
+            let before = task[task.index(before: r.lowerBound)]
+            if name.allSatisfy(\.isASCII) {
+                if before.isLetter || before.isNumber { continue }  // inside a word: the regex already refuses it
+                let word = task[..<r.lowerBound].trimmingCharacters(in: .whitespaces).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).last
+                if before.isWhitespace, let word, word.allSatisfy(\.isASCII), !leadWords.contains(word.lowercased()) {
+                    continue  // "QQ Music", "Google Maps"
+                }
+                return true
+            }
+            if before.isLetter || before.isNumber, !leadIn.contains(before) { continue }  // 网易云音乐, QQ音乐
+            return true
+        }
+        return false
     }
 
     /// The table's row for `name` (any of its names, localized ones included).

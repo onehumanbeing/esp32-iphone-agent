@@ -69,6 +69,7 @@ extension AgentLoop {
         let helped = round.contains { $0["action"]?.str == "help" }
         let big = await Vision.off { Vision.bigChange(before, frame, ignore: spots) }
         if try await touchless(big: big) { return true }
+        if try await stillAgain() { return true }
         guard progress.note(Array(acts), big: big || helped) else { return false }
         DebugLog.write("no progress: the same action \(NoProgress.limit + 1) rounds in a row, the screen much the same")
         record(nil, ["action": .str("fail"), "reason": .str(NoProgress.reason)])

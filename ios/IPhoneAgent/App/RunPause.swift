@@ -30,7 +30,7 @@ extension AppModel {
             try await Task.sleep(nanoseconds: 300_000_000)
         }
         agent.notePauseInterrupted()  // only a chosen gesture is dropped; a look after Continue still acts
-        _ = await feed.fresh(since: since, timeout: 3)
-        await feed.settled()
+        _ = await screen.fresh(since: since, timeout: 3)
+        await screen.settled()
     }
 }

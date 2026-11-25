@@ -30,6 +30,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_W_LOCKED] = "iPhone is locked", [SWT_W_LOCKED_FIX] = "Unlock it and the task goes on",
         [SWT_W_HID] = "Bluetooth lost", [SWT_W_HID_FIX] = "iPhone Settings > Bluetooth, connect",
         [SWT_W_HIDE] = "Blue: hide",
+        [SWT_SCREEN_OWN] = "Screen Recording on", [SWT_DOT_OWN] = "Recording",
     },
     [SW_ZH] = {
         [SWT_BATTERY] = "电量 ", [SWT_BATTERY_NONE] = "电量 --",
@@ -59,6 +60,7 @@ static const char *const TEXT[SW_LANGS][SWT_COUNT] = {
         [SWT_W_LOCKED] = "iPhone 锁屏了", [SWT_W_LOCKED_FIX] = "解锁后任务会继续",
         [SWT_W_HID] = "蓝牙断开了", [SWT_W_HID_FIX] = "在 iPhone 设置 › 蓝牙 里连接",
         [SWT_W_HIDE] = "蓝色关闭",
+        [SWT_SCREEN_OWN] = "录屏 已开启", [SWT_DOT_OWN] = "录屏",
     },
 };
 

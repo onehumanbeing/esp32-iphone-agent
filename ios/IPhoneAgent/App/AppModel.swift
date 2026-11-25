@@ -15,7 +15,16 @@ import UIKit
 
     let settings = Settings()
     let board = BoardLink(mock: MockMode.on)
-    let feed = VideoFeed()
+    let feed: VideoFeed  // AirPlay, through the board
+    /// What the agent, the pointer and the run's recording look at: `feed`, or on iOS 27+ the phone's own capture
+    /// (CaptureBackend, ScreenCapture.swift).
+    let screen: TaskScreen
+    /// Set only through setCaptureBackend, which also switches `screen`.
+    @Published var captureBackend: CaptureBackend
+    var onDeviceCapture: Bool { !MockMode.on && captureBackend == .onDevice }
+    /// The ScreenCaptureFeed on iOS 27+ (`ownCapture`), kept as a ScreenSource: its type does not exist before.
+    let ownCaptureSource: ScreenSource?
+    var screenCleanup: Task<Void, Never>?  // stopping one capture finishes before the next run starts one
     private var lastVideoToken: String?
     private var lastNetRead = 0.0
     let wifiVideo: WifiVideoLink = VideoTransport.current.init()  // video over the board's Wi-Fi; BLE carries it while this is down
@@ -78,6 +87,7 @@ import UIKit
     var startupTask: Task<Void, Never>?
     var returningInput = false
     @Published var stopping = false  // Stop was tapped; input is being handed back
+    var stopBy: String?  // where this run's stop came from (RunEnd.by), reset at each start
     var handoffStop = AsyncStream<Void>.makeStream()
     var lastPartialReleaseNoticeLink: Int?
     var runModelRevision = 0
@@ -159,13 +169,29 @@ import UIKit
     }
 
     init() {
+        let feed = VideoFeed()
+        self.feed = feed
+        let backend = CaptureBackend.current
+        captureBackend = backend
+        let screen = TaskScreen(source: feed, frames: feed.$frame)
+        self.screen = screen
+        if #available(iOS 27.0, *) {
+            let board = self.board
+            let capture = ScreenCaptureFeed(controlLink: { board.connected })
+            ownCaptureSource = capture
+            if !MockMode.on && backend == .onDevice { screen.select(capture, frames: capture.$frame) }
+        } else {
+            ownCaptureSource = nil
+        }
+        DebugLog.write("capture: \(backend.rawValue) (\(CaptureBackend.support))")
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         pointer = Pointer(device: board.commands, calibrationFile: support.appendingPathComponent("calibration.json"),
-                          screen: feed)
-        agent = AgentLoop(phone: pointer, screen: feed, actor: nil, planner: nil, trace: traces)
+                          screen: screen)
+        agent = AgentLoop(phone: pointer, screen: screen, actor: nil, planner: nil, trace: traces)
         PhoneMouse.start()
         MainLag.shared.start()
+        OSUpdate.note()
         agent.metrics = metrics
         agent.island = { DeviceScreen.island }
         agent.heard = { [weak self] in self?.audio.heard() ?? "" }
@@ -284,7 +310,7 @@ import UIKit
             metrics.mtu = board.mtu
             updateWifiVideo()
             readBoardPace()
-            if agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
+            if !onDeviceCapture && agent.running && !MockMode.on && FrameMode.current == .stream {  // the board forgot `stream on`: the paused run needs the screen back
                 Task { [weak self] in
                     do { try await self?.feed.stream(true); DebugLog.write("recover: BLE back, stream on again") } catch {
                         DebugLog.write("recover: stream on after reconnect failed: \(error.localizedDescription)")
@@ -306,15 +332,16 @@ import UIKit
         DebugLog.write("frame mode: \(FrameMode.current.rawValue)")
         AppNames.warm()  // the app-name tables, off the main thread before the first run
         board.commands.onTiming = { [weak self] name, ms in self?.metrics.hidMs[name] = ms }
+        board.commands.ownScreen = onDeviceCapture
         agent.beforeFinish = { [weak self] in
             guard let self else { return }
             if !self.agent.handedBack { await self.returnInput(checkKeyboard: true) }  // else already given back
-            try? await self.feed.stream(false)
+            await self.releaseScreen()
         }
         agent.onHandBack = { [weak self] in  // collected: the phone is the user's while the result is written
             guard let self else { return }
             await self.returnInput(checkKeyboard: true)
-            try? await self.feed.stream(false)
+            await self.releaseScreen()
             Haptics.success()
         }
         agent.onFinish = { [weak self] in self?.agentFinished() }
@@ -331,6 +358,7 @@ import UIKit
             self.notifier.post(kind, title: String(localized: "Unattended run"), body: text, run: self.runID)
         }
         agent.gate = { [weak self] in
+            try self?.screen.checkAvailability()
             try await self?.holdWhileInFront()
             try await self?.holdWhilePaused()
             try self?.validateRunGeometry()
@@ -351,7 +379,7 @@ import UIKit
         timers.append(Task { [weak self] in
             await self?.board.commands.keepAwake {
                 guard let self else { return false }
-                return self.feed.live && !self.returningInput
+                return self.screen.live && !self.returningInput
             } nudgeWhenIdle: {
                 guard let self else { return false }
                 return self.agent.policy.keepAwake && self.agent.running && self.board.status?.usb != "asleep" && !self.phoneLocked
@@ -369,6 +397,7 @@ import UIKit
                 self?.backgroundEnteredAt = now()
                 self?.metrics.enteredBackground()
                 DebugLog.write("app: background")
+                self?.feed.enteredBackground()
             }
         }
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -399,7 +428,8 @@ import UIKit
     }
 
     /// A new per-boot video token: the board rebooted, its GOP and timestamps are new, so no resume.
-    private func updateWifiVideo() {
+    func updateWifiVideo() {
+        guard !onDeviceCapture else { wifiVideo.stop(); return }
         // Read at connect while the board was still joining Wi-Fi after power-on, the address stays empty and the
         // video goes over BLE only (2026-11-06): read it again every 5 s until there is one.
         if [nil, "", "0.0.0.0"].contains(board.net?.ip), now() - lastNetRead > 5 {
@@ -426,7 +456,7 @@ import UIKit
         if board.connected && !MockMode.on { updateWifiVideo() }
         shareHearing()
         // Wi-Fi video not up on the idle home screen: maybe the Local Network permission was never given
-        if !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
+        if !onDeviceCapture && !MockMode.on && !wifiVideo.active && !agent.running && UIApplication.shared.applicationState == .active {
             LocalNetworkPermission.askIfNeeded()
         }
         if metrics.suspensions > before { DebugLog.write(String(format: "app: resumed after %.0f s suspended", gap)) }
@@ -463,6 +493,7 @@ import UIKit
     /// snap-per-step for the rest of this run (the next run streams again).
     private func commandTimedOut(_ command: String) async {
         startupBoardUnavailable(disconnected: !board.connected)
+        guard !onDeviceCapture else { return }
         DebugLog.write("cmd timeout on '\(command.prefix(30))': stream off, snap-per-step for this run")
         FrameMode.fallback = .snap
         if feed.streamOn { _ = try? await feed.stream(false) }
@@ -472,7 +503,7 @@ import UIKit
     /// Starting mid-GOP meant a snap of the whole GOP at Start (up to ~570 KB at ~140 kbps over BLE, 20-60 s
     /// before the first frame; 2026-10-17 runs); now that wait overlaps typing the task. Off in Advanced.
     func prewarmStream() {
-        guard Self.prewarmOn, !MockMode.on, FrameMode.current == .stream, board.connected, !agent.running,
+        guard !onDeviceCapture, Self.prewarmOn, !MockMode.on, FrameMode.current == .stream, board.connected, !agent.running,
               prewarmJob == nil, UIApplication.shared.applicationState != .background else { return }
         prewarmJob = Task { [weak self] in
             defer { self?.prewarmJob = nil }
@@ -487,6 +518,7 @@ import UIKit
 
     func setFrameMode(_ mode: FrameMode) {
         FrameMode.current = mode
+        guard !onDeviceCapture else { return }
         say("frame mode: \(mode.rawValue)")
         if mode == .stream && agent.running { Task { try? await feed.stream(true) } }
         if mode == .stream { prewarmStream() }
@@ -519,7 +551,10 @@ import UIKit
             DebugLog.write("board: booted \(up / 1000) s ago (reset: \(s.rst ?? "?"), heap \((s.heap ?? 0) / 1024) KB)")
             reportBoardReboot(s, up: up)
             // On another Wi-Fi with the board (station mode, harness/board.py net sta) there is no hotspot to rejoin.
-            if (wasOnBoardWiFi || hotspotSSID != nil) && board.net?.mode != "sta" { rejoinAfterReboot() }
+            // The status says so before `net` is read again (it is nil until then: the board on this iPhone's own
+            // hotspot was taken for a hotspot board, and the phone told to join itself, 2026-11-25).
+            let onOtherWiFi = board.net?.mode == "sta" || s.net == "sta" || s.net == "none"
+            if (wasOnBoardWiFi || hotspotSSID != nil) && !onOtherWiFi { rejoinAfterReboot() }
         }
     }
 
@@ -572,7 +607,8 @@ import UIKit
     /// The model endpoint is filled in (demo data simulates one).
     var modelReady: Bool {
         MockMode.on || (settings.isConfigured && settings.currentModel != nil
-            && (settings.provider == .others || settings.provider == .handsyTrial || !settings.apiKey.isEmpty))
+            && (settings.provider == .others || settings.provider == .handsyTrial || !settings.apiKey.isEmpty
+                || settings.provider == .chatGPT && ChatGPTAuth.shared.signedIn))
     }
 
     func say(_ text: String) {
@@ -727,7 +763,7 @@ extension AppModel {
     func setListening(_ on: Bool) {
         audio.enabled = on && !MockMode.on
         audio.screenLines = { [weak self] in
-            guard let jpeg = self?.feed.frame, let image = Vision.image(jpeg) else { return [] }
+            guard let jpeg = self?.screen.frame, let image = Vision.image(jpeg) else { return [] }
             return await UITreeOCR.lines(image, languages: nil).map(\.text)
         }
         if audio.enabled { audio.prepare() }

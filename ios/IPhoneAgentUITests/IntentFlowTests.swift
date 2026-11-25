@@ -1,6 +1,68 @@
 import XCTest
 
 final class IntentFlowTests: XCTestCase {
+    /// Settings shows the screen source only where the phone and this build can record the screen
+    /// (CaptureBackend.Support): iOS 27+, built with Xcode 27+, the `screen-capture` background mode declared.
+    @MainActor private func captureOffered(_ app: XCUIApplication) -> Bool {
+        app.tabBars.buttons["Settings"].tap()
+        return app.buttons["capture-backend"].waitForExistence(timeout: 3)
+    }
+
+    @MainActor func testCaptureSelectionUpdatesHome() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "NO", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+                               "-captureBackend", "onDevice", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 15))
+        guard captureOffered(app) else {  // a saved Screen Recording choice falls back to AirPlay
+            XCTAssertFalse(app.staticTexts["Screen Recording"].exists)
+            app.tabBars.buttons["Agent"].tap()
+            XCTAssertTrue(app.buttons["Mirroring"].exists)
+            XCTAssertFalse(app.buttons["home-capture-source"].exists)
+            return
+        }
+        for choice in ["AirPlay", "Screen Recording"] {
+            app.tabBars.buttons["Settings"].tap()
+            app.buttons["capture-backend"].tap()
+            app.buttons[choice].tap()
+            app.tabBars.buttons["Agent"].tap()
+            XCTAssertTrue(app.buttons["Model"].exists)
+            XCTAssertEqual(app.buttons["Mirroring"].exists, choice == "AirPlay")
+            if choice == "Screen Recording" {
+                let source = app.buttons["home-capture-source"]
+                XCTAssertTrue(source.waitForExistence(timeout: 5))
+                XCTAssertLessThan(source.frame.height, 60, "Capture chip must stay compact")
+                source.tap()
+                XCTAssertTrue(app.buttons["capture-backend"].waitForExistence(timeout: 5))
+            }
+        }
+    }
+
+    @MainActor func testSetupSkipsMirroringOnlyForOnDeviceCapture() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "NO", "-onboarded", "YES", "-sharePrivacyAsked", "YES",
+                               "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 15))
+        let offered = captureOffered(app)
+        app.terminate()
+        for backend in ["airPlay", "onDevice"] {
+            app.launchArguments = ["-demoData", "NO", "-onboarded", "NO", "-acceptedDisclaimer", "YES",
+                                   "-captureBackend", backend, "-sharePrivacyAsked", "YES",
+                                   "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+            app.launch()
+            XCTAssertTrue(app.buttons["Get Started"].waitForExistence(timeout: 15))
+            app.buttons["Get Started"].tap()
+            XCTAssertTrue(app.buttons["Later"].waitForExistence(timeout: 5))
+            app.buttons["Later"].tap()
+            let expected = backend == "onDevice" && offered ? "Let Me Use the Pointer" : "Let Me See the Screen"
+            XCTAssertTrue(app.staticTexts[expected].waitForExistence(timeout: 5))
+            app.terminate()
+        }
+    }
+
     @MainActor private func launch(largeText: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-mock", "-freshRecordings", "-onboarded", "YES", "-sharePrivacyAsked", "YES",

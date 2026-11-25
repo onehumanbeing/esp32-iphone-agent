@@ -30,6 +30,7 @@ struct TrialSection: View {
 struct TrialPanel: View {
     @ObservedObject private var trial = Trial.shared
     @State private var key = Trial.shared.key
+    private var keyText: String { key.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
@@ -40,13 +41,9 @@ struct TrialPanel: View {
                 Button { Task { _ = await trial.refresh() } } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).accessibilityLabel("Check again")
             }
-            Text("Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model.")
+            Text("Free to try with limited capacity: a few runs per phone. When it's busy, try again in a minute or add your own model.")
                 .font(.footnote).foregroundStyle(.secondary)
-            SecureField("Manina AI key", text: $key, prompt: Text("Manina AI key (optional)"))
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .onValueChange(of: key) { _, new in trial.setKey(new) }
-            Text("With a Manina AI key, runs use your plan instead of the free runs.")
-                .font(.footnote).foregroundStyle(.secondary)
+            if Trial.keysOffered { keyField }
             #if HANDSY_STORE
             HandsyStoreEntry()
             #endif
@@ -54,6 +51,22 @@ struct TrialPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Space.s)
         .task { _ = await trial.refresh() }
+    }
+
+    @ViewBuilder private var keyField: some View {
+        SecureField("Manina AI key", text: $key, prompt: Text("Manina AI key (optional)"))
+            .textInputAutocapitalization(.never).autocorrectionDisabled()
+            .onValueChange(of: key) { _, new in
+                // only a whole key is saved: half a key or other text keeps the free line
+                let value = new.trimmingCharacters(in: .whitespacesAndNewlines)
+                if value.isEmpty || Trial.looksLikeKey(value) { trial.setKey(value) }
+            }
+        if !keyText.isEmpty && !Trial.looksLikeKey(keyText) {
+            Text("This isn't a Manina AI key (it starts with hsk_live_). Runs use the free line until a key is filled in.")
+                .font(.footnote).foregroundStyle(Palette.stop)
+        }
+        Text("With a Manina AI key, runs use your plan instead of the free runs.")
+            .font(.footnote).foregroundStyle(.secondary)
     }
 }
 

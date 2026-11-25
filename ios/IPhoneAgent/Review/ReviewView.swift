@@ -56,7 +56,7 @@ struct ReviewView: View {
                         .font(.subheadline).multilineTextAlignment(.center)
                     if !app.startingAgent {
                         Button(app.stopping ? LocalizedStringKey("Stopping…") : "Stop", systemImage: "stop.fill") {
-                            Task { await app.stopAgent() }
+                            Task { await app.stopAgent(by: "review") }
                         }
                             .buttonStyle(.bordered)
                             .disabled(app.stopping)

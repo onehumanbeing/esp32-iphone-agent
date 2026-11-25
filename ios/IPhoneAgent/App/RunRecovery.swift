@@ -7,17 +7,30 @@ extension AppModel {
 
     func wireRecovery() {
         agent.link = { [unowned self] in
-            Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
-                          net: board.status?.net,
-                          frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
-                          stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
-                          usb: phoneUSB, locked: phoneLocked)
+            recoveryLink
         }
         agent.onRecover = { [weak self] stage in
             guard let self, self.linkRecoveryDisplay == nil else { return }
             self.recover(stage)
         }
         agent.restore = { [weak self] in try await self?.restoreRun() }
+    }
+
+    var recoveryLink: Recovery.Link {
+        var link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta,
+                                 ap: board.status?.ap, net: board.status?.net,
+                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,  // snap mode: restore snaps a fresh one
+                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
+                                 usb: phoneUSB, locked: phoneLocked)
+        if onDeviceCapture {
+            // The phone sees itself: the board's Wi-Fi and AirPlay play no part, only its pointer does. A still screen
+            // sends no new frames, yet the last one is current while the capture runs (ScreenCaptureFeed.live).
+            link.sta = nil
+            link.ap = "streaming"
+            link.frameAt = screen.live ? now() : 0
+            link.stalled = false
+        }
+        return link
     }
 
     /// Surface a disconnect even while a model HTTP request is still in flight.
@@ -33,11 +46,7 @@ extension AppModel {
             linkRecoveryDisplay = nil
             return
         }
-        let link = Recovery.Link(connected: board.connected && board.status?.inputState != nil, sta: board.status?.sta, ap: board.status?.ap,
-                                 net: board.status?.net,
-                                 frameAt: feed.frozen ? 0 : FrameMode.current == .snap ? now() : feed.updated,
-                                 stalled: feed.frozen || feed.undecodable, needsPointer: board.status?.needsWirelessPointer == true,
-                                 usb: phoneUSB, locked: phoneLocked)
+        let link = recoveryLink
         switch display.next(link, at: now()) {
         case .wait(let stage):
             linkRecoveryDisplay = display
@@ -51,10 +60,22 @@ extension AppModel {
         }
     }
 
+    func recoveryStatus(_ stage: Recovery.Stage) -> IslandStatus {
+        guard onDeviceCapture, stage.part == .frames else { return stage.status }
+        return IslandStatus(short: String(localized: "Waiting frame…"),
+                            full: String(localized: "Waiting for a screen image…"), look: nil,
+                            minimal: String(localized: "Frame"))
+    }
+
+    func recoveryLine(_ stage: Recovery.Stage) -> String {
+        onDeviceCapture && stage.part == .frames ? recoveryStatus(stage).full : stage.line
+    }
+
     func recover(_ stage: Recovery.Stage?) {
         let was = recovering
         recovering = stage
-        board.commands.uiWarn = stage.flatMap { $0.ask ? StopWatchUI.warning($0.part) : nil }  // the StopWatch says it
+        // The StopWatch says it; its "restart Screen Mirroring" would be wrong while the phone captures itself.
+        board.commands.uiWarn = stage.flatMap { $0.ask && !(onDeviceCapture && $0.part == .frames) ? StopWatchUI.warning($0.part) : nil }
         guard let stage else {
             if agent.running { RunMarker.set("running") }
             notifier.clearLinkAsks()
@@ -66,19 +87,25 @@ extension AppModel {
             DebugLog.write("recover: board rebooted \(up / 1000) s ago (reset: \(board.status?.rst ?? "?"))")
         }
         DebugLog.write("recover: \(stage.logLine)")
-        if stage.part == .frames && stage.ask { updateMirrorHint(staleNow: true) }  // "reconnect mirroring"
-        if stage.ask && (stage.part == .frames || stage.part == .mirroring) && was?.ask != true { videoHealth.mirrorAsked += 1 }
+        if !onDeviceCapture && stage.part == .frames && stage.ask { updateMirrorHint(staleNow: true) }  // "reconnect mirroring"
+        if !onDeviceCapture && stage.ask && (stage.part == .frames || stage.part == .mirroring) && was?.ask != true {
+            videoHealth.mirrorAsked += 1
+        }
         if agent.running { RunMarker.set("running, recovering \(stage.part)\(stage.ask ? ", asked the user" : "")") }
         runMood = .listening
-        live.update(mood: .listening, step: moveCount, line: stage.line, phase: .running, status: stage.status)
-        if stage.ask { notifier.post(kind(stage.part), title: title(stage), body: stage.line, run: runID) }
+        live.update(mood: .listening, step: moveCount, line: recoveryLine(stage), phase: .running, status: recoveryStatus(stage))
+        if stage.ask { notifier.post(kind(stage.part), title: title(stage), body: recoveryLine(stage), run: runID) }
     }
 
     /// Live again: the board may have rebooted (stream off, button state unknown) and the screen moved on.
     func restoreRun() async throws {
         DebugLog.write(String(format: "recover: live again after %.0f s", Date().timeIntervalSince(recoverySince)))
-        if FrameMode.current == .stream && !feed.streamOn { try await feed.stream(true) }
-        DebugLog.write("recover: fresh frame (" + (try await feed.currentFrame()) + ")")
+        if onDeviceCapture {
+            try screen.checkAvailability()
+        } else {
+            if FrameMode.current == .stream && !feed.streamOn { try await feed.stream(true) }
+            DebugLog.write("recover: fresh frame (" + (try await feed.currentFrame()) + ")")
+        }
         try await pointer.reset()  // a gesture cut off mid-way may have left the button down
         DebugLog.write("recover: button released, pointer re-homed; going on from step \(moveCount)")
         live.update(mood: .thinking, step: moveCount, line: String(localized: "Back online. Going on from here…"),

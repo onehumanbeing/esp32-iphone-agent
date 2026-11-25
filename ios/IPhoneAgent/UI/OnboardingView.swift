@@ -21,15 +21,18 @@ struct OnboardingView: View {
     @State private var lanPass = ""
     @State private var lanRemember = true
     @State private var toBluetooth = false  // Connect page: the board was switched to Bluetooth (BluetoothSteps)
+    @State private var askBoard = false  // first launch: "Do you have an ESP32 board?" on the Welcome page
+    @State private var boardAnswer: BoardQuestion.Answer?
 
     init(app: AppModel, board: BoardLink, feed: VideoFeed, settings: Settings, calibrator: AutoCalibrator,
          pointer: Pointer, start: SetupPage) {
         self.app = app; self.board = board; self.feed = feed; self.settings = settings
         self.calibrator = calibrator; self.pointer = pointer; self.start = start
-        _page = State(initialValue: start)
+        _page = State(initialValue: app.onDeviceCapture && start == .see ? .act : start)
         _accepted = State(initialValue: settings.acceptedDisclaimer)
         _onWiFi = State(initialValue: app.hotspotSSID != nil)
         _lanChoice = State(initialValue: app.lanMode || !DeviceCaps.hasCellular)
+        _askBoard = State(initialValue: start == .welcome && BoardQuestion.shouldAsk(onboarded: settings.onboarded))
     }
 
     var body: some View {
@@ -62,19 +65,23 @@ struct OnboardingView: View {
 
     // MARK: - chrome
 
+    private var steps: [SetupPage] {
+        SetupPage.allCases.filter { $0 != .welcome && (!app.onDeviceCapture || $0 != .see) }
+    }
+
     private var single: Bool { settings.onboarded }  // opened from a Home chip: just this page
 
     private var topBar: some View {
         HStack {
             if page != .welcome && !single {
                 HStack(spacing: 6) {
-                    ForEach(SetupPage.allCases.dropFirst()) { p in
+                    ForEach(steps) { p in
                         Capsule().fill(p.rawValue <= page.rawValue ? Color.accentColor : Color(uiColor: .tertiarySystemFill))
                             .frame(width: p == page ? 22 : 8, height: 8)
                     }
                 }
                 .accessibilityElement()
-                .accessibilityLabel(Text("Step \(page.rawValue) of 4"))
+                .accessibilityLabel(Text("Step \((steps.firstIndex(of: page) ?? 0) + 1) of \(steps.count)"))
             }
             Spacer()
             if single || page != .welcome {
@@ -101,7 +108,7 @@ struct OnboardingView: View {
     private func advance() {
         forward = true
         if single || page == .brain { return finish() }
-        if let next = SetupPage(rawValue: page.rawValue + 1) { page = next }
+        if let next = steps.first(where: { $0.rawValue > page.rawValue }) { page = next }
         Haptics.tick()
     }
 
@@ -119,6 +126,14 @@ struct OnboardingView: View {
     }
 
     // MARK: - per page state
+
+    /// Yes goes on as before (once the risks were accepted); Not yet opened the where-to-buy page and stays here.
+    private func answerBoard(_ answer: BoardQuestion.Answer) {
+        BoardQuestion.record(answer)
+        boardAnswer = answer
+        Haptics.tick()
+        if answer == .yes && accepted { advance() }
+    }
 
     private var streaming: Bool { board.connected && board.status?.ap == "streaming" }
 
@@ -147,7 +162,7 @@ struct OnboardingView: View {
     }
 
     /// The mouse and mirroring are up: calibration can run.
-    private var actReady: Bool { MockMode.on || (calibrator.boardReady && calibrator.mirroring) }
+    private var actReady: Bool { MockMode.on || (calibrator.boardReady && (app.onDeviceCapture || calibrator.mirroring)) }
 
     /// On the network of the chosen mode (a board still in the other mode switches first).
     private var onHotspot: Bool { lanChoice == app.lanMode && app.onBoardHotspot(manual: onWiFi) }
@@ -172,7 +187,8 @@ struct OnboardingView: View {
             }
             if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
-            return actReady ? "Calibrate" : "Waiting for the mouse…"
+            if actReady { return "Calibrate" }
+            return MockMode.on || calibrator.boardReady ? "Waiting for mirroring…" : "Waiting for the mouse…"
         case .brain:
             if app.modelOK == true { return "Start Using \(AppName.current)" }
             return testing ? "Testing…" : "Test Connection"
@@ -181,7 +197,7 @@ struct OnboardingView: View {
 
     var primaryEnabled: Bool {
         switch page {
-        case .welcome: return true
+        case .welcome: return !askBoard || boardAnswer != nil
         case .connect: return board.connected || (board.state == .poweredOn && !waiting)
         case .see: return streaming || (!onHotspot && (lanChoice ? !app.lanJoin.busy && !lanSSID.isEmpty : !app.join.busy && !app.lanJoin.busy))
         case .act: return calibrator.hasValidCalibration ? pageDone : !calibrator.busy && actReady
@@ -223,7 +239,9 @@ struct OnboardingView: View {
 
     @ViewBuilder private var pageContent: some View {
         switch page {
-        case .welcome: WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning)
+        case .welcome:
+            WelcomePage(accepted: accepted, wireless: board.status?.isWirelessHID == true || DeviceCaps.hasLightning,
+                        boardQuestion: askBoard ? BoardQuestionPanel(answer: boardAnswer) { answerBoard($0) } : nil)
         case .connect: ConnectPage(board: board, toBluetooth: $toBluetooth)
         case .see: SeePage(app: app, board: board, onWiFi: $onWiFi, lanChoice: $lanChoice,
                            lanSSID: $lanSSID, lanPass: $lanPass, lanRemember: $lanRemember)

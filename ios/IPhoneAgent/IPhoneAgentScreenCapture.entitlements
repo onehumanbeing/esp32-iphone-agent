@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- IPhoneAgent.entitlements plus com.apple.developer.screen-recording, which Apple's iOS 27 "Capturing screen content
+     on iOS" sample declares. Keep the two files in step; Config/Shared.xcconfig says when to use this one. -->
+<dict>
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>$(IA_APP_ATTEST_ENV)</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.$(IA_BUNDLE_ID)</string>
+	</array>
+	<key>com.apple.developer.networking.HotspotConfiguration</key>
+	<true/>
+	<key>com.apple.developer.networking.wifi-info</key>
+	<true/>
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
+	<key>com.apple.developer.screen-recording</key>
+	<true/>
+</dict>
+</plist>

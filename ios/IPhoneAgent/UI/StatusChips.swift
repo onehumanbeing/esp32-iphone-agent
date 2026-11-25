@@ -11,7 +11,13 @@ struct StatusChips: View {
     var body: some View {
         FlowLayout(spacing: Space.s) {
             chip("Board", "cable.connector", ok: board.connected, page: .connect)
-            chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
+            if app.onDeviceCapture {
+                // Sharing starts with a task (the system asks then), so between runs this chip is not a fault.
+                chip("Screen Recording", "record.circle", ok: true, page: nil)
+                    .accessibilityIdentifier("home-capture-source")
+            } else {
+                chip("Mirroring", "rectangle.on.rectangle", ok: board.connected && board.status?.ap == "streaming", page: .see)
+            }
             chip("Mouse", "cursorarrow", ok: board.connected && board.status?.inputReady == true, page: .act)
             chip(calibrator.busy ? "Calibrating" : "Pointer", "scope", ok: calibrator.hasValidCalibration, busy: calibrator.busy, page: .act)
             chip(app.settings.provider == .handsyTrial && app.modelOK == false
@@ -22,10 +28,11 @@ struct StatusChips: View {
     }
 
     private func chip(_ title: LocalizedStringKey, _ symbol: String, ok: Bool, busy: Bool = false,
-                      page: SetupPage) -> some View {
+                      page: SetupPage?) -> some View {
         Button {
             Haptics.tick()
-            app.setupPage = page
+            if let page { app.setupPage = page }
+            else { app.tab = .settings }
         } label: {
             HStack(spacing: 5) {
                 if busy {

@@ -56,6 +56,7 @@ struct HelpPanel: View {
     private var stalled: Bool { reason.hasPrefix(AgentLoop.stallReason) }
     private var touchless: Bool { reason == TouchCheck.reason }
     private var repeating: Bool { reason == NoProgress.reason }  // a stall too (its prefix): the same buttons
+    private var stillRepeat: Bool { reason == StillRepeat.reason }  // a stall too
     /// Model rounds failed in a row: "3 errors in a row" said nothing to users (2026-11-20); the agent words it.
     private var erring: Bool { reason.hasSuffix(AgentLoop.errorsReason) }
 
@@ -97,6 +98,7 @@ struct HelpPanel: View {
     private var title: Text {
         if limit { return Text("That's \(app.agent.stepLimit) steps") }
         if repeating { return Text("I keep repeating the same step") }
+        if stillRepeat { return Text("The same step did nothing three times") }
         if stalled { return Text("The screen hasn't changed in a while") }
         if touchless { return Text("My taps aren't reaching the iPhone") }
         if erring { return Text("The AI service isn't answering") }
@@ -107,6 +109,7 @@ struct HelpPanel: View {
         if app.takingOver { return "Do the step yourself, then tap Continue." }
         if touchless { return "\(TouchCheck.advice) Then tap Keep Going." }
         if repeating { return "\(NoProgress.advice) Then tap Keep Going." }
+        if stillRepeat { return "Do this step yourself, or let me try another way." }
         if limit { return "A safety limit. If the run is still getting somewhere, keep going." }
         if stalled { return "My taps may be missing. Do this step yourself, or let me try again." }
         return nil
@@ -129,9 +132,9 @@ struct RecoveryPanel: View {
                     ProgressView()
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: stage.status.full).font(.body)
-                    if stage.line != stage.status.full {
-                        Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+                    Text(verbatim: app.recoveryStatus(stage).full).font(.body)
+                    if app.recoveryLine(stage) != app.recoveryStatus(stage).full {
+                        Text(verbatim: app.recoveryLine(stage)).font(.subheadline).foregroundStyle(.secondary)
                     }
                     Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
                         .font(.footnote.monospacedDigit()).foregroundStyle(.secondary)

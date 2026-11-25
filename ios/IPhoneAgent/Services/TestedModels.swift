@@ -41,7 +41,7 @@ enum TestedModels {
                     TestedModel(id: "glm-4.1v-thinking-flash")]
         case .handsyTrial:  // free line
             return [TestedModel(id: Trial.model)]
-        case .openAI, .qwenInternational, .deepSeek, .others:
+        case .openAI, .qwenInternational, .deepSeek, .others, .chatGPT:
             return []
         }
     }

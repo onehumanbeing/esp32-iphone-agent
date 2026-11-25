@@ -123,6 +123,8 @@ extension AppModel {
         var videoActive: () -> Bool                  // the Wi-Fi video channel works: the phone reaches the board
         var savePassword: (String, String) -> Void   // (password, ssid)
         var log: (String) -> Void
+        /// The board, at this IP, is a client on this iPhone's own Personal Hotspot: the phone is already there.
+        var phoneHosts: (String?) -> Bool = { Hotspot.hostsBoard(boardIP: $0) }
         var sleep: (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
         var now: () -> Double = { IPhoneAgent.now() }
     }
@@ -167,6 +169,11 @@ extension AppModel {
             return false
         }
         set(.checkingPhone)
+        if env.phoneHosts(config?.ip ?? env.status()?.ip) {
+            env.log("hotspot: board on this iPhone's Personal Hotspot at \(config?.ip ?? env.status()?.ip ?? "?"); not joining")
+            set(.joined)
+            return true
+        }
         if !env.videoActive(), await env.phoneSSID() != ssid {
             env.log("lan: the board is on \(ssid); joining this phone to it")
             do {

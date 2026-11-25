@@ -4,6 +4,9 @@ import XCTest
 
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
+    override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
+    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+
     func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)
@@ -424,6 +427,19 @@ import XCTest
         XCTAssertEqual(again.steps.last?["changed"], .bool(true))
     }
 
+    func testATapTwiceIsOneAimAndASecondClickInPlace() async throws {
+        XCTAssertEqual(try Actions.parseCommand("tap 348 395 twice")["count"], .int(2))
+        XCTAssertNil(try Actions.parseCommand("tap 348 395")["count"])
+        for reply in ["THINK: wave\nDO: tap 480 20 twice", "THINK: build\nDO: tap 348 395\nDO: tap 348 395"] {
+            let phone = FakeGestures(), screen = FakeScreen()
+            screen.frame = Self.jpeg()
+            let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in reply }, planner: nil, trace: nil)
+            _ = try await agent.step()
+            XCTAssertEqual(Array(phone.calls.prefix(2)), ["tap", "click"], reply)  // the second is not aimed again
+            XCTAssertEqual(phone.aims.first, false, reply)
+        }
+    }
+
     func testATapThatChangedNothingIsPressedOnceMoreWithThePointerChecked() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         screen.frame = Self.jpeg()  // the same before and after
@@ -647,6 +663,9 @@ import XCTest
 /// iPad: the model's frame coordinates become screen coordinates, a rotation drops a look, and an action whose frame
 /// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
 @MainActor final class IPadAgentTests: XCTestCase {
+    override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
+    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+
     func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
@@ -761,6 +780,7 @@ import XCTest
         taps.append(CGPoint(x: x, y: y))
         onTap?()
     }
+    func clickAgain() async throws { calls.append("click") }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     var typeNote: String?

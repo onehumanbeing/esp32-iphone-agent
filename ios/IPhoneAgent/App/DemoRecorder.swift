@@ -63,7 +63,7 @@ import UIKit
     @discardableResult
     func start() -> Bool {
         guard !busy, !canRetry, !app.agent.running, !app.startingAgent else { return false }
-        guard MockMode.on || (app.board.connected && app.board.status?.ap == "streaming" && app.modelReady) else {
+        guard MockMode.on || (app.board.connected && (app.onDeviceCapture || app.board.status?.ap == "streaming") && app.modelReady) else {
             error = String(localized: "Connect the board, start Screen Mirroring, and set up a model first.")
             return false
         }
@@ -110,7 +110,9 @@ import UIKit
     private func capture() async {
         do {
             if !MockMode.on {
-                try await app.feed.stream(true)
+                await app.screenCleanup?.value
+                if app.onDeviceCapture { try await app.prepareLocalCapture() }
+                else { try await app.feed.stream(true) }
                 try await leaveApp()
             }
             try await countDown()
@@ -121,9 +123,10 @@ import UIKit
             var candidate: Data?, candidateSince = 0.0
             var staleSince = now()
             while recording && !Task.isCancelled {
-                if !MockMode.on && (!app.board.connected || app.board.status?.ap != "streaming") {
+                if !MockMode.on && (!app.board.connected || !app.onDeviceCapture && app.board.status?.ap != "streaming") {
                     throw DeviceError(message: String(localized: "Screen Mirroring disconnected. Captured screens are kept for retry."))
                 }
+                if !MockMode.on { try app.screen.checkAvailability() }
                 if Date().timeIntervalSince(started) >= 600 || keyframes >= Self.captureLimit || bytes >= 30_000_000 {
                     Task { await self.stop() }
                     return
@@ -135,7 +138,7 @@ import UIKit
                     try await Task.sleep(nanoseconds: 1_500_000_000)
                     continue
                 }
-                let stamp = MockMode.on ? now() : (app.feed.capturedAt > 0 ? app.feed.capturedAt : app.feed.updated)
+                let stamp = MockMode.on ? now() : (app.screen.capturedAt > 0 ? app.screen.capturedAt : app.screen.updated)
                 let frame = MockMode.on ? AppModel.mockFrame : freshFrame()
                 if frame == nil, !MockMode.on, now() - staleSince > 2 {
                     await requestFrame()
@@ -158,6 +161,8 @@ import UIKit
                 try await Task.sleep(nanoseconds: MockMode.on ? 1_500_000_000 : 120_000_000)
             }
         } catch is CancellationError {
+            // Stop/cancel already owns cleanup. Dismissing the system picker does not cancel this task.
+            if !Task.isCancelled { Task { await self.cancel() } }
             return
         } catch {
             // Let this capture task return before cleanup awaits it.
@@ -197,7 +202,7 @@ import UIKit
     /// The shown frame, only if captured after the recording began: the feed still holds the last screen from the
     /// setup (Control Center, this app), and a broken stream keeps showing it until the next IDR.
     private func freshFrame() -> Data? {
-        let feed = app.feed
+        let feed = app.screen
         let at = feed.capturedAt > 0 ? feed.capturedAt : feed.updated
         return at >= startedAt ? feed.frame : nil
     }
@@ -205,6 +210,7 @@ import UIKit
     /// No frame since the recording began: the stream may be waiting for an IDR (a decode error, chunks lost),
     /// so ask the board for one, as a run does after an action.
     private func requestFrame() async {
+        guard !app.onDeviceCapture else { return }
         let feed = app.feed
         let at = feed.capturedAt > 0 ? feed.capturedAt : feed.updated
         DebugLog.write(String(format: "recording: no new screen for 2 s (newest %.1f s before the start, broken %@); snapping",
@@ -216,7 +222,7 @@ import UIKit
     private func startVideo() {
         guard !MockMode.on, let dir = folder?.appendingPathComponent("video") else { return }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        videoSink = app.feed.$frame.compactMap { $0 }
+        videoSink = app.screen.$frame.compactMap { $0 }
             .throttle(for: .milliseconds(500), scheduler: RunLoop.main, latest: true)
             .sink { jpeg in try? jpeg.write(to: dir.appendingPathComponent("\(Int(Date().timeIntervalSince1970 * 1000)).jpg")) }
     }
@@ -248,7 +254,8 @@ import UIKit
         await loop?.value
         loop = nil
         if !MockMode.on {
-            do { try await app.feed.stream(false) }
+            await app.stopLocalCapture()
+            do { if !app.onDeviceCapture { try await app.feed.stream(false) } }
             catch { self.error = error.localizedDescription }
         }
         app.live.end(nil)
