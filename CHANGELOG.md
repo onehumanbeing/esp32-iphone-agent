@@ -4,6 +4,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- App: a screen that never stands still (a game, a video, a live map) no longer costs 3-7 s of waiting per step: after two steps without a still moment every wait is short, until the screen stands still again.
 - App: iPhone apps in landscape (games): taps land where aimed. The pointer's calibration was used in portrait sides, so a tap at the right of a landscape screen landed at about a third of its width.
 - App: `open` on the pinyin keyboard: a name that is only in the candidate bar goes in with space instead of a tap, and a Return that only put composing letters in is followed by one more Return on the Top Hit.
 - App: a `fail` with no reason or a `done` with no answer shows the model's own words (they read as empty).

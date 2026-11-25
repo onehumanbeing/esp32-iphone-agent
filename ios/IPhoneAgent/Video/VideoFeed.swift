@@ -54,12 +54,18 @@ enum FrameMode: String {
     /// first wait is capped at `recentCap`.
     static var lastMoving = -1000.0
     static let recentFor = 30.0, recentCap = 2.0
+    /// Steps in a row whose screen never stood still. From `alwaysAfter` on, every wait is capped at `movingCap` from
+    /// the first: a game, a video or a live map never stops, and each step still waited 2 s before the cap, 3-7 s per
+    /// step in all (2026-11-26, Kingdom Rush). A wait that finds a quiet moment ends it.
+    static var movingSteps = 0, countedThisStep = false
+    static let alwaysAfter = 2
+    static var alwaysMoving: Bool { movingSteps >= alwaysAfter }
     static var settle = 0.0  // s spent in `settled`
     static var snaps = 0  // snaps asked for
     static var replied = 0.0  // when the actor's last reply arrived (AgentLoop.ask), for Metrics.Step.leadMs
     static var record = 0.0  // s the steps list took to update (AgentLoop.record)
     static var tree = ""  // the actor's tree this step: "server", "device total … ocr … cv …" (ms), "none"
-    static func reset() { moving = false; settle = 0; snaps = 0; replied = 0; record = 0; tree = "" }
+    static func reset() { moving = false; countedThisStep = false; settle = 0; snaps = 0; replied = 0; record = 0; tree = "" }
 }
 
 extension ScreenSource {
@@ -90,7 +96,7 @@ extension ScreenSource {
                  busy: [CGRect] = []) async {
         let started = now()
         let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor
-        let cap = StepWaits.moving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
+        let cap = StepWaits.moving || StepWaits.alwaysMoving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
         let most = max(min(most, cap), least)  // the cap shortens the wait for quiet, never the minimum look delay
         defer { StepWaits.settle += now() - started }
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
@@ -104,6 +110,16 @@ extension ScreenSource {
             if await Task.detached(priority: .userInitiated, operation: { Vision.changed(a, b, ignore: spots, busy: busy) }).value {
                 still = b
                 moved = checked
+            }
+        }
+        if !Task.isCancelled, now() - started < most { StepWaits.movingSteps = 0 }  // it stood still
+        if !Task.isCancelled, now() - started >= most, StepWaits.moving || StepWaits.alwaysMoving || most >= StepWaits.longWait
+            || recent && most >= StepWaits.recentCap, !StepWaits.countedThisStep {
+            StepWaits.countedThisStep = true
+            StepWaits.movingSteps += 1
+            if StepWaits.movingSteps == StepWaits.alwaysAfter {
+                DebugLog.write(String(format: "settle: the screen has not stood still for %d steps; every wait is capped at %.1f s until it does",
+                                      StepWaits.alwaysAfter, StepWaits.movingCap))
             }
         }
         if !Task.isCancelled, !StepWaits.moving, most >= StepWaits.longWait || recent && most >= StepWaits.recentCap,

@@ -262,6 +262,7 @@ extension Gestures {
             notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; autoResult = nil; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
             filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
             runFolder = nil; foldersAtStart = []  // a new task gets its own folder, not the last run's
+            StepWaits.movingSteps = 0  // the last run's moving screen says nothing about this one
             limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
         }

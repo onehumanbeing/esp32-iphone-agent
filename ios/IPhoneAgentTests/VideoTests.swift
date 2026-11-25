@@ -321,8 +321,8 @@ final class VideoReorderTests: XCTestCase {
 }
 
 @MainActor final class StillScreenTests: XCTestCase {
-    override func setUp() async throws { StepWaits.reset(); StepWaits.lastMoving = -1000 }
-    override func tearDown() async throws { StepWaits.reset(); StepWaits.lastMoving = -1000 }
+    override func setUp() async throws { StepWaits.reset(); StepWaits.lastMoving = -1000; StepWaits.movingSteps = 0 }
+    override func tearDown() async throws { StepWaits.reset(); StepWaits.lastMoving = -1000; StepWaits.movingSteps = 0 }
 
     /// A screen that changes on every frame (a video playing): one full wait per step, then short ones.
     func testMovingScreenWaitsInFullOncePerStep() async {
@@ -344,10 +344,31 @@ final class VideoReorderTests: XCTestCase {
         XCTAssertEqual(now() - start, StepWaits.recentCap, accuracy: 0.4)
         XCTAssertTrue(StepWaits.moving, "and the later waits of that step are short again")
         StepWaits.reset()
-        StepWaits.lastMoving = -1000  // long after: a full wait again
+        StepWaits.lastMoving = -1000  // long after, on another screen (a still moment ended the streak): a full wait again
+        StepWaits.movingSteps = 0
         start = now()
         await screen.settled(quiet: 0.5, least: 0.3, most: 3)
         XCTAssertGreaterThan(now() - start, 2.9)
+    }
+
+    /// A screen that has not stood still for two steps (a game): from the third step on, the first wait is short
+    /// too (2026-11-26, Kingdom Rush: 3-7 s per step); a still moment ends that.
+    func testAScreenThatNeverStopsGetsShortWaitsFromTheFirst() async {
+        let screen = FakeStillScreen()
+        let feeding = Task { while !Task.isCancelled { screen.changed = now(); try? await Task.sleep(nanoseconds: 50_000_000) } }
+        for _ in 0..<StepWaits.alwaysAfter {
+            StepWaits.reset()
+            await screen.settled(quiet: 0.5, least: 0.3, most: 3)
+        }
+        XCTAssertTrue(StepWaits.alwaysMoving)
+        StepWaits.reset()
+        let start = now()
+        await screen.settled(quiet: 0.5, least: 0.3, most: 3)
+        XCTAssertLessThan(now() - start, StepWaits.movingCap + 0.4)
+        feeding.cancel()
+        screen.changed = now() - 10  // it stands still now
+        await screen.settled(quiet: 0.5, least: 0.3, most: 3)
+        XCTAssertFalse(StepWaits.alwaysMoving)
     }
 
     /// A short wait that runs out (the pointer's own small caps) says nothing about the screen.
