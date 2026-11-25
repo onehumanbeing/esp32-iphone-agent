@@ -73,13 +73,19 @@ enum OpenResult: String {
         return letters.count >= 2 ? [letters, name] : [name]
     }
 
+    /// This open saw the name only as a web suggestion: the app is not installed (a box: the opener is a struct).
+    private final class Seen { var webOnly = false }
+    private let seen = Seen()
+
     private func open(named name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let queries = Self.queries(name, pasting: pasting)
+        seen.webOnly = false
         for (i, query) in queries.enumerated() {
             let result = try await open(name, typing: query, pasting: pasting)
-            if result == .notFound, i < queries.count - 1 { continue }  // Home first again: nothing left in the field
+            // a web suggestion with the name: the pinyin already found it, typed as Han it is the same (10 s, 2026-11-25)
+            if result == .notFound, !seen.webOnly, i < queries.count - 1 { continue }  // Home first again: nothing left in the field
             return result
         }
         return .notFound
@@ -151,6 +157,7 @@ enum OpenResult: String {
                 changed = false
                 let (spots, web) = await spots(shown, name, labels)
                 if web {  // not installed: tapping it or Return opens a web search
+                    seen.webOnly = true
                     log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
                     return .notFound
                 }
@@ -168,7 +175,8 @@ enum OpenResult: String {
                     // installed. Checked here, not in the next round, which the time budget may skip (2026-11-25:
                     // "still on Spotlight", then the model tapped the suggestion and Chrome opened)
                     if moved, !closed, await self.spots(now, name, labels).web {
-                        log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                        seen.webOnly = true
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
                         return .notFound
                     }
                     if closed || moved { break }  // the old spots are stale on a changed screen
