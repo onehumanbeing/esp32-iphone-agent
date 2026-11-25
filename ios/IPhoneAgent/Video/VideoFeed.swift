@@ -186,6 +186,9 @@ extension ScreenSource {
         }
     }
 
+    /// The app went to the background: decode on in a new session (H264Decoder.renew).
+    func enteredBackground() { decoder.renew("in background") }
+
     /// After an action whose frame never came (the stream broke and the snap failed or was older too): the shown
     /// frame is stale, so the screen is not live until one captured after the action decodes. 2026-11-06: frames
     /// 5–14 minutes old went to the model, which then answered a listening exercise with the old matching pairs.

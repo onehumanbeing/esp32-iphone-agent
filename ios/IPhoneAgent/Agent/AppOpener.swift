@@ -148,7 +148,11 @@ enum OpenResult: String {
             // look, top first; the search field holding the same text may be one of them, a tap there changes nothing.
             var shown = results, closed = false
             for round in 0..<2 {
-                let spots = await spots(shown, name, labels)
+                let (spots, web) = await spots(shown, name, labels)
+                if web {  // not installed: tapping it or Return opens a web search
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                    return .notFound
+                }
                 for spot in spots.prefix(2) {
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
                     try await tapAt?(spot)
@@ -198,17 +202,35 @@ enum OpenResult: String {
     }
 
     /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
-    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> [CGPoint] {
-        guard let readBoxes, tapAt != nil else { return [] }
+    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> (spots: [CGPoint], web: Bool) {
+        guard let readBoxes, tapAt != nil else { return ([], false) }
         let (found, size) = await readBoxes(frame)
-        return Self.resultSpots(found, labels: [name] + labels, size: size)
+        return (Self.resultSpots(found, labels: [name] + labels, size: size),
+                Self.onlyOnTheWeb(found, labels: [name] + labels, size: size))
     }
 
     private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
 
+    /// Spotlight's header over web search suggestions, per language (folded).
+    static let webHeaders: Set<String> = Set(["Suggestions", "建议", "建議", "候補", "제안", "Vorschläge", "Suggestioni",
+                                              "Sugerencias", "Suggestões"].map(Scripts.fold))
+
     /// Where to tap a listed result: the centers (screen fractions) of the lines that are one of `labels` (folded,
     /// a label cut short with "…" counts), below the status bar and above the home bar, top first.
     static func resultSpots(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> [CGPoint] {
+        resultRows(lines, labels: labels, size: size).filter { !$0.web }.map(\.at)
+    }
+
+    /// The top row of the name is a web suggestion: the app is not installed (Return would open the browser too).
+    static func onlyOnTheWeb(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> Bool {
+        resultRows(lines, labels: labels, size: size).first?.web == true
+    }
+
+    /// The rows that are one of `labels`, top first, each marked when it is a web suggestion. Spotlight's
+    /// "Suggestions" are web searches (they open the browser), and an app that is not installed is listed only there
+    /// (2026-11-25, 汽水音乐 on an iPhone without it opened Chrome). Section headers start at the left margin, a row's
+    /// text after its icon: a row whose nearest header above is a web one is a web suggestion.
+    static func resultRows(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> [(at: CGPoint, web: Bool)] {
         guard size.width > 0, size.height > 0 else { return [] }
         let wants = Set(labels.map(Scripts.fold).filter { !$0.isEmpty })
         func isLabel(_ text: String) -> Bool {
@@ -217,11 +239,17 @@ enum OpenResult: String {
             let cut = line.hasSuffix("…") ? String(line.dropLast()) : line.hasSuffix("...") ? String(line.dropLast(3)) : nil
             return cut.map { c in c.count >= 3 && wants.contains { $0.hasPrefix(c) } } ?? false
         }
-        return lines.compactMap { line -> CGPoint? in
-            guard line.box.count == 4, isLabel(line.text) else { return nil }
+        let boxed = lines.filter { $0.box.count == 4 }
+        let margin = (boxed.map { $0.box[0] }.min() ?? 0) + Int(size.width * 0.03)
+        func web(_ line: (text: String, box: [Int])) -> Bool {
+            let header = boxed.filter { $0.box[0] <= margin && $0.box[3] <= line.box[1] }.max { $0.box[3] < $1.box[3] }
+            return header.map { webHeaders.contains(Scripts.fold($0.text)) } ?? false
+        }
+        return boxed.compactMap { line -> (at: CGPoint, web: Bool)? in
+            guard isLabel(line.text) else { return nil }
             let p = CGPoint(x: Double(line.box[0] + line.box[2]) / 2 / size.width, y: Double(line.box[1] + line.box[3]) / 2 / size.height)
-            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x) ? p : nil
-        }.sorted { $0.y < $1.y }
+            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x) ? (p, web(line)) : nil
+        }.sorted { $0.at.y < $1.at.y }
     }
 
     /// Lines that show `name` (folded).

@@ -213,4 +213,11 @@ import UIKit
                        "read \(zhuyin.words.map(\.text))")
         XCTAssertNil(HanTyper.foreign("你好", before: before, after: typed, pinyinKnown: false), "read \(typed.words.map(\.text))")
     }
+
+    func testPlainPinyinInTheChangedAreaIsTheEnglishKeyboard() {
+        // 2026-11-25, iPhone 13 Pro: Spotlight's changed area after typing 汽水音乐 on the English keyboard
+        XCTAssertTrue(HanTyper.showsPlainPinyin("汽水音乐", in: HanTyper.core("search app store search maps q qishuiyinyue")))
+        XCTAssertFalse(HanTyper.showsPlainPinyin("汽水音乐", in: HanTyper.core("汽水音乐 qishuiyinyue")))
+        XCTAssertFalse(HanTyper.showsPlainPinyin("汽水音乐", in: HanTyper.core("search maps")))
+    }
 }

@@ -191,6 +191,22 @@ import XCTest
         XCTAssertTrue(AppOpener.resultSpots([("WeChat", [0, 0, 1, 1])], labels: ["WeChat"], size: .zero).isEmpty)
     }
 
+    func testAWebSuggestionIsNotTheApp() {
+        // 2026-11-25: 汽水音乐 not installed; Spotlight listed it only under Suggestions (a Chrome search)
+        let size = CGSize(width: 1000, height: 2000)
+        let lines: [(text: String, box: [Int])] = [
+            ("Suggestions", [40, 150, 300, 190]), ("汽水音乐", [140, 250, 400, 290]),
+            ("Manina AI", [40, 400, 300, 440]), ("测1 汽水音乐", [140, 520, 500, 560]),
+            ("Search in Apps", [40, 700, 400, 740]), ("Search App Store", [140, 800, 600, 840]),
+        ]
+        XCTAssertTrue(AppOpener.resultSpots(lines, labels: ["汽水音乐"], size: size).isEmpty)
+        XCTAssertTrue(AppOpener.onlyOnTheWeb(lines, labels: ["汽水音乐"], size: size))
+        let installed: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("汽水音乐", [140, 250, 400, 290]),
+                                                       ("Suggestions", [40, 350, 300, 390]), ("汽水音乐", [140, 450, 400, 490])]
+        XCTAssertEqual(AppOpener.resultSpots(installed, labels: ["汽水音乐"], size: size).map { Double($0.y) }, [0.135])
+        XCTAssertFalse(AppOpener.onlyOnTheWeb(installed, labels: ["汽水音乐"], size: size))
+    }
+
     func testSpotlightThatNeverCameUpIsTriedAgainWithoutReturn() async throws {
         var sent: [String] = []
         var queue: [Data?] = [home, home, home, spotlight, app]

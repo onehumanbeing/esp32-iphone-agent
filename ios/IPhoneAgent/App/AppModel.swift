@@ -397,6 +397,7 @@ import UIKit
                 self?.backgroundEnteredAt = now()
                 self?.metrics.enteredBackground()
                 DebugLog.write("app: background")
+                self?.feed.enteredBackground()
             }
         }
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in

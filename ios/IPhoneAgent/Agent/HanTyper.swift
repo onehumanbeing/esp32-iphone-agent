@@ -435,6 +435,17 @@ enum TypeStop {
             }
             freshText = read
             DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
+            // the pinyin itself is there as plain letters: the English keyboard. Decided here, without the two full
+            // reads after (2026-11-25, iPhone 13 Pro: they took 3.5 s and read the on-screen keyboard as digits).
+            if Self.showsPlainPinyin(text, in: read), !tried.contains(.letters) {
+                if known == nil { known = await pending?.value }
+            }
+            if Self.showsPlainPinyin(text, in: read), !tried.contains(.letters), let before = known {
+                try await erase(keys)
+                DebugLog.write("type: fast, came out as letters (read in the changed area): not Pinyin; deleted \(keys), ctrl+space")
+                try await toggle()
+                return try await fast(text, from: before, tried: tried + [.letters])
+            }
         }
         if known == nil { known = await pending?.value }
         guard let before = known else { return .unread }
@@ -503,6 +514,15 @@ enum TypeStop {
         // the careful way then took 1-2 minutes.
         DebugLog.write("type: fast, read back unsure (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); trusted, not typed again")
         return .done
+    }
+
+    /// `read` holds the pinyin of all of `text`'s Han, run together, and not the text itself.
+    static func showsPlainPinyin(_ text: String, in read: String) -> Bool {
+        let letters = core(fastPieces(text).map { piece -> String in
+            if case .han(let run) = piece { return Pointer.typeable(run) }
+            return ""
+        }.joined())
+        return letters.count >= 4 && read.contains(letters) && !holds(core(text), in: read)
     }
 
     /// Read back right: the input method is Pinyin, kept for the run.

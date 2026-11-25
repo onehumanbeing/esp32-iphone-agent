@@ -262,8 +262,11 @@ struct LLMError: LocalizedError {
                 if !atLeaseEnd, Self.trialRunEnded(errorText) || Self.trialUsedUp(errorText) || Self.keyError(errorText) != nil { break }  // final: asking again can't help
                 if !retriesBusy, Self.busyReason(errorText) == "call_in_progress" { break }  // the record reader: skip this screen
                 if status != 429 && attempt > 0 { break }
-                let wait = status == 429 ? min(retryAfter ?? 5, 20) : atLeaseEnd ? 2 : 3
-                DebugLog.write(String(format: "llm: HTTP %d, retrying in %.0f s", status, wait))
+                // the free line's upstream was saturated for this call (overflow_error): the next one usually goes
+                // through at once (2026-11-25: 3.2 s right after), so 0.5 s, not 3
+                let saturated = Self.busyReason(errorText) == "overflow_error"
+                let wait = status == 429 ? min(retryAfter ?? 5, 20) : atLeaseEnd ? 2 : saturated ? 0.5 : 3
+                DebugLog.write(String(format: "llm: HTTP %d, retrying in %.1f s", status, wait))
                 try await Task.sleep(for: .seconds(wait))
                 (status, result, errorText) = try await send(body)
             }
