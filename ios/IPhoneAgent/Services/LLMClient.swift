@@ -2,7 +2,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// The screen as sent to the model: at most 540 px wide, JPEG 0.6. Upload is the slow part of a step
+/// The screen as sent to the model: at most 540 px on its short side (wide in portrait), JPEG 0.6. Upload is the slow part of a step
 /// (2026-10-17: a 153 KB home screen took ~6-9 s through the tunnel, the model itself 1.4 s), and the
 /// model answers in 0-1000 coordinates, so a smaller image keeps taps where they were.
 enum ModelImage {
@@ -25,7 +25,10 @@ enum ModelImage {
               let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = props[kCGImagePropertyPixelWidth] as? Int, let height = props[kCGImagePropertyPixelHeight] as? Int
         else { return jpeg }
-        var longSide = max(width, height) * min(maxWidth, width) / width
+        // the short side at most `maxWidth`: a landscape iPhone (a game) went at 540x250, a quarter of a portrait
+        // frame's pixels, and the model's taps missed build spots a few pixels across (2026-11-26, Kingdom Rush)
+        let short = max(min(width, height), 1)
+        var longSide = max(width, height) * min(maxWidth, short) / short
         if let maxPixels {
             let scale = (Double(maxPixels) / Double(max(width * height, 1))).squareRoot()
             guard scale < 1 else { return jpeg }

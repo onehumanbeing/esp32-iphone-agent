@@ -480,11 +480,13 @@ final class VideoReorderTests: XCTestCase {
     }
 }
 
-/// The model's copy: an iPhone's exactly as before (540 px wide); an iPad's within a pixel budget, untouched below it.
+/// The model's copy: an iPhone's 540 px on its short side (wide in portrait, high in landscape); an iPad's within a pixel budget, untouched below it.
 final class ModelImageTests: XCTestCase {
     func testIPhoneCopyIs540Wide() throws {
         XCTAssertEqual(try Self.shrunk(718, 1560, nil)[0], 540, accuracy: 1)
-        XCTAssertEqual(try Self.shrunk(1080, 750, nil), [540, 375], "the width cap that left a landscape iPad unreadable")
+        let turned = try Self.shrunk(1560, 718, nil)  // a landscape app: 540 on the short side, as many pixels as portrait
+        XCTAssertEqual(turned[1], 540, accuracy: 1)
+        XCTAssertEqual(turned[0], 1173, accuracy: 2)
     }
 
     func testIPadCopyKeepsAPixelBudget() throws {

@@ -4,6 +4,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- A landscape app (a game) goes to the model at 540 px on its short side (about 1170x540), as many pixels as portrait; it went at 540x250 and small targets were unreadable.
 - Faster on screens that never stand still: one such step caps every later wait at 0.8 s, a screen seen moving in the last 2 minutes waits at most 1 s, the longest wait for a still screen is 3 s (was 4), and the pointer check waits 0.2 s instead of 0.6 s there.
 - `tap X Y twice` taps one spot twice, the second click where the first landed; a second tap at the same spot in one reply is no longer aimed again (a game's choose-then-confirm, "tap twice" buttons).
 - App: a screen that never stands still (a game, a video, a live map) no longer costs 3-7 s of waiting per step: after two steps without a still moment every wait is short, until the screen stands still again.
