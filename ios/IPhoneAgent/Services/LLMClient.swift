@@ -523,7 +523,9 @@ struct LLMError: LocalizedError {
             for try await b in bytes { raw.append(b) }
             return (status, nil, String(decoding: raw, as: UTF8.self), retry)
         }
-        if !type.contains("text/event-stream") {  // a plain JSON answer
+        // The Codex endpoint has sent its stream with no Content-Type (#965): for it, the body's first line decides.
+        var sniffing = responses && !type.contains("text/event-stream") && !type.contains("json")
+        if !type.contains("text/event-stream") && !sniffing {  // a plain JSON answer
             var raw = Data()
             for try await b in bytes { raw.append(b) }
             var result = try Self.message(raw)
@@ -534,7 +536,15 @@ struct LLMError: LocalizedError {
         var result = ChatResult(text: "", firstToken: nil, total: 0)
         result.responseSeconds = responseSeconds
         var reportedReceiving = false, done = false
+        var plain: [String]?  // sniffed: not a stream, kept whole for JSON
         for try await line in bytes.lines {
+            if plain != nil { plain?.append(line); continue }
+            if sniffing {
+                let head = line.trimmingCharacters(in: .whitespaces)
+                if head.isEmpty { continue }
+                sniffing = false
+                if !["data:", "event:", "id:", "retry:", ":"].contains(where: head.hasPrefix) { plain = [line]; continue }
+            }
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { done = true; break }
@@ -569,6 +579,15 @@ struct LLMError: LocalizedError {
             if result.firstToken == nil { result.firstToken = now() - started }
             result.text += piece
             if result.firstDo == nil, StreamMarks.completeDoLine(result.text) { result.firstDo = now() - started }
+        }
+        if let plain {  // its error (or a reply in another shape) says what went wrong; anything else shows its start
+            let raw = Data(plain.joined(separator: "\n").utf8)
+            guard (try? JSONSerialization.jsonObject(with: raw)) is [String: Any] else {
+                throw LLMError(message: "unexpected reply (HTTP \(status), no stream): \(String(decoding: raw.prefix(200), as: UTF8.self))")
+            }
+            var answer = try Self.message(raw)
+            answer.responseSeconds = responseSeconds
+            return (status, answer, "", retry)
         }
         // A stream cut before its end (no [DONE], no finish_reason) is a lost reply, not a short one.
         guard done || result.finishReason != nil else {

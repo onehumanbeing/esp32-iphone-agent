@@ -10,7 +10,7 @@ final class InMemoryKeychain: KeychainStoring {
     func set(_ value: String, for account: String) { entries[account] = value.isEmpty ? nil : value }
 }
 
-/// An in-memory endpoint: records request bodies and answers with `respond`.
+/// An in-memory endpoint: records request bodies and answers with `respond` (an empty type sends no Content-Type).
 final class StubProtocol: URLProtocol {
     nonisolated(unsafe) static var respond: ([String: Any]) -> (Int, String, String) = { _ in (200, "application/json", "{}") }
     nonisolated(unsafe) static var seen: [[String: Any]] = []
@@ -42,7 +42,7 @@ final class StubProtocol: URLProtocol {
         if let failure = Self.failure { client?.urlProtocol(self, didFailWithError: failure); return }
         let (status, type, text) = Self.respond(json)
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
-                                       headerFields: ["Content-Type": type])!
+                                       headerFields: type.isEmpty ? [:] : ["Content-Type": type])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(text.utf8))
         client?.urlProtocolDidFinishLoading(self)

@@ -396,6 +396,84 @@ import XCTest
         XCTAssertEqual(Settings(defaults: defaults, info: [:]).reasoningEffort, "xhigh")
     }
 
+    /// #965: on a real device the Codex endpoint answered 200 with no Content-Type; the stream was read as one JSON
+    /// document and every round failed ("The data couldn't be read because it isn't in the correct format").
+    func testAStreamWithoutAContentTypeIsStillRead() async throws {
+        StubProtocol.respond = { _ in
+            (200, "", self.events([
+                ["type": "response.created"],
+                ["type": "response.output_text.delta", "delta": "THINK: ok\n"],
+                ["type": "response.output_text.delta", "delta": "DO: wait"],
+                ["type": "response.completed", "response": ["model": "gpt-5.x"]],
+            ]))
+        }
+        let reply = try await client().chat(system: "s", text: "t")
+        XCTAssertEqual(reply.text, "THINK: ok\nDO: wait")
+        XCTAssertEqual(reply.finishReason, "stop")
+        XCTAssertNotNil(reply.firstToken, "read as a stream, not buffered")
+    }
+
+    func testAnErrorInAStreamWithoutAContentTypeIsReported() async {
+        StubProtocol.respond = { _ in
+            (200, "", "event: response.failed\n" + self.events([
+                ["type": "response.failed", "response": ["error": ["code": "server_error", "message": "boom"]]],
+            ]))
+        }
+        do {
+            _ = try await client().chat(system: "s", text: "t")
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "boom")
+            XCTAssertEqual((error as? LLMError)?.reason, "server_error")
+        }
+    }
+
+    func testAPlainJSONErrorWithoutAContentTypeIsReported() async {
+        StubProtocol.respond = { _ in (200, "", "{\n  \"error\": {\"message\": \"model not allowed\", \"code\": \"bad_model\"}\n}") }
+        do {
+            _ = try await client().chat(system: "s", text: "t")
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "model not allowed")
+            XCTAssertEqual((error as? LLMError)?.reason, "bad_model")
+        }
+    }
+
+    func testAJSONErrorWithItsContentTypeIsStillReported() async {
+        StubProtocol.respond = { _ in (200, "application/json", #"{"error": {"message": "model not allowed"}}"#) }
+        do {
+            _ = try await client().chat(system: "s", text: "t")
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "model not allowed")
+        }
+    }
+
+    func testAReplyWithoutAContentTypeThatIsNeitherIsAClearError() async {
+        StubProtocol.respond = { _ in (200, "", "<html>busy</html>") }
+        do {
+            _ = try await client().chat(system: "s", text: "t")
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("<html>busy</html>"), error.localizedDescription)
+        }
+    }
+
+    /// Other providers keep their path: no Content-Type still means one JSON answer.
+    func testOtherProvidersWithoutAContentTypeStillReadOneJSONAnswer() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let other = LLMClient(baseURL: ModelProvider.openAI.baseURL, model: "m", apiKey: "k", session: URLSession(configuration: config))
+        StubProtocol.respond = { _ in (200, "", #"{"choices": [{"message": {"content": "DO: wait"}, "finish_reason": "stop"}]}"#) }
+        let reply = try await other.chat(system: "s", text: "t")
+        XCTAssertEqual(reply.text, "DO: wait")
+        StubProtocol.respond = { _ in (200, "", self.events([["choices": [["delta": ["content": "x"]]]]])) }
+        do {
+            _ = try await other.chat(system: "s", text: "t")
+            XCTFail("a stream without a Content-Type is still not read as one for other providers")
+        } catch {}
+    }
+
     func testAReachedUsageLimitIsFinalAndSaysWhenItResets() async {
         StubProtocol.seen = []
         StubProtocol.respond = { _ in
