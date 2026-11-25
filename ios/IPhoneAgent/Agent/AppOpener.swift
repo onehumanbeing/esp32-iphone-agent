@@ -184,7 +184,11 @@ enum OpenResult: String {
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
                     if after == .closed { closed = true; break }
-                    if !same(now, shown) { shown = now; continue }
+                    // the letters going in barely changes the frame (2026-11-26: "Settings" looked the same): the
+                    // second Return is sent either way
+                    let moved = !same(now, shown)
+                    shown = now
+                    if moved || entered < 2 { continue }
                 }
                 for spot in spots.prefix(2) {
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")

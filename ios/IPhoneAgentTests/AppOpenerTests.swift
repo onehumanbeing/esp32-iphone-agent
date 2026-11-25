@@ -157,6 +157,7 @@ import XCTest
                                                     ("Settings", [140, 1100, 400, 1140])]
         for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
                                      ([home, spotlight, committed, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, spotlight, app], ["enter", "enter"], 0),
                                      ([home, spotlight, committed, committed, app], ["enter", "enter"], 1)] {
             var queue: [Data?] = frames
             var sent: [String] = [], tapped = 0
