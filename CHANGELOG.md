@@ -4,6 +4,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- App: Chinese typing deletes words the keyboard's first candidate added past the text (你好明天 came out as 你好明天早上), instead of reporting it typed.
 - App: `open` presses Return when the app is Spotlight's Top Hit and its name went in as plain letters, instead of finding the pointer to tap the row (about 5 s less per open). Letters still composing on the pinyin keyboard fall back to the tap.
 - App: a second task in a row saves its notes and files in its own folder; before, it reused the folder of the task before it.
 - App: Chinese is typed as the pinyin of each word (音乐 is yinyue, so Spotlight finds 汽水音乐). The check for another input method no longer counts the on-screen keyboard's keys or Spotlight's suggestions as typed letters, and one failed typing no longer stops Chinese for the rest of the run.

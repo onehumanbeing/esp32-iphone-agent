@@ -214,6 +214,13 @@ import UIKit
         XCTAssertNil(HanTyper.foreign("你好", before: before, after: typed, pinyinKnown: false), "read \(typed.words.map(\.text))")
     }
 
+    func testWordsTheCandidateAddedAreFound() {
+        // 2026-11-26: nihaomingtian + space put 你好明天早上 in a new note
+        XCTAssertEqual(HanTyper.addedAfter("你好明天", in: ["November 26, 2026 at 00:50", "你好明天早上", "我去给就要来你"]), "早上")
+        XCTAssertNil(HanTyper.addedAfter("你好明天", in: ["你好明天", "我去给就要来你"]))
+        XCTAssertNil(HanTyper.addedAfter("你好", in: ["你好, Henry"]))
+    }
+
     func testPlainPinyinInTheChangedAreaIsTheEnglishKeyboard() {
         // 2026-11-25, iPhone 13 Pro: Spotlight's changed area after typing 汽水音乐 on the English keyboard
         XCTAssertTrue(HanTyper.showsPlainPinyin("汽水音乐", in: HanTyper.core("search app store search maps q qishuiyinyue")))

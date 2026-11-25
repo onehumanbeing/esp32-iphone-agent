@@ -429,7 +429,17 @@ enum TypeStop {
            let fresh = await readNew(frameBefore, frameAfter) {
             let read = Self.core(Self.fieldText(fresh, minus: []))
             if Self.holds(want, in: read) {
-                pending?.cancel()
+                // the first candidate ran past the words asked for (nihaomingtian → 你好明天早上, 2026-11-26): what
+                // it added after them on their line, not there before, is deleted (the cursor is right after it)
+                if let extra = Self.addedAfter(want, in: fresh.words.map(\.text)) {
+                    let was = await pending?.value
+                    if let was, !Self.fieldText(was, minus: []).contains(extra) {
+                        try await erase(extra.count)
+                        DebugLog.write("type: fast, the candidate added \"\(extra)\" after the text; deleted \(extra.count)")
+                    }
+                } else {
+                    pending?.cancel()
+                }
                 DebugLog.write("type: fast, \(text.count) chars in one go, read back in the changed area: ok")
                 return confirmed()
             }
@@ -553,6 +563,18 @@ enum TypeStop {
     static func shownEnd(_ want: String) -> String? { want.count >= scrollsFrom ? String(want.suffix(endChars)) : nil }
 
     /// Letters, digits and Han, folded: what OCR reads reliably (punctuation and spaces left out).
+    /// Han characters right after `want` at the end of its line (the candidate added them), nil when none.
+    static func addedAfter(_ want: String, in lines: [String]) -> String? {
+        guard !want.isEmpty else { return nil }
+        for line in lines {
+            let text = core(line)
+            guard let r = text.range(of: want, options: .backwards) else { continue }
+            let tail = String(text[r.upperBound...])
+            if !tail.isEmpty, tail.allSatisfy({ isHan(String($0)) }) { return tail }
+        }
+        return nil
+    }
+
     static func core(_ text: String) -> String {
         Scripts.fold(text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text).filter { $0.isLetter || $0.isNumber }
     }
