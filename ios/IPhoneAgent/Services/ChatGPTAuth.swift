@@ -50,12 +50,19 @@ import Foundation
 
     private let store: KeychainStoring
     private let session: URLSession
+    private let defaults: UserDefaults
+    private static let effortsKey = "chatgpt-reasoning-levels"
+    /// Each listed model's reasoning efforts, as the models list names them (kept across launches, so the chosen
+    /// effort applies before the list is fetched again).
+    @Published private(set) var efforts: [String: [String]] = [:]
 
     /// The app uses `shared` (the Keychain, the real network). Tests make their own: an in-memory store and a
     /// stubbed session, never the app's sign-in.
-    init(store: KeychainStoring, session: URLSession) {
+    init(store: KeychainStoring, session: URLSession, defaults: UserDefaults = .standard) {
         self.store = store
         self.session = session
+        self.defaults = defaults
+        efforts = defaults.dictionary(forKey: Self.effortsKey) as? [String: [String]] ?? [:]
         if let raw = store.get(Self.keychainAccount), let saved = try? JSONDecoder().decode(Tokens.self, from: Data(raw.utf8)) {
             tokens = saved
             account = Self.account(fromIDToken: saved.idToken)
@@ -186,9 +193,21 @@ import Foundation
               let list = body["models"] as? [[String: Any]] else {  // not the expected shape: say so, not "no models"
             throw LLMError(message: "GET /models: unexpected body (HTTP \(status), \(data.count) bytes)", status: status)
         }
-        return list.filter { ($0["visibility"] as? String ?? "list") == "list" }
+        let listed = list.filter { ($0["visibility"] as? String ?? "list") == "list" }
             .sorted { ($0["priority"] as? Int ?? 0) < ($1["priority"] as? Int ?? 0) }
-            .compactMap { $0["slug"] as? String }
+        var levels: [String: [String]] = [:]
+        for model in listed {
+            guard let slug = model["slug"] as? String else { continue }
+            levels[slug] = Self.reasoningLevels(model["supported_reasoning_levels"])
+        }
+        efforts = levels
+        defaults.set(levels, forKey: Self.effortsKey)
+        return listed.compactMap { $0["slug"] as? String }
+    }
+
+    /// A model's reasoning efforts: a list of names, or of objects with an "effort" (and a description).
+    static func reasoningLevels(_ value: Any?) -> [String] {
+        (value as? [Any] ?? []).compactMap { $0 as? String ?? ($0 as? [String: Any])?["effort"] as? String }
     }
 
     static var signInAgain: LLMError {

@@ -111,7 +111,7 @@ import XCTest
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
         let session = URLSession(configuration: config)
-        let auth = ChatGPTAuth(store: store, session: session)
+        let auth = ChatGPTAuth(store: store, session: session, defaults: UserDefaults(suiteName: UUID().uuidString)!)
         let client = LLMClient(baseURL: ModelProvider.chatGPT.baseURL, model: "gpt-5.x", apiKey: access, session: session,
                                headers: { try auth.headers() }, chatGPTAuth: auth)
         StubProtocol.failure = nil
@@ -343,6 +343,57 @@ import XCTest
                 XCTAssertTrue(error.localizedDescription.contains("unexpected body"), error.localizedDescription)
             }
         }
+    }
+
+    /// Each listed model's reasoning efforts, as the list names them (names, or objects with an "effort"), kept
+    /// for the next launch.
+    func testTheModelListGivesEachModelsReasoningEfforts() async throws {
+        let s = isolated(expiresIn: 3600)
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let auth = ChatGPTAuth(store: s.store, session: URLSession(configuration: {
+            let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubProtocol.self]; return c }()), defaults: defaults)
+        StubProtocol.respond = { _ in (200, "application/json", #"""
+            {"models": [
+              {"slug": "fast", "priority": 1, "supported_reasoning_levels": [{"effort": "low", "description": "x"}, {"effort": "xhigh"}]},
+              {"slug": "plain", "priority": 2, "supported_reasoning_levels": ["minimal", "high"]},
+              {"slug": "none", "priority": 3}
+            ]}
+            """#) }
+        let listed = try await auth.models()
+        XCTAssertEqual(listed, ["fast", "plain", "none"])
+        XCTAssertEqual(auth.efforts, ["fast": ["low", "xhigh"], "plain": ["minimal", "high"], "none": []])
+        let relaunched = ChatGPTAuth(store: InMemoryKeychain(), session: .shared, defaults: defaults)
+        XCTAssertEqual(relaunched.efforts["fast"], ["low", "xhigh"], "kept for the next launch")
+    }
+
+    /// The chosen effort goes out only when the model lists it, and Extra body's own "reasoning" wins.
+    func testTheReasoningEffortIsSentOnlyWhenTheModelListsIt() throws {
+        func effort(_ extra: [String: Any]) -> String? { (extra["reasoning"] as? [String: Any])?["effort"] as? String }
+        XCTAssertEqual(effort(Settings.withReasoningEffort([:], effort: "xhigh", levels: ["low", "xhigh"])), "xhigh")
+        XCTAssertNil(effort(Settings.withReasoningEffort([:], effort: "xhigh", levels: ["low", "high"])), "not offered by this model")
+        XCTAssertNil(effort(Settings.withReasoningEffort([:], effort: "xhigh", levels: nil)), "the list not loaded")
+        XCTAssertNil(effort(Settings.withReasoningEffort([:], effort: "", levels: ["low", "xhigh"])), "none chosen: the request's low")
+        XCTAssertEqual(effort(Settings.withReasoningEffort([:], effort: "", levels: ["minimal", "high"])), "minimal",
+                       "a model without low: its first, never an unlisted low")
+        XCTAssertEqual(Settings.shownReasoningEffort("", levels: ["low", "xhigh"]), "low", "shown as what goes out")
+        XCTAssertEqual(Settings.shownReasoningEffort("xhigh", levels: ["low", "xhigh"]), "xhigh")
+        XCTAssertEqual(Settings.shownReasoningEffort("xhigh", levels: ["minimal", "high"]), "minimal", "another model's choice")
+        XCTAssertEqual(effort(Settings.withReasoningEffort(["reasoning": ["effort": "medium"]], effort: "xhigh", levels: ["medium", "xhigh"])),
+                       "medium", "Extra body wins")
+        let body = LLMClient.responsesBody(model: "m", system: "s", text: "t", images: [],
+                                           extra: Settings.withReasoningEffort([:], effort: "xhigh", levels: ["xhigh"]))
+        XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "xhigh")
+        let plain = LLMClient.responsesBody(model: "m", system: "s", text: "t", images: [], extra: [:])
+        XCTAssertEqual((plain["reasoning"] as? [String: Any])?["effort"] as? String, "low", "the default stays low")
+    }
+
+    /// The setting is kept, "" (the default) when never set.
+    func testTheReasoningEffortSettingIsKept() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = Settings(defaults: defaults, info: [:])
+        XCTAssertEqual(settings.reasoningEffort, "")
+        settings.reasoningEffort = "xhigh"
+        XCTAssertEqual(Settings(defaults: defaults, info: [:]).reasoningEffort, "xhigh")
     }
 
     func testAReachedUsageLimitIsFinalAndSaysWhenItResets() async {

@@ -26,6 +26,29 @@ struct ProviderFields: View {
                                 automatic: String(localized: "Choose a model"), allowsDefault: false,
                                 onChoose: settings.chooseModel)
                         .frame(minHeight: 44).padding(.vertical, Space.xs)
+                    if let levels = chatGPT.efforts[settings.model], !levels.isEmpty {  // what this model offers
+                        Divider()
+                        Menu {
+                            Picker("Reasoning effort", selection: Binding(
+                                get: { Settings.shownReasoningEffort(settings.reasoningEffort, levels: levels) },
+                                set: { settings.reasoningEffort = $0 })) {
+                                ForEach(levels, id: \.self) { Text(verbatim: $0).tag($0) }
+                            }
+                        } label: {
+                            LabeledContent("Reasoning effort") {  // laid out as the Model row above
+                                HStack {
+                                    Text(verbatim: Settings.shownReasoningEffort(settings.reasoningEffort, levels: levels))
+                                    Image(systemName: "chevron.up.chevron.down").font(.footnote)
+                                        .accessibilityHidden(true)
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(minHeight: 44).padding(.vertical, Space.xs)
+                    }
                 }
             } else {
                 FieldRow(title: "API key") {
