@@ -146,8 +146,9 @@ enum OpenResult: String {
             // a commit changes the frame as much as a new app does.
             // Only a line that is the app's name (not one that contains it: a message, a web hit), at most two per
             // look, top first; the search field holding the same text may be one of them, a tap there changes nothing.
-            var shown = results, closed = false
+            var shown = results, closed = false, changed = false
             for round in 0..<2 {
+                changed = false
                 let (spots, web) = await spots(shown, name, labels)
                 if web {  // not installed: tapping it or Return opens a web search
                     log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
@@ -162,9 +163,13 @@ enum OpenResult: String {
                     let moved = !same(now, shown)
                     shown = now
                     closed = after == .closed
+                    changed = moved
                     if closed || moved { break }  // the old spots are stale on a changed screen
                 }
                 if closed || round == 1 || overBudget() { break }
+                // the tap changed Spotlight (a keyboard candidate committed the pinyin, 2026-11-25): read its new
+                // results first; Return there opened whatever came first, a web suggestion for an app not installed
+                if changed { continue }
                 log("open \(name) via Spotlight: \(spots.isEmpty ? "not listed" : "still on Spotlight") → enter")
                 try await key("enter")  // opens the top hit, or commits letters still composing
                 guard let now = await look() else { return .unchecked }

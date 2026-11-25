@@ -20,7 +20,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 - App: when the iPhone itself is slow (the app keeps waiting seconds for the CPU, as for a few hours after an iOS update), Home shows a tip saying so, and names the update when iOS changed in the last two days. Slowness from the app's own work doesn't show it.
 - App: Spotlight's web suggestions are not taken for the app: an app that is not installed is listed only there, and tapping it (or Return) opened a web search in the browser. Now the model is told the app is not on this iPhone.
 - App: Chinese typed on the English keyboard is caught from the first read of what changed (the pinyin shows as plain letters), deleted and typed again after ctrl+space, without two more reads of the whole screen.
-- App: the video decoder starts a new session as soon as the app goes to the background; the old one stopped giving frames there for about 10 s, which held up the first step.
+- App: the video decoder starts a new session as soon as the app goes to the background (tried again every 0.5 s for 3 s when iOS refuses it at first); the old one stopped giving frames there for about 10 s, which held up the first step. A tap that changes Spotlight (a keyboard candidate committing the pinyin) has its new results read before Return is pressed.
 - App: a free-line call refused because the model service was saturated is asked again after 0.5 s instead of 3 s.
 - App: a stopped run tells the free line who stopped it (the Stop button, the Live Activity, a notification, an answer to a question, or no answer in time).
 - App: the free line gets each step's first token, image, change check, pointer check and after-gesture time, and the run's start time, as seconds only.
