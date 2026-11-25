@@ -64,25 +64,6 @@ import XCTest
         XCTAssertTrue(own.isOn(.jev))
     }
 
-    func testGroundingHeaderDefaultsToManinaAndStaysOffOwnPaths() {
-        let defaults = UserDefaults(suiteName: "GroundingTests")!
-        defaults.removePersistentDomain(forName: "GroundingTests")
-        XCTAssertEqual(Grounding.header(role: "actor", provider: .handsyTrial, ownJev: false, defaults: defaults),
-                       ["X-Handsy-Ground": "manina"])
-        defaults.set(Grounding.jev.rawValue, forKey: Grounding.key)
-        XCTAssertEqual(Grounding.header(role: "actor", provider: .handsyTrial, ownJev: false, defaults: defaults),
-                       ["X-Handsy-Ground": "jev"])
-        defaults.set(Grounding.manina.rawValue, forKey: Grounding.key)
-        XCTAssertEqual(Grounding.header(role: "actor", provider: .handsyTrial, ownJev: false, defaults: defaults),
-                       ["X-Handsy-Ground": "manina"])
-        // never on the user's own model, own TypeSafe key, or other roles
-        XCTAssertEqual(Grounding.header(role: "actor", provider: .openRouter, ownJev: false, defaults: defaults), [:])
-        XCTAssertEqual(Grounding.header(role: "actor", provider: .handsyTrial, ownJev: true, defaults: defaults), [:])
-        XCTAssertEqual(Grounding.header(role: "planner", provider: .handsyTrial, ownJev: false, defaults: defaults), [:])
-        XCTAssertEqual(Grounding.header(role: "reader", provider: .handsyTrial, ownJev: false, defaults: defaults), [:])
-        defaults.removePersistentDomain(forName: "GroundingTests")
-    }
-
     func testSavedDecidersAndWithdrawTurnsJevOff() {
         let defaults = UserDefaults.standard
         let saved = defaults.object(forKey: JevConsent.key)

@@ -4,7 +4,6 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
-- App: Settings › Jev › Grounding picks which model grounds the free line's taps: Manina AI (default) or Jev. Shown when Jev runs on Manina AI; not sent with your own model or your own TypeSafe key.
 - App: the first launch asks once on the Welcome page whether you have an ESP32 board. Not yet opens manina.ai's page on where to get one (manina.ai/where-to-buy-esp32), then setup goes on. Users who already finished setup are never asked. With usage stats on, only the answer (yes/no) is counted.
 - App: a task that names an app no longer opens a system app whose plain name (音乐, 地图, 天气, Music, Maps…) is part of that app's longer name.
 - App: a tap that lands far from its target calibrates the pointer at once, even when the screen changed; failed calibrations try again after 3, 6, 12… taps and never stop for the run. Taps undone by back twice in a row find the pointer first.

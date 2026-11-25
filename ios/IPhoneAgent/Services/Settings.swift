@@ -377,16 +377,13 @@ import UIKit
             .freeLineHeader(race: Deciders.race(defaults)) : [:] }
         // free line: Spark builds the actor's tree (~70 ms, the phone ~1 s) and lists it in the app's format
         let tree = Self.treeHeaders(role, provider)
-        // free line: which model grounds the actor's taps (Manina AI by default, or Jev)
-        let provider = provider
-        let ground = { Grounding.header(role: role, provider: provider, defaults: defaults) }
         // free line: the previous step's timing (seconds only), so slow steps on the phone show on the server
         let step = { role == "actor" ? StepReport.shared.take() : [:] }
         // free line: the record reader's calls run beside the actor's on the same lease (gateway: one reader slot)
         let reader: [String: String] = role == "reader" ? ["X-Handsy-Role": "reader"] : [:]
         let headers: (() throws -> [String: String])? = freeLine
             ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
-                .merging(ground()) { a, _ in a }.merging(step()) { a, _ in a }.merging(reader) { a, _ in a } } : nil
+                .merging(step()) { a, _ in a }.merging(reader) { a, _ in a } } : nil
         return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
