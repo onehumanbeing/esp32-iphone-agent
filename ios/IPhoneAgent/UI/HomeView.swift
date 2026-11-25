@@ -129,7 +129,7 @@ struct HomeView: View {
             .overlay {
                 if app.departing {
                     DepartureOverlay(problem: app.homeHint) {
-                        Task { await app.stopAgent() }
+                        Task { await app.stopAgent(by: "departure") }
                     }
                 }
             }

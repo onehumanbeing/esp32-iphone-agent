@@ -87,6 +87,7 @@ import UIKit
     var startupTask: Task<Void, Never>?
     var returningInput = false
     @Published var stopping = false  // Stop was tapped; input is being handed back
+    var stopBy: String?  // where this run's stop came from (RunEnd.by), reset at each start
     var handoffStop = AsyncStream<Void>.makeStream()
     var lastPartialReleaseNoticeLink: Int?
     var runModelRevision = 0

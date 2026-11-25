@@ -46,8 +46,9 @@ import UIKit
     /// Henry 2026-11-12: the key can be turned off for a while (Settings › Model, at the bottom) and kept.
     @Published private(set) var keyOn = UserDefaults.standard.object(forKey: Trial.keyOnKey) as? Bool ?? true
     nonisolated static let keyOnKey = "handsyKeyOn"
-    /// A key saved on this iPhone, on or off.
-    var hasKey: Bool { !key.isEmpty }
+    /// A key saved on this iPhone, on or off. Text that isn't a key's shape is no key (2026-11-25: anything typed in
+    /// the field was saved as one and turned the free line off; its runs were refused at the gateway).
+    var hasKey: Bool { Self.looksLikeKey(key) }
     /// Runs go out under the key.
     var keyed: Bool { hasKey && keyOn }
     /// A key offered by a link (iphoneagent://key?k=…, from manina.ai): the app asks before it uses it.
@@ -73,10 +74,10 @@ import UIKit
         status = .unknown
         Task { await refresh() }
     }
-    /// What a Manina AI key looks like (hsk_live_…, hsk_test_…): anything else is never saved from a link.
+    /// What a Manina AI key looks like (hsk_live_…, hsk_test_…, then 43 characters; the gateway's own check):
+    /// anything else is never saved, from a link or the field.
     nonisolated static func looksLikeKey(_ value: String) -> Bool {
-        value.hasPrefix("hsk_") && (20...200).contains(value.count)
-            && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
+        value.range(of: #"^hsk_(test|live)_[A-Za-z0-9_-]{43}$"#, options: .regularExpression) != nil
     }
     private var keepAlive: Task<Void, Never>?
     private weak var app: AppModel?
@@ -603,6 +604,10 @@ struct RunEnd: Equatable {
     var transport: String?
     /// The longest run of gestures in a row that changed nothing on the screen, sent as `unchanged_max`.
     var unchangedMax: Int?
+    /// Who stopped a stopped run, sent as `by`: app (the Stop/Cancel button), live_activity, notification, review,
+    /// departure (the overlay while leaving the app), debug, user (answered Stop to a question), policy (nobody
+    /// answered in time), unknown (cancelled without a Stop).
+    var by: String?
 
     init(reason: Reason, stage: Stage, outcome: String? = nil, steps: Int = 0, calls: Int = 0, firmware: String? = nil) {
         self.reason = reason
@@ -663,6 +668,7 @@ struct RunEnd: Equatable {
         if let planCached { body["plan_cached"] = planCached }
         if let transport { body["transport"] = transport }
         if let unchangedMax { body["unchanged_max"] = min(unchangedMax, 10_000) }
+        if let by { body["by"] = by }
         return body
     }
 

@@ -17,16 +17,32 @@ import XCTest
 
     // MARK: - Manina AI key (a plan's key instead of the free runs)
 
+    static let testKey = "hsk_test_" + String(repeating: "a", count: 43)
+
+    func testOnlyAWholeKeyCountsAsAKey() {
+        XCTAssertTrue(Trial.looksLikeKey(Self.testKey))
+        XCTAssertTrue(Trial.looksLikeKey("hsk_live_" + String(repeating: "Z9_-", count: 10) + "abc"))
+        for bad in ["", "hsk_", "hsk_live_abc", "sk-" + String(repeating: "a", count: 48), "hsk_prod_" + String(repeating: "a", count: 43),
+                    Self.testKey + "a", "hsk_test_" + String(repeating: "a", count: 42) + "!"] {
+            XCTAssertFalse(Trial.looksLikeKey(bad), bad)
+        }
+        let trial = Trial.shared
+        trial.setKey("hsk_live_abc")  // an old build saved such text: it is no key, the free line stays
+        defer { trial.setKey("") }
+        XCTAssertFalse(trial.hasKey)
+        XCTAssertFalse(trial.keyed)
+    }
+
     func testAKeyedRunSendsTheKeyAndNoLease() async throws {
         let trial = Trial.shared
-        trial.setKey("  hsk_test_abc \n")
+        trial.setKey("  " + Self.testKey + " \n")
         defer { trial.setKey("") }
-        XCTAssertEqual(trial.key, "hsk_test_abc")
+        XCTAssertEqual(trial.key, Self.testKey)
         XCTAssertThrowsError(try trial.headers())  // still runs only
         try await trial.precheck()
         try await trial.begin()  // no enrollment, no lease request
         let headers = try trial.headers()
-        XCTAssertEqual(headers["Authorization"], "Bearer hsk_test_abc")
+        XCTAssertEqual(headers["Authorization"], "Bearer " + Self.testKey)
         XCTAssertNotNil(UUID(uuidString: headers["X-Run-ID"] ?? ""))
         XCTAssertNil(headers["X-Lease-ID"])
         XCTAssertNil(headers["X-Device-ID"])
@@ -58,13 +74,20 @@ import XCTest
     func testTheHeldRunIsOnRecordUntilItIsReleased() async throws {
         let trial = Trial.shared
         Trial.leftover = nil
-        trial.setKey("hsk_test_abc")
+        trial.setKey(Self.testKey)
         defer { trial.setKey(""); Trial.leftover = nil }
         try await trial.begin()
         XCTAssertNotNil(Trial.leftover?.keyRun)
         XCTAssertEqual(Trial.leftover?.keyRun, trial.runID)
         trial.end(RunEnd(reason: .userStop, stage: .running))
         XCTAssertNil(Trial.leftover)
+    }
+
+    func testAStoppedRunSaysWhoStoppedIt() {
+        var end = RunEnd(reason: .userStop, stage: .running)
+        XCTAssertNil(end.json["by"])
+        end.by = "live_activity"
+        XCTAssertEqual(end.json["by"] as? String, "live_activity")
     }
 
     func testARefusedKeyKeepsItsOwnTextAndIsFinal() {

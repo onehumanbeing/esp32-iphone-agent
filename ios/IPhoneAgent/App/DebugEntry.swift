@@ -294,7 +294,7 @@ extension AppModel {
             guard let self else { return }
             switch name {
             case "stop":
-                await stopAgent()
+                await stopAgent(by: "debug")
             case "run":
                 guard await waitReady(mirroring: true) else { return say("debug: run not started, board/mirroring not ready in 30 s") }
                 guard !agent.running else { return say("debug: a run is already going") }

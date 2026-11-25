@@ -46,6 +46,7 @@ extension AppModel {
     func startAgent(_ task: String, resume: Bool = false) async {
         guard !startingAgent, !agent.running else { return }
         startingAgent = true
+        stopBy = nil
         handoffStop = AsyncStream<Void>.makeStream()
         runUsage = ModelUsage()  // a failed start counts its keyboard check too
         tab = .agent
@@ -306,6 +307,7 @@ extension AppModel {
                                            inFront: !appIsBackgrounded)
             var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
             end.step = step.rawValue
+            if cancelled { end.by = stopBy ?? "unknown" }
             Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
@@ -336,7 +338,8 @@ extension AppModel {
     }
 
     /// Wait for whichever task owns input to finish cleanup ("Stopping…" until then).
-    func stopAgent() async {
+    func stopAgent(by: String = "app") async {
+        if stopBy == nil { stopBy = by }
         stopping = true
         defer { stopping = false }
         handoffStop.continuation.finish()
@@ -445,6 +448,9 @@ extension AppModel {
         RunMarker.clear()
         var runEnd = RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls, firmware: board.status?.fw?.plain)
         runEnd.transport = board.status?.hidTransport
+        if runEnd.outcome == "stopped" {  // a question's own stop says user or policy; a cancel, where it came from
+            runEnd.by = stopBy ?? agent.steps.last(where: { $0["action"]?.str == "stopped" })?["by"]?.str ?? "unknown"
+        }
         let plan = endLine(runEnd)  // free line (held while the plan is judged)
         videoSink = nil
         saveVideoFrame(screen.frame)  // the last screen too, however the run ended
@@ -615,7 +621,7 @@ extension AppModel {
     /// Live Activity buttons.
     func control(_ command: AgentCommand) async {
         switch command {
-        case .stop: await stopAgent()
+        case .stop: await stopAgent(by: "live_activity")
         case .resume: answerHelp(.resume)
         case .skip: answerHelp(.skip)
         case .takeOver: takeOver()
@@ -633,7 +639,7 @@ extension AppModel {
             return
         }
         switch action {
-        case .stop?: Task { await stopAgent() }
+        case .stop?: Task { await stopAgent(by: "notification") }
         case .resume?: answerHelp(.resume)
         case .skip?: answerHelp(.skip)
         case .takeOver?: takeOver()

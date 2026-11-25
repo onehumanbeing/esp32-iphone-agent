@@ -11473,16 +11473,6 @@
         }
       }
     },
-    "Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费试用，名额有限：每次最长 3 分钟，每台手机可用几次。忙碌时过一分钟再试，或添加你自己的模型。"
-          }
-        }
-      }
-    },
     "Private model, no API key. Limited capacity." : {
       "localizations" : {
         "zh-Hans" : {
@@ -14959,6 +14949,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "屏幕镜像已连接，但一直没有画面。请停止屏幕镜像后重新开始。如果板子连的是这台 iPhone 的个人热点，请把两者换到别的 Wi-Fi：这种情况下镜像不会传画面。"
+          }
+        }
+      }
+    },
+    "Free to try with limited capacity: a few runs per phone. When it's busy, try again in a minute or add your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用，名额有限：每台手机可用几次。忙碌时过一分钟再试，或添加你自己的模型。"
+          }
+        }
+      }
+    },
+    "This isn't a Manina AI key (it starts with hsk_live_). Runs use the free line until a key is filled in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是 Manina AI 密钥（密钥以 hsk_live_ 开头）。在填入正确的密钥之前，运行仍走免费线路。"
           }
         }
       }
