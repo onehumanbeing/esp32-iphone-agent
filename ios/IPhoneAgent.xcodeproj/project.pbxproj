@@ -180,6 +180,7 @@
 		7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */; };
 		7D078270BE4E26E1899481E3 /* BackgroundProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66775702F3D5024498E9475B /* BackgroundProbe.swift */; };
 		C7F1E5000000000000000071 /* MainLag.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000070 /* MainLag.swift */; };
+		A11C0FFEE0D1252611250003 /* PhoneLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C0FFEE0D1252611250004 /* PhoneLoad.swift */; };
 		C7F1E5000000000000000093 /* MainStall.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000092 /* MainStall.swift */; };
 		C7F1E5000000000000000073 /* PlanCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000072 /* PlanCache.swift */; };
 		C7F1E5000000000000000079 /* PlanFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F1E5000000000000000078 /* PlanFile.swift */; };
@@ -590,6 +591,7 @@
 		65B2AF89768742529495A451 /* RemoteLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLog.swift; sourceTree = "<group>"; };
 		66775702F3D5024498E9475B /* BackgroundProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundProbe.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000070 /* MainLag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainLag.swift; sourceTree = "<group>"; };
+		A11C0FFEE0D1252611250004 /* PhoneLoad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLoad.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000092 /* MainStall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainStall.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000072 /* PlanCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCache.swift; sourceTree = "<group>"; };
 		C7F1E5000000000000000078 /* PlanFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanFile.swift; sourceTree = "<group>"; };
@@ -1234,6 +1236,7 @@
 				60955809E15AC0A89AD72418 /* Analytics.swift */,
 				66775702F3D5024498E9475B /* BackgroundProbe.swift */,
 				C7F1E5000000000000000070 /* MainLag.swift */,
+				A11C0FFEE0D1252611250004 /* PhoneLoad.swift */,
 				C7F1E5000000000000000092 /* MainStall.swift */,
 				C7F1E5000000000000000072 /* PlanCache.swift */,
 				C7F1E5000000000000000078 /* PlanFile.swift */,
@@ -1680,6 +1683,7 @@
 				1BBB78AF1CD2B329778F6E01 /* AutoCalibrator.swift in Sources */,
 				7D078270BE4E26E1899481E3 /* BackgroundProbe.swift in Sources */,
 				C7F1E5000000000000000071 /* MainLag.swift in Sources */,
+				A11C0FFEE0D1252611250003 /* PhoneLoad.swift in Sources */,
 				C7F1E5000000000000000093 /* MainStall.swift in Sources */,
 				C7F1E5000000000000000073 /* PlanCache.swift in Sources */,
 				C7F1E5000000000000000079 /* PlanFile.swift in Sources */,

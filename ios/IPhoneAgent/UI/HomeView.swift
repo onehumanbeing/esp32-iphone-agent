@@ -24,6 +24,7 @@ struct HomeView: View {
     @FocusState private var editing: Bool
     @State private var renaming = false
     @State private var pullingToRefresh = false
+    @ObservedObject private var phoneLoad = PhoneLoad.shared
     @State private var pullEnded = Date.distantPast
     @State private var showingDeleteError = false
     @State private var deleteError = ""
@@ -36,6 +37,11 @@ struct HomeView: View {
                     Section {
                         Label("Demo data is on: no board, no model, nothing is tapped or sent. Turn it off in Settings.", systemImage: "theatermasks")
                             .font(.footnote)
+                    }
+                }
+                if phoneLoad.slow {
+                    Section {
+                        Label(phoneLoad.tip, systemImage: "tortoise").font(.footnote)
                     }
                 }
                 if !recorder.busy && recorder.error == nil {

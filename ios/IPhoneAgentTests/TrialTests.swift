@@ -98,6 +98,22 @@ import XCTest
         XCTAssertNil(Trial.leftover)
     }
 
+    func testASlowPhoneIsThreeLongStallsInTwoMinutes() {
+        XCTAssertFalse(PhoneLoad.isSlow([0, 10], at: 20))
+        XCTAssertTrue(PhoneLoad.isSlow([0, 10, 20], at: 30))
+        XCTAssertFalse(PhoneLoad.isSlow([0, 10, 20], at: 125))  // the first one is out of the window
+    }
+
+    func testAnUpdateIsNamedForTwoDaysAndNotOnTheFirstLaunch() {
+        let d = UserDefaults(suiteName: "os-update-test")!
+        d.removePersistentDomain(forName: "os-update-test")
+        OSUpdate.note("26.3", at: 0, defaults: d)
+        XCTAssertNil(OSUpdate.recent(at: 1, defaults: d))  // first launch: no update seen
+        OSUpdate.note("27.2.1", at: 100, defaults: d)
+        XCTAssertEqual(OSUpdate.recent(at: 200, defaults: d), "27.2.1")
+        XCTAssertNil(OSUpdate.recent(at: 100 + OSUpdate.recentFor + 1, defaults: d))
+    }
+
     func testAPlayTapThatEndsAPullDoesNotRun() {
         let now = Date()
         XCTAssertTrue(HomeView.pullTapped(pulling: true, ended: .distantPast, now: now))

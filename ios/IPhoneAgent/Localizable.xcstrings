@@ -14972,6 +14972,26 @@
           }
         }
       }
+    },
+    "This iPhone is running slowly. It was updated to iOS %@ recently: for a few hours after an update iOS works in the background and every app is slower. Leave it charging on Wi-Fi for a while, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 现在比较卡。它最近刚升级到 iOS %@：升级后的几个小时里，系统会在后台整理数据，所有 App 都会变慢。插上电、连着 Wi‑Fi 放一会儿再试。"
+          }
+        }
+      }
+    },
+    "This iPhone is running slowly right now, so runs are slower too. If you updated iOS recently, it is still working in the background: leave it charging on Wi-Fi for a while. Closing other apps can help." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 现在比较卡，运行也会跟着变慢。如果最近刚升级过系统，它还在后台整理数据：插上电、连着 Wi‑Fi 放一会儿。关掉其他 App 也有帮助。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
