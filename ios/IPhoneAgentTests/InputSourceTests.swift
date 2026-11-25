@@ -197,7 +197,8 @@ import UIKit
         let ime = FakeKeyboards([.wubi], knowing: "你好")
         let stop = try await ime.typer(InputSource()).attempt("你好")
         XCTAssertEqual(stop?.noPinyin, true)
-        XCTAssertEqual(ime.sent.filter { $0 == "type nihao" }.count, 2)
+        // iPad presses ctrl+space once more (its first press after Spotlight did nothing): one more retype there
+        XCTAssertEqual(ime.sent.filter { $0 == "type nihao" }.count, DeviceKind.isPad ? 3 : 2)
         XCTAssertEqual(ime.field, "")
     }
 
