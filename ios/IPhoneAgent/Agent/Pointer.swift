@@ -67,6 +67,10 @@ import UIKit
         return Self.turned(s, landscape: aspect > 1)
     }
 
+    /// The screen is turned from the calibration (iPhone, a landscape app): its corner offset and landing samples
+    /// are for the other orientation, so they are left out; the aim's landing check corrects what is off.
+    var turnedNow: Bool { calibratedSpan != nil && span != calibratedSpan }
+
     /// The sides of `s` for a landscape or portrait screen (the long side across a landscape one).
     nonisolated static func turned(_ s: Span, landscape: Bool) -> Span {
         (s.w > s.h) == landscape || s.w == s.h ? s : Span(w: s.h, h: s.w)
@@ -424,7 +428,7 @@ import UIKit
         let rehome = recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels, confirmed: far)
         if rehome { log("pointer: far landing seen twice; re-homing, calibrating again only if the next one is far too") }
         if far { StepReport.shared.farLanding() }
-        guard !far else { return rehome }
+        guard !far, !turnedNow else { return rehome }
         remember("x", (fix(x, "x"), Double(found.x)))
         remember("y", (fix(y, "y"), Double(found.y)))
         save()
@@ -596,7 +600,7 @@ import UIKit
 
     /// The fraction to aim at so the pointer lands on t, from the line through the observed landings.
     func fix(_ t: Double, _ axis: String) -> Double {
-        if absolute { return t }
+        if absolute || turnedNow { return t }
         let pts = seen[axis] ?? []
         guard pts.count >= 2 else { return t }
         let n = Double(pts.count)
@@ -912,11 +916,11 @@ import UIKit
 
     private func dx(_ x: Double) -> Int {
         if absolute { return Int((min(max(x, 0), 1) * Double(Self.absoluteSpan.w)).rounded(.toNearestOrEven)) }
-        return Int(((min(max(fix(x, "x"), 0), 1) - origin.x) * Double(span!.w)).rounded(.toNearestOrEven))
+        return Int(((min(max(fix(x, "x"), 0), 1) - (turnedNow ? 0 : origin.x)) * Double(span!.w)).rounded(.toNearestOrEven))
     }
     private func dy(_ y: Double) -> Int {
         if absolute { return Int((min(max(y, 0), 1) * Double(Self.absoluteSpan.h)).rounded(.toNearestOrEven)) }
-        return Int(((min(max(fix(y, "y"), 0), 1) - origin.y) * Double(span!.h)).rounded(.toNearestOrEven))
+        return Int(((min(max(fix(y, "y"), 0), 1) - (turnedNow ? 0 : origin.y)) * Double(span!.h)).rounded(.toNearestOrEven))
     }
 }
 
