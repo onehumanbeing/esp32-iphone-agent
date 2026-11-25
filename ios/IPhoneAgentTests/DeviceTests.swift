@@ -1280,4 +1280,13 @@ import XCTest
             XCTAssertEqual(spot.y, home.y, accuracy: 0.02)
         }
     }
+
+    @MainActor func testALandscapeAppSwapsTheCalibrationsSides() {
+        // 2026-11-26, Kingdom Rush in landscape on an iPhone calibrated in portrait: x 0.87 landed at x 0.35
+        let portrait = Pointer.Span(w: 430, h: 1065)
+        XCTAssertEqual(Pointer.turned(portrait, landscape: true), Pointer.Span(w: 1065, h: 430))
+        XCTAssertEqual(Pointer.turned(portrait, landscape: false), portrait)
+        XCTAssertEqual(Pointer.turned(Pointer.Span(w: 1065, h: 430), landscape: false), portrait)  // calibrated in landscape
+    }
+
 }

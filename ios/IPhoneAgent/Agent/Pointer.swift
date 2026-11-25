@@ -57,7 +57,20 @@ import UIKit
     /// Where the calibration is kept. iPad: one file per orientation (`adopt`), named after `baseFile`.
     private var file: URL
     private let baseFile: URL
-    @Published private(set) var span: Span?  // mouse units needed to cross the full screen width / height
+    @Published private(set) var calibratedSpan: Span?  // mouse units needed to cross the full screen width / height
+    /// `calibratedSpan` for the screen as it is now. iPhone: an app in landscape (a game) turns the pointer's axes
+    /// with it, so the long side is the width: the calibration's sides swap. Calibrated in portrait, a target at x 0.87
+    /// of Kingdom Rush landed at x 0.35, on a locked mode button (2026-11-26). iPad keeps one per orientation (`adopt`).
+    var span: Span? {
+        guard let s = calibratedSpan else { return nil }
+        guard !Self.iPadPointer, let aspect = screen?.aspect, aspect.isFinite, aspect > 0 else { return s }
+        return Self.turned(s, landscape: aspect > 1)
+    }
+
+    /// The sides of `s` for a landscape or portrait screen (the long side across a landscape one).
+    nonisolated static func turned(_ s: Span, landscape: Bool) -> Span {
+        (s.w > s.h) == landscape || s.w == s.h ? s : Span(w: s.h, h: s.w)
+    }
     /// Where home really leaves the pointer (screen fraction). Going left, then up the left edge, the rounded corner
     /// pushes it in to about x 0.14 (2026-11-06): steady, so it is part of the calibration, not learned drift.
     private(set) var origin = CGPoint.zero
@@ -112,7 +125,7 @@ import UIKit
     }
 
     private func load(_ saved: Saved) {
-        span = Span(w: saved.w, h: saved.h)
+        calibratedSpan = Span(w: saved.w, h: saved.h)
         (quality, aspect, pace, geometry) = (saved.quality, saved.aspect, saved.pace ?? 1, saved.geometry)
         origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
         gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
@@ -126,7 +139,7 @@ import UIKit
 
     /// Back to a `snapshot`: the previous calibration, or none (issue #96: a ±49.8% check was kept and used).
     func restore(_ snapshot: Data?) {
-        (span, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
+        (calibratedSpan, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
         (seen, pos) = (["x": [], "y": []], nil)
         if let snapshot, let saved = try? JSONDecoder().decode(Saved.self, from: snapshot) {
             load(saved)
@@ -165,7 +178,7 @@ import UIKit
         let target = Self.file(for: current, base: baseFile)
         guard target != file || calibrated else { return }  // this orientation has none: nothing to load again
         file = target
-        (span, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
+        (calibratedSpan, quality, aspect, pace, origin, gain, geometry) = (nil, nil, nil, 1, .zero, [], nil)
         (seen, pos) = (["x": [], "y": []], nil)
         if let data = try? Data(contentsOf: target), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             load(saved)
@@ -225,7 +238,7 @@ import UIKit
             return false
         }
         try checkRotation(since: started)
-        span = s
+        calibratedSpan = s
         // the corner the board homes to is not exactly (0, 0): fit that offset from the same two stops. Keeping an
         // older one (a touch probe's 0.142) while the samples left it out made `fix` learn a -7% x shift: every tap
         // landed left of its target after a mid-run recalibration (2026-11-11 Maps run).
@@ -282,7 +295,7 @@ import UIKit
             log(String(format: "calibration: tap at (%.3f, %.3f) gives no usable span", x, y))
             return
         }
-        span = s
+        calibratedSpan = s
         seen = ["x": [], "y": []]
         save()
     }
@@ -294,7 +307,7 @@ import UIKit
             log(String(format: "calibration: touch probe slopes %.5f / %.5f give no usable span", x.a, y.a))
             return
         }
-        span = s
+        calibratedSpan = s
         (quality, aspect, pace) = (max(x.rms, y.rms), screenAspect(), boardPace ?? pace)
         (origin, gain, geometry) = (CGPoint(x: x.b, y: y.b), [], currentGeometry())
         seen = ["x": [], "y": []]
@@ -576,7 +589,7 @@ import UIKit
 
     /// Demo data: pretend a calibration with this quality.
     func mockCalibrated(quality: Double) {
-        span = span ?? Span(w: 400, h: 860)
+        calibratedSpan = calibratedSpan ?? Span(w: 400, h: 860)
         geometry = currentGeometry()
         self.quality = quality
     }
