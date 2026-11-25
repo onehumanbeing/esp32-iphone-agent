@@ -98,6 +98,14 @@ import XCTest
         XCTAssertNil(Trial.leftover)
     }
 
+    func testAPlayTapThatEndsAPullDoesNotRun() {
+        let now = Date()
+        XCTAssertTrue(HomeView.pullTapped(pulling: true, ended: .distantPast, now: now))
+        XCTAssertTrue(HomeView.pullTapped(pulling: false, ended: now.addingTimeInterval(-0.3), now: now))
+        XCTAssertFalse(HomeView.pullTapped(pulling: false, ended: now.addingTimeInterval(-2), now: now))
+        XCTAssertFalse(HomeView.pullTapped(pulling: false, ended: .distantPast, now: now))
+    }
+
     func testAStoppedRunSaysWhoStoppedIt() {
         var end = RunEnd(reason: .userStop, stage: .running)
         XCTAssertNil(end.json["by"])

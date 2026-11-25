@@ -24,6 +24,7 @@ struct HomeView: View {
     @FocusState private var editing: Bool
     @State private var renaming = false
     @State private var pullingToRefresh = false
+    @State private var pullEnded = Date.distantPast
     @State private var showingDeleteError = false
     @State private var deleteError = ""
 
@@ -65,7 +66,7 @@ struct HomeView: View {
             .listStyle(.insetGrouped)
             .refreshable {
                 pullingToRefresh = true
-                defer { pullingToRefresh = false }
+                defer { pullingToRefresh = false; pullEnded = Date() }
                 await app.refreshHomeStatus()
             }
             .overlay(alignment: .top) {
@@ -416,10 +417,22 @@ struct HomeView: View {
     }
 
     private func run(_ item: SavedTask) {
+        // iOS 27: a pull down to refresh that began on a row's play button ran that intent when the finger lifted
+        // (2026-11-25, Henry's video: the pull ran "测1 汽水音乐" and the list jumped to the top)
+        guard !Self.pullTapped(pulling: pullingToRefresh, ended: pullEnded) else {
+            DebugLog.write("home: play tapped during a pull to refresh; not run")
+            return
+        }
         if item.builtin != nil { return start(item.prompt, intent: item) }  // runs in the app, needs no setup
         task = item.prompt
         guard blocker == nil, !agent.running, !recorder.busy else { return }
         start(item.prompt, intent: item)
+    }
+
+    /// A play tap that is the end of a pull to refresh: during it, or within `pullGrace` after it.
+    nonisolated static let pullGrace = 0.8
+    nonisolated static func pullTapped(pulling: Bool, ended: Date, now: Date = Date()) -> Bool {
+        pulling || now.timeIntervalSince(ended) < pullGrace
     }
 
     /// The first Start asks for notifications (one line why), then the character takes off.
