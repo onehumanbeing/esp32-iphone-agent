@@ -419,7 +419,7 @@ struct ActPage: View {
     @State private var stuck = false
     @Environment(\.scenePhase) private var scenePhase
 
-    private var wireless: Bool { board.status?.isWirelessHID == true }
+    private var wireless: Bool { board.status?.isWirelessHID == true || DeviceCaps.hasLightning }  // as ConnectPage: a Lightning iPhone is Bluetooth only
     private var mouse: Bool { MockMode.on || board.status?.inputReady == true }
     private var mirroring: Bool { MockMode.on || app.onDeviceCapture || board.status?.ap == "streaming" }
     private var touchOn: Bool { MockMode.on || assistiveTouch }
