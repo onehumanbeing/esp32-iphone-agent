@@ -14992,6 +14992,246 @@
           }
         }
       }
+    },
+    "5-hour limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 小时额度"
+          }
+        }
+      }
+    },
+    "%lld%% used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用 %lld%%"
+          }
+        }
+      }
+    },
+    "ChatGPT sign-in failed (HTTP %lld). Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 登录失败（HTTP %lld），请重试。"
+          }
+        }
+      }
+    },
+    "ChatGPT %@ · signed in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT %@ · 已登录"
+          }
+        }
+      }
+    },
+    "Copy and Open Sign-in Page" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制并打开登录页"
+          }
+        }
+      }
+    },
+    "Device-code sign-in is off for this ChatGPT account. Turn it on in ChatGPT › Settings › Security, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有开启设备码登录。请在 ChatGPT 的 设置 › 安全 中开启后重试。"
+          }
+        }
+      }
+    },
+    "Enter this code on OpenAI's page. Tap below to copy it and open the page." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 OpenAI 的页面上输入这个码。点下面的按钮会复制它并打开页面。"
+          }
+        }
+      }
+    },
+    "Only enter a code that you started here. If a website or another person gave you a code, cancel." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只输入你在这里发起的验证码。如果是网站或别人给你的码，请取消。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in returned no authorization. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回授权，请重试。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in did not return a code. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回验证码，请重试。"
+          }
+        }
+      }
+    },
+    "Reasoning effort" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考强度"
+          }
+        }
+      }
+    },
+    "Resets %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@重置"
+          }
+        }
+      }
+    },
+    "Runs count against your ChatGPT plan's usage limits, the same allowance Codex uses. Plus or Pro works best." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务会消耗你 ChatGPT 套餐的用量额度，和 Codex 用的是同一份。Plus 或 Pro 效果最好。"
+          }
+        }
+      }
+    },
+    "Sign Out" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
+    },
+    "Sign in · uses your Plus or Pro plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 · 使用你的 Plus 或 Pro 套餐"
+          }
+        }
+      }
+    },
+    "Sign in with ChatGPT" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 ChatGPT 登录"
+          }
+        }
+      }
+    },
+    "Sign in to ChatGPT again in Settings › Model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在 设置 › 模型 里重新登录 ChatGPT。"
+          }
+        }
+      }
+    },
+    "The sign-in code expired. Start again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码已过期，请重新开始。"
+          }
+        }
+      }
+    },
+    "This ChatGPT account has no plan the app can use." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有 App 能用的套餐。"
+          }
+        }
+      }
+    },
+    "Use Your Subscription" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的订阅"
+          }
+        }
+      }
+    },
+    "Waiting for sign-in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待登录"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. Try again later." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，请稍后再试。"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. It resets at %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，将在 %@ 重置。"
+          }
+        }
+      }
+    },
+    "Weekly limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每周额度"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

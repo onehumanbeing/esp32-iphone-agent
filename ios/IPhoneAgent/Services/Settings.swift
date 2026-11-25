@@ -34,6 +34,8 @@ import UIKit
     @Published var actorModel: String { didSet { defaults.set(actorModel, forKey: "actorModel"); configurationRevision += 1 } }        // "" = model
     @Published var tokenParam: String { didSet { defaults.set(tokenParam, forKey: "tokenParam"); configurationRevision += 1 } }        // auto | ...
     @Published var extraBody: String { didSet { defaults.set(extraBody, forKey: "extraBody"); configurationRevision += 1 } }          // JSON object
+    /// ChatGPT sign-in: the reasoning effort chosen for the model, "" = none chosen (low, or the model's first).
+    @Published var reasoningEffort: String { didSet { defaults.set(reasoningEffort, forKey: "reasoningEffort"); configurationRevision += 1 } }
     @Published var apiKey: String { didSet { keychain.set(apiKey, for: "llm-api-key"); DebugLog.redact([apiKey])
         if apiKey != oldValue { modelsChanged() } } }
     /// What the agent is called (Agent tab title, greeting, Live Activity); empty = the default.
@@ -87,6 +89,7 @@ import UIKit
         plannerModel = defaults.string(forKey: "plannerModel") ?? ""
         actorModel = defaults.string(forKey: "actorModel") ?? ""
         tokenParam = defaults.string(forKey: "tokenParam") ?? "auto"
+        reasoningEffort = defaults.string(forKey: "reasoningEffort") ?? ""
         extraBody = defaults.string(forKey: "extraBody") ?? "{}"
         apiKey = Self.stored(keychain.get("llm-api-key")) ?? preset("IAPresetKey") ?? ""
         agentName = defaults.string(forKey: Self.agentNameKey) ?? Self.defaultAgentName
@@ -259,6 +262,7 @@ import UIKit
     /// The provider has a usable setup: an endpoint and a key (a custom server may not need one).
     func isConfigured(_ p: ModelProvider) -> Bool {
         if p == .handsyTrial { return Trial.available }  // free line: no key
+        if p == .chatGPT { return ChatGPTAuth.shared.signedIn }  // signed in, no key
         if p == .others { return !customEndpoints.isEmpty || (provider == .others && isConfigured) }
         if p == provider { return isConfigured && !apiKey.isEmpty }
         let url = (defaults.dictionary(forKey: Self.profileKey(p)) as? [String: String])?["baseURL"] ?? p.baseURL
@@ -308,7 +312,9 @@ import UIKit
         defer { if request == modelsRequest { loadingModels = false } }
         do {
             var list: [String], free = Set<String>()
-            if provider == .openRouter {
+            if provider == .chatGPT {
+                list = try await ChatGPTAuth.shared.models()
+            } else if provider == .openRouter {
                 (list, free) = try await LLMClient.openRouterModels(apiKey: apiKey)
             } else {
                 list = try await LLMClient.models(baseURL: baseURL, apiKey: apiKey)
@@ -316,6 +322,8 @@ import UIKit
             guard request == modelsRequest else { return }
             models = list
             freeModels = free
+            // ChatGPT lists only its own models, all of which read images, best first: no pick needed
+            if provider == .chatGPT, model.isEmpty, let first = list.first { model = first }
             modelsError = list.isEmpty ? String(localized: "The endpoint lists no models. Enter the model ID under Custom model.") : nil
             // Model order does not indicate image support; never silently select the first entry.
             DebugLog.write("models: \(list.count) listed, first \(list.first ?? "-")")
@@ -338,6 +346,28 @@ import UIKit
     func consentChanged() {
         configurationRevision += 1
         Task { await loadModels() }
+    }
+
+    /// The effort to ask for: the chosen one when the model lists it; nil for the request's own default (low) when
+    /// the model lists low; else the model's first. Nil too while the model's efforts are unknown.
+    static func reasoningEffort(_ chosen: String, levels: [String]?) -> String? {
+        guard let levels, !levels.isEmpty else { return nil }
+        if levels.contains(chosen) { return chosen }
+        return levels.contains("low") ? nil : levels.first
+    }
+
+    /// What the Reasoning effort row shows: what goes out, low when that is the request's default.
+    static func shownReasoningEffort(_ chosen: String, levels: [String]) -> String {
+        reasoningEffort(chosen, levels: levels) ?? "low"
+    }
+
+    /// The effort as Extra body's "reasoning" (never one the model does not list: it would be refused), unless Extra
+    /// body has a "reasoning" of its own.
+    static func withReasoningEffort(_ extra: [String: Any], effort: String, levels: [String]?) -> [String: Any] {
+        guard extra["reasoning"] == nil, let effort = reasoningEffort(effort, levels: levels) else { return extra }
+        var extra = extra
+        extra["reasoning"] = ["effort": effort]
+        return extra
     }
 
     var extra: [String: Any] {
@@ -365,6 +395,12 @@ import UIKit
         let own = freeLine ? freeLineModel : role == "planner" ? plannerModel : actorModel
         let model = own.isEmpty ? try await resolvedModel() : own
         var extra = freeLine ? [:] : extra
+        if provider == .chatGPT {
+            extra = Self.withReasoningEffort(extra, effort: reasoningEffort, levels: ChatGPTAuth.shared.efforts[model])
+            if let effort = (extra["reasoning"] as? [String: Any])?["effort"] as? String {
+                DebugLog.write("chatgpt: \(role) \(model), reasoning effort \(effort)")
+            }
+        }
         if provider == .openRouter, model.hasSuffix(":free"), extra["models"] == nil {
             // When that free model's providers are rate-limited or down, OpenRouter tries two other free vision models.
             let others = freeModels.filter { $0 != model && $0.hasSuffix(":free") }.sorted().prefix(2)
@@ -383,8 +419,9 @@ import UIKit
         let reader: [String: String] = role == "reader" ? ["X-Handsy-Role": "reader"] : [:]
         let headers: (() throws -> [String: String])? = freeLine
             ? { try Trial.shared.headers().merging(jev()) { a, _ in a }.merging(tree) { a, _ in a }
-                .merging(step()) { a, _ in a }.merging(reader) { a, _ in a } } : nil
-        return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: apiKey, extra: extra,
+                .merging(step()) { a, _ in a }.merging(reader) { a, _ in a } } : provider == .chatGPT ? { try ChatGPTAuth.shared.headers() } : nil
+        let key = provider == .chatGPT ? try await ChatGPTAuth.shared.accessToken() : apiKey  // ChatGPT: renewed when near expiry
+        return LLMClient(baseURL: freeLine ? Trial.baseURL : baseURL, model: model, apiKey: key, extra: extra,
                          tokenParam: freeLine ? "auto" : tokenParam, headers: headers)
     }
 

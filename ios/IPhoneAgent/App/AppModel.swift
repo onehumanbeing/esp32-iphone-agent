@@ -607,7 +607,8 @@ import UIKit
     /// The model endpoint is filled in (demo data simulates one).
     var modelReady: Bool {
         MockMode.on || (settings.isConfigured && settings.currentModel != nil
-            && (settings.provider == .others || settings.provider == .handsyTrial || !settings.apiKey.isEmpty))
+            && (settings.provider == .others || settings.provider == .handsyTrial || !settings.apiKey.isEmpty
+                || settings.provider == .chatGPT && ChatGPTAuth.shared.signedIn))
     }
 
     func say(_ text: String) {

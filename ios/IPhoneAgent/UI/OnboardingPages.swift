@@ -513,5 +513,6 @@ struct ModelFieldsPanel: View {
         }
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
+        .chatGPTSignInHost()
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// One compact configuration form shared by onboarding and Settings.
 struct ProviderFields: View {
     @ObservedObject var settings: Settings
+    @ObservedObject private var chatGPT = ChatGPTAuth.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,6 +18,38 @@ struct ProviderFields: View {
             }
             if settings.provider == .handsyTrial {  // free line: no key, one fixed model
                 TrialPanel()
+            } else if settings.provider == .chatGPT {  // signed in, no key
+                ChatGPTAccountRows()
+                if chatGPT.signedIn {
+                    Divider()
+                    ModelPicker(settings: settings, title: "Model", selection: $settings.model,
+                                automatic: String(localized: "Choose a model"), allowsDefault: false,
+                                onChoose: settings.chooseModel)
+                        .frame(minHeight: 44).padding(.vertical, Space.xs)
+                    if let levels = chatGPT.efforts[settings.model], !levels.isEmpty {  // what this model offers
+                        Divider()
+                        Menu {
+                            Picker("Reasoning effort", selection: Binding(
+                                get: { Settings.shownReasoningEffort(settings.reasoningEffort, levels: levels) },
+                                set: { settings.reasoningEffort = $0 })) {
+                                ForEach(levels, id: \.self) { Text(verbatim: $0).tag($0) }
+                            }
+                        } label: {
+                            LabeledContent("Reasoning effort") {  // laid out as the Model row above
+                                HStack {
+                                    Text(verbatim: Settings.shownReasoningEffort(settings.reasoningEffort, levels: levels))
+                                    Image(systemName: "chevron.up.chevron.down").font(.footnote)
+                                        .accessibilityHidden(true)
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(minHeight: 44).padding(.vertical, Space.xs)
+                    }
+                }
             } else {
                 FieldRow(title: "API key") {
                     SecureField("API key", text: $settings.apiKey,
@@ -46,8 +79,8 @@ struct ProviderFields: View {
             }
         }
         .textInputAutocapitalization(.never).autocorrectionDisabled()
-        .task(id: settings.baseURL + "\n" + settings.apiKey) {
-            guard settings.provider != .others, !settings.apiKey.isEmpty,
+        .task(id: settings.baseURL + "\n" + settings.apiKey + (chatGPT.account?.accountID ?? "")) {
+            guard settings.provider != .others, !settings.apiKey.isEmpty || settings.provider == .chatGPT && chatGPT.signedIn,
                   (try? await Task.sleep(for: .milliseconds(700))) != nil else { return }
             await settings.loadModels()
         }

@@ -4,6 +4,7 @@ import Foundation
 enum ModelProvider: String, CaseIterable, Identifiable {
     case openAI, gemini, qwen, qwenInternational, deepSeek, openRouter, nvidia, nebius, hCompany, zhipu, others
     case handsyTrial  // free line (Trial/); listed only in builds that have it
+    case chatGPT  // Sign in with ChatGPT: the user's own plan, no API key (ChatGPTAuth)
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -19,6 +20,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .zhipu: return "Zhipu GLM"
         case .others: return "Others"
         case .handsyTrial: return "Manina AI Free"
+        case .chatGPT: return "ChatGPT"
         }
     }
     var baseURL: String {
@@ -35,6 +37,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .zhipu: return "https://open.bigmodel.cn/api/paas/v4"
         case .others: return ""
         case .handsyTrial: return Trial.baseURL
+        case .chatGPT: return "https://chatgpt.com/backend-api/codex"
         }
     }
     var keyURL: URL? {
@@ -50,7 +53,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
         case .nebius: address = "https://tokenfactory.nebius.com/"
         case .hCompany: address = "https://hub.hcompany.ai/"
         case .zhipu: address = "https://open.bigmodel.cn/usercenter/apikeys"
-        case .others, .handsyTrial: return nil
+        case .others, .handsyTrial, .chatGPT: return nil
         }
         return URL(string: address)
     }
@@ -58,7 +61,7 @@ enum ModelProvider: String, CaseIterable, Identifiable {
     enum Logo { case asset(String), letter(String), symbol(String) }
     var logo: Logo {
         switch self {
-        case .openAI: return .asset("OpenAILogo")
+        case .openAI, .chatGPT: return .asset("OpenAILogo")
         case .gemini: return .asset("GeminiLogo")
         case .qwen, .qwenInternational: return .asset("QwenLogo")
         case .deepSeek: return .asset("DeepSeekLogo")
@@ -73,6 +76,8 @@ enum ModelProvider: String, CaseIterable, Identifiable {
     }
     /// Shown first in the provider list (their tested model is preselected).
     var recommended: Bool { TestedModels.list(for: self).contains { $0.recommended } }
+    /// Signed in, not set up with a key: listed in its own section.
+    var signsIn: Bool { self == .chatGPT }
     var host: String { URL(string: baseURL)?.host ?? "" }
     static func infer(baseURL: String, model: String) -> Self {
         let base = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))

@@ -15,6 +15,10 @@ final class StubProtocol: URLProtocol {
     nonisolated(unsafe) static var respond: ([String: Any]) -> (Int, String, String) = { _ in (200, "application/json", "{}") }
     nonisolated(unsafe) static var seen: [[String: Any]] = []
     nonisolated(unsafe) static var headers: [[String: String]] = []
+    nonisolated(unsafe) static var urls: [URL] = []
+    /// When set, the connection drops with this error before any reply headers arrive. A drop after the stream has
+    /// begun cannot be stubbed here: URLSession hands bytes(for:) a URLProtocol's reply only once its load has ended.
+    nonisolated(unsafe) static var failure: Error?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -34,6 +38,8 @@ final class StubProtocol: URLProtocol {
         let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
         Self.seen.append(json)
         Self.headers.append(request.allHTTPHeaderFields ?? [:])
+        if let url = request.url { Self.urls.append(url) }
+        if let failure = Self.failure { client?.urlProtocol(self, didFailWithError: failure); return }
         let (status, type, text) = Self.respond(json)
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
                                        headerFields: ["Content-Type": type])!

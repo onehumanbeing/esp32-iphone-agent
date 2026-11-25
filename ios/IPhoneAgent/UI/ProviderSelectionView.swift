@@ -39,7 +39,7 @@ struct ProviderSelectionView: View {
     @State private var configuredOnly = false
 
     private var presets: [ModelProvider] {
-        let all = ModelProvider.allCases.filter { $0 != .others && $0 != .handsyTrial }  // free line: own section
+        let all = ModelProvider.allCases.filter { $0 != .others && $0 != .handsyTrial && !$0.signsIn }  // own sections
         return configuredOnly ? all.filter(settings.isConfigured) : all
     }
 
@@ -55,6 +55,10 @@ struct ProviderSelectionView: View {
                 .listRowInsets(EdgeInsets())
 
                 if Trial.available && !configuredOnly { TrialSection(settings: settings, dismiss: dismiss) }  // free line
+                let signIns = ModelProvider.allCases.filter { $0.signsIn && (!configuredOnly || settings.isConfigured($0)) }
+                if !signIns.isEmpty {
+                    Section("Use Your Subscription") { ForEach(signIns, content: presetRow) }
+                }
                 let recommended = presets.filter(\.recommended), more = presets.filter { !$0.recommended }
                 if !recommended.isEmpty {
                     Section("Recommended") { ForEach(recommended, content: presetRow) }
@@ -70,7 +74,7 @@ struct ProviderSelectionView: View {
                 }
             }
             .overlay {
-                if configuredOnly, presets.isEmpty, settings.customEndpoints.isEmpty {
+                if configuredOnly, presets.isEmpty, settings.customEndpoints.isEmpty, !settings.isConfigured(.chatGPT) {
                     UnavailableView("No Configured Providers", systemImage: "key",
                                            description: Text("Add an API key to a provider to see it here."))
                 }
@@ -88,7 +92,8 @@ struct ProviderSelectionView: View {
             settings.selectedProvider = provider
             dismiss()
         } label: {
-            ProviderRow(logo: provider, title: provider.title, subtitle: provider.host,
+            ProviderRow(logo: provider, title: provider.title,
+                        subtitle: provider.signsIn ? String(localized: "Sign in · uses your Plus or Pro plan") : provider.host,
                         configured: settings.isConfigured(provider), selected: selected)
         }
         .buttonStyle(.plain)

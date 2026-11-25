@@ -126,7 +126,8 @@ struct LLMError: LocalizedError {
 
     let model: String
     let baseURL: URL
-    private let apiKey: String
+    private var apiKey: String  // ChatGPT sign-in: the access token, renewed after a 401
+    private let chatGPTAuth: ChatGPTAuth  // whose tokens renew it: the app's sign-in (tests: their own)
     let extra: [String: Any]
     private let headers: (() throws -> [String: String])?  // extra per-request headers (e.g. the free line's lease)
     /// false for the record reader: a 503 call_in_progress (the actor's call on the same lease) is not waited out.
@@ -148,7 +149,9 @@ struct LLMError: LocalizedError {
     }
 
     init(baseURL: String, model: String, apiKey: String = "", extra: [String: Any] = [:],
-         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil) {
+         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil,
+         chatGPTAuth: ChatGPTAuth? = nil) {
+        self.chatGPTAuth = chatGPTAuth ?? .shared
         var trimmed = baseURL
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
         self.baseURL = URL(string: trimmed) ?? URL(string: "http://invalid")!
@@ -196,17 +199,9 @@ struct LLMError: LocalizedError {
     private func once(system: String, text: String, images: [Data], maxTokens: Int,
                       temperature: Double) async throws -> ChatResult {
         onProgress?(.waiting)
-        var content: [[String: Any]] = images.map {
-            ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
-        }
-        content.append(["type": "text", "text": text])
-        var body: [String: Any] = ["model": model]
-        if sendsTemperature { body["temperature"] = temperature }
-        // DeepSeek thinks at effort high when `thinking` is omitted; Extra body can turn it back on (#118).
-        if baseURL.host?.lowercased() == "api.deepseek.com" { body["thinking"] = ["type": "disabled"] }
-        extra.forEach { body[$0.key] = $0.value }
-        body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
-        body["stream"] = true
+        var body = speaksResponses
+            ? Self.responsesBody(model: model, system: system, text: text, images: images, extra: extra)
+            : chatBody(system: system, text: text, images: images, temperature: temperature)
 
         let started = now()
         let kb = images.reduce(0) { $0 + $1.count } / 1024
@@ -230,7 +225,7 @@ struct LLMError: LocalizedError {
         do {
             (status, result, errorText) = try await send(body)
             // A 400 names one refused parameter at a time: a model may refuse both, in either order.
-            for _ in 0..<2 where status == 400 {
+            for _ in 0..<2 where status == 400 && !speaksResponses {
                 if auto && errorText.contains("max_completion_tokens") {
                     (tokenParam, auto) = ("max_completion_tokens", false)
                 } else if sendsTemperature && errorText.contains("temperature") {
@@ -238,6 +233,11 @@ struct LLMError: LocalizedError {
                     body["temperature"] = nil
                     DebugLog.write("llm: \(model) rejects an explicit temperature; retrying without it")
                 } else { break }
+                (status, result, errorText) = try await send(body)
+            }
+            // ChatGPT sign-in: an access token refused mid-run is renewed once.
+            if speaksResponses && status == 401 {
+                apiKey = try await chatGPTAuth.accessToken(force: true)
                 (status, result, errorText) = try await send(body)
             }
             // The lease's own call still in progress: a look ahead just dropped (LookAhead), whose slot the gateway
@@ -254,7 +254,7 @@ struct LLMError: LocalizedError {
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             // 5xx: Cloudflare's 520-524 too (2026-11-17: one 520 paused a run that a retry 3 s later carried on)
             for attempt in 0..<2 where status == 429 || (500...599).contains(status) && status != 501 {
-                if status == 429 && Self.dailyLimit(errorText) { break }
+                if status == 429 && (Self.dailyLimit(errorText) || Self.chatGPTLimitError(errorText) != nil) { break }
                 if LLMError.contentFiltered(errorText) { break }  // the same screen is refused again
                 // the lease's time at its end: the gateway may extend it a moment later (2026-11-18: a run stopped
                 // as "time limit" one second before the gateway gave it 30 more minutes), so once more after 2 s
@@ -282,6 +282,8 @@ struct LLMError: LocalizedError {
                 else if refused.kind == LLMError.trialRunEnded.kind { Trial.shared.runEnded() }
                 throw refused
             }
+            if speaksResponses, let limit = Self.chatGPTLimitError(errorText) { throw limit }
+            if speaksResponses && status == 401 { throw ChatGPTAuth.signInAgain }
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
             if LLMError.contentFiltered(errorText) {
                 throw LLMError(message: LLMError.contentRefused, status: status, kind: "content_filter")
@@ -296,6 +298,21 @@ struct LLMError: LocalizedError {
                               result.firstToken.map { String(format: "%.1f s", $0) } ?? "-", result.total, result.text.count)
                        + " " + PyJSON.dumps(.obj(result.diagnostics)))
         return result
+    }
+
+    private func chatBody(system: String, text: String, images: [Data], temperature: Double) -> [String: Any] {
+        var content: [[String: Any]] = images.map {
+            ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
+        }
+        content.append(["type": "text", "text": text])
+        var body: [String: Any] = ["model": model]
+        if sendsTemperature { body["temperature"] = temperature }
+        // DeepSeek thinks at effort high when `thinking` is omitted; Extra body can turn it back on (#118).
+        if baseURL.host?.lowercased() == "api.deepseek.com" { body["thinking"] = ["type": "disabled"] }
+        extra.forEach { body[$0.key] = $0.value }
+        body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
+        body["stream"] = true
+        return body
     }
 
     /// OpenRouter's daily free-model quota ("free-models-per-day"), as opposed to the per-minute limit.
@@ -456,7 +473,9 @@ struct LLMError: LocalizedError {
         var body = body
         // 自动协商只更改字段名，手动配置的输出上限应在每次重试中保持一致。
         let limits = Self.tokenParams.compactMap { body.removeValue(forKey: $0) }
-        if let configured = limits.first {
+        if speaksResponses {
+            // the Codex endpoint refuses an output limit
+        } else if let configured = limits.first {
             guard limits.count == 1, let value = configured as? Int, value > 0,
                   CFGetTypeID(configured as CFTypeRef) != CFBooleanGetTypeID() else {
                 throw LLMError(message: String(localized: "In Extra body JSON, use one positive integer for max_tokens or max_completion_tokens."))
@@ -465,7 +484,7 @@ struct LLMError: LocalizedError {
         } else {
             body[tokenParam] = maxTokens
         }
-        var request = URLRequest(url: baseURL.appendingPathComponent("chat/completions"))
+        var request = URLRequest(url: baseURL.appendingPathComponent(speaksResponses ? "responses" : "chat/completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
@@ -477,19 +496,23 @@ struct LLMError: LocalizedError {
 
         // Read and parse off the main thread (2026-11-19, Gaode: the gateway answered in 3.0 s, the app finished
         // reading 47 s later; the stream, with the free line's tree, was read byte by byte on a busy main thread).
-        let session = session
+        let session = session, responses = speaksResponses
         let report: @Sendable () -> Void = { [weak self] in Task { @MainActor in self?.onProgress?(.receiving) } }
         let (status, result, errorText, retry) = try await Task.detached(priority: .userInitiated) {
-            try await Self.read(session: session, request: request, started: started, receiving: report)
+            try await Self.read(session: session, request: request, started: started, responses: responses, receiving: report)
         }.value
         retryAfter = retry
         return (status, result, errorText)
     }
 
     /// One request's answer: HTTP status, the parsed result (2xx), the error body otherwise, and Retry-After.
-    nonisolated static func read(session: URLSession, request: URLRequest, started: Double,
+    /// `responses`: the reply is the Responses API's stream (ChatGPT sign-in).
+    nonisolated static func read(session: URLSession, request: URLRequest, started: Double, responses: Bool,
                                  receiving: @Sendable () -> Void) async throws -> (Int, ChatResult?, String, Double?) {
         let (bytes, response) = try await session.bytes(for: request)
+        if responses, let http = response as? HTTPURLResponse {  // the plan's usage windows, on the main actor
+            Task { @MainActor in ChatGPTAuth.shared.noteLimits(http) }
+        }
         let retry = ((response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
         let responseSeconds = now() - started
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -516,6 +539,21 @@ struct LLMError: LocalizedError {
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { done = true; break }
             guard let json = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
+            if responses {
+                let event = try Self.responsesEvent(json, into: &result)
+                if !reportedReceiving, !event.text.isEmpty || !event.reasoning.isEmpty {
+                    reportedReceiving = true
+                    receiving()
+                }
+                result.reasoningChars += event.reasoning.count
+                if !event.text.isEmpty {
+                    if result.firstToken == nil { result.firstToken = now() - started }
+                    result.text += event.text
+                    if result.firstDo == nil, StreamMarks.completeDoLine(result.text) { result.firstDo = now() - started }
+                }
+                if event.done { done = true; break }
+                continue
+            }
             try Self.checkError(json)
             if let tree = Self.tree(json) { result.tree = tree; continue }
             let choice = (json["choices"] as? [[String: Any]])?.first
