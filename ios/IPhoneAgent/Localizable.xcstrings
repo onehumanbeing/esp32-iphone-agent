@@ -6483,16 +6483,6 @@
         }
       }
     },
-    "Recommended: calibrate before first use." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建议：首次使用前先校准。"
-          }
-        }
-      }
-    },
     "Record an intent" : {
       "localizations" : {
         "zh-Hans" : {
@@ -7591,16 +7581,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "+ 按钮在“闹钟”页右上角"
-          }
-        }
-      }
-    },
-    "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子是一个 USB 鼠标。只有打开辅助触控，iOS 才会显示它的指针。然后我会在网格上校准，就像 3D 打印机调平热床。"
           }
         }
       }
@@ -14693,16 +14673,6 @@
         }
       }
     },
-    "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
-          }
-        }
-      }
-    },
     "Pair the Bluetooth pointer" : {
       "localizations" : {
         "zh-Hans" : {
@@ -15229,6 +15199,176 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每周额度"
+          }
+        }
+      }
+    },
+    "The board works as a Bluetooth mouse. iOS shows its pointer only when AssistiveTouch is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子是一个蓝牙鼠标。只有打开辅助触控，iOS 才会显示它的指针。"
+          }
+        }
+      }
+    },
+    "The board works as a USB mouse. iOS shows its pointer only when AssistiveTouch is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子是一个 USB 鼠标。只有打开辅助触控，iOS 才会显示它的指针。"
+          }
+        }
+      }
+    },
+    "AssistiveTouch on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助触控已打开"
+          }
+        }
+      }
+    },
+    "Waiting for you to turn it on in Settings…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你在“设置”里打开…"
+          }
+        }
+      }
+    },
+    "Waiting for the board's mouse…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待板子的鼠标…"
+          }
+        }
+      }
+    },
+    "Ready. Tap Calibrate below." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备好了，点下方的“校准”。"
+          }
+        }
+      }
+    },
+    "Do this once:" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只需设置一次："
+          }
+        }
+      }
+    },
+    "Open Settings › Accessibility › Touch › AssistiveTouch." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 设置 › 辅助功能 › 触控 › 辅助触控。"
+          }
+        }
+      }
+    },
+    "Turn AssistiveTouch on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开最上面的“辅助触控”开关。"
+          }
+        }
+      }
+    },
+    "Under Devices › Bluetooth Devices, pair %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 设备 › 蓝牙设备 中配对 %@。"
+          }
+        }
+      }
+    },
+    "Come back to this app and tap Calibrate below. I move the pointer over a grid to learn where it lands; it takes a few seconds." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到这个 App，点下方的“校准”。我会让指针在网格上走一遍，记住它落在哪里，只要几秒钟。"
+          }
+        }
+      }
+    },
+    "AssistiveTouch is still off. In Settings › Accessibility › Touch › AssistiveTouch, turn on the switch at the top, then come back here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助触控还没打开。请在 设置 › 辅助功能 › 触控 › 辅助触控 中打开最上面的开关，然后回到这里。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring is off. Swipe down from the top-right corner, tap Screen Mirroring and choose “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像没有开启。从右上角向下轻扫，点“屏幕镜像”，选择“%@”。"
+          }
+        }
+      }
+    },
+    "The board isn't connected. Keep it powered on and near this iPhone; it reconnects by itself." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't connected. Keep it powered on and near this iPad; it reconnects by itself."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't connected. Keep it powered on and near this iPhone; it reconnects by itself."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有连接。让它保持通电并放在这台 iPad 附近，它会自动重连。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有连接。让它保持通电并放在这台 iPhone 附近，它会自动重连。"
+                }
+              }
+            }
           }
         }
       }

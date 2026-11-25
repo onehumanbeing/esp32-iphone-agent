@@ -407,48 +407,120 @@ struct SeePage: View {
     }
 }
 
-/// 3 · Let it act: AssistiveTouch (shown as a demo), then calibration on the grid board (bottom button).
+/// 3 · Let it act: numbered AssistiveTouch steps (with a demo), then calibration on the grid board (bottom button).
+/// The page moves on by itself once the pointer is calibrated; until then it says what it waits for, and after
+/// 20 s on the same thing, the likely cause and its fix.
 struct ActPage: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
     @ObservedObject var calibrator: AutoCalibrator
     @ObservedObject var pointer: Pointer
+    @State private var assistiveTouch = UIAccessibility.isAssistiveTouchRunning
+    @State private var stuck = false
+    @Environment(\.scenePhase) private var scenePhase
 
+    private var wireless: Bool { board.status?.isWirelessHID == true }
     private var mouse: Bool { MockMode.on || board.status?.inputReady == true }
     private var mirroring: Bool { MockMode.on || app.onDeviceCapture || board.status?.ap == "streaming" }
-
+    private var touchOn: Bool { MockMode.on || assistiveTouch }
     private var calibrated: Bool { calibrator.hasValidCalibration }  // iPad: in this orientation
+    private var deviceName: String { board.name.isEmpty ? String(localized: "the board connected in this app") : board.name }
+
+    /// The first thing still missing: what the page waits for.
+    enum Wait { case assistiveTouch, mouse, mirroring, calibrate, none }
+
+    static func wait(assistiveTouch: Bool, mouse: Bool, mirroring: Bool, calibrated: Bool, busy: Bool) -> Wait {
+        if calibrated || busy { return .none }
+        if !assistiveTouch { return .assistiveTouch }
+        if !mouse { return .mouse }
+        if !mirroring { return .mirroring }
+        return .calibrate
+    }
+
+    private var wait: Wait {
+        Self.wait(assistiveTouch: touchOn, mouse: mouse, mirroring: mirroring, calibrated: calibrated, busy: calibrator.busy)
+    }
 
     var body: some View {
         VStack(spacing: Space.xl) {
             PageHeader(mood: calibrated ? .success : calibrator.busy ? .acting : .idle,
                        title: "Let Me Use the Pointer",
-                       message: board.status?.isWirelessHID == true
-                           ? "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid."
-                           : "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed.")
-            if board.status?.isWirelessHID == true {
-                let deviceName = board.name.isEmpty ? String(localized: "the board connected in this app") : board.name
-                Text("On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName).")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-            if !calibrated { MiniPhoneDemo(kind: .assistiveTouch) }
+                       message: wireless
+                           ? "The board works as a Bluetooth mouse. iOS shows its pointer only when AssistiveTouch is on."
+                           : "The board works as a USB mouse. iOS shows its pointer only when AssistiveTouch is on.")
+            if !calibrated { steps }
+            if !calibrated && !touchOn { MiniPhoneDemo(kind: .assistiveTouch) }
             Panel {
-                CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)
+                CheckRow(title: "AssistiveTouch on", done: touchOn, active: wait == .assistiveTouch,
+                         waiting: wait == .assistiveTouch, detail: wait == .assistiveTouch ? "Waiting for you to turn it on in Settings…" : nil)
+                Divider().padding(.vertical, Space.s)
+                CheckRow(title: "Mouse connected", done: mouse, active: wait == .mouse, waiting: wait == .mouse,
+                         detail: wait == .mouse ? "Waiting for the board's mouse…" : nil)
                 Divider().padding(.vertical, Space.s)
                 if !app.onDeviceCapture {
-                    CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
+                    CheckRow(title: "Screen Mirroring on", done: mirroring, active: wait == .mirroring, waiting: wait == .mirroring,
+                             detail: wait == .mirroring ? "Waiting for mirroring…" : nil)
                     Divider().padding(.vertical, Space.s)
                 }
-                CheckRow(title: "Pointer calibrated", done: calibrated, active: mouse && mirroring && !calibrated,
-                         waiting: calibrator.busy,
-                         detail: pointer.quality.map { "Accuracy \(CalibrationText.percent($0))" })
+                CheckRow(title: "Pointer calibrated", done: calibrated, active: wait == .calibrate, waiting: calibrator.busy,
+                         detail: wait == .calibrate ? "Ready. Tap Calibrate below."
+                             : pointer.quality.map { q -> LocalizedStringKey in "Accuracy \(CalibrationText.percent(q))" })
             }
+            if stuck, let hint { Label(hint, systemImage: "lightbulb").font(.footnote).foregroundStyle(Palette.warning) }
             if !calibrated {
-                Label("Recommended: calibrate before first use.", systemImage: "scope")
-                    .font(.footnote.weight(.semibold)).foregroundStyle(Color.accentColor)
                 Text("Tip: in AssistiveTouch › Pointer Devices, set Tracking Speed to the middle and turn Pointer Animations off.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.assistiveTouchStatusDidChangeNotification)) { _ in
+            assistiveTouch = UIAccessibility.isAssistiveTouchRunning
+        }
+        .onValueChange(of: scenePhase) { _, phase in  // back from Settings: read it again
+            if phase == .active { assistiveTouch = UIAccessibility.isAssistiveTouchRunning }
+        }
+        .task(id: wait) {
+            stuck = false
+            guard wait != .none, wait != .calibrate, (try? await Task.sleep(for: .seconds(20))) != nil else { return }
+            stuck = true
+        }
+    }
+
+    /// What to do, in order; a step shows a check once the app sees it done.
+    private var steps: some View {
+        Panel {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text("Do this once:").font(.subheadline.weight(.semibold))
+                step(1, "Open Settings › Accessibility › Touch › AssistiveTouch.", done: touchOn)
+                step(2, "Turn AssistiveTouch on.", done: touchOn)
+                if wireless {
+                    step(3, "Under Devices › Bluetooth Devices, pair \(deviceName).", done: mouse)
+                }
+                step(wireless ? 4 : 3, "Come back to this app and tap Calibrate below. I move the pointer over a grid to learn where it lands; it takes a few seconds.", done: calibrated)
+            }
+            .font(.footnote)
+        }
+    }
+
+    private func step(_ n: Int, _ text: LocalizedStringKey, done: Bool) -> some View {
+        Label { Text(text) } icon: {
+            Image(systemName: done ? "checkmark.circle.fill" : "\(n).circle").foregroundStyle(done ? Palette.ok : Color.accentColor)
+        }
+    }
+
+    /// After 20 s on the same step: the likely cause and its fix.
+    private var hint: LocalizedStringKey? {
+        switch wait {
+        case .assistiveTouch:
+            return "AssistiveTouch is still off. In Settings › Accessibility › Touch › AssistiveTouch, turn on the switch at the top, then come back here."
+        case .mouse:
+            if !board.connected { return "The board isn't connected. Keep it powered on and near this iPhone; it reconnects by itself." }
+            if wireless { return "On this iPhone, open Settings › Accessibility › Touch › AssistiveTouch › Devices › Bluetooth Devices and pair \(deviceName)." }
+            if board.status?.usb == "asleep" { return "The board's USB is asleep. Unlock this iPhone, then try again." }
+            return "The board is plugged in by USB, but this iPhone isn't getting its input. Plug it straight into this iPhone (not a computer, hub or charger), tap Allow if iPhone asks about the accessory, then try again."
+        case .mirroring:
+            return "Screen Mirroring is off. Swipe down from the top-right corner, tap Screen Mirroring and choose “\(BoardName.current)”."
+        case .calibrate, .none:
+            return nil
         }
     }
 }

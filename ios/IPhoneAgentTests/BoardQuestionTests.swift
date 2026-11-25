@@ -56,4 +56,17 @@ import XCTest
         XCTAssertEqual(BoardQuestion.url(language: "en").absoluteString, "https://manina.ai/where-to-buy-esp32?from=app")
         XCTAssertEqual(BoardQuestion.url(language: nil).absoluteString, "https://manina.ai/where-to-buy-esp32?from=app")
     }
+
+    /// The pointer setup page names the first missing thing, in the order the user fixes them.
+    func testPointerPageWaitsForTheFirstMissingThing() {
+        func wait(_ at: Bool, _ mouse: Bool, _ mirror: Bool, calibrated: Bool = false, busy: Bool = false) -> ActPage.Wait {
+            ActPage.wait(assistiveTouch: at, mouse: mouse, mirroring: mirror, calibrated: calibrated, busy: busy)
+        }
+        XCTAssertEqual(wait(false, true, true), .assistiveTouch)
+        XCTAssertEqual(wait(true, false, true), .mouse)
+        XCTAssertEqual(wait(true, true, false), .mirroring)
+        XCTAssertEqual(wait(true, true, true), .calibrate, "all ready: tap Calibrate")
+        XCTAssertEqual(wait(true, true, true, busy: true), .none, "calibrating: nothing to wait for")
+        XCTAssertEqual(wait(false, false, false, calibrated: true), .none)
+    }
 }

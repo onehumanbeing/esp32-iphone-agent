@@ -187,7 +187,8 @@ struct OnboardingView: View {
             }
             if calibrator.hasValidCalibration { return "Continue" }
             if calibrator.busy { return "Calibrating…" }
-            return actReady ? "Calibrate" : "Waiting for the mouse…"
+            if actReady { return "Calibrate" }
+            return MockMode.on || calibrator.boardReady ? "Waiting for mirroring…" : "Waiting for the mouse…"
         case .brain:
             if app.modelOK == true { return "Start Using \(AppName.current)" }
             return testing ? "Testing…" : "Test Connection"
