@@ -8,7 +8,7 @@ import Foundation
 
     static let issuer = "https://auth.openai.com"
     static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"  // Codex's public OAuth client
-    static let codexVersion = "0.142.0"  // the models list hides models newer than the client asking
+    static let codexVersion = "0.171.0"  // the models list hides models newer than the client asking
     private static let keychainAccount = "chatgpt-auth"
 
     struct Account: Equatable {
