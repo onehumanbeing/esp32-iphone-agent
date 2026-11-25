@@ -164,6 +164,13 @@ enum OpenResult: String {
                     shown = now
                     closed = after == .closed
                     changed = moved
+                    // the tap committed the pinyin and Spotlight now lists the name only as a web suggestion: not
+                    // installed. Checked here, not in the next round, which the time budget may skip (2026-11-25:
+                    // "still on Spotlight", then the model tapped the suggestion and Chrome opened)
+                    if moved, !closed, await self.spots(now, name, labels).web {
+                        log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                        return .notFound
+                    }
                     if closed || moved { break }  // the old spots are stale on a changed screen
                 }
                 if closed || round == 1 || overBudget() { break }
