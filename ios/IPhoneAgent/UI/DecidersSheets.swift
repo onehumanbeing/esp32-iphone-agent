@@ -22,9 +22,11 @@ struct ModelFieldsSheet: View {
 
 /// The Jev row's fold: Manina AI's server (default), or TypeSafe on your own key.
 struct JevFieldsSheet: View {
+    var freeLine = false  // the Grounding picker: free line only (Jev on Manina AI)
     @AppStorage(JevConfig.ownKey) private var ownKey = false
     @AppStorage(JevConfig.modelKey) private var model = TypeSafeJev.defaultModel
     @AppStorage(JevConfig.thresholdKey) private var threshold = JevConfig.defaultThreshold
+    @AppStorage(Grounding.key) private var ground = Grounding.manina.rawValue
     @State private var apiKey = JevConfig.apiKey
     @Environment(\.dismiss) private var dismiss
 
@@ -42,6 +44,11 @@ struct JevFieldsSheet: View {
                         }
                         FieldRow(title: "Model") {
                             TextField("Model", text: $model, prompt: Text(verbatim: TypeSafeJev.defaultModel))
+                        }
+                    } else if freeLine {
+                        Picker("Grounding", selection: $ground) {
+                            Text(verbatim: "Manina AI").tag(Grounding.manina.rawValue)
+                            Text(verbatim: "Jev").tag(Grounding.jev.rawValue)
                         }
                     }
                 } footer: {

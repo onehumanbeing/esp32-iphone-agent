@@ -42,7 +42,7 @@ struct DecidersPanel: View {
         .onValueChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
         .onValueChange(of: deciders) { deciders.save(freeLine: freeLine) }
         .sheet(isPresented: $editingModel, onDismiss: reload) { ModelFieldsSheet(settings: settings) }
-        .sheet(isPresented: $editingJev, onDismiss: reload) { JevFieldsSheet() }
+        .sheet(isPresented: $editingJev, onDismiss: reload) { JevFieldsSheet(freeLine: freeLine) }
     }
 
     @ViewBuilder private var rows: some View {

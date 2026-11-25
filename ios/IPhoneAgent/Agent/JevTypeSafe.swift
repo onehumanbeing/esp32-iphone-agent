@@ -261,3 +261,20 @@ enum JevConfig {
         ownActive ? TypeSafeJev(apiKey: apiKey, model: model) : JevStepClient()
     }
 }
+
+/// Which model grounds the actor's taps on the free line (Settings › Jev › Grounding): Manina AI's model (default,
+/// Jev as its fallback per step) or Jev only. Sent as X-Handsy-Ground on the free line's actor requests.
+enum Grounding: String, CaseIterable {
+    case manina, jev
+    static let key = "jev.ground"
+    static func current(_ defaults: UserDefaults = .standard) -> Grounding {
+        Grounding(rawValue: defaults.string(forKey: key) ?? "") ?? .manina
+    }
+
+    /// The header for one request: free line actor only, and only when Jev runs on Manina AI (not the user's own key).
+    static func header(role: String, provider: ModelProvider, ownJev: Bool = JevConfig.ownActive,
+                       defaults: UserDefaults = .standard) -> [String: String] {
+        guard role == "actor", provider == .handsyTrial, !ownJev else { return [:] }
+        return ["X-Handsy-Ground": current(defaults).rawValue]
+    }
+}

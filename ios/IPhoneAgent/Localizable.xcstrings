@@ -533,6 +533,22 @@
         }
       }
     },
+    "Grounding" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grounding"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位模型"
+          }
+        }
+      }
+    },
     "I have a board" : {
       "localizations" : {
         "en" : {
