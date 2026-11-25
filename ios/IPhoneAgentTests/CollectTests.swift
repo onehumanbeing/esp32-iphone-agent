@@ -35,6 +35,9 @@ final class WaitForTests: XCTestCase {
         XCTAssertEqual(w["text"], .str("支付成功"))
         XCTAssertEqual(w["seconds"]?.double, 12)
         XCTAssertNil(w["gone"])
+        XCTAssertEqual(try Actions.parseCommand("wait 10")["seconds"]?.double, 10)  // for a video or an ad
+        XCTAssertEqual(try Actions.parseCommand("wait 90")["seconds"]?.double, WaitFor.most)
+        XCTAssertNil(try Actions.parseCommand("wait")["seconds"])  // plain: until the screen changes
         let g = try Actions.parseCommand("wait gone “加载中”")
         XCTAssertEqual(g["gone"], .bool(true))
         XCTAssertEqual(g["seconds"]?.double, WaitFor.seconds)

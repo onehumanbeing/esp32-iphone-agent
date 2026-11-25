@@ -52,6 +52,9 @@ enum Actions {
             return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
+        if name == "wait", let n = numbers.first {  // wait 10: that long, for a video or an ad to end
+            return ["action": .str(name), "seconds": .num(min(max(Double(n), 1), WaitFor.most))]
+        }
         // tap 发送: words without quotes and no numbers are the words too (Qwen wrote it so; the whole reply was taken
         // as off-format and asked again, 5 s, in most runs of 2026-11-23)
         if name == "tap", numbers.isEmpty {

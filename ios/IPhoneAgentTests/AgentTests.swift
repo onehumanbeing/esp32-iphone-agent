@@ -4,6 +4,9 @@ import XCTest
 
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
+    override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
+    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+
     func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)
@@ -647,6 +650,9 @@ import XCTest
 /// iPad: the model's frame coordinates become screen coordinates, a rotation drops a look, and an action whose frame
 /// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
 @MainActor final class IPadAgentTests: XCTestCase {
+    override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
+    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+
     func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         screen.geometry = ScreenGeometry(screenAspect: 2, frameAspect: 0.5, orientation: 3)
