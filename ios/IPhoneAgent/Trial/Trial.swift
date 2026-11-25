@@ -48,7 +48,15 @@ import UIKit
     nonisolated static let keyOnKey = "handsyKeyOn"
     /// A key saved on this iPhone, on or off. Text that isn't a key's shape is no key (2026-11-25: anything typed in
     /// the field was saved as one and turned the free line off; its runs were refused at the gateway).
-    var hasKey: Bool { Self.looksLikeKey(key) }
+    var hasKey: Bool { Self.keysOffered && Self.looksLikeKey(key) }
+    /// Keys exist only in the App Store build (HANDSY_STORE): plans aren't sold anywhere else, so TestFlight and
+    /// builds from this repository show no key field, plan card or key-only tool, and ignore a saved key
+    /// (Henry 2026-11-25: the field in TestFlight read as "you have to pay").
+    #if HANDSY_STORE
+    nonisolated(unsafe) static var keysOffered = true
+    #else
+    nonisolated(unsafe) static var keysOffered = false  // tests of the key path turn it on
+    #endif
     /// Runs go out under the key.
     var keyed: Bool { hasKey && keyOn }
     /// A key offered by a link (iphoneagent://key?k=…, from manina.ai): the app asks before it uses it.

@@ -167,8 +167,10 @@ import XCTest
         let free = try await settings.recordingClient()
         XCTAssertNil(free, "Manina AI Free: not this install (the server never said recording)")
         guard settings.provider == .handsyTrial else { return }  // a build without the free line
+        let offered = Trial.keysOffered
+        Trial.keysOffered = true  // keys exist only in the store build
         Trial.shared.setKey("hsk_test_" + String(repeating: "k", count: 43))
-        defer { Trial.shared.setKey("") }
+        defer { Trial.shared.setKey(""); Trial.keysOffered = offered }
         let paid = try await settings.recordingClient()
         XCTAssertEqual(paid?.model, Trial.recordingModel, "a Manina AI key pays for recordings")
         XCTAssertEqual(try Trial.shared.recordingHeaders()["Authorization"], "Bearer hsk_test_" + String(repeating: "k", count: 43))

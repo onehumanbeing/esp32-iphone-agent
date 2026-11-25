@@ -3,6 +3,21 @@ import XCTest
 
 /// The free line stays out of builds without IA_TRIAL_ORIGIN, and only adds headers to model requests.
 @MainActor final class TrialTests: XCTestCase {
+    private var keysOffered = Trial.keysOffered
+    override func setUp() { super.setUp(); keysOffered = Trial.keysOffered; Trial.keysOffered = true }  // the store build's key path
+    override func tearDown() { Trial.keysOffered = keysOffered; super.tearDown() }
+
+    func testOnlyTheStoreBuildHasKeys() {
+        Trial.keysOffered = false  // TestFlight and builds from this repository
+        let trial = Trial.shared
+        trial.setKey(Self.testKey)
+        defer { trial.setKey("") }
+        XCTAssertFalse(trial.hasKey)
+        XCTAssertFalse(trial.keyed)  // a saved key never turns the free line off there
+        XCTAssertTrue(HandsyKeyOffer.handle(URL(string: "iphoneagent://key?k=" + Self.testKey)!))  // the link is taken...
+        XCTAssertNil(trial.offeredKey)  // ...and offers nothing
+    }
+
     func testOpenSourceBuildHasNoFreeLine() {
         XCTAssertFalse(Trial.available)
         XCTAssertFalse(Trial.isTrial("https://api.openai.com/v1"))
