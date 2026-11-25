@@ -736,6 +736,12 @@ import UIKit
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
     }
 
+    func clickAgain() async throws {
+        log("tap again: one more click where the pointer is")
+        try await device.send("click")
+        try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
+    }
+
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool = true) async throws {
         try await drag([CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2)], hold: hold)
     }

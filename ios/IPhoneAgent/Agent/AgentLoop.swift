@@ -4,6 +4,8 @@ import Foundation
 @MainActor protocol Gestures: AnyObject {
     var device: HIDDevice { get }
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws
+    /// One more click where the pointer is, for a second tap at the same spot: no move, no aim.
+    func clickAgain() async throws
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws
     func drag(_ points: [CGPoint], hold: Bool) async throws
     /// nil: all of it went in; else what did not (Pointer.type).
@@ -1004,9 +1006,12 @@ extension Gestures {
                 if timing.leadMs == 0 { timing.lead(replied: StepWaits.replied, decided: decided, gating: gating, at: started) }
                 // after a tap in the same round the pointer moved again unseen: find it before pressing
                 let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
+                // the same spot as the tap just before: the pointer is already there, so the second tap is one more
+                // click (a game's choose-then-confirm); aiming again moved it off (Kingdom Rush, 2026-11-26)
+                let again = name == "tap" && i > 0 && Self.sameSpot(acts[i - 1].act, act)
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
-                if earlierTap, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                if earlierTap, !again, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
                     let checked = now()
                     timing.frameMs += await settle(ignoring: spots, busy: await still())
                     let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
@@ -1045,7 +1050,10 @@ extension Gestures {
                     record(planned.shot, act)
                     return try await confirm(why, always: check == .askAlways(why))
                 }
-                if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
+                if again {
+                    try await phone?.clickAgain()
+                    act["result"] = .str("clicked again at the same spot")
+                } else if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000

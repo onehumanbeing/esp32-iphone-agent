@@ -69,6 +69,8 @@ If you are unsure what an element does, tap it alone (one DO line) and check the
 Actions:
   tap X Y [precise]         (precise: the pointer is located and corrected before tapping, about 1 s slower;
                              use it for small or tightly packed targets: list rows, checkmarks, toggles, small icons)
+  tap X Y twice             (two taps on one spot, the second where the first landed: for "tap twice", a choice that
+                             is tapped again to confirm, a double tap)
   tap "WORDS"               (tap the text shown on screen, found by reading the screen: for a labelled button or row
                              like tap "删除"; if the words show in several places or not at all, the result says so)
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)

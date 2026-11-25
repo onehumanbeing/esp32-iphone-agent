@@ -29,6 +29,14 @@ enum Actions {
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool", "guide", "file", "snap"]
 
+    /// "tap X Y twice": two clicks at one spot, the second where the first landed (a game's "tap twice", choose
+    /// then confirm). Kingdom Rush, 2026-11-26: the second of two taps was aimed again, landed 15 units off, and
+    /// neither the tower nor the wave call took.
+    static func twice(_ rest: String) -> Bool {
+        let r = rest.lowercased()
+        return r.contains("twice") || r.contains("double")
+    }
+
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
         let (head, rest) = partition(line.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -80,6 +88,7 @@ enum Actions {
         var action: JObject = ["action": .str(name)]
         for (k, n) in zip(keys, numbers) { action[k] = .int(n) }
         if name == "tap" && rest.lowercased().contains("precise") { action["precise"] = .bool(true) }
+        if name == "tap", Self.twice(rest) { action["count"] = .int(2) }
         return action
     }
 

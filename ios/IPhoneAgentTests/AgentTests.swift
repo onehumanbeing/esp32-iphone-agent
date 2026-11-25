@@ -427,6 +427,19 @@ import XCTest
         XCTAssertEqual(again.steps.last?["changed"], .bool(true))
     }
 
+    func testATapTwiceIsOneAimAndASecondClickInPlace() async throws {
+        XCTAssertEqual(try Actions.parseCommand("tap 348 395 twice")["count"], .int(2))
+        XCTAssertNil(try Actions.parseCommand("tap 348 395")["count"])
+        for reply in ["THINK: wave\nDO: tap 480 20 twice", "THINK: build\nDO: tap 348 395\nDO: tap 348 395"] {
+            let phone = FakeGestures(), screen = FakeScreen()
+            screen.frame = Self.jpeg()
+            let agent = AgentLoop(phone: phone, screen: screen, actor: FakeModel { _ in reply }, planner: nil, trace: nil)
+            _ = try await agent.step()
+            XCTAssertEqual(Array(phone.calls.prefix(2)), ["tap", "click"], reply)  // the second is not aimed again
+            XCTAssertEqual(phone.aims.first, false, reply)
+        }
+    }
+
     func testATapThatChangedNothingIsPressedOnceMoreWithThePointerChecked() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         screen.frame = Self.jpeg()  // the same before and after
@@ -767,6 +780,7 @@ import XCTest
         taps.append(CGPoint(x: x, y: y))
         onTap?()
     }
+    func clickAgain() async throws { calls.append("click") }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     var typeNote: String?
