@@ -647,6 +647,23 @@ static void test_sw_parse(void) {
   CHECK(sw_parse("{\"k\":[\"abcdefghijklmnopqrstuvwxyz\"]}", &u) == SW_PARSE_UI && strlen(u.picks[0]) == 24);
 }
 
+// `o` 1: the phone records its own screen (iOS 27+ Screen Recording). An older app never sends it; a newer app's
+// keys this firmware does not know are skipped, so either side may be the older one.
+static void test_sw_own_screen(void) {
+  sw_ui u;
+  CHECK(sw_parse("{\"p\":\"standby\",\"v\":1}", &u) == SW_PARSE_UI && !u.own_screen);  // an app from before `o`
+  CHECK(sw_parse("{\"p\":\"standby\",\"o\":1}", &u) == SW_PARSE_UI && u.own_screen);
+  CHECK(sw_parse("{\"o\":true}", &u) == SW_PARSE_UI && u.own_screen);
+  CHECK(sw_parse("{\"o\":0}", &u) == SW_PARSE_UI && !u.own_screen);
+  CHECK(sw_parse("{\"o\":1,\"q\":{\"later\":[1,2]},\"zz\":\"x\",\"m\":\"acting\"}", &u) == SW_PARSE_UI && u.own_screen && u.mood == SW_ACTING);
+  // the screen: recording when the app is there and says so, else mirroring's own state
+  CHECK(sw_screen_state(true, true, 0) == 2 && sw_screen_state(false, true, 0) == 0);  // the app gone: mirroring again
+  CHECK(sw_screen_state(true, false, 1) == 1 && sw_screen_state(true, false, 2) == 2);
+  // all linked: mirroring needs the phone on Wi-Fi and AirPlay streaming; recording needs neither
+  CHECK(sw_linked(true, true, false, true, 2) && !sw_linked(true, true, false, false, 2) && !sw_linked(true, true, false, true, 1));
+  CHECK(sw_linked(true, true, true, false, 0) && !sw_linked(false, true, true, false, 0) && !sw_linked(true, false, true, true, 2));
+}
+
 static void test_sw_buttons(void) {
   sw_ctl c;
   sw_ui u;
@@ -1191,6 +1208,7 @@ int main(void) {
   test_sw_picks();
   test_sw_voice();
   test_sw_text();
+  test_sw_own_screen();
   test_ima();
   test_sw_clock();
   test_sw_face();

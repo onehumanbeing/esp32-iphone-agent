@@ -132,9 +132,9 @@ struct RecoveryPanel: View {
                     ProgressView()
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: stage.status.full).font(.body)
-                    if stage.line != stage.status.full {
-                        Text(verbatim: stage.line).font(.subheadline).foregroundStyle(.secondary)
+                    Text(verbatim: app.recoveryStatus(stage).full).font(.body)
+                    if app.recoveryLine(stage) != app.recoveryStatus(stage).full {
+                        Text(verbatim: app.recoveryLine(stage)).font(.subheadline).foregroundStyle(.secondary)
                     }
                     Text(timerInterval: app.recoverySince...Date.distantFuture, countsDown: false)
                         .font(.footnote.monospacedDigit()).foregroundStyle(.secondary)

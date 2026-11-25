@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
-    let feed: VideoFeed  // not observed: a new frame re-renders only the run card's thumbnail
+    let feed: TaskScreen  // not observed: a new frame re-renders only the run card's thumbnail
     @ObservedObject var agent: AgentLoop
     @ObservedObject var settings: Settings
     @ObservedObject var intents: IntentStore
@@ -441,7 +441,7 @@ struct HomeView: View {
         if !board.connected { return ("Connect the board", .connect) }
         if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
         if let status = board.status, status.board != nil, status.inputState == nil { return ("Waiting for the mouse…", .act) }
-        if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
+        if !app.onDeviceCapture && board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.calibrator.hasValidCalibration { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil
@@ -483,7 +483,7 @@ struct RenameSheet: View {
 /// The run card's screen: the live frame while a run goes, else the run's cover. Its own view, so each new frame
 /// re-renders only this thumbnail, and decodes nothing while the app is in the background.
 private struct RunThumbnail: View {
-    @ObservedObject var feed: VideoFeed
+    @ObservedObject var feed: TaskScreen
     let card: RunCardSnapshot
     @Environment(\.scenePhase) private var phase
 

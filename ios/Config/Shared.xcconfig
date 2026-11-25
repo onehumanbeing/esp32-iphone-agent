@@ -11,6 +11,15 @@ IA_BUNDLE_ID = com.example.esp32agent
 IA_ENTITLEMENTS =
 IA_WIDGET_ENTITLEMENTS =
 
+// Screen Recording (iOS 27+, CaptureBackend): the phone captures its own screen. Needs Xcode 27 (an older SDK has no
+// ScreenCaptureKit for iOS and compiles it out) and the `screen-capture` background mode, without which iOS stops the
+// capture once the app leaves the front; the app offers the choice only when this build declares it. Off by default
+// until a device test and an App Store Connect upload accept the mode (docs/screen-recording-device-test.md). On:
+//   IA_CAPTURE_BACKGROUND_MODE = screen-capture
+//   IA_ENTITLEMENTS = IPhoneAgent/IPhoneAgentScreenCapture.entitlements   (adds com.apple.developer.screen-recording)
+// Off, the second UIBackgroundModes entry repeats bluetooth-central, which changes nothing.
+IA_CAPTURE_BACKGROUND_MODE = bluetooth-central
+
 // Optional LLM preset for your own builds, set in Local.xcconfig (write "//" as "/$()/").
 // Never in a store build: fastlane's beta lane clears these and checks the built app.
 //   IA_PRESET_BASE_URL = https:/$()/example.com/v1

@@ -27,6 +27,7 @@ typedef struct {
   bool confirm;                      // `h` 1: the help is a confirm (pay, delete): blue skips the step
   char warn[8];                      // `w`: a lost link the user has to fix (sw_warn.h), "": none
   int64_t local;                     // `z`: the phone's local time, seconds since 1970 read as UTC (0: not sent)
+  bool own_screen;                   // `o` 1: the phone records its own screen (iOS 27+): no Wi-Fi or mirroring needed
   bool has_picks;                    // `k` was in this line (else the last picks stay)
   uint8_t npicks;
   char picks[SW_PICKS][SW_PICK_MAX + 1];
@@ -34,6 +35,13 @@ typedef struct {
 
 enum sw_parsed { SW_PARSE_BAD, SW_PARSE_UI, SW_PARSE_OFF };
 int sw_parse(const char *arg, sw_ui *out);  // the argument of `ui`: a JSON object or `off`
+
+// Where the run's screen comes from, for the face's dots and the status page: 2 on, 1 starting, 0 off. An app that
+// says `o` 1 records the phone's own screen, so the screen is there without Wi-Fi or Screen Mirroring; any other app
+// (all before it) gets the screen through mirroring (AirPlay 0 idle / 1 connected / 2 streaming).
+int sw_screen_state(bool alive, bool own, int mirror);
+// All linked: only the character on the idle face, the states are on the status page. Wi-Fi counts only for mirroring.
+bool sw_linked(bool hid, bool alive, bool own, bool wifi, int mirror);
 
 enum sw_screen { SW_SCR_IDLE, SW_SCR_RUN, SW_SCR_HELP, SW_SCR_PAUSED, SW_SCR_OK, SW_SCR_FAIL, SW_SCR_CONFIRM,
                  SW_SCR_SHAKE, SW_SCR_STUCK, SW_SCR_VOICE, SW_SCR_ANSWER };

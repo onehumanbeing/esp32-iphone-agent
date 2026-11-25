@@ -34,6 +34,7 @@ struct View {
   uint8_t warn;    // SW_SCR_WARN: the alert (sw_warn_code)
   bool connecting, wifi;  // a Bluetooth link not yet paired; a phone on the board's Wi-Fi
   uint8_t mirror;  // AirPlay: 0 off, 1 starting, 2 on
+  bool own;        // the app records the phone's own screen (`o`, sw_screen_state): no mirroring needed
   uint16_t pair;   // seconds left of the pairing window (0 none)
   bool pairing;    // the pairing page (blue held), until yellow cancels, blue goes back, or a phone links
   sw_ui ui;

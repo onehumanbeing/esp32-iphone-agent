@@ -28,7 +28,7 @@ struct OnboardingView: View {
          pointer: Pointer, start: SetupPage) {
         self.app = app; self.board = board; self.feed = feed; self.settings = settings
         self.calibrator = calibrator; self.pointer = pointer; self.start = start
-        _page = State(initialValue: start)
+        _page = State(initialValue: app.onDeviceCapture && start == .see ? .act : start)
         _accepted = State(initialValue: settings.acceptedDisclaimer)
         _onWiFi = State(initialValue: app.hotspotSSID != nil)
         _lanChoice = State(initialValue: app.lanMode || !DeviceCaps.hasCellular)
@@ -65,19 +65,23 @@ struct OnboardingView: View {
 
     // MARK: - chrome
 
+    private var steps: [SetupPage] {
+        SetupPage.allCases.filter { $0 != .welcome && (!app.onDeviceCapture || $0 != .see) }
+    }
+
     private var single: Bool { settings.onboarded }  // opened from a Home chip: just this page
 
     private var topBar: some View {
         HStack {
             if page != .welcome && !single {
                 HStack(spacing: 6) {
-                    ForEach(SetupPage.allCases.dropFirst()) { p in
+                    ForEach(steps) { p in
                         Capsule().fill(p.rawValue <= page.rawValue ? Color.accentColor : Color(uiColor: .tertiarySystemFill))
                             .frame(width: p == page ? 22 : 8, height: 8)
                     }
                 }
                 .accessibilityElement()
-                .accessibilityLabel(Text("Step \(page.rawValue) of 4"))
+                .accessibilityLabel(Text("Step \((steps.firstIndex(of: page) ?? 0) + 1) of \(steps.count)"))
             }
             Spacer()
             if single || page != .welcome {
@@ -104,7 +108,7 @@ struct OnboardingView: View {
     private func advance() {
         forward = true
         if single || page == .brain { return finish() }
-        if let next = SetupPage(rawValue: page.rawValue + 1) { page = next }
+        if let next = steps.first(where: { $0.rawValue > page.rawValue }) { page = next }
         Haptics.tick()
     }
 
@@ -158,7 +162,7 @@ struct OnboardingView: View {
     }
 
     /// The mouse and mirroring are up: calibration can run.
-    private var actReady: Bool { MockMode.on || (calibrator.boardReady && calibrator.mirroring) }
+    private var actReady: Bool { MockMode.on || (calibrator.boardReady && (app.onDeviceCapture || calibrator.mirroring)) }
 
     /// On the network of the chosen mode (a board still in the other mode switches first).
     private var onHotspot: Bool { lanChoice == app.lanMode && app.onBoardHotspot(manual: onWiFi) }

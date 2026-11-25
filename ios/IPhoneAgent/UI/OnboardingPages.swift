@@ -415,7 +415,7 @@ struct ActPage: View {
     @ObservedObject var pointer: Pointer
 
     private var mouse: Bool { MockMode.on || board.status?.inputReady == true }
-    private var mirroring: Bool { MockMode.on || board.status?.ap == "streaming" }
+    private var mirroring: Bool { MockMode.on || app.onDeviceCapture || board.status?.ap == "streaming" }
 
     private var calibrated: Bool { calibrator.hasValidCalibration }  // iPad: in this orientation
 
@@ -435,8 +435,10 @@ struct ActPage: View {
             Panel {
                 CheckRow(title: "Mouse connected", done: mouse, active: !mouse, waiting: board.connected && !mouse)
                 Divider().padding(.vertical, Space.s)
-                CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
-                Divider().padding(.vertical, Space.s)
+                if !app.onDeviceCapture {
+                    CheckRow(title: "Screen Mirroring on", done: mirroring, active: mouse && !mirroring)
+                    Divider().padding(.vertical, Space.s)
+                }
                 CheckRow(title: "Pointer calibrated", done: calibrated, active: mouse && mirroring && !calibrated,
                          waiting: calibrator.busy,
                          detail: pointer.quality.map { "Accuracy \(CalibrationText.percent($0))" })
