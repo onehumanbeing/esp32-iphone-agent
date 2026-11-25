@@ -67,8 +67,8 @@ import UIKit
         return Self.turned(s, landscape: aspect > 1)
     }
 
-    /// The screen is turned from the calibration (iPhone, a landscape app): its corner offset and landing samples
-    /// are for the other orientation, so they are left out; the aim's landing check corrects what is off.
+    /// The screen is turned from the calibration (iPhone, a landscape app): its corner offset is for the other
+    /// orientation, so it is left out, and landings go to their own table (`key`).
     var turnedNow: Bool { calibratedSpan != nil && span != calibratedSpan }
 
     /// The sides of `s` for a landscape or portrait screen (the long side across a landscape one).
@@ -133,7 +133,7 @@ import UIKit
         (quality, aspect, pace, geometry) = (saved.quality, saved.aspect, saved.pace ?? 1, saved.geometry)
         origin = CGPoint(x: saved.ox ?? 0, y: saved.oy ?? 0)
         gain = (saved.gain ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }
-        for axis in ["x", "y"] where saved.v == Self.samplesVersion {
+        for axis in ["x", "y", "lx", "ly"] where saved.v == Self.samplesVersion {
             seen[axis] = (saved.seen?[axis] ?? []).filter { $0.count == 2 }.map { ($0[0], $0[1]) }.suffix(12)
         }
     }
@@ -204,6 +204,11 @@ import UIKit
         guard let current else { return false }
         return geometry?.matches(current) == true
     }
+
+    /// The landings of a turned screen (a landscape app on an iPhone calibrated in portrait) have their own table,
+    /// "lx"/"ly": its axes and corner differ, so mixing them in would bend portrait taps, and leaving them out kept a
+    /// steady 3-4% x miss in Kingdom Rush uncorrected (2026-11-26).
+    private func key(_ axis: String) -> String { turnedNow ? "l" + axis : axis }
 
     private func remember(_ axis: String, _ sample: (Double, Double)) {
         seen[axis] = Array((seen[axis, default: []] + [sample]).suffix(12))  // deque(maxlen=12)
@@ -428,9 +433,9 @@ import UIKit
         let rehome = recalibration.measured(CGPoint(x: x, y: y), found, pixels: Recalibration.pixels, confirmed: far)
         if rehome { log("pointer: far landing seen twice; re-homing, calibrating again only if the next one is far too") }
         if far { StepReport.shared.farLanding() }
-        guard !far, !turnedNow else { return rehome }
-        remember("x", (fix(x, "x"), Double(found.x)))
-        remember("y", (fix(y, "y"), Double(found.y)))
+        guard !far else { return rehome }
+        remember(key("x"), (fix(x, "x"), Double(found.x)))
+        remember(key("y"), (fix(y, "y"), Double(found.y)))
         save()
         return rehome
     }
@@ -602,8 +607,8 @@ import UIKit
 
     /// The fraction to aim at so the pointer lands on t, from the line through the observed landings.
     func fix(_ t: Double, _ axis: String) -> Double {
-        if absolute || turnedNow { return t }
-        let pts = seen[axis] ?? []
+        if absolute { return t }
+        let pts = seen[key(axis)] ?? []
         guard pts.count >= 2 else { return t }
         let n = Double(pts.count)
         let mc = pts.map(\.0).reduce(0, +) / n, mf = pts.map(\.1).reduce(0, +) / n
