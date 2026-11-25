@@ -240,7 +240,7 @@ extension AppModel {
             }
         }
         if let requested = value(after: "-setup"),
-           let page = ["connect": SetupPage.connect, "brain": .brain][requested] { setupPage = page }
+           let page = ["connect": SetupPage.connect, "act": .act, "brain": .brain][requested] { setupPage = page }
         if args.contains("-test-model") { Task { await pingLLM() } }
         if let dir = value(after: "-harness-ota") { harnessOTA(dir) }  // harness/fw.sh
         if let commands = value(after: "-hid") { harnessHID(commands) }  // harness/hid.sh
