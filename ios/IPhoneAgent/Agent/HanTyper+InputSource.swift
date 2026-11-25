@@ -1,8 +1,7 @@
 import Foundation
 
 /// The phone's input method as Chinese typing found it, kept for the run (`shared`, reset when a run starts).
-/// 2026-11-24, 122 runs: 27 failed Chinese typing (82 steps), nearly all on a phone whose active input method was
-/// not the system Pinyin one (9-key, Zhuyin, Wubi or stroke, a third-party keyboard). The board is a hardware
+/// Chinese typing failed on phones whose active input method was not the system Pinyin one (9-key, Zhuyin, Wubi or stroke, a third-party keyboard). The board is a hardware
 /// keyboard: iOS gives its keys to the active system input source (a third-party keyboard never gets them, so they
 /// stay plain letters; Zhuyin and Wubi read them as their own key codes), and ctrl+space steps through the
 /// keyboards. A typing that could not reach Pinyin clears what it typed and says so; the next Chinese `type` tries

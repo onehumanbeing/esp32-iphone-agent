@@ -15,9 +15,8 @@ extension AgentLoop {
     var missed: Bool { lastSent?["changed"] == .bool(false) }
 
     /// Twice in a row a tap that changed the screen was undone at once (back): the taps open the wrong thing, so the
-    /// next one finds the pointer before it presses (aim, ~2 s; it also feeds Recalibration). 2026-11-24: a phone
-    /// whose taps landed ~500 units low opened a wrong page every time; the screen changed, so no landing was ever
-    /// checked and nothing was recalibrated for 133 steps.
+    /// next one finds the pointer before it presses (aim, ~2 s; it also feeds Recalibration). Taps that land far
+    /// off can open a wrong page every time; the screen changes, so no landing is ever checked and nothing recalibrates.
     var backedOut: Bool {
         let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }.suffix(4)
         guard sent.count == 4 else { return false }

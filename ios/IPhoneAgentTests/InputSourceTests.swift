@@ -2,8 +2,8 @@ import XCTest
 import UIKit
 @testable import IPhoneAgent
 
-/// A phone whose keyboards ctrl+space steps through, each doing its own thing with the board's keys (2026-11-24:
-/// 27 of 122 runs failed Chinese typing on a keyboard that is not system Pinyin).
+/// A phone whose keyboards ctrl+space steps through, each doing its own thing with the board's keys (Chinese typing
+/// failed on a keyboard that is not system Pinyin).
 @MainActor private final class FakeKeyboards {
     enum Method { case pinyin, letters, zhuyin, digits, wubi }
     var cycle: [Method]

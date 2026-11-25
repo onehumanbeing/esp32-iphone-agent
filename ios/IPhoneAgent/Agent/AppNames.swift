@@ -197,8 +197,8 @@ enum AppNames {
     }
 
     /// System apps named with a plain noun, which other apps' names end in: 网易云音乐, QQ音乐, 墨迹天气, 腾讯视频,
-    /// QQ Music, Google Maps. 2026-11-24: "打开<a music app not in the table>…" matched 音乐 and opened Apple Music,
-    /// 9 runs on one phone, 4 of them ending in a wrong "done" there.
+    /// QQ Music, Google Maps. A task naming a music app not in the table matched 音乐 and opened Apple Music, then
+    /// ended with a wrong "done" there.
     static let generic: Set<String> = ["音乐", "Music", "地图", "Maps", "天气", "Weather", "视频", "Videos", "文件", "Files",
                                        "邮件", "Mail", "信息", "Messages", "短信", "相机", "Camera", "照片", "Photos",
                                        "相册", "日历", "Calendar", "时钟", "Clock", "电话", "Phone", "计算器", "Calculator",

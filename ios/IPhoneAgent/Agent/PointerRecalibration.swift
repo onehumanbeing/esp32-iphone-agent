@@ -21,8 +21,8 @@ struct Recalibration {
     static let every = 15
     /// A recalibration that failed (pointer not found: a busy screen) is tried again this many taps later, the wait
     /// doubling after each failure in a row (3, 6, 12 ... taps), never given up: the old calibration had already missed
-    /// far (Henry 2026-11-11: lost = calibrate again). 2026-11-24: after 3 failures it stopped for good, and a phone
-    /// whose taps landed ~500 units low tapped wrong for 133 steps.
+    /// far (Henry 2026-11-11: lost = calibrate again). It used to stop for good after 3 failures, and taps that
+    /// landed far off went on tapping wrong for the rest of the run.
     static let retryAfter = 3
     private(set) var failures = 0
 

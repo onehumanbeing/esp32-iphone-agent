@@ -1,9 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// The same gesture leaving the screen unchanged time after time. 2026-11-24: 47 of 122 runs (254 steps; 24 / 83 the
-/// day before) tapped, opened or went Home again and again while nothing changed, until the user stopped them or the
-/// lease ended. The guards before let it through: RepeatGuard looks only at the step right before (a `wait` or a note
+/// The same gesture leaving the screen unchanged time after time: a run tapped, opened or went Home again and again
+/// while nothing changed, until it was stopped or its time ran out. The guards before let it through: RepeatGuard looks only at the step right before (a `wait` or a note
 /// between two taps hid the repeat), holds no Home and, held twice, sends the same answer anyway; ThirdTapGuard and
 /// NoProgress count whole rounds, start over on any other round in between (a wait, a held answer) and NoProgress
 /// waits five of them; the stall count needs twelve.

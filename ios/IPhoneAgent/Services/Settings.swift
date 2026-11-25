@@ -70,8 +70,8 @@ import UIKit
     /// Keep going when nobody answers, and recover a dropped link instead of ending the run. Off by default.
     @Published var unattendedMode: Bool { didSet { defaults.set(unattendedMode, forKey: "unattendedMode") } }
     /// Start the next model look while the screen is still settling; cancelled if the screen moves. On by default
-    /// since 2026-11-25 (users found runs slow: the settle wait, 2 s a step, now overlaps the model call); a user who
-    /// turned it off keeps it off.
+    /// since 2026-11-25 (the settle wait, 2 s a step, now overlaps the model call); a user who turned it off keeps
+    /// it off.
     @Published var speculativeLook: Bool { didSet { defaults.set(speculativeLook, forKey: "speculativeLook") } }
     @Published var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
 

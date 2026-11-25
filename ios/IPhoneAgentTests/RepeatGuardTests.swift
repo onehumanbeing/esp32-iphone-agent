@@ -374,8 +374,7 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertTrue(AppNames.schemes.keys.allSatisfy { en in AppNames.table.contains { $0[1] == en } }, "every scheme has a table row")
     }
 
-    /// 2026-11-24: a music app the table does not know was opened as Apple Music (its name ends in 音乐), 9 runs on
-    /// one phone. A plain-noun system name counts only on its own; the longer name goes to the usual search.
+    /// A music app the table does not know was opened as Apple Music (its name ends in 音乐). A plain-noun system name counts only on its own; the longer name goes to the usual search.
     func testAPlainNounInsideALongerNameIsNotTheSystemApp() {
         for task in ["打开汽水音乐播放热歌", "打开墨迹天气看明天", "在某某地图里搜咖啡", "Open Deezr Music and play jazz"] {
             XCTAssertNil(AppNames.only(in: task), "an app the table does not know: the usual search, \(task)")

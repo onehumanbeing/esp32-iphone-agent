@@ -10,7 +10,7 @@ enum AIConsent {
     static func host(_ baseURL: String) -> String { URL(string: baseURL)?.host ?? baseURL }
 
     /// Hosts of one service under its old and new name: a consent given to one holds for the other (2026-11-18: a build
-    /// on llm.manina.ai refused every call of a user who had allowed llm.handsy.tech, and the run stopped for help).
+    /// on llm.manina.ai refused every call after consent was given to llm.handsy.tech, and the run stopped for help).
     nonisolated static let sameService: [String: String] = ["llm.handsy.tech": "llm.manina.ai"]
     nonisolated static func service(_ host: String) -> String { sameService[host.lowercased()] ?? host.lowercased() }
 

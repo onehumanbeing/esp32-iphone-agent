@@ -196,8 +196,7 @@ final class StepReport: @unchecked Sendable {
     private var pending: Metrics.Step?
     private var repliedAt: Double?
     /// This run's pointer trouble so far: landings found past Pointer.maxMiss, and recalibrations tried. Counts only,
-    /// sent with the timing (`far=`, `recal=`) so a run that tapped wrong for long shows why (2026-11-24: 133 steps
-    /// of taps ~500 units low, and nothing in the records said so).
+    /// sent with the timing (`far=`, `recal=`) so a run that tapped wrong for long shows why.
     private var far = 0, recal = 0
     func farLanding() { lock.withLock { far += 1 } }
     func recalibrated() { lock.withLock { recal += 1 } }

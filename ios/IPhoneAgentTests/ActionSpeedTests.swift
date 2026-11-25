@@ -144,7 +144,7 @@ import XCTest
         XCTAssertFalse(other.pending, "off the other way: a stray reading, wait as before")
     }
 
-    /// 2026-11-24: taps ~500 units low for 133 steps. Far again right after a re-home calibrates now, even soon after
+    /// Taps landing far off for a whole run. Far again right after a re-home calibrates now, even soon after
     /// the last calibration; failed tries wait longer each time but are never given up.
     func testFarFromTheCornerCalibratesNowAndFailuresBackOffWithoutGivingUp() {
         var r = Recalibration()
