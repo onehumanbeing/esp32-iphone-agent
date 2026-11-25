@@ -6,6 +6,8 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## App 1.0.11 (TestFlight)
 
+- App: Settings › Model › Sign in with ChatGPT: runs use your own ChatGPT Plus or Pro plan (the same usage limits Codex uses), with no API key.
+- App: the Settings note on Look ahead says it is on by default (it has been since 2026-11-25).
 - App: the "Let Me Use the Pointer" setup page lists the AssistiveTouch steps one by one, ticks each as it is done, says what it is waiting for (AssistiveTouch, the board's mouse, Screen Mirroring) and, after 20 s on one of them, the likely cause and fix. It looked frozen before.
 - App: a landscape app learns its own pointer landings (a separate table from portrait), so a steady miss there is corrected after a few taps.
 - App: a landscape app (a game) goes to the model at 540 px on its short side (about 1170x540), as many pixels as portrait; it went at 540x250 and small targets were unreadable.
