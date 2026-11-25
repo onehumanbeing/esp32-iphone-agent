@@ -51,6 +51,8 @@ enum OpenResult: String {
     /// (2026-11-17: opens took 20-92 s, one 57 s and not opened; most of it pointer searches for the Search button
     /// and the result row).
     static let budget = 15.0
+    /// Below this (screen fraction) a row with the name is the keyboard's candidate bar, not a result.
+    static let candidateBarBelow = 0.5
 
     func open(_ name: String) async throws -> OpenResult {
         // Only the name asked for: the model sees the iPhone's language on screen and picks another name itself.
@@ -152,7 +154,7 @@ enum OpenResult: String {
             // a commit changes the frame as much as a new app does.
             // Only a line that is the app's name (not one that contains it: a message, a web hit), at most two per
             // look, top first; the search field holding the same text may be one of them, a tap there changes nothing.
-            var shown = results, closed = false, changed = false
+            var shown = results, closed = false, changed = false, entered = 0
             for round in 0..<2 {
                 changed = false
                 let (spots, web, topHit) = await spots(shown, name, labels)
@@ -161,10 +163,21 @@ enum OpenResult: String {
                     log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
                     return .notFound
                 }
+                // The pinyin letters stayed composing (the pinyin keyboard was on) and the name is read only low on
+                // the screen, in the candidate bar over the keyboard: space puts the first candidate in, and the rows
+                // are read again. Tapping it first found the pointer, 13 s (2026-11-26, 汽水音乐).
+                if round == 0, query != name, query.allSatisfy(\.isASCII), let low = spots.first, low.y > Self.candidateBarBelow {
+                    log("open \(name) via Spotlight: the name is in the candidate bar → space")
+                    try await key("space")
+                    guard let now = await look() else { return .unchecked }
+                    if !same(now, shown) { shown = now; continue }
+                }
                 // The app's row is Spotlight's Top Hit and the name went in as plain letters: Return opens it at once,
-                // the tap first finds the pointer (5 s of an 18.6 s open, 2026-11-26). Still on Spotlight after it
-                // (letters composing on the pinyin keyboard, 2026-11-20): the rows are read again and tapped.
-                if round == 0, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                // the tap first finds the pointer (5 s of an 18.6 s open, 2026-11-26). Still on Spotlight after it:
+                // the letters were composing on the pinyin keyboard and that Return put them in (2026-11-20); the
+                // rows are read again and one more Return opens the Top Hit (the tap after it took 7.5 s, 2026-11-26).
+                if entered < 2, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                    entered += 1
                     log("open \(name) via Spotlight: typed, its row is the top hit → enter")
                     try await key("enter")
                     guard let now = await look() else { return .unchecked }

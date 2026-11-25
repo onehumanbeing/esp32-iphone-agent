@@ -127,6 +127,27 @@ import XCTest
         }
     }
 
+    /// The pinyin letters stayed composing and the name is only in the candidate bar: space, never a tap there
+    /// (2026-11-26: the tap's pointer search and settle took 13 s). Then the web-only result says not installed.
+    func testTheNameInTheCandidateBarIsPutInWithSpace() async throws {
+        let committed = Data([5])
+        var queue: [Data?] = [home, spotlight, committed]
+        var sent: [String] = [], tapped = 0
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["汽水音乐", "qi shui yin yue"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.language = "zh-Hans"
+        opener.readBoxes = { [committed] frame in
+            (frame == committed ? [("Suggestions", [40, 300, 300, 340]), ("汽水音乐", [140, 400, 400, 440])]
+                                : [("汽水音乐", [20, 1270, 240, 1300])], CGSize(width: 1000, height: 2000))
+        }
+        opener.tapAt = { _ in tapped += 1 }
+        let result = try await opener.open("汽水音乐")
+        XCTAssertEqual(result, .notFound)
+        XCTAssertEqual(tapped, 0)
+        XCTAssertTrue(sent.contains("space"))
+    }
+
     /// The app's row is the Top Hit and the name went in as letters: Return opens it, no pointer search for a tap
     /// (2026-11-26: the tap's pointer search was 5 s of an 18.6 s open). Letters still composing (Return only
     /// commits them, Spotlight stays): the row is tapped after all. A name under another header is tapped.
@@ -135,7 +156,8 @@ import XCTest
         let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440]),
                                                     ("Settings", [140, 1100, 400, 1140])]
         for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
-                                     ([home, spotlight, committed, app], ["enter"], 1)] {
+                                     ([home, spotlight, committed, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 1)] {
             var queue: [Data?] = frames
             var sent: [String] = [], tapped = 0
             var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
