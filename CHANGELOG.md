@@ -4,6 +4,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- Faster on screens that never stand still: one such step caps every later wait at 0.8 s, a screen seen moving in the last 2 minutes waits at most 1 s, the longest wait for a still screen is 3 s (was 4), and the pointer check waits 0.2 s instead of 0.6 s there.
 - `tap X Y twice` taps one spot twice, the second click where the first landed; a second tap at the same spot in one reply is no longer aimed again (a game's choose-then-confirm, "tap twice" buttons).
 - App: a screen that never stands still (a game, a video, a live map) no longer costs 3-7 s of waiting per step: after two steps without a still moment every wait is short, until the screen stands still again.
 - App: iPhone apps in landscape (games): taps land where aimed. The pointer's calibration was used in portrait sides, so a tap at the right of a landscape screen landed at about a third of its width.

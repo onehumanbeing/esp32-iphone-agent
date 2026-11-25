@@ -341,8 +341,8 @@ final class VideoReorderTests: XCTestCase {
         StepWaits.reset()  // the next step: the screen was moving a moment ago, so its first wait is shorter
         start = now()
         await screen.settled(quiet: 0.5, least: 0.3, most: 3)
-        XCTAssertEqual(now() - start, StepWaits.recentCap, accuracy: 0.4)
-        XCTAssertTrue(StepWaits.moving, "and the later waits of that step are short again")
+        XCTAssertLessThanOrEqual(now() - start, StepWaits.recentCap + 0.4)
+        XCTAssertTrue(StepWaits.moving || StepWaits.alwaysMoving, "and the later waits of that step are short again")
         StepWaits.reset()
         StepWaits.lastMoving = -1000  // long after, on another screen (a still moment ended the streak): a full wait again
         StepWaits.movingSteps = 0

@@ -53,12 +53,12 @@ enum FrameMode: String {
     /// steps too, and each first wait ran to 4 s (2026-11-17, Meituan: 4 s in most steps). Within `recentFor`, the
     /// first wait is capped at `recentCap`.
     static var lastMoving = -1000.0
-    static let recentFor = 30.0, recentCap = 2.0
+    static let recentFor = 120.0, recentCap = 1.0
     /// Steps in a row whose screen never stood still. From `alwaysAfter` on, every wait is capped at `movingCap` from
     /// the first: a game, a video or a live map never stops, and each step still waited 2 s before the cap, 3-7 s per
     /// step in all (2026-11-26, Kingdom Rush). A wait that finds a quiet moment ends it.
     static var movingSteps = 0, countedThisStep = false
-    static let alwaysAfter = 2
+    static let alwaysAfter = 1
     static var alwaysMoving: Bool { movingSteps >= alwaysAfter }
     static var settle = 0.0  // s spent in `settled`
     static var snaps = 0  // snaps asked for
@@ -92,7 +92,7 @@ extension ScreenSource {
     /// ran to its `most` (4 s, then the 0.8 s cap) although the gesture's result had long shown.
     ///
     /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
-    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = [],
+    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 3, ignoring spots: [CGPoint] = [],
                  busy: [CGRect] = []) async {
         let started = now()
         let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor

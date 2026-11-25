@@ -299,7 +299,10 @@ extension AppModel {
                 guard await waitReady(mirroring: true) else { return say("debug: run not started, board/mirroring not ready in 30 s") }
                 guard !agent.running else { return say("debug: a run is already going") }
                 tab = .agent
-                await run(task)
+                // the intent with these words, so a harness run reuses its plan and learned steps like a tap on it
+                let intent = intents.items.first { $0.prompt == task }
+                if let intent { say("debug: run as the intent \"\(intent.name)\"") }
+                await run(task, intent: intent)
             case "calibrate":
                 guard await waitReady(mirroring: false) else { return say("debug: board not ready in 30 s") }
                 calibrator.calibrate()

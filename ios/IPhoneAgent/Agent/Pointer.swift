@@ -508,7 +508,9 @@ import UIKit
         let sentNudge = Self.iPadPointer ? paced(nudge, 0).0 : nudge
         let started = now()
         wiggle = nil
-        await screen.settled(quiet: 0.15, least: 0.1, most: 0.6)  // pointer at rest
+        // pointer at rest; a screen that never stands still (a game) gives no quiet gap, so the wait is short there:
+        // 0.6 s per look on every measure, 23 measures in one run (2026-11-26, Kingdom Rush)
+        await screen.settled(quiet: 0.15, least: 0.1, most: StepWaits.moving || StepWaits.alwaysMoving ? 0.2 : 0.6)
         // what moves by itself (a clock, a spinner) in a short look before the nudge can't be the pointer. The time
         // the settled screen has already shown no change counts toward that look (2026-11-11: the full 0.3 s on top
         // of every settle; the frame is the same one throughout, so the look sees the same)
