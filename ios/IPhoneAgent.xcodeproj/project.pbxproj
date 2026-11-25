@@ -284,6 +284,7 @@
 		D4047FA847D62DA5D9FFB3AD /* SendConsentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AC0BB22701C4464A436CC3 /* SendConsentSheet.swift */; };
 		D48CF75915F3D1FFE18ADC3A /* BoardLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33107099A7483949F03FBDB6 /* BoardLink.swift */; };
 		D4B2CD03641F1629516AB29C /* HanTyper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390F8519AC0397F988356EAE /* HanTyper.swift */; };
+		A11C0FFEE0D1252611250001 /* HanReading.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C0FFEE0D1252611250002 /* HanReading.swift */; };
 		A1B2C3D4E5F60718293A4B01 /* HanTyper+InputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B02 /* HanTyper+InputSource.swift */; };
 		C1A9B0A0C0FFEE0000000002 /* ClipboardCarry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */; };
 		A1FBF102A1FBF102A1FBF102 /* RunPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FBF101A1FBF101A1FBF101 /* RunPolicy.swift */; };
@@ -496,6 +497,7 @@
 		37DAF0ED4EB9934C6C2DC4BE /* SiriToolIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriToolIntents.swift; sourceTree = "<group>"; };
 		383D5864324AF3AAAF904AA6 /* ToolsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsFile.swift; sourceTree = "<group>"; };
 		38FB6FEBD55DCBE8EED6834C /* RunSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSession.swift; sourceTree = "<group>"; };
+		A11C0FFEE0D1252611250002 /* HanReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanReading.swift; sourceTree = "<group>"; };
 		390F8519AC0397F988356EAE /* HanTyper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanTyper.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B02 /* HanTyper+InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HanTyper+InputSource.swift"; sourceTree = "<group>"; };
 		C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCarry.swift; sourceTree = "<group>"; };
@@ -853,6 +855,7 @@
 				8E677990F3420C8F264848AE /* Deciders.swift */,
 				9FE7BB3B9372105D2D898461 /* DeviceKind.swift */,
 				56619FDD370F74692EA476F1 /* FieldClearer.swift */,
+				A11C0FFEE0D1252611250002 /* HanReading.swift */,
 				390F8519AC0397F988356EAE /* HanTyper.swift */,
 				A1B2C3D4E5F60718293A4B02 /* HanTyper+InputSource.swift */,
 				C1A9B0A0C0FFEE0000000001 /* ClipboardCarry.swift */,
@@ -1717,6 +1720,7 @@
 				3B6ACDC5C9313208B71B3DBF /* FirmwareViews.swift in Sources */,
 				8132242ECCE42FC9547E8166 /* FrameThrottle.swift in Sources */,
 				4A2BFED999CA010867968893 /* H264Decoder.swift in Sources */,
+				A11C0FFEE0D1252611250001 /* HanReading.swift in Sources */,
 				D4B2CD03641F1629516AB29C /* HanTyper.swift in Sources */,
 				A1B2C3D4E5F60718293A4B01 /* HanTyper+InputSource.swift in Sources */,
 				C1A9B0A0C0FFEE0000000002 /* ClipboardCarry.swift in Sources */,

@@ -5,8 +5,8 @@ import Foundation
 /// not the system Pinyin one (9-key, Zhuyin, Wubi or stroke, a third-party keyboard). The board is a hardware
 /// keyboard: iOS gives its keys to the active system input source (a third-party keyboard never gets them, so they
 /// stay plain letters; Zhuyin and Wubi read them as their own key codes), and ctrl+space steps through the
-/// keyboards. Once no Pinyin source could be reached, every later Chinese `type` stops at once (no keys): the model
-/// had cleared and typed the same text again and again, and one run sent a message with stray letters.
+/// keyboards. A typing that could not reach Pinyin clears what it typed and says so; the next Chinese `type` tries
+/// again (2026-11-25: one misread used to block Chinese for the whole run, and every later open failed).
 @MainActor final class InputSource {
     static let shared = InputSource()
     enum State: Equatable {
@@ -39,9 +39,13 @@ extension HanTyper {
     /// evidence only: an OCR slip or a field read short is never one (Henry 2026-11-23: tolerate OCR). `pinyinKnown`:
     /// a typing this run read back right, so other characters are not taken as a shape method.
     static func foreign(_ text: String, before: Seen, after: Seen, pinyinKnown: Bool) -> Foreign? {
-        let was = fieldText(before, minus: []), now = fieldText(after, minus: [])
+        // the on-screen keyboard's own keys are not typed text: 2026-11-25 a read of "…qishuiyinlewtyupaszdfg个123
+        // xcvhbjnkm" (key rows) counted 22 new letters, ctrl+space left Pinyin and the run typed no Chinese again
+        let was = fieldText(withoutKeys(before), minus: []), now = fieldText(withoutKeys(after), minus: [])
         // the text's own English letters ("See you tomorrow!") are not a sign of the English keyboard (2026-11-23)
-        if wentEnglish(from: was, to: now, expected: text.filter { $0.isASCII && $0.isLetter }.count) { return .letters }
+        // and only when the pinyin itself shows up as letters: Spotlight's suggestions (Maps…) are letters too
+        if wentEnglish(from: was, to: now, expected: text.filter { $0.isASCII && $0.isLetter }.count),
+           showsPinyin(text, was: was, now: now) { return .letters }
         if zhuyinCount(now) - zhuyinCount(was) >= 2 { return .zhuyin }
         let wanted = Set(text.filter { isHan(String($0)) })
         guard !wanted.isEmpty else { return nil }
@@ -65,11 +69,39 @@ extension HanTyper {
         return fresh.count >= (wanted.count + 1) / 2 ? .shapes : nil
     }
 
+    /// The text's pinyin (its first 4 letters: a field can show only its start) is on screen now and was not before.
+    static func showsPinyin(_ text: String, was: String, now: String) -> Bool {
+        let py = Pointer.typeable(text.filter { isHan(String($0)) }).lowercased().filter { $0.isLetter }
+        guard !py.isEmpty else { return true }
+        let probe = String(py.prefix(4))
+        return now.lowercased().contains(probe) && !was.lowercased().contains(probe)
+    }
+
+    /// The screen's words without the software keyboard's key labels: in the lower part of the screen, a word of
+    /// one or two letters, "123", or letters that all sit on one key row in order (wtyup, xcvhbjnkm).
+    static func withoutKeys(_ seen: Seen) -> Seen {
+        let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+        func onRow(_ w: String) -> Bool {
+            rows.contains { row in
+                var i = row.startIndex
+                for ch in w { guard let j = row[i...].firstIndex(of: ch) else { return false }; i = row.index(after: j) }
+                return true
+            }
+        }
+        func isKey(_ word: (text: String, box: [Int])) -> Bool {
+            guard word.box.count == 4, word.box[1] * 100 >= seen.height * 55 else { return false }
+            let t = word.text.lowercased().filter { !$0.isWhitespace }
+            guard !t.isEmpty, t.allSatisfy({ ($0.isASCII && ($0.isLetter || $0.isNumber)) }) else { return false }
+            return t.count <= 2 || t == "123" || (t.allSatisfy(\.isLetter) && onRow(t))
+        }
+        return Seen(words: seen.words.filter { !isKey($0) }, height: seen.height)
+    }
+
     /// What Vision makes of Zhuyin symbols: it has no Zhuyin and reads the radicals they look like (ㄋㄧˇㄏㄠˇ as
     /// 了一厂幺, ㄅ 勹, ㄕ 尸, ㄙ 厶, ㄔ 彳; rendered in the simulator 2026-11-24), or drops them.
     static let zhuyinLookalikes = Set("勹夂勿尸厶廿历又马冂厂彳幺尢了一匚巜儿丫")
 
-    /// The note when no Pinyin input source could be reached: what to tell the user, and no typing again.
+    /// The note when no Pinyin input source could be reached for this typing: what to tell the user.
     static func noPinyinNote(_ kind: Foreign, text: String) -> String {
         let shown: String
         switch kind {
@@ -79,8 +111,7 @@ extension HanTyper {
         case .shapes: shown = "the keys came out as other characters (a Wubi or stroke keyboard)"
         }
         return "the iPhone's keyboard is not the system Chinese Pinyin one: \(shown), and ctrl+space did not reach Pinyin"
-            + " (what was typed is cleared). Chinese cannot be typed this run: do not type Chinese again or send;"
-            + " fail and tell the user to add Settings > General > Keyboard > Keyboards > Chinese, Simplified > Pinyin – QWERTY"
+            + " (what was typed is cleared). Do not send; if typing Chinese fails again, fail and tell the user to add Settings > General > Keyboard > Keyboards > Chinese, Simplified > Pinyin – QWERTY"
             + " and switch to it. English still types; not typed: \"\(text)\""
     }
 }

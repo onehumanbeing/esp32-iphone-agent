@@ -139,8 +139,9 @@ import UIKit
     }
 
     /// Two keyboards and neither is Pinyin: ctrl+space goes round once, everything typed is cleared, the stop says
-    /// so, the send guard holds Enter, and the next Chinese type of the run sends no keys at all.
-    func testNoPinyinReachedClearsStopsAndIsRemembered() async throws {
+    /// so, the send guard holds Enter, and the next Chinese type tries again (2026-11-25: one misread used to block
+    /// Chinese for the whole run).
+    func testNoPinyinReachedClearsStopsAndTheNextTypeTriesAgain() async throws {
         let ime = FakeKeyboards([.zhuyin, .letters], knowing: "你好")
         let source = InputSource()
         let first = try await ime.typer(source).attempt("你好")
@@ -160,7 +161,35 @@ import UIKit
         let second = try await ime.typer(source).attempt("明天")
         let again = try XCTUnwrap(second)
         XCTAssertTrue(again.noPinyin)
-        XCTAssertEqual(ime.sent, [], "no keys, no retyping in a loop")
+        XCTAssertFalse(ime.sent.isEmpty, "typed again, not refused for the rest of the run")
+        XCTAssertEqual(ime.sent.filter { $0 == "toggle" }.count, 2, "one round of ctrl+space, no loop")
+        XCTAssertEqual(ime.field, "")
+    }
+
+    /// The software keyboard's key rows read with the field (2026-11-25 Spotlight: "wtyup", "aszdfg", "123",
+    /// "xcvhbjnkm" low on the screen) are not letters that came out of the typing.
+    func testKeyboardKeysAreNotTypedLetters() {
+        let before = HanTyper.Seen(words: [("汽水音乐", [40, 120, 300, 160])], height: 1554)
+        let after = HanTyper.Seen(words: [("汽水音乐", [40, 120, 300, 160]), ("maps", [40, 300, 140, 330]),
+                                          ("q", [20, 1000, 50, 1040]), ("wtyup", [80, 1000, 500, 1040]),
+                                          ("aszdfg", [40, 1100, 480, 1140]), ("个", [500, 1100, 540, 1140]),
+                                          ("123", [20, 1300, 90, 1340]), ("xcvhbjnkm", [100, 1200, 700, 1240])],
+                                  height: 1554)
+        XCTAssertNil(HanTyper.foreign("汽水音乐", before: before, after: after, pinyinKnown: false))
+        let letters = HanTyper.Seen(words: before.words + [("qishuiyinyue", [40, 180, 400, 220])], height: 1554)
+        XCTAssertEqual(HanTyper.foreign("汽水音乐", before: before, after: letters, pinyinKnown: false), .letters,
+                       "letters in the field still count")
+    }
+
+    /// Pinyin by word: 音乐 is yinyue (乐 alone reads le), so Spotlight finds 汽水音乐.
+    func testPolyphonesAreReadByWord() {
+        XCTAssertEqual(Pointer.typeable("汽水音乐"), "qishuiyinyue")
+        XCTAssertEqual(Pointer.typeable("网易云音乐"), "wangyiyunyinyue")
+        XCTAssertEqual(Pointer.typeable("QQ音乐"), "QQyinyue")
+        XCTAssertEqual(Pointer.typeable("银行"), "yinhang")
+        XCTAssertEqual(Pointer.typeable("重新"), "chongxin")
+        XCTAssertEqual(Pointer.typeable("快乐"), "kuaile")
+        XCTAssertEqual(Pointer.typeable("西安"), "xi'an")
     }
 
     /// ctrl+space that does nothing: the same result after it, so one retype and the stop.

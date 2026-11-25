@@ -136,9 +136,6 @@ enum TypeStop {
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             DebugLog.write("type: \(text.count) chars in \(ms) ms, \(looks.n) screen reads")
         }
-        if Self.isHan(text), case .unreachable(let kind)? = source?.state {  // found this run: no keys, no retyping
-            return Stop(note: Self.noPinyinNote(kind, text: text), noPinyin: true)
-        }
         do {
             switch fastFirst ? try await counted.fast(text) : nil {
             case .done?: return nil

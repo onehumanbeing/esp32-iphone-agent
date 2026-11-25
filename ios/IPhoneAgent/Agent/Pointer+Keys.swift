@@ -145,7 +145,8 @@ extension Pointer {
         var out = ""
         var prevHan = false
         var last: Character?
-        for ch in text {
+        let readings = HanReading.readings(text)  // by word: 音乐 is yinyue, not yinle
+        for (at, ch) in text.enumerated() {
             defer { last = ch }
             if "…—".contains(ch), last == ch { continue }  // "……" and "——": one key makes the pair
             let s = String(ch)
@@ -159,7 +160,7 @@ extension Pointer {
                 .applyingTransform(.stripDiacritics, reverse: false) ?? punct
             let kept = String(String.UnicodeScalarView(latin.unicodeScalars.filter { (0x20...0x7e).contains($0.value) }))
             if isHan {
-                let syllable = kept.replacingOccurrences(of: " ", with: "")
+                let syllable = readings[at] ?? kept.replacingOccurrences(of: " ", with: "")
                 // xi'an, not xian: a syllable starting with a vowel after another Han syllable gets the pinyin
                 // keyboard's separator, else 西岸 reads as xian (先, 现) and the word is never among the candidates
                 // (2026-11-20, 上海西岸艺术中心 stopped at 西 in every run)
