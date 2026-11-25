@@ -8,6 +8,18 @@ import XCTest
         Recovery.Link(connected: connected, sta: sta, ap: ap, net: net, frameAt: frameAt)
     }
 
+    func testMirroringWithNoVideoIsCaughtOnlyWhenTheBoardHasNothing() {
+        XCTAssertTrue(Recovery.noVideo(ap: "streaming", gop: 0, fps: 0, hasFrame: false))
+        XCTAssertTrue(Recovery.noVideo(ap: "streaming", gop: 0, fps: nil, hasFrame: false))
+        // a still screen: no new frames, but the board keeps the last picture
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: 48_000, fps: 0, hasFrame: false))
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: 0, fps: 0, hasFrame: true))
+        XCTAssertFalse(Recovery.noVideo(ap: "connected", gop: 0, fps: 0, hasFrame: false))
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: nil, fps: 0, hasFrame: false))  // old firmware: unknown
+        XCTAssertLessThanOrEqual(Recovery.noVideoAfter, 60)
+        XCTAssertTrue(Recovery.noVideoReason.contains("Personal Hotspot"))
+    }
+
     func testStagesAfterABoardReboot() {
         var r = Recovery(at: 100)
         XCTAssertEqual(r.next(link(false), at: 100), .wait(.init(part: .board, ask: false)))
@@ -199,6 +211,23 @@ import XCTest
         XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(499), "y": .int(921)]))
         agent.steps.append(["action": .str("type"), "text": .str("water")])
         XCTAssertFalse(agent.retaps(["action": .str("tap"), "x": .int(789), "y": .int(705)]))
+    }
+
+    /// Two taps in a row that opened something the model backed out of at once: the next tap finds the pointer first.
+    func testTapsUndoneByBackTwiceFindThePointerFirst() {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        let tap: JObject = ["action": .str("tap"), "x": .int(500), "y": .int(300), "changed": .bool(true)]
+        let back: JObject = ["action": .str("back"), "changed": .bool(true)]
+        agent.steps = [tap, back, tap]
+        XCTAssertFalse(agent.backedOut, "once is a normal detour")
+        agent.steps = [tap, back, ["action": .str("plan")], tap, back]
+        XCTAssertTrue(agent.backedOut)
+        agent.steps = [tap, back, ["action": .str("swipe")], back]
+        XCTAssertFalse(agent.backedOut)
+        var unchanged = tap
+        unchanged["changed"] = .bool(false)
+        agent.steps = [unchanged, back, tap, back]
+        XCTAssertFalse(agent.backedOut, "a tap that changed nothing is checked already (missed)")
     }
 
     func testARunFromRunsIsRestoredWithItsLastPlan() {

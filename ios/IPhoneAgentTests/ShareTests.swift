@@ -141,7 +141,9 @@ final class ShareTests: XCTestCase {
         XCTAssertFalse(JevConsent.granted)
     }
 
-    func testNothingSetUpYetDisclosesAndGrantsNoModel() {
+    func testNothingSetUpYetDisclosesAndGrantsNoModel() throws {
+        // with the free line built in (Config/Local.xcconfig), an empty setup is the free line, which is disclosed
+        try XCTSkipIf(Trial.available, "this build has IA_TRIAL_ORIGIN: an empty setup means the free line")
         let settings = fresh()
         settings.baseURL = ""
         XCTAssertFalse(FirstConsent.parts(settings).model)

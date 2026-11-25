@@ -54,7 +54,11 @@ final class MainLag: @unchecked Sendable {  // state confined to `queue`
             let lag = CFAbsoluteTimeGetCurrent() - sent
             queue.async { [self] in
                 waiting = false
+                let system = stall?.systemShare ?? 0  // read before report() resets the samples
                 if let line = stall?.report(lag: lag), lag > 0.4 { DebugLog.write(line) }
+                if lag >= PhoneLoad.stallSeconds, system >= PhoneLoad.systemShare {
+                    DispatchQueue.main.async { PhoneLoad.shared.stall(lag) }
+                }
                 guard lag > Self.limit, sent - lastLog > 1 else { return }
                 lastLog = sent
                 DispatchQueue.main.async { DebugLog.write(String(format: "main thread: work waited %.0f ms (during %@, now %@)", lag * 1000, during, self.phase)) }

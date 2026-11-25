@@ -30,6 +30,7 @@ import XCTest
         let model = SystemRecorder(reply)
         let screen = FakeScreen(), phone = FakeGestures()
         screen.frame = AgentTests.jpeg()  // never changes
+        screen.updated = 1  // no frame after any action: an unknown result, which StillRepeat never counts
         phone.pointerVisible = true  // the touch probe finds the pointer
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: model, trace: nil)
         var asked: [String] = []

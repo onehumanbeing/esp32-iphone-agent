@@ -51,6 +51,8 @@ enum OpenResult: String {
     /// (2026-11-17: opens took 20-92 s, one 57 s and not opened; most of it pointer searches for the Search button
     /// and the result row).
     static let budget = 15.0
+    /// Below this (screen fraction) a row with the name is the keyboard's candidate bar, not a result.
+    static let candidateBarBelow = 0.5
 
     func open(_ name: String) async throws -> OpenResult {
         // Only the name asked for: the model sees the iPhone's language on screen and picks another name itself.
@@ -73,13 +75,19 @@ enum OpenResult: String {
         return letters.count >= 2 ? [letters, name] : [name]
     }
 
+    /// This open saw the name only as a web suggestion: the app is not installed (a box: the opener is a struct).
+    private final class Seen { var webOnly = false }
+    private let seen = Seen()
+
     private func open(named name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let queries = Self.queries(name, pasting: pasting)
+        seen.webOnly = false
         for (i, query) in queries.enumerated() {
             let result = try await open(name, typing: query, pasting: pasting)
-            if result == .notFound, i < queries.count - 1 { continue }  // Home first again: nothing left in the field
+            // a web suggestion with the name: the pinyin already found it, typed as Han it is the same (10 s, 2026-11-25)
+            if result == .notFound, !seen.webOnly, i < queries.count - 1 { continue }  // Home first again: nothing left in the field
             return result
         }
         return .notFound
@@ -104,7 +112,11 @@ enum OpenResult: String {
             try await home()
             try await pause(0.4)
             let homeFrame = await look()
-            if query != name { onHome = Self.count(name, in: await homeFrame.asyncMap(read) ?? []) }
+            // the Home Screen's words are read while Spotlight opens and the name is typed, not before it (an OCR
+            // read is 1-3 s, 13 s on an iPhone X; 2026-11-25: an open took 21 s at the median)
+            let reading = homeFrame.map { frame in Task { await read(frame) } }
+            defer { reading?.cancel() }
+            func homeLines() async -> [String] { await reading?.value ?? [] }
             if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
             try await pause(0.7)
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
@@ -116,6 +128,7 @@ enum OpenResult: String {
             // Read first: with the board's keyboard iOS shows no on-screen one, so on a plain wallpaper Spotlight
             // looks much like the Home Screen (2026-11-11: WeChat listed, judged "did not come up" twice).
             var lines = await read(results)
+            if query != name { onHome = Self.count(name, in: await homeLines()) }
             // The field and the results lag the typing by up to ~1.5 s: the first look still had an empty field over
             // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
             // (not "while the screen changes": the typed name in the field alone is too small a change for `same`).
@@ -130,7 +143,7 @@ enum OpenResult: String {
                 // The typed name is nowhere new on screen: cmd+space did nothing and the frames differ only where
                 // something moves (the Live Activity). 2026-11-13: read as "no such app", so it went on to 电话 on an
                 // English iPhone and Return opened a note; the Search button next time instead.
-                let before = await homeFrame.asyncMap(read) ?? []
+                let before = await homeLines()
                 if Self.count(query, in: lines) <= Self.count(query, in: before) { button = true; continue }
                 return .notFound  // Spotlight stays for the model
             }
@@ -141,9 +154,42 @@ enum OpenResult: String {
             // a commit changes the frame as much as a new app does.
             // Only a line that is the app's name (not one that contains it: a message, a web hit), at most two per
             // look, top first; the search field holding the same text may be one of them, a tap there changes nothing.
-            var shown = results, closed = false
+            var shown = results, closed = false, changed = false, entered = 0
             for round in 0..<2 {
-                let spots = await spots(shown, name, labels)
+                changed = false
+                let (spots, web, topHit) = await spots(shown, name, labels)
+                if web {  // not installed: tapping it or Return opens a web search
+                    seen.webOnly = true
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                    return .notFound
+                }
+                // The pinyin letters stayed composing (the pinyin keyboard was on) and the name is read only low on
+                // the screen, in the candidate bar over the keyboard: space puts the first candidate in, and the rows
+                // are read again. Tapping it first found the pointer, 13 s (2026-11-26, 汽水音乐).
+                if round == 0, query != name, query.allSatisfy(\.isASCII), let low = spots.first, low.y > Self.candidateBarBelow {
+                    log("open \(name) via Spotlight: the name is in the candidate bar → space")
+                    try await key("space")
+                    guard let now = await look() else { return .unchecked }
+                    if !same(now, shown) { shown = now; continue }
+                }
+                // The app's row is Spotlight's Top Hit and the name went in as plain letters: Return opens it at once,
+                // the tap first finds the pointer (5 s of an 18.6 s open, 2026-11-26). Still on Spotlight after it:
+                // the letters were composing on the pinyin keyboard and that Return put them in (2026-11-20); the
+                // rows are read again and one more Return opens the Top Hit (the tap after it took 7.5 s, 2026-11-26).
+                if entered < 2, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                    entered += 1
+                    log("open \(name) via Spotlight: typed, its row is the top hit → enter")
+                    try await key("enter")
+                    guard let now = await look() else { return .unchecked }
+                    let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
+                    if after == .left { return .opened }
+                    if after == .closed { closed = true; break }
+                    // the letters going in barely changes the frame (2026-11-26: "Settings" looked the same): the
+                    // second Return is sent either way
+                    let moved = !same(now, shown)
+                    shown = now
+                    if moved || entered < 2 { continue }
+                }
                 for spot in spots.prefix(2) {
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
                     try await tapAt?(spot)
@@ -153,9 +199,21 @@ enum OpenResult: String {
                     let moved = !same(now, shown)
                     shown = now
                     closed = after == .closed
+                    changed = moved
+                    // the tap committed the pinyin and Spotlight now lists the name only as a web suggestion: not
+                    // installed. Checked here, not in the next round, which the time budget may skip (2026-11-25:
+                    // "still on Spotlight", then the model tapped the suggestion and Chrome opened)
+                    if moved, !closed, await self.spots(now, name, labels).web {
+                        seen.webOnly = true
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                        return .notFound
+                    }
                     if closed || moved { break }  // the old spots are stale on a changed screen
                 }
                 if closed || round == 1 || overBudget() { break }
+                // the tap changed Spotlight (a keyboard candidate committed the pinyin, 2026-11-25): read its new
+                // results first; Return there opened whatever came first, a web suggestion for an app not installed
+                if changed { continue }
                 log("open \(name) via Spotlight: \(spots.isEmpty ? "not listed" : "still on Spotlight") → enter")
                 try await key("enter")  // opens the top hit, or commits letters still composing
                 guard let now = await look() else { return .unchecked }
@@ -193,17 +251,46 @@ enum OpenResult: String {
     }
 
     /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
-    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> [CGPoint] {
-        guard let readBoxes, tapAt != nil else { return [] }
+    private func spots(_ frame: Data, _ name: String, _ labels: [String]) async -> (spots: [CGPoint], web: Bool, topHit: Bool) {
+        guard let readBoxes, tapAt != nil else { return ([], false, false) }
         let (found, size) = await readBoxes(frame)
-        return Self.resultSpots(found, labels: [name] + labels, size: size)
+        let rows = Self.resultRows(found, labels: [name] + labels, size: size)
+        return (rows.filter { !$0.web }.map(\.at), rows.first?.web == true, Self.isTopHit(rows))
     }
 
     private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
 
+    /// Spotlight's header over web search suggestions, per language (folded).
+    static let webHeaders: Set<String> = Set(["Suggestions", "建议", "建議", "候補", "제안", "Vorschläge", "Suggestioni",
+                                              "Sugerencias", "Suggestões"].map(Scripts.fold))
+    /// Spotlight's header over its Top Hit (the row Return opens), per language (folded).
+    static let topHitHeaders: Set<String> = Set(["Top Hit", "最佳匹配", "最佳搜尋結果", "トップヒット", "상위 히트",
+                                                 "Toptreffer", "Meilleur résultat"].map(Scripts.fold))
+
+    /// The app's first row is under the Top Hit header: Return opens the app (never a field, a web suggestion,
+    /// or another result that came first).
+    static func isTopHit(_ rows: [(at: CGPoint, web: Bool, header: String?)]) -> Bool {
+        guard let first = rows.first, !first.web, let header = first.header else { return false }
+        return topHitHeaders.contains(Scripts.fold(header))
+    }
+
     /// Where to tap a listed result: the centers (screen fractions) of the lines that are one of `labels` (folded,
     /// a label cut short with "…" counts), below the status bar and above the home bar, top first.
     static func resultSpots(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> [CGPoint] {
+        resultRows(lines, labels: labels, size: size).filter { !$0.web }.map(\.at)
+    }
+
+    /// The top row of the name is a web suggestion: the app is not installed (Return would open the browser too).
+    static func onlyOnTheWeb(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize) -> Bool {
+        resultRows(lines, labels: labels, size: size).first?.web == true
+    }
+
+    /// The rows that are one of `labels`, top first, each marked when it is a web suggestion. Spotlight's
+    /// "Suggestions" are web searches (they open the browser), and an app that is not installed is listed only there
+    /// (2026-11-25, 汽水音乐 on an iPhone without it opened Chrome). Section headers start at the left margin, a row's
+    /// text after its icon: a row whose nearest header above is a web one is a web suggestion.
+    static func resultRows(_ lines: [(text: String, box: [Int])], labels: [String], size: CGSize)
+        -> [(at: CGPoint, web: Bool, header: String?)] {
         guard size.width > 0, size.height > 0 else { return [] }
         let wants = Set(labels.map(Scripts.fold).filter { !$0.isEmpty })
         func isLabel(_ text: String) -> Bool {
@@ -212,11 +299,18 @@ enum OpenResult: String {
             let cut = line.hasSuffix("…") ? String(line.dropLast()) : line.hasSuffix("...") ? String(line.dropLast(3)) : nil
             return cut.map { c in c.count >= 3 && wants.contains { $0.hasPrefix(c) } } ?? false
         }
-        return lines.compactMap { line -> CGPoint? in
-            guard line.box.count == 4, isLabel(line.text) else { return nil }
+        let boxed = lines.filter { $0.box.count == 4 }
+        let margin = (boxed.map { $0.box[0] }.min() ?? 0) + Int(size.width * 0.03)
+        func header(_ line: (text: String, box: [Int])) -> String? {
+            boxed.filter { $0.box[0] <= margin && $0.box[3] <= line.box[1] }.max { $0.box[3] < $1.box[3] }?.text
+        }
+        return boxed.compactMap { line -> (at: CGPoint, web: Bool, header: String?)? in
+            guard isLabel(line.text) else { return nil }
             let p = CGPoint(x: Double(line.box[0] + line.box[2]) / 2 / size.width, y: Double(line.box[1] + line.box[3]) / 2 / size.height)
-            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x) ? p : nil
-        }.sorted { $0.y < $1.y }
+            let over = header(line)
+            return (0.06...0.95).contains(p.y) && (0...1).contains(p.x)
+                ? (p, over.map { webHeaders.contains(Scripts.fold($0)) } ?? false, over) : nil
+        }.sorted { $0.at.y < $1.at.y }
     }
 
     /// Lines that show `name` (folded).

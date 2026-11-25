@@ -102,6 +102,7 @@ Every line is the whole state, except `k`, which stays until the app sends anoth
 | `v` | 1: the app takes the board's voice (hold yellow) |
 | `z` | the phone's local time: seconds since 1970 as if UTC (UTC + the time zone's offset). The board sets its RTC from it (when 3 s or more off) |
 | `w` | a paused run's lost link the user has to fix: `mirror` (Screen Mirroring), `locked` (the iPhone), `hid` (the Bluetooth pointer); missing: none |
+| `o` | 1: the phone records its own screen (Screen Recording, iOS 27+), so Wi-Fi and Screen Mirroring are not needed: the face's last dot and the status page's screen row say "Recording" / "Screen Recording on". Missing: the screen comes through mirroring. Firmware up to 0.2.8 ignores it (shows the mirroring state) |
 | `x`, `y` | where the eyes look, -1…1 (the island's look; missing: 0) |
 | `f` | `true`: the task finished (`m` `failure`: failed) |
 | `k` | standby picks: up to 3 intent names of up to 24 bytes |

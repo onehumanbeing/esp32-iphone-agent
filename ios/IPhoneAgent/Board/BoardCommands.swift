@@ -94,6 +94,11 @@ extension BoardTransport {
     var uiWarn: String? {
         didSet { if uiWarn != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
     }
+    /// Screen Recording is the screen source (CaptureBackend.onDevice): the StopWatch (`o` 1) shows the screen as
+    /// this iPhone's own instead of asking for Wi-Fi and Screen Mirroring. Older firmware skips the key.
+    var ownScreen = false {
+        didSet { if ownScreen != oldValue { (uiSent, uiWanted) = (nil, uiLast); flushUI() } }
+    }
 
     init(transport: BoardTransport? = nil) { self.transport = transport }
 
@@ -273,7 +278,7 @@ extension BoardTransport {
         let room = min(StopWatchUI.maxLine, transport.maxWrite - prefix.utf8.count)
         let elapsed = runTimes.map { Int(max(0, ($0.end ?? clock()).timeIntervalSince($0.start))) }
         guard case let (body, picks)? = StopWatchUI.command(want, max: room, at: clock(), confirm: uiConfirm, elapsed: elapsed,
-                                                               warn: uiWarn)
+                                                               warn: uiWarn, ownScreen: ownScreen)
         else { return uiWanted = nil }
         // the same line but for its clock (`z` ticks every second) is not sent again: the 5 s refresh carries the time
         let key = body.replacingOccurrences(of: #","z":\d+"#, with: "", options: .regularExpression)
@@ -430,7 +435,8 @@ enum StopWatchUI {
 
     /// The keys the firmware reads: mood, phase, step, limit, text, done / total, finished, standby picks, the
     /// local time "HH:mm" (the board has no clock), where the eyes look (x, y; left out at 0) and v 1: this app takes
-    /// the board's voice (hold yellow, BoardVoice). Older firmware ignores keys it does not know.
+    /// the board's voice (hold yellow, BoardVoice), and o 1: the phone records its own screen (firmware after 0.2.8
+    /// shows that instead of Wi-Fi and mirroring). Older firmware ignores keys it does not know.
     struct Payload: Encodable, Equatable {
         var c: String
         var m: String, p: String, s: Int, l: Int
@@ -444,6 +450,7 @@ enum StopWatchUI {
         var e: Int?  // seconds since the run began; at the finish, its length
         var w: String?  // a lost link the user has to fix: mirror, locked, hid
         var z: Int?     // the phone's local time, seconds since 1970 read as UTC: the board sets its clock from it
+        var o: Int?     // 1: the phone captures its own screen (Screen Recording); no Wi-Fi or mirroring is needed
     }
 
     static func localSeconds(_ time: Date, zone: TimeZone = .current) -> Int {
@@ -473,7 +480,7 @@ enum StopWatchUI {
     /// The command line without the request id, at most `max` bytes, and the picks it carries (nil: none).
     /// Too long: the text gets shorter, then goes, then the picks go.
     static func command(_ want: Want, max: Int = maxLine, at time: Date = Date(), confirm: Bool = false,
-                        elapsed: Int? = nil, warn: String? = nil) -> (String, [UUID]?)? {
+                        elapsed: Int? = nil, warn: String? = nil, ownScreen: Bool = false) -> (String, [UUID]?)? {
         guard case .show(let state) = want else { return "ui off".utf8.count <= max ? ("ui off", nil) : nil }
         let picks = state.picks.map { Array($0.prefix(maxPicks)) }
         var p = Payload(c: clock(time), m: state.mood.rawValue, p: state.phase.rawValue, s: state.step, l: state.limit,
@@ -481,7 +488,8 @@ enum StopWatchUI {
                         d: state.done, n: state.total, f: state.finished,
                         k: picks?.map { truncated($0.name, bytes: maxPick) }, x: look(state.lookX), y: look(state.lookY),
                         h: confirm && state.phase == .help ? 1 : nil,
-                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn, z: localSeconds(time))
+                        e: state.phase == .standby && !state.finished ? nil : elapsed, w: warn, z: localSeconds(time),
+                        o: ownScreen ? 1 : nil)
         while true {
             if let line = line(p), line.utf8.count <= max { return (line, p.k == nil ? nil : picks?.map(\.id)) }
             if let t = p.t, !t.isEmpty { p.t = String(t.dropLast()) }

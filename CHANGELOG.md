@@ -4,6 +4,43 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.11 (TestFlight)
+
+- App: Settings › Model › Sign in with ChatGPT: runs use your own ChatGPT Plus or Pro plan (the same usage limits Codex uses), with no API key.
+- App: the Settings note on Look ahead says it is on by default (it has been since 2026-11-25).
+- App: the "Let Me Use the Pointer" setup page lists the AssistiveTouch steps one by one, ticks each as it is done, says what it is waiting for (AssistiveTouch, the board's mouse, Screen Mirroring) and, after 20 s on one of them, the likely cause and fix. It looked frozen before.
+- App: a landscape app learns its own pointer landings (a separate table from portrait), so a steady miss there is corrected after a few taps.
+- App: a landscape app (a game) goes to the model at 540 px on its short side (about 1170x540), as many pixels as portrait; it went at 540x250 and small targets were unreadable.
+- App: faster on screens that never stand still: one such step caps every later wait at 0.8 s, a screen seen moving in the last 2 minutes waits at most 1 s, the longest wait for a still screen is 3 s (was 4), and the pointer check waits 0.2 s instead of 0.6 s there.
+- App: `tap X Y twice` taps one spot twice, the second click where the first landed; a second tap at the same spot in one reply is no longer aimed again (a game's choose-then-confirm, "tap twice" buttons).
+- App: iPhone apps in landscape (games): taps land where aimed. The pointer's calibration was used in portrait sides, so a tap at the right of a landscape screen landed at about a third of its width.
+- App: `open` on the pinyin keyboard: a name that is only in the candidate bar goes in with space instead of a tap, and a Return that only put composing letters in is followed by one more Return on the Top Hit.
+- App: a `fail` with no reason or a `done` with no answer shows the model's own words (they read as empty).
+- App: Chinese typing deletes words the keyboard's first candidate added past the text (你好明天 came out as 你好明天早上), instead of reporting it typed.
+- App: `open` presses Return when the app is Spotlight's Top Hit and its name went in as plain letters, instead of finding the pointer to tap the row (about 5 s less per open). Letters still composing on the pinyin keyboard fall back to the tap.
+- App: a second task in a row saves its notes and files in its own folder; before, it reused the folder of the task before it.
+- App: Chinese is typed as the pinyin of each word (音乐 is yinyue, so Spotlight finds 汽水音乐). The check for another input method no longer counts the on-screen keyboard's keys or Spotlight's suggestions as typed letters, and one failed typing no longer stops Chinese for the rest of the run.
+- App: the first launch asks once on the Welcome page whether you have an ESP32 board. Not yet opens manina.ai's page on where to get one (manina.ai/where-to-buy-esp32), then setup goes on. Users who already finished setup are never asked. With usage stats on, only the answer (yes/no) is counted.
+- App: a task that names an app no longer opens a system app whose plain name (音乐, 地图, 天气, Music, Maps…) is part of that app's longer name.
+- App: a tap that lands far from its target calibrates the pointer at once, even when the screen changed; failed calibrations try again after 3, 6, 12… taps and never stop for the run. Taps undone by back twice in a row find the pointer first.
+- App: "no change" counts only when a new screen image came after the action. The same action with no change twice gives the model a hint; three times, one longer look, then the run asks you.
+- App: a keyboard that is not system Pinyin (Zhuyin, Wubi, 9-key, a third-party keyboard) is switched once with ctrl+space and the text typed again; if Pinyin can't be reached the typing stops, nothing is sent, and you are told how to add it. Clearing what came out deletes only that, never the field's own text.
+- App: Settings › Look ahead is on by default: the next model request starts while the screen settles (cancelled if the screen moves). A request refused because the run's previous one is still open is asked again every 0.4 s instead of after 3 s.
+- App: the task's app guide loads while the app opens, not after it.
+- App: a board that joined this iPhone's own Personal Hotspot (`net join`) is reached over the hotspot; the app no longer tries to join that Wi-Fi after the board restarts, and shows no "turn off Personal Hotspot" warning for it.
+- App: when Screen Mirroring is connected but the board gets no picture at all (gop 0, 0 fps) for 30 s, the start stops and says to restart Screen Mirroring, or to use another Wi-Fi when the board is on this iPhone's own Personal Hotspot (iOS sends no picture there). It used to wait up to 5 minutes.
+- App: the Manina AI key field, plan card, key links and the key-only search tool are in the App Store build only; TestFlight and builds from this repository show none of them and ignore a saved key. There the field saves only a whole key (hsk_live_… with its 43 characters). The free-line note no longer says "up to 3 minutes per run" (runs last up to 30 minutes and go on while they work).
+- App: on iOS 27 a pull down to refresh that started on an intent's play button ran that intent when the finger lifted; a play tap during a pull, or within 0.8 s after it, is ignored.
+- App: a plain `wait` watches the screen and goes on as soon as something changes (a spinner or a video moving by itself doesn't count), up to 15 s, instead of asking the model again after one settle; `wait 10` waits that long. A loading page no longer costs a model step per look.
+- App: when the iPhone itself is slow (the app keeps waiting seconds for the CPU, as for a few hours after an iOS update), Home shows a tip saying so, and names the update when iOS changed in the last two days. Slowness from the app's own work doesn't show it.
+- App: Spotlight's web suggestions are not taken for the app: an app that is not installed is listed only there, and tapping it (or Return) opened a web search in the browser. Now the model is told the app is not on this iPhone.
+- App: Chinese typed on the English keyboard is caught from the first read of what changed (the pinyin shows as plain letters), deleted and typed again after ctrl+space, without two more reads of the whole screen.
+- App: the video decoder starts a new session as soon as the app goes to the background (tried again every 0.5 s for 3 s when iOS refuses it at first); the old one stopped giving frames there for about 10 s, which held up the first step. A tap that changes Spotlight (a keyboard candidate committing the pinyin) has its new results read before Return is pressed.
+- App: a free-line call refused because the model service was saturated is asked again after 0.5 s instead of 3 s.
+- App: a stopped run tells the free line who stopped it (the Stop button, the Live Activity, a notification, an answer to a question, or no answer in time).
+- App: the free line gets each step's first token, image, change check, pointer check and after-gesture time, and the run's start time, as seconds only.
+- iOS 27+: optional Screen Recording (Settings › Screen Source). The phone records its own screen with ScreenCaptureKit and the board only moves the pointer: no Wi-Fi or Screen Mirroring. Off in default builds (needs Xcode 27 and `IA_CAPTURE_BACKGROUND_MODE = screen-capture`); AirPlay is unchanged and stays the default. StopWatch firmware shows "Screen Recording on" when the app sends `o`. Based on PR #78 by await-ovo. Device checklist: [docs/screen-recording-device-test.md](docs/screen-recording-device-test.md).
+
 ## App 1.0.10.1 (TestFlight, a new build of 1.0.10)
 
 **Significantly faster Chinese input.**

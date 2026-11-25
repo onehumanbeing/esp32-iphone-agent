@@ -153,4 +153,14 @@ import XCTest
         XCTAssertEqual(MemoryStore(file: file).entries.count, 5, "saved")
         XCTAssertEqual(store.merge(MemoryStore.render(store.entries)).added + store.merge(MemoryStore.render(store.entries)).updated, 0)
     }
+
+    func testABareFailGetsItsThoughtAsTheReason() throws {
+        let acts = try Actions.parseActions("THINK: 汽水音乐 is not installed on this iPhone.\nDO: fail")
+        XCTAssertEqual(acts[0]["reason"]?.str, "汽水音乐 is not installed on this iPhone.")
+        let given = try Actions.parseActions("THINK: x\nDO: fail no app")
+        XCTAssertEqual(given[0]["reason"]?.str, "no app")
+        let done = try Actions.parseActions("THINK: The note holds 你好明天.\nDO: done")
+        XCTAssertEqual(done[0]["answer"]?.str, "The note holds 你好明天.")
+    }
+
 }

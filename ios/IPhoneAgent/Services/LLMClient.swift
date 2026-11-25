@@ -2,7 +2,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// The screen as sent to the model: at most 540 px wide, JPEG 0.6. Upload is the slow part of a step
+/// The screen as sent to the model: at most 540 px on its short side (wide in portrait), JPEG 0.6. Upload is the slow part of a step
 /// (2026-10-17: a 153 KB home screen took ~6-9 s through the tunnel, the model itself 1.4 s), and the
 /// model answers in 0-1000 coordinates, so a smaller image keeps taps where they were.
 enum ModelImage {
@@ -25,7 +25,10 @@ enum ModelImage {
               let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = props[kCGImagePropertyPixelWidth] as? Int, let height = props[kCGImagePropertyPixelHeight] as? Int
         else { return jpeg }
-        var longSide = max(width, height) * min(maxWidth, width) / width
+        // the short side at most `maxWidth`: a landscape iPhone (a game) went at 540x250, a quarter of a portrait
+        // frame's pixels, and the model's taps missed build spots a few pixels across (2026-11-26, Kingdom Rush)
+        let short = max(min(width, height), 1)
+        var longSide = max(width, height) * min(maxWidth, short) / short
         if let maxPixels {
             let scale = (Double(maxPixels) / Double(max(width * height, 1))).squareRoot()
             guard scale < 1 else { return jpeg }
@@ -126,7 +129,8 @@ struct LLMError: LocalizedError {
 
     let model: String
     let baseURL: URL
-    private let apiKey: String
+    private var apiKey: String  // ChatGPT sign-in: the access token, renewed after a 401
+    private let chatGPTAuth: ChatGPTAuth  // whose tokens renew it: the app's sign-in (tests: their own)
     let extra: [String: Any]
     private let headers: (() throws -> [String: String])?  // extra per-request headers (e.g. the free line's lease)
     /// false for the record reader: a 503 call_in_progress (the actor's call on the same lease) is not waited out.
@@ -148,7 +152,9 @@ struct LLMError: LocalizedError {
     }
 
     init(baseURL: String, model: String, apiKey: String = "", extra: [String: Any] = [:],
-         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil) {
+         tokenParam: String = "auto", session: URLSession? = nil, headers: (() throws -> [String: String])? = nil,
+         chatGPTAuth: ChatGPTAuth? = nil) {
+        self.chatGPTAuth = chatGPTAuth ?? .shared
         var trimmed = baseURL
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
         self.baseURL = URL(string: trimmed) ?? URL(string: "http://invalid")!
@@ -196,17 +202,9 @@ struct LLMError: LocalizedError {
     private func once(system: String, text: String, images: [Data], maxTokens: Int,
                       temperature: Double) async throws -> ChatResult {
         onProgress?(.waiting)
-        var content: [[String: Any]] = images.map {
-            ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
-        }
-        content.append(["type": "text", "text": text])
-        var body: [String: Any] = ["model": model]
-        if sendsTemperature { body["temperature"] = temperature }
-        // DeepSeek thinks at effort high when `thinking` is omitted; Extra body can turn it back on (#118).
-        if baseURL.host?.lowercased() == "api.deepseek.com" { body["thinking"] = ["type": "disabled"] }
-        extra.forEach { body[$0.key] = $0.value }
-        body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
-        body["stream"] = true
+        var body = speaksResponses
+            ? Self.responsesBody(model: model, system: system, text: text, images: images, extra: extra)
+            : chatBody(system: system, text: text, images: images, temperature: temperature)
 
         let started = now()
         let kb = images.reduce(0) { $0 + $1.count } / 1024
@@ -230,7 +228,7 @@ struct LLMError: LocalizedError {
         do {
             (status, result, errorText) = try await send(body)
             // A 400 names one refused parameter at a time: a model may refuse both, in either order.
-            for _ in 0..<2 where status == 400 {
+            for _ in 0..<2 where status == 400 && !speaksResponses {
                 if auto && errorText.contains("max_completion_tokens") {
                     (tokenParam, auto) = ("max_completion_tokens", false)
                 } else if sendsTemperature && errorText.contains("temperature") {
@@ -240,11 +238,26 @@ struct LLMError: LocalizedError {
                 } else { break }
                 (status, result, errorText) = try await send(body)
             }
+            // ChatGPT sign-in: an access token refused mid-run is renewed once.
+            if speaksResponses && status == 401 {
+                apiKey = try await chatGPTAuth.accessToken(force: true)
+                (status, result, errorText) = try await send(body)
+            }
+            // The lease's own call still in progress: a look ahead just dropped (LookAhead), whose slot the gateway
+            // frees once it sees the disconnect, mostly well under a second. Asked again every 0.4 s for up to 6 s
+            // instead of the 3 s wait below, which every dropped look paid (2026-11-25: 8 such refusals a day).
+            var held = 0.0
+            while retriesBusy, status == 503, Self.busyReason(errorText) == "call_in_progress", held < Self.inProgressWait {
+                try await Task.sleep(for: .milliseconds(400))
+                held += 0.4
+                (status, result, errorText) = try await send(body)
+            }
+            if held > 0 { DebugLog.write(String(format: "llm: the lease's previous call held it %.1f s", held)) }
             // A busy upstream: once more. A per-minute rate limit: wait as told (Retry-After, at most 20 s), up
             // to twice. A daily quota (OpenRouter free models): retrying can't help, so say so plainly.
             // 5xx: Cloudflare's 520-524 too (2026-11-17: one 520 paused a run that a retry 3 s later carried on)
             for attempt in 0..<2 where status == 429 || (500...599).contains(status) && status != 501 {
-                if status == 429 && Self.dailyLimit(errorText) { break }
+                if status == 429 && (Self.dailyLimit(errorText) || Self.chatGPTLimitError(errorText) != nil) { break }
                 if LLMError.contentFiltered(errorText) { break }  // the same screen is refused again
                 // the lease's time at its end: the gateway may extend it a moment later (2026-11-18: a run stopped
                 // as "time limit" one second before the gateway gave it 30 more minutes), so once more after 2 s
@@ -252,8 +265,11 @@ struct LLMError: LocalizedError {
                 if !atLeaseEnd, Self.trialRunEnded(errorText) || Self.trialUsedUp(errorText) || Self.keyError(errorText) != nil { break }  // final: asking again can't help
                 if !retriesBusy, Self.busyReason(errorText) == "call_in_progress" { break }  // the record reader: skip this screen
                 if status != 429 && attempt > 0 { break }
-                let wait = status == 429 ? min(retryAfter ?? 5, 20) : atLeaseEnd ? 2 : 3
-                DebugLog.write(String(format: "llm: HTTP %d, retrying in %.0f s", status, wait))
+                // the free line's upstream was saturated for this call (overflow_error): the next one usually goes
+                // through at once (2026-11-25: 3.2 s right after), so 0.5 s, not 3
+                let saturated = Self.busyReason(errorText) == "overflow_error"
+                let wait = status == 429 ? min(retryAfter ?? 5, 20) : atLeaseEnd ? 2 : saturated ? 0.5 : 3
+                DebugLog.write(String(format: "llm: HTTP %d, retrying in %.1f s", status, wait))
                 try await Task.sleep(for: .seconds(wait))
                 (status, result, errorText) = try await send(body)
             }
@@ -269,6 +285,8 @@ struct LLMError: LocalizedError {
                 else if refused.kind == LLMError.trialRunEnded.kind { Trial.shared.runEnded() }
                 throw refused
             }
+            if speaksResponses, let limit = Self.chatGPTLimitError(errorText) { throw limit }
+            if speaksResponses && status == 401 { throw ChatGPTAuth.signInAgain }
             if status == 429 { throw Self.rateLimitError(errorText, openRouter: baseURL.host?.hasSuffix("openrouter.ai") == true) }
             if LLMError.contentFiltered(errorText) {
                 throw LLMError(message: LLMError.contentRefused, status: status, kind: "content_filter")
@@ -285,6 +303,21 @@ struct LLMError: LocalizedError {
         return result
     }
 
+    private func chatBody(system: String, text: String, images: [Data], temperature: Double) -> [String: Any] {
+        var content: [[String: Any]] = images.map {
+            ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]]
+        }
+        content.append(["type": "text", "text": text])
+        var body: [String: Any] = ["model": model]
+        if sendsTemperature { body["temperature"] = temperature }
+        // DeepSeek thinks at effort high when `thinking` is omitted; Extra body can turn it back on (#118).
+        if baseURL.host?.lowercased() == "api.deepseek.com" { body["thinking"] = ["type": "disabled"] }
+        extra.forEach { body[$0.key] = $0.value }
+        body["messages"] = [["role": "system", "content": system], ["role": "user", "content": content]]
+        body["stream"] = true
+        return body
+    }
+
     /// OpenRouter's daily free-model quota ("free-models-per-day"), as opposed to the per-minute limit.
     static func dailyLimit(_ errorText: String) -> Bool {
         let t = errorText.lowercased()
@@ -293,6 +326,9 @@ struct LLMError: LocalizedError {
 
     /// The free line refused because this run's lease is over (idle too long, out of time, paused, call limit):
     /// every further call would be refused too.
+    /// How long a `call_in_progress` refusal is asked again quickly (then the usual 3 s retry).
+    static let inProgressWait = 6.0
+
     /// The free line's reason in a 503 `{"status":"busy","reason":…}`, else nil.
     nonisolated static func busyReason(_ errorText: String) -> String? {
         guard let body = try? JSONSerialization.jsonObject(with: Data(errorText.utf8)) as? [String: Any],
@@ -440,7 +476,9 @@ struct LLMError: LocalizedError {
         var body = body
         // 自动协商只更改字段名，手动配置的输出上限应在每次重试中保持一致。
         let limits = Self.tokenParams.compactMap { body.removeValue(forKey: $0) }
-        if let configured = limits.first {
+        if speaksResponses {
+            // the Codex endpoint refuses an output limit
+        } else if let configured = limits.first {
             guard limits.count == 1, let value = configured as? Int, value > 0,
                   CFGetTypeID(configured as CFTypeRef) != CFBooleanGetTypeID() else {
                 throw LLMError(message: String(localized: "In Extra body JSON, use one positive integer for max_tokens or max_completion_tokens."))
@@ -449,7 +487,7 @@ struct LLMError: LocalizedError {
         } else {
             body[tokenParam] = maxTokens
         }
-        var request = URLRequest(url: baseURL.appendingPathComponent("chat/completions"))
+        var request = URLRequest(url: baseURL.appendingPathComponent(speaksResponses ? "responses" : "chat/completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
@@ -461,19 +499,23 @@ struct LLMError: LocalizedError {
 
         // Read and parse off the main thread (2026-11-19, Gaode: the gateway answered in 3.0 s, the app finished
         // reading 47 s later; the stream, with the free line's tree, was read byte by byte on a busy main thread).
-        let session = session
+        let session = session, responses = speaksResponses
         let report: @Sendable () -> Void = { [weak self] in Task { @MainActor in self?.onProgress?(.receiving) } }
         let (status, result, errorText, retry) = try await Task.detached(priority: .userInitiated) {
-            try await Self.read(session: session, request: request, started: started, receiving: report)
+            try await Self.read(session: session, request: request, started: started, responses: responses, receiving: report)
         }.value
         retryAfter = retry
         return (status, result, errorText)
     }
 
     /// One request's answer: HTTP status, the parsed result (2xx), the error body otherwise, and Retry-After.
-    nonisolated static func read(session: URLSession, request: URLRequest, started: Double,
+    /// `responses`: the reply is the Responses API's stream (ChatGPT sign-in).
+    nonisolated static func read(session: URLSession, request: URLRequest, started: Double, responses: Bool,
                                  receiving: @Sendable () -> Void) async throws -> (Int, ChatResult?, String, Double?) {
         let (bytes, response) = try await session.bytes(for: request)
+        if responses, let http = response as? HTTPURLResponse {  // the plan's usage windows, on the main actor
+            Task { @MainActor in ChatGPTAuth.shared.noteLimits(http) }
+        }
         let retry = ((response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
         let responseSeconds = now() - started
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -484,7 +526,9 @@ struct LLMError: LocalizedError {
             for try await b in bytes { raw.append(b) }
             return (status, nil, String(decoding: raw, as: UTF8.self), retry)
         }
-        if !type.contains("text/event-stream") {  // a plain JSON answer
+        // The Codex endpoint has sent its stream with no Content-Type (#965): for it, the body's first line decides.
+        var sniffing = responses && !type.contains("text/event-stream") && !type.contains("json")
+        if !type.contains("text/event-stream") && !sniffing {  // a plain JSON answer
             var raw = Data()
             for try await b in bytes { raw.append(b) }
             var result = try Self.message(raw)
@@ -495,11 +539,34 @@ struct LLMError: LocalizedError {
         var result = ChatResult(text: "", firstToken: nil, total: 0)
         result.responseSeconds = responseSeconds
         var reportedReceiving = false, done = false
+        var plain: [String]?  // sniffed: not a stream, kept whole for JSON
         for try await line in bytes.lines {
+            if plain != nil { plain?.append(line); continue }
+            if sniffing {
+                let head = line.trimmingCharacters(in: .whitespaces)
+                if head.isEmpty { continue }
+                sniffing = false
+                if !["data:", "event:", "id:", "retry:", ":"].contains(where: head.hasPrefix) { plain = [line]; continue }
+            }
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { done = true; break }
             guard let json = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
+            if responses {
+                let event = try Self.responsesEvent(json, into: &result)
+                if !reportedReceiving, !event.text.isEmpty || !event.reasoning.isEmpty {
+                    reportedReceiving = true
+                    receiving()
+                }
+                result.reasoningChars += event.reasoning.count
+                if !event.text.isEmpty {
+                    if result.firstToken == nil { result.firstToken = now() - started }
+                    result.text += event.text
+                    if result.firstDo == nil, StreamMarks.completeDoLine(result.text) { result.firstDo = now() - started }
+                }
+                if event.done { done = true; break }
+                continue
+            }
             try Self.checkError(json)
             if let tree = Self.tree(json) { result.tree = tree; continue }
             let choice = (json["choices"] as? [[String: Any]])?.first
@@ -515,6 +582,15 @@ struct LLMError: LocalizedError {
             if result.firstToken == nil { result.firstToken = now() - started }
             result.text += piece
             if result.firstDo == nil, StreamMarks.completeDoLine(result.text) { result.firstDo = now() - started }
+        }
+        if let plain {  // its error (or a reply in another shape) says what went wrong; anything else shows its start
+            let raw = Data(plain.joined(separator: "\n").utf8)
+            guard (try? JSONSerialization.jsonObject(with: raw)) is [String: Any] else {
+                throw LLMError(message: "unexpected reply (HTTP \(status), no stream): \(String(decoding: raw.prefix(200), as: UTF8.self))")
+            }
+            var answer = try Self.message(raw)
+            answer.responseSeconds = responseSeconds
+            return (status, answer, "", retry)
         }
         // A stream cut before its end (no [DONE], no finish_reason) is a lost reply, not a short one.
         guard done || result.finishReason != nil else {

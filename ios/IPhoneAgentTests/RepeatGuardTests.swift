@@ -94,6 +94,7 @@ import XCTest
     func testAHeldBackActionIsNoMoveForNoProgress() async {
         let screen = FakeScreen(), phone = FakeGestures()
         screen.frame = AgentTests.jpeg()
+        screen.updated = 1  // no frame after any action: an unknown result, which StillRepeat never counts
         phone.pointerVisible = true
         let model = FakeModel { _ in "THINK: try\nDO: tap 500 500" }
         let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
@@ -371,6 +372,26 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertTrue(AppNames.schemeURLs("设置").isEmpty, "no public scheme: the old way")
         XCTAssertTrue(AppNames.schemeURLs("SkyTrip").isEmpty, "unknown app: the old way")
         XCTAssertTrue(AppNames.schemes.keys.allSatisfy { en in AppNames.table.contains { $0[1] == en } }, "every scheme has a table row")
+    }
+
+    /// A music app the table does not know was opened as Apple Music (its name ends in 音乐). A plain-noun system name counts only on its own; the longer name goes to the usual search.
+    func testAPlainNounInsideALongerNameIsNotTheSystemApp() {
+        for task in ["打开汽水音乐播放热歌", "打开墨迹天气看明天", "在某某地图里搜咖啡", "Open Deezr Music and play jazz"] {
+            XCTAssertNil(AppNames.only(in: task), "an app the table does not know: the usual search, \(task)")
+        }
+        XCTAssertEqual(AppNames.only(in: "打开网易云音乐听歌"), "网易云音乐")
+        XCTAssertEqual(AppNames.only(in: "用QQ音乐放一首歌"), "QQ音乐")
+        XCTAssertEqual(AppNames.only(in: "打开腾讯视频看电视剧"), "腾讯视频")
+        XCTAssertEqual(AppNames.only(in: "open Spotify Music"), "Spotify")
+        XCTAssertEqual(AppNames.only(in: "打开音乐播放周杰伦"), "音乐")
+        XCTAssertEqual(AppNames.only(in: "播放音乐"), "音乐")
+        XCTAssertEqual(AppNames.only(in: "在地图里搜咖啡"), "地图")
+        XCTAssertEqual(AppNames.only(in: "音乐里放一首歌"), "音乐", "the start of the task")
+        XCTAssertEqual(AppNames.only(in: "打开 Music 放一首歌"), "Music", "a Chinese word before the space")
+        XCTAssertEqual(AppNames.only(in: "Open Music and play jazz"), "Music")
+        XCTAssertEqual(AppNames.only(in: "open Apple Music"), "Music", "the same row: Apple Music")
+        XCTAssertEqual(AppNames.only(in: "打开天气看明天"), "天气")
+        XCTAssertEqual(AppNames.only(in: "设个闹钟"), "闹钟", "not a plain-noun name: unchanged")
     }
 
     func testTheOneAppATaskNames() {

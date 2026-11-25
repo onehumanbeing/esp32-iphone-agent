@@ -4,6 +4,8 @@ import Foundation
 @MainActor protocol Gestures: AnyObject {
     var device: HIDDevice { get }
     func tap(_ x: Double, _ y: Double, aim: Bool) async throws
+    /// One more click where the pointer is, for a second tap at the same spot: no move, no aim.
+    func clickAgain() async throws
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws
     func drag(_ points: [CGPoint], hold: Bool) async throws
     /// nil: all of it went in; else what did not (Pointer.type).
@@ -261,11 +263,14 @@ extension Gestures {
             recorder.task?.cancel(); recorder = RecorderState()
             notebook = Notebook(); learned = []; lookedUp = []; fileView = nil; viewedSinceWrite = []; resultWritten = false; autoResult = nil; handedBack = false; handBackRounds = 0; guided = []; listRead = false; backChecked = false
             filesSince = Date(); resultsAtStart = MemoryFiles.open().results(); assistiveHits = []; liveNotes = LiveNotes()
+            runFolder = nil; foldersAtStart = []  // a new task gets its own folder, not the last run's
+            StepWaits.movingSteps = 0  // the last run's moving screen says nothing about this one
             limitCheck = nil; limitFrame = nil; limitLines = []; limitHit = nil
             metrics?.runStarted()
         }
         StepReport.shared.clear()
         UITree.ocrCache.clear()  // a new run never reuses the last run's OCR
+        InputSource.shared.reset()  // the user may have switched keyboards between runs
         recalled = memory?.recall(chatContext.isEmpty ? task : task + "\n" + chatContext) ?? []
         tools = ToolStore.shared.active
         DebugLog.write("tools: " + (tools.isEmpty ? "none" : tools.map(\.id).joined(separator: ", ")))  // the system prompt is not in the trace
@@ -371,6 +376,7 @@ extension Gestures {
         defer { if shown != nil { onRecover?(nil) } }
         while true {
             try Task.checkCancellation()
+            try screen.checkAvailability()
             guard now() < deadline else { throw BlindError(reason: Recovery.reason(shown?.part ?? .board, lan: shown?.lan ?? false)) }
             var state = link?() ?? Recovery.Link(connected: phone?.device.connected ?? true, sta: nil,
                                         ap: screen.live ? "streaming" : nil, frameAt: screen.live ? now() : 0)
@@ -591,6 +597,10 @@ extension Gestures {
         var failures = 0, stalls = 0, rounds = 0
         var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
+        // the task's app guide is read from the server (up to 5 s) while the app opens, not after it (2026-11-25:
+        // the wait from the line's lease to the first model call was 23 s for one run in ten)
+        let guiding = Task { @MainActor in await self.guideAtStart() }
+        defer { guiding.cancel() }
         do {
             if startsOnHome, !scripting, !steps.contains(where: { Actions.gestures.contains($0["action"]?.str ?? "") || $0["action"]?.str == "resumed" }),
                let app = AppNames.only(in: task) {
@@ -603,7 +613,7 @@ extension Gestures {
                 runFolder = RunFolder.from(steps) ?? LiveNotes.newFolder(resultName ?? task, since: filesSince, files: MemoryFiles.open(since: filesSince))
             }
             if let runFolder { liveNotes.use(runFolder, files: MemoryFiles.open()) }
-            await guideAtStart()
+            await guiding.value
             while true {
                 try await holdForPower()
                 rounds += 1
@@ -996,9 +1006,12 @@ extension Gestures {
                 if timing.leadMs == 0 { timing.lead(replied: StepWaits.replied, decided: decided, gating: gating, at: started) }
                 // after a tap in the same round the pointer moved again unseen: find it before pressing
                 let earlierTap = acts[..<i].contains { $0.act["action"]?.str == "tap" }
+                // the same spot as the tap just before: the pointer is already there, so the second tap is one more
+                // click (a game's choose-then-confirm); aiming again moved it off (Kingdom Rush, 2026-11-26)
+                let again = name == "tap" && i > 0 && Self.sameSpot(acts[i - 1].act, act)
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
-                if earlierTap, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                if earlierTap, !again, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
                     let checked = now()
                     timing.frameMs += await settle(ignoring: spots, busy: await still())
                     let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
@@ -1037,7 +1050,10 @@ extension Gestures {
                     record(planned.shot, act)
                     return try await confirm(why, always: check == .askAlways(why))
                 }
-                if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
+                if again {
+                    try await phone?.clickAgain()
+                    act["result"] = .str("clicked again at the same spot")
+                } else if let note = try await perform(act, aim: earlierTap) { act[note.field] = .str(note.value) }
                 lastActed = now()
                 let s = lastActed - started
                 timing.hidMs += s * 1000
@@ -1056,6 +1072,7 @@ extension Gestures {
                 }
                 if !(try await tapChanged(seen, &spots, quiet: await still(), confirmed: confirmed)) {
                     verdict(false)
+                    confirmStill(quiet: await still())
                     return false  // skip the rest; the actor looks again
                 }
             }
@@ -1087,6 +1104,7 @@ extension Gestures {
             let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
             if !needsLanding {
                 verdict(small)
+                confirmStill(quiet: busy, final: false)  // before the speculative prompt is built from the steps
                 prepareFrame(early)
                 startSpeculative()
                 let rest = now()
@@ -1098,6 +1116,7 @@ extension Gestures {
                     verdict(await Vision.off { Vision.changed(seen, later, ignore: mask, quiet: busy) })
                     prepareFrame(later)
                 }
+                confirmStill(quiet: busy)  // the rest of the wait is done: a frame that came in it counts now
                 try await timed("follow cache") { try await followCache(seen: seen) }
                 timed("checkpoint") { saveCheckpoint() }
                 return false
@@ -1125,6 +1144,7 @@ extension Gestures {
             pageFrames = steps.last?["action"]?.str == "swipe" ? Array((pageFrames + [now]).suffix(NoteCheck.pageScreens)) : [now]
         }
         verdict(changed)
+        confirmStill(quiet: moving)
         if screen?.frame != frame { prepareFrame(screen?.frame) }
         try await timed("follow cache") { try await followCache(seen: seen) }
         timed("checkpoint") { saveCheckpoint() }

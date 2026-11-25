@@ -14,6 +14,24 @@ extension AgentLoop {
     /// The previous round changed nothing on screen, so a tap may have landed off target.
     var missed: Bool { lastSent?["changed"] == .bool(false) }
 
+    /// Twice in a row a tap that changed the screen was undone at once (back): the taps open the wrong thing, so the
+    /// next one finds the pointer before it presses (aim, ~2 s; it also feeds Recalibration). Taps that land far
+    /// off can open a wrong page every time; the screen changes, so no landing is ever checked and nothing recalibrates.
+    var backedOut: Bool {
+        let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }.suffix(4)
+        guard sent.count == 4 else { return false }
+        let a = Array(sent)
+        return stride(from: 0, to: 4, by: 2).allSatisfy { a[$0]["action"]?.str == "tap" && a[$0]["changed"] == .bool(true)
+            && a[$0 + 1]["action"]?.str == "back" }
+    }
+
+    /// Two taps at one spot (within 5 units), both by coordinates.
+    static func sameSpot(_ a: JObject, _ b: JObject) -> Bool {
+        guard a["action"]?.str == "tap", b["action"]?.str == "tap", let ax = a["x"]?.double, let ay = a["y"]?.double,
+              let bx = b["x"]?.double, let by = b["y"]?.double else { return false }
+        return abs(ax - bx) <= 5 && abs(ay - by) <= 5
+    }
+
     /// A tap where the last one went: that one didn't do what was meant even if the screen moved (Duolingo's
     /// animated mascot read three misses just above the "water" tile as changed, 2026-11-06).
     func retaps(_ a: JObject) -> Bool {
@@ -26,12 +44,15 @@ extension AgentLoop {
     /// What an action did, the way a terminal shows a command's result.
     static func effect(_ s: JObject) -> String {
         guard let changed = s["changed"]?.bool else { return s["stale"] == .bool(true) ? staleEffect : "" }  // stale: iPad
-        var out = changed ? " -> screen changed" : " -> screen did NOT change"
+        // no frame came after it (confirmStill): unknown, not "did NOT change", which sent models into a repeat
+        var out = changed ? " -> screen changed" : s["noframe"] == .bool(true) ? staleEffect : " -> screen did NOT change"
         let app = s["app"]?.str ?? ""
         switch s["opened"]?.str.flatMap(OpenResult.init(rawValue:)) {
         case .opened?: out += "; \(app) is open"
         case .notFound?: out += "; Spotlight lists no app named \(app)"
-            + " (the search is still on screen): open it by the name this \(DeviceKind.name) shows, in its language"
+            + " (the search is still on screen): open it by the name this \(DeviceKind.name) shows, in its language."
+            + " A row under Suggestions is a web search and opens the browser, never the app: with no app row"
+            + " for it, the app is not installed"
         case .notOpened?: out += "; \(app) did not open (Spotlight stayed up after tapping its row and Return):"
             + " if Spotlight still lists it, tap its icon there"
         case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
@@ -94,7 +115,9 @@ extension AgentLoop {
         let a = try geometry.map { try PadGeometry.toScreen(action, $0) } ?? action
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
-        case "tap": try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a))
+        case "tap":
+            try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
+            if a["count"]?.double == 2 { try await phone.clickAgain() }
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)
@@ -116,6 +139,11 @@ extension AgentLoop {
                 return ("result", "typed: pasted from the clipboard, which held this text; read back: the field holds all of it")
             }
             let stop = try await phone.typeStop(text)
+            // no Pinyin input source on the phone: only the user can add or pick it (InputSource), told once a run
+            if stop?.noPinyin == true, !InputSource.shared.noticed {
+                InputSource.shared.noticed = true
+                onNotice?(String(localized: "Chinese can't be typed: the iPhone's keyboard isn't Pinyin. Add Chinese (Simplified) Pinyin – QWERTY in Settings > General > Keyboard > Keyboards and switch to it."), .trouble)
+            }
             // the pinyin keyboard did not offer a word (2026-11-20: 西 not read among xi's candidates, 上海 typed and
             // 西岸艺术中心 not): the text carried on the clipboard since the start is pasted when it is this text
             // (ClipboardCarry); never a hop back to this app. Otherwise the model types the rest itself.
@@ -193,8 +221,11 @@ extension AgentLoop {
         }
         // a page with no back arrow (an app's home: a city or a title up there) is left alone
         if let after, let image = Vision.image(after) {
+            // only the top-left corner is read (the whole frame's OCR was 1-3 s of a back that took 5.4 s at the
+            // median, 2026-11-25); a line that starts in it is kept whole
             let size = CGSize(width: image.width, height: image.height)
-            let words = await UITreeOCR.lines(image).filter { line in
+            let corner = image.cropping(to: CGRect(x: 0, y: 0, width: size.width * 0.6, height: size.height * 0.13)) ?? image
+            let words = await UITreeOCR.lines(corner).filter { line in
                 line.box.count == 4 && Double(line.box[0]) < 0.15 * size.width  // below the status bar's clock, above 12%
                     && Double(line.box[1] + line.box[3]) / 2 > 0.055 * size.height && Double(line.box[1] + line.box[3]) / 2 < 0.12 * size.height
             }.map(\.text)

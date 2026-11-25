@@ -83,6 +83,18 @@ struct Recovery {
         }
     }
 
+    /// Mirroring is up but the board holds no video at all (no bytes buffered, 0 fps) and no frame was ever decoded:
+    /// iOS opened the session and sends no picture (2026-11-25: the board on this iPhone's own Personal Hotspot,
+    /// startup waited 196 s while audio kept `vage` fresh). It doesn't fix itself, so the start stops after
+    /// `noVideoAfter` seconds instead of the 5-minute limit.
+    static let noVideoAfter = 30.0
+    static func noVideo(ap: String?, gop: Int?, fps: Double?, hasFrame: Bool) -> Bool {
+        ap == "streaming" && !hasFrame && gop == 0 && (fps ?? 0) == 0
+    }
+    static var noVideoReason: String {
+        String(localized: "Screen Mirroring is connected, but no picture arrives. Stop Screen Mirroring and start it again. If the board is on this iPhone's Personal Hotspot, put both on another Wi-Fi: mirroring sends no picture there.")
+    }
+
     static func reason(_ part: Part, after seconds: Double = Self.limit, lan: Bool = false) -> String {
         if abs(seconds - Self.limit) < 1 {
             switch part {

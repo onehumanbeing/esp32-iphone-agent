@@ -74,7 +74,9 @@ struct ModelSettingsView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .navigationTitle("Model")
+        .decidersSheetHost(settings: settings)  // Jev's and the model's sheets, from the Form (not from their row)
         .navigationBarTitleDisplayMode(.inline)
+        .chatGPTSignInHost(enabled: !Trial.available)  // with the free line, ModelFieldsSheet hosts it
 
     }
 }

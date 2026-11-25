@@ -57,6 +57,10 @@ final class MainStall: @unchecked Sendable {  // used on MainLag's queue only
         if stacks[top] == nil { stacks[top] = stack }
     }
 
+    /// Share of this stall's samples outside the app's own code: near 1 = the app was waiting for the CPU, the
+    /// phone itself is busy; low = the app's own work held the main thread (our fault, not the phone's).
+    var systemShare: Double { samples > 0 ? Double(counts[0] ?? 0) / Double(samples) : 0 }
+
     /// The stall's line (nil when nothing was sampled), and a reset for the next one.
     func report(lag: Double) -> String? {
         defer { counts = [:]; stacks = [:]; samples = 0 }

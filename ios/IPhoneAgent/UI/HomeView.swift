@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct HomeView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var board: BoardLink
-    let feed: VideoFeed  // not observed: a new frame re-renders only the run card's thumbnail
+    let feed: TaskScreen  // not observed: a new frame re-renders only the run card's thumbnail
     @ObservedObject var agent: AgentLoop
     @ObservedObject var settings: Settings
     @ObservedObject var intents: IntentStore
@@ -24,6 +24,8 @@ struct HomeView: View {
     @FocusState private var editing: Bool
     @State private var renaming = false
     @State private var pullingToRefresh = false
+    @ObservedObject private var phoneLoad = PhoneLoad.shared
+    @State private var pullEnded = Date.distantPast
     @State private var showingDeleteError = false
     @State private var deleteError = ""
 
@@ -35,6 +37,11 @@ struct HomeView: View {
                     Section {
                         Label("Demo data is on: no board, no model, nothing is tapped or sent. Turn it off in Settings.", systemImage: "theatermasks")
                             .font(.footnote)
+                    }
+                }
+                if phoneLoad.slow {
+                    Section {
+                        Label(phoneLoad.tip, systemImage: "tortoise").font(.footnote)
                     }
                 }
                 if !recorder.busy && recorder.error == nil {
@@ -65,7 +72,7 @@ struct HomeView: View {
             .listStyle(.insetGrouped)
             .refreshable {
                 pullingToRefresh = true
-                defer { pullingToRefresh = false }
+                defer { pullingToRefresh = false; pullEnded = Date() }
                 await app.refreshHomeStatus()
             }
             .overlay(alignment: .top) {
@@ -129,7 +136,7 @@ struct HomeView: View {
             .overlay {
                 if app.departing {
                     DepartureOverlay(problem: app.homeHint) {
-                        Task { await app.stopAgent() }
+                        Task { await app.stopAgent(by: "departure") }
                     }
                 }
             }
@@ -416,10 +423,22 @@ struct HomeView: View {
     }
 
     private func run(_ item: SavedTask) {
+        // iOS 27: a pull down to refresh that began on a row's play button ran that intent when the finger lifted
+        // (2026-11-25, Henry's video: the pull ran "测1 汽水音乐" and the list jumped to the top)
+        guard !Self.pullTapped(pulling: pullingToRefresh, ended: pullEnded) else {
+            DebugLog.write("home: play tapped during a pull to refresh; not run")
+            return
+        }
         if item.builtin != nil { return start(item.prompt, intent: item) }  // runs in the app, needs no setup
         task = item.prompt
         guard blocker == nil, !agent.running, !recorder.busy else { return }
         start(item.prompt, intent: item)
+    }
+
+    /// A play tap that is the end of a pull to refresh: during it, or within `pullGrace` after it.
+    nonisolated static let pullGrace = 0.8
+    nonisolated static func pullTapped(pulling: Bool, ended: Date, now: Date = Date()) -> Bool {
+        pulling || now.timeIntervalSince(ended) < pullGrace
     }
 
     /// The first Start asks for notifications (one line why), then the character takes off.
@@ -441,7 +460,7 @@ struct HomeView: View {
         if !board.connected { return ("Connect the board", .connect) }
         if board.status?.needsWirelessPointer == true { return ("Pair the Bluetooth pointer", .act) }
         if let status = board.status, status.board != nil, status.inputState == nil { return ("Waiting for the mouse…", .act) }
-        if board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
+        if !app.onDeviceCapture && board.status?.ap != "streaming" { return ("Start Screen Mirroring", .see) }
         if !app.calibrator.hasValidCalibration { return ("Calibrate the pointer", .act) }
         if !app.modelReady { return ("Set up the model", .brain) }
         return nil
@@ -483,7 +502,7 @@ struct RenameSheet: View {
 /// The run card's screen: the live frame while a run goes, else the run's cover. Its own view, so each new frame
 /// re-renders only this thumbnail, and decodes nothing while the app is in the background.
 private struct RunThumbnail: View {
-    @ObservedObject var feed: VideoFeed
+    @ObservedObject var feed: TaskScreen
     let card: RunCardSnapshot
     @Environment(\.scenePhase) private var phase
 

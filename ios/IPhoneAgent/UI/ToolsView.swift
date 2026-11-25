@@ -14,7 +14,7 @@ struct ToolsView: View {
     var body: some View {
         Form {
             Section {
-                ForEach(store.all) { tool in
+                ForEach(shown) { tool in
                     ToolRow(tool: tool, store: store, keyed: trial.keyed) { editing = tool }
                 }
                 .onDelete(perform: delete)
@@ -68,8 +68,12 @@ struct ToolsView: View {
         importError = store.add(json: data)
     }
 
+    /// The key-only Manina AI search is listed only where keys exist (Trial.keysOffered).
+    private var shown: [ToolSpec] { store.all.filter { Trial.keysOffered || $0.builtin != "handsy" } }
+
     private func delete(_ offsets: IndexSet) {
-        for i in offsets where store.all[i].builtin == nil { store.remove(store.all[i].id) }
+        let tools = shown
+        for i in offsets where tools[i].builtin == nil { store.remove(tools[i].id) }
     }
 }
 

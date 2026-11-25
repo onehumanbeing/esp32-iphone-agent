@@ -121,6 +121,16 @@
         }
       }
     },
+    "AirPlay" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AirPlay"
+          }
+        }
+      }
+    },
     "All Runs (%lld)" : {
       "localizations" : {
         "zh-Hans" : {
@@ -381,6 +391,32 @@
         }
       }
     },
+    "Do this step yourself, or let me try another way." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你可以自己完成这一步，或者让我换个方法试试。"
+          }
+        }
+      }
+    },
+    "Do you have an ESP32 board?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you have an ESP32 board?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有 ESP32 板子吗？"
+          }
+        }
+      }
+    },
     "Edit plan with AI" : {
       "localizations" : {
         "zh-Hans" : {
@@ -477,6 +513,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "来自：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Get a board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get a board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取板子"
+          }
+        }
+      }
+    },
+    "I have a board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I have a board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我有板子"
+          }
+        }
+      }
+    },
+    "I see and tap this iPhone through a small ESP32 board." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I see and tap this iPhone through a small ESP32 board."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我通过一块小小的 ESP32 板子看这台 iPhone 的屏幕并点按。"
           }
         }
       }
@@ -781,12 +865,38 @@
         }
       }
     },
+    "No screen image arrived. Stop sharing and try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未收到屏幕画面，请停止共享后重试。"
+          }
+        }
+      }
+    },
     "Not a tool file." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是工具文件。"
+          }
+        }
+      }
+    },
+    "Not yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有"
           }
         }
       }
@@ -827,6 +937,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请打开 %@，允许把截图和任务发送给这个模型，然后再问一次。"
+          }
+        }
+      }
+    },
+    "Open the app to allow screen sharing." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请打开 App 以授权屏幕共享。"
           }
         }
       }
@@ -1051,6 +1171,104 @@
         }
       }
     },
+    "Screen Recording" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录屏"
+          }
+        }
+      }
+    },
+    "Screen Source" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕来源"
+          }
+        }
+      }
+    },
+    "Screen capture requires a physical iPhone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕采集需要在真实 iPhone 上运行。"
+          }
+        }
+      }
+    },
+    "Screen recording is unavailable on this device. Use AirPlay instead." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen recording is unavailable on this device. Use AirPlay instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持录屏，请使用 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing is already starting." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享正在启动。"
+          }
+        }
+      }
+    },
+    "Screen sharing stopped. Start the task again to allow sharing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing stopped. Start the task again to allow sharing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕共享已停止。请重新开始任务并允许共享。"
+          }
+        }
+      }
+    },
+    "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen sharing was cancelled. Start again and allow sharing, or choose AirPlay in Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消屏幕共享。请重新开始并允许共享，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
+    "Screen sharing was not allowed. Start the task again and allow it, or choose AirPlay in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未允许共享屏幕。请重新开始任务并允许，或在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
     "Search" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1137,6 +1355,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点这里，马上设置"
+          }
+        }
+      }
+    },
+    "Set up the app now and connect the board when it arrives." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set up the app now and connect the board when it arrives."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先把 App 设置好，板子到了再连接。"
+          }
+        }
+      }
+    },
+    "Share the entire screen, not only this app. Start the task again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请共享整个屏幕，而不只是这个 App。然后重新开始任务。"
           }
         }
       }
@@ -1341,6 +1585,16 @@
         }
       }
     },
+    "The board receives the screen through Screen Mirroring over its Wi-Fi." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子通过它的 Wi-Fi，以屏幕镜像接收画面。"
+          }
+        }
+      }
+    },
     "The board restarts as a Bluetooth mouse" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1437,6 +1691,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台 iPhone 上的运行记录不会上传。运行过程中发送的内容只会发给你允许的 AI 服务（打开 Jev 时也发给 Jev）；免费线路会自己保存每次运行的记录。导出内容会脱敏：去掉密钥和 IP 地址，隐藏输入的文字，并涂黑每张截图的顶部。"
+          }
+        }
+      }
+    },
+    "The same step changed nothing three times, even after a longer wait." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一步做了三次，屏幕都没有变化，多等一会儿也没有。"
+          }
+        }
+      }
+    },
+    "The same step did nothing three times" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一步试了三次都没反应"
           }
         }
       }
@@ -1741,6 +2015,16 @@
         }
       }
     },
+    "This build can't share the screen in the background. Choose AirPlay in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本无法在后台共享屏幕。请在设置中选择 AirPlay。"
+          }
+        }
+      }
+    },
     "This iPhone has no USB-C port, so the board has to be its Bluetooth mouse, and its firmware is USB only." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1757,6 +2041,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这台 iPhone 没有 USB-C 接口，所以板子要作为它的蓝牙鼠标。"
+          }
+        }
+      }
+    },
+    "This iPhone records its own screen while a task, a demonstration or a calibration runs: iOS asks each time and shows that it is recording. The board only moves the pointer; no Wi-Fi or Screen Mirroring is needed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务、演示或校准进行时，这台 iPhone 录制自己的屏幕：iOS 每次都会询问，并显示正在录屏。板子只移动指针，不需要 Wi-Fi 或屏幕镜像。"
           }
         }
       }
@@ -1861,12 +2155,38 @@
         }
       }
     },
+    "Waiting for a screen image…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待屏幕画面…"
+          }
+        }
+      }
+    },
     "Was the run right?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "这次运行对吗？"
+          }
+        }
+      }
+    },
+    "Yes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有"
           }
         }
       }
@@ -6163,16 +6483,6 @@
         }
       }
     },
-    "Recommended: calibrate before first use." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建议：首次使用前先校准。"
-          }
-        }
-      }
-    },
     "Record an intent" : {
       "localizations" : {
         "zh-Hans" : {
@@ -7271,16 +7581,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "+ 按钮在“闹钟”页右上角"
-          }
-        }
-      }
-    },
-    "The board is a USB mouse. iOS shows its pointer only with AssistiveTouch on. Then I calibrate on a grid, like a 3D printer levelling its bed." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "板子是一个 USB 鼠标。只有打开辅助触控，iOS 才会显示它的指针。然后我会在网格上校准，就像 3D 打印机调平热床。"
           }
         }
       }
@@ -11153,16 +11453,6 @@
         }
       }
     },
-    "Free to try with limited capacity: up to 3 minutes per run, a few runs per phone. When it's busy, try again in a minute or add your own model." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免费试用，名额有限：每次最长 3 分钟，每台手机可用几次。忙碌时过一分钟再试，或添加你自己的模型。"
-          }
-        }
-      }
-    },
     "Private model, no API key. Limited capacity." : {
       "localizations" : {
         "zh-Hans" : {
@@ -14383,16 +14673,6 @@
         }
       }
     },
-    "Turn on AssistiveTouch to use the board as a mouse, then calibrate the pointer on the grid." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开启辅助触控，把开发板用作鼠标，再在网格上校准指针。"
-          }
-        }
-      }
-    },
     "Pair the Bluetooth pointer" : {
       "localizations" : {
         "zh-Hans" : {
@@ -14619,6 +14899,476 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第一次这样打开「%@」时，iOS 会先问一下：Agent 会点「打开」。"
+          }
+        }
+      }
+    },
+    "Chinese can't be typed: the iPhone's keyboard isn't Pinyin. Add Chinese (Simplified) Pinyin – QWERTY in Settings > General > Keyboard > Keyboards and switch to it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法输入中文：iPhone 当前键盘不是拼音。请在“设置 > 通用 > 键盘 > 键盘”中添加“简体中文 拼音 – 全键盘”并切换到它。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring is connected, but no picture arrives. Stop Screen Mirroring and start it again. If the board is on this iPhone's Personal Hotspot, put both on another Wi-Fi: mirroring sends no picture there." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像已连接，但一直没有画面。请停止屏幕镜像后重新开始。如果板子连的是这台 iPhone 的个人热点，请把两者换到别的 Wi-Fi：这种情况下镜像不会传画面。"
+          }
+        }
+      }
+    },
+    "Free to try with limited capacity: a few runs per phone. When it's busy, try again in a minute or add your own model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用，名额有限：每台手机可用几次。忙碌时过一分钟再试，或添加你自己的模型。"
+          }
+        }
+      }
+    },
+    "This isn't a Manina AI key (it starts with hsk_live_). Runs use the free line until a key is filled in." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是 Manina AI 密钥（密钥以 hsk_live_ 开头）。在填入正确的密钥之前，运行仍走免费线路。"
+          }
+        }
+      }
+    },
+    "This iPhone is running slowly. It was updated to iOS %@ recently: for a few hours after an update iOS works in the background and every app is slower. Leave it charging on Wi-Fi for a while, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 现在比较卡。它最近刚升级到 iOS %@：升级后的几个小时里，系统会在后台整理数据，所有 App 都会变慢。插上电、连着 Wi‑Fi 放一会儿再试。"
+          }
+        }
+      }
+    },
+    "This iPhone is running slowly right now, so runs are slower too. If you updated iOS recently, it is still working in the background: leave it charging on Wi-Fi for a while. Closing other apps can help." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 现在比较卡，运行也会跟着变慢。如果最近刚升级过系统，它还在后台整理数据：插上电、连着 Wi‑Fi 放一会儿。关掉其他 App 也有帮助。"
+          }
+        }
+      }
+    },
+    "5-hour limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 小时额度"
+          }
+        }
+      }
+    },
+    "%lld%% used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用 %lld%%"
+          }
+        }
+      }
+    },
+    "ChatGPT sign-in failed (HTTP %lld). Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 登录失败（HTTP %lld），请重试。"
+          }
+        }
+      }
+    },
+    "ChatGPT %@ · signed in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT %@ · 已登录"
+          }
+        }
+      }
+    },
+    "Copy and Open Sign-in Page" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制并打开登录页"
+          }
+        }
+      }
+    },
+    "Device-code sign-in is off for this ChatGPT account. Turn it on in ChatGPT › Settings › Security, then try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有开启设备码登录。请在 ChatGPT 的 设置 › 安全 中开启后重试。"
+          }
+        }
+      }
+    },
+    "Enter this code on OpenAI's page. Tap below to copy it and open the page." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 OpenAI 的页面上输入这个码。点下面的按钮会复制它并打开页面。"
+          }
+        }
+      }
+    },
+    "Only enter a code that you started here. If a website or another person gave you a code, cancel." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只输入你在这里发起的验证码。如果是网站或别人给你的码，请取消。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in returned no authorization. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回授权，请重试。"
+          }
+        }
+      }
+    },
+    "OpenAI's sign-in did not return a code. Try again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 登录没有返回验证码，请重试。"
+          }
+        }
+      }
+    },
+    "Reasoning effort" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考强度"
+          }
+        }
+      }
+    },
+    "Resets %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@重置"
+          }
+        }
+      }
+    },
+    "Runs count against your ChatGPT plan's usage limits, the same allowance Codex uses. Plus or Pro works best." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任务会消耗你 ChatGPT 套餐的用量额度，和 Codex 用的是同一份。Plus 或 Pro 效果最好。"
+          }
+        }
+      }
+    },
+    "Sign Out" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
+    },
+    "Sign in · uses your Plus or Pro plan" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 · 使用你的 Plus 或 Pro 套餐"
+          }
+        }
+      }
+    },
+    "Sign in with ChatGPT" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 ChatGPT 登录"
+          }
+        }
+      }
+    },
+    "Sign in to ChatGPT again in Settings › Model." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在 设置 › 模型 里重新登录 ChatGPT。"
+          }
+        }
+      }
+    },
+    "The sign-in code expired. Start again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码已过期，请重新开始。"
+          }
+        }
+      }
+    },
+    "This ChatGPT account has no plan the app can use." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个 ChatGPT 账号没有 App 能用的套餐。"
+          }
+        }
+      }
+    },
+    "Use Your Subscription" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的订阅"
+          }
+        }
+      }
+    },
+    "Waiting for sign-in" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待登录"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. Try again later." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，请稍后再试。"
+          }
+        }
+      }
+    },
+    "Your ChatGPT plan's usage limit is reached. It resets at %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChatGPT 套餐的用量额度已用完，将在 %@ 重置。"
+          }
+        }
+      }
+    },
+    "Weekly limit" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每周额度"
+          }
+        }
+      }
+    },
+    "The board works as a Bluetooth mouse. iOS shows its pointer only when AssistiveTouch is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子是一个蓝牙鼠标。只有打开辅助触控，iOS 才会显示它的指针。"
+          }
+        }
+      }
+    },
+    "The board works as a USB mouse. iOS shows its pointer only when AssistiveTouch is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "板子是一个 USB 鼠标。只有打开辅助触控，iOS 才会显示它的指针。"
+          }
+        }
+      }
+    },
+    "AssistiveTouch on" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助触控已打开"
+          }
+        }
+      }
+    },
+    "Waiting for you to turn it on in Settings…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你在“设置”里打开…"
+          }
+        }
+      }
+    },
+    "Waiting for the board's mouse…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待板子的鼠标…"
+          }
+        }
+      }
+    },
+    "Ready. Tap Calibrate below." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备好了，点下方的“校准”。"
+          }
+        }
+      }
+    },
+    "Do this once:" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只需设置一次："
+          }
+        }
+      }
+    },
+    "Open Settings › Accessibility › Touch › AssistiveTouch." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 设置 › 辅助功能 › 触控 › 辅助触控。"
+          }
+        }
+      }
+    },
+    "Turn AssistiveTouch on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开最上面的“辅助触控”开关。"
+          }
+        }
+      }
+    },
+    "Under Devices › Bluetooth Devices, pair %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 设备 › 蓝牙设备 中配对 %@。"
+          }
+        }
+      }
+    },
+    "Come back to this app and tap Calibrate below. I move the pointer over a grid to learn where it lands; it takes a few seconds." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到这个 App，点下方的“校准”。我会让指针在网格上走一遍，记住它落在哪里，只要几秒钟。"
+          }
+        }
+      }
+    },
+    "AssistiveTouch is still off. In Settings › Accessibility › Touch › AssistiveTouch, turn on the switch at the top, then come back here." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助触控还没打开。请在 设置 › 辅助功能 › 触控 › 辅助触控 中打开最上面的开关，然后回到这里。"
+          }
+        }
+      }
+    },
+    "Screen Mirroring is off. Swipe down from the top-right corner, tap Screen Mirroring and choose “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像没有开启。从右上角向下轻扫，点“屏幕镜像”，选择“%@”。"
+          }
+        }
+      }
+    },
+    "The board isn't connected. Keep it powered on and near this iPhone; it reconnects by itself." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't connected. Keep it powered on and near this iPad; it reconnects by itself."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The board isn't connected. Keep it powered on and near this iPhone; it reconnects by itself."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "device" : {
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有连接。让它保持通电并放在这台 iPad 附近，它会自动重连。"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "板子没有连接。让它保持通电并放在这台 iPhone 附近，它会自动重连。"
+                }
+              }
+            }
           }
         }
       }

@@ -10,8 +10,7 @@ struct DecidersPanel: View {
     @ObservedObject var settings: Settings
     var inForm = false
     @State private var deciders = Deciders.standard(freeLine: false)
-    @State private var editingModel = false
-    @State private var editingJev = false
+    @ObservedObject private var presenter = DecidersSheetPresenter.shared
     @State private var consentRevision = 0  // JevConsent isn't observable: bumped after the sheet agrees
     @State private var dragging: Decider?
     @State private var dragOffset: CGFloat = 0
@@ -26,23 +25,28 @@ struct DecidersPanel: View {
 
     var body: some View {
         Group {
-            if inForm {
+            if inForm {  // the sheets come from the Form around it (ModelSettingsView), never from this row
                 PlanCard(inForm: true)
-                Section { rows } header: { header.textCase(nil) } footer: { footerText }
+                hooked(Section { rows } header: { header.textCase(nil) } footer: { footerText })
             } else {
-                VStack(alignment: .leading, spacing: Space.s) {
+                hooked(VStack(alignment: .leading, spacing: Space.s) {
                     PlanCard().padding(.bottom, Space.m)
                     header.font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
                     Panel { rows }
                     footerText.font(.footnote).foregroundStyle(.secondary).padding(.horizontal, Space.l)
-                }
+                })
+                .decidersSheetHost(settings: settings)
             }
         }
-        .onAppear { deciders = .load(freeLine: freeLine) }
-        .onValueChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
-        .onValueChange(of: deciders) { deciders.save(freeLine: freeLine) }
-        .sheet(isPresented: $editingModel, onDismiss: reload) { ModelFieldsSheet(settings: settings) }
-        .sheet(isPresented: $editingJev, onDismiss: reload) { JevFieldsSheet() }
+    }
+
+    /// The loads and saves on one view (a Group's modifiers inside a Form go onto each of its children).
+    private func hooked<Content: View>(_ content: Content) -> some View {
+        content
+            .onAppear { deciders = .load(freeLine: freeLine) }
+            .onValueChange(of: settings.provider) { deciders = .load(freeLine: freeLine) }
+            .onValueChange(of: deciders) { deciders.save(freeLine: freeLine) }
+            .onValueChange(of: presenter.sheet) { if presenter.sheet == nil { reload() } }  // a sheet closed
     }
 
     @ViewBuilder private var rows: some View {
@@ -72,7 +76,7 @@ struct DecidersPanel: View {
                 .highPriorityGesture(drag(decider))
                 .accessibilityLabel("Reorder")
             Image(systemName: decider == .jev ? "bolt" : "brain").frame(width: 24)
-            Button { if decider == .jev { editingJev = true } else { editingModel = true } } label: { label(decider) }
+            Button { presenter.sheet = decider == .jev ? .jev : .model } label: { label(decider) }
                 .buttonStyle(.plain)
             Toggle(title(decider), isOn: binding(decider))
                 .labelsHidden()
@@ -202,6 +206,36 @@ struct DecidersPanel: View {
         case .jevOnly: return "Experimental: only Jev decides. When it isn't sure about a step, the run stops and asks you."
         case .modelOnly: return freeLine ? "Only the Large Language Model decides. On Manina AI Free it stays on."
             : "Only your Large Language Model decides. Jev sends each step to its server, so it asks you first."
+        }
+    }
+}
+
+/// Which decider's sheet is up. Presented from the screen around the panel, not from its Form row: a sheet hung off
+/// the row closed again about a second after the first tap on each visit to Settings › Model (2026-11-25).
+@MainActor final class DecidersSheetPresenter: ObservableObject {
+    static let shared = DecidersSheetPresenter()
+    enum Sheet: String, Identifiable {
+        case model, jev
+        var id: String { rawValue }
+    }
+    @Published var sheet: Sheet?
+}
+
+extension View {
+    /// Presents the deciders' sheets: on a stable container (a Form, a page's stack), never on a row.
+    func decidersSheetHost(settings: Settings) -> some View { modifier(DecidersSheetHost(settings: settings)) }
+}
+
+private struct DecidersSheetHost: ViewModifier {
+    @ObservedObject var settings: Settings
+    @ObservedObject private var presenter = DecidersSheetPresenter.shared
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $presenter.sheet) { sheet in
+            switch sheet {
+            case .model: ModelFieldsSheet(settings: settings)
+            case .jev: JevFieldsSheet()
+            }
         }
     }
 }

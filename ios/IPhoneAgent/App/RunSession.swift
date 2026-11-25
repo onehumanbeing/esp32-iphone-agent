@@ -46,6 +46,7 @@ extension AppModel {
     func startAgent(_ task: String, resume: Bool = false) async {
         guard !startingAgent, !agent.running else { return }
         startingAgent = true
+        stopBy = nil
         handoffStop = AsyncStream<Void>.makeStream()
         runUsage = ModelUsage()  // a failed start counts its keyboard check too
         tab = .agent
@@ -66,6 +67,7 @@ extension AppModel {
             }
         }
         let job = Task {
+            await screenCleanup?.value  // the last run's capture has stopped: a new one may ask for sharing
             var usedInput = false
             await prepareAgent(task, resume: resume, usedInput: &usedInput)
             // Startup can exit after calibration but before opening a trace for this run.
@@ -121,6 +123,21 @@ extension AppModel {
             blocked(String(localized: "Pair the Bluetooth pointer on this iPhone in AssistiveTouch settings."))
             return
         }
+        // Screen Recording: the system asks to share the screen now, while the app is in front (it cannot later).
+        // Whatever ends the start without a running agent stops the sharing again.
+        defer { if onDeviceCapture && !agent.running { finishScreen() } }
+        if onDeviceCapture {
+            do {
+                try await prepareLocalCapture()
+                startupDeadline = now() + Recovery.limit
+            } catch {
+                if !(error is CancellationError) {
+                    Analytics.capture("run_blocked", ["reason": "screen_capture"])
+                    blocked(error.localizedDescription)
+                }
+                return
+            }
+        }
         usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
@@ -158,6 +175,7 @@ extension AppModel {
         // Start is tapped in this app, so: Live Activity, go Home, let the screen settle, THEN the first
         // frame for the planner. Each sub-step is timed in the log.
         let t0 = now()
+        StepReport.shared.runStarted(at: t0)
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
@@ -170,14 +188,16 @@ extension AppModel {
         // Henry 2026-11-13: asked from the island, Siri or the quick sheet while another app is in front: the run
         // works on that screen, and with no decoded stream in hand it snaps (the decoder can't start in the background).
         let startedAway = appIsBackgrounded && !resume
-        if startedAway && !(feed.live && !feed.broken) { FrameMode.fallback = .snap }
-        let snapMode = FrameMode.current == .snap
+        if !onDeviceCapture && startedAway && !(feed.live && !feed.broken) { FrameMode.fallback = .snap }
+        let snapMode = !onDeviceCapture && FrameMode.current == .snap
         live.start(task: task, runID: runID, limit: agent.stepLimit(for: task))
         mark("Live Activity requested")
         var step = StartupFailure.Step.stream  // where a failed start stopped (run_ended)
         do {
             // Ready the screen while still in front: iOS cannot start the video decoder in the background.
-            if snapMode {
+            if onDeviceCapture {
+                mark("on-device capture ready")
+            } else if snapMode {
                 if feed.streamOn { try await startupBoardCommand { try await feed.stream(false) } }
                 mark("snap-per-step mode (stream off)")
             } else {
@@ -234,8 +254,11 @@ extension AppModel {
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
             try Task.checkCancellation()
             guard appIsBackgrounded,
-                  frameBoundary.accepts(capturedAt: feed.capturedAt, backgroundEnteredAt: backgroundEnteredAt) else {
+                  frameBoundary.accepts(capturedAt: screen.capturedAt, backgroundEnteredAt: backgroundEnteredAt) else {
                 if !appIsBackgrounded { throw onScreenError() }
+                if onDeviceCapture {
+                    throw ScreenCaptureError(message: String(localized: "No screen image arrived. Stop sharing and try again."))
+                }
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
@@ -243,7 +266,7 @@ extension AppModel {
                 // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
                 // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first. Only after the
                 // prompt (an app's first scheme open): every other open cost 3.4 s for nothing (Henry 2026-11-22).
-                await feed.settled(quiet: 0.4, least: 1, most: 3)
+                await screen.settled(quiet: 0.4, least: 1, most: 3)
                 mark("screen still after the scheme open")
             }
             if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
@@ -284,6 +307,7 @@ extension AppModel {
                                            inFront: !appIsBackgrounded)
             var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
             end.step = step.rawValue
+            if cancelled { end.by = stopBy ?? "unknown" }
             Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
@@ -291,15 +315,17 @@ extension AppModel {
             ]) { $1 }.merging(runHealthProps) { $1 })
             Analytics.flush()
             say(cancelled ? String(localized: "Run start cancelled.") : "cannot start: \(error.localizedDescription)")
-            traces.write(feed.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
+            traces.write(screen.frame, kind: "step", ["action": .str(cancelled ? "stopped" : "error"),
                                                     "reason": .str(cancelled ? "cancelled before agent start" : "cannot start: \(error.localizedDescription)")])
             videoSink = nil
-            saveVideoFrame(feed.frame)
+            saveVideoFrame(screen.frame)
             videoDir = nil
             live.end(cancelled ? (.idle, String(localized: "Stopped")) : (.failure, error.localizedDescription))
             endBackgroundTask()
-            await Task { try? await self.feed.stream(false) }.value
-            prewarmStream()
+            if !onDeviceCapture {  // Screen Recording: the defer above stops the sharing
+                await Task { try? await self.feed.stream(false) }.value
+                prewarmStream()
+            }
             runs.reload()
             runMood = cancelled ? nil : .failure
             if !cancelled {
@@ -312,7 +338,8 @@ extension AppModel {
     }
 
     /// Wait for whichever task owns input to finish cleanup ("Stopping…" until then).
-    func stopAgent() async {
+    func stopAgent(by: String = "app") async {
+        if stopBy == nil { stopBy = by }
         stopping = true
         defer { stopping = false }
         handoffStop.continuation.finish()
@@ -345,13 +372,13 @@ extension AppModel {
             guard self.appIsBackgrounded && self.settings.restoreKeyboardAfterRun else { return }
             guard self.board.connected, self.board.commands.links == link else { throw DeviceError(message: "board reconnected") }
             try await KeyboardHandoff.finish(by: deadline, stop: self.handoffStop.stream) {
-                try await KeyboardHandoff.restore(device: self.board.commands, screen: self.feed, model: self.agent.actor,
+                try await KeyboardHandoff.restore(device: self.board.commands, screen: self.screen, model: self.agent.actor,
                                                   enabled: { self.settings.restoreKeyboardAfterRun },
                                                   stillInTargetApp: {
                     self.appIsBackgrounded && self.runModelRevision == self.settings.configurationRevision
                         && !self.settings.pendingConsent.model
                 }, onCall: { self.modelCalled($0) }) {
-                    _ = try await self.feed.currentFrame(maxAge: 0)
+                    try await self.refreshScreen()
                 }
             }
         }
@@ -421,9 +448,12 @@ extension AppModel {
         RunMarker.clear()
         var runEnd = RunEnd(steps: agent.steps, moves: moveCount, calls: runUsage.calls, firmware: board.status?.fw?.plain)
         runEnd.transport = board.status?.hidTransport
+        if runEnd.outcome == "stopped" {  // a question's own stop says user or policy; a cancel, where it came from
+            runEnd.by = stopBy ?? agent.steps.last(where: { $0["action"]?.str == "stopped" })?["by"]?.str ?? "unknown"
+        }
         let plan = endLine(runEnd)  // free line (held while the plan is judged)
         videoSink = nil
-        saveVideoFrame(feed.frame)  // the last screen too, however the run ended
+        saveVideoFrame(screen.frame)  // the last screen too, however the run ended
         videoDir = nil
         help = nil
         board.commands.uiConfirm = false
@@ -485,7 +515,7 @@ extension AppModel {
     func agentFinished() {
         ended()
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
-        prewarmStream()
+        if onDeviceCapture { finishScreen() } else { prewarmStream() }
         endBackgroundTask()
     }
 
@@ -591,7 +621,7 @@ extension AppModel {
     /// Live Activity buttons.
     func control(_ command: AgentCommand) async {
         switch command {
-        case .stop: await stopAgent()
+        case .stop: await stopAgent(by: "live_activity")
         case .resume: answerHelp(.resume)
         case .skip: answerHelp(.skip)
         case .takeOver: takeOver()
@@ -609,7 +639,7 @@ extension AppModel {
             return
         }
         switch action {
-        case .stop?: Task { await stopAgent() }
+        case .stop?: Task { await stopAgent(by: "notification") }
         case .resume?: answerHelp(.resume)
         case .skip?: answerHelp(.skip)
         case .takeOver?: takeOver()
@@ -640,7 +670,7 @@ extension AppModel {
         traces.pruneVideo()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         videoDir = dir
-        videoSink = feed.$frame.compactMap { $0 }
+        videoSink = screen.$frame.compactMap { $0 }
             .throttle(for: .milliseconds(500), scheduler: RunLoop.main, latest: true)
             .sink { [weak self] jpeg in self?.saveVideoFrame(jpeg) }
     }

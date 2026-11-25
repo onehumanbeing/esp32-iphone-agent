@@ -14,7 +14,7 @@ struct PlanCard: View {
     @State private var managing = false
 
     var body: some View {
-        if Trial.available {
+        if Trial.available && Trial.keysOffered {
             Group {
                 if inForm {
                     Section { content }
@@ -221,7 +221,7 @@ struct HandsyKeyOffer: ViewModifier {
     @MainActor static func handle(_ url: URL) -> Bool {
         guard url.scheme == "iphoneagent", url.host == "key" else { return false }
         let key = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "k" }?.value ?? ""
-        guard Trial.available, Trial.looksLikeKey(key) else {
+        guard Trial.available, Trial.keysOffered, Trial.looksLikeKey(key) else {
             DebugLog.write("key link: ignored (free line \(Trial.available), \(key.count) chars, prefix \(key.prefix(4)))")
             return true
         }

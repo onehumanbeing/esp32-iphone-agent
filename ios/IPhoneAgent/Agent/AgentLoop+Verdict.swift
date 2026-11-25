@@ -4,8 +4,11 @@ import Foundation
 /// After a round: did the last action change the screen, and one aimed re-press for a tap that changed nothing.
 extension AgentLoop {
     /// The last action's result, for the next round and the trace (written after the step row, which is out by then).
+    /// Clears what a verdict before it said about trust (`still`, `noframe`: confirmStill decides again).
     func verdict(_ changed: Bool) {
         steps[steps.count - 1]["changed"] = .bool(changed)
+        steps[steps.count - 1]["still"] = nil
+        steps[steps.count - 1]["noframe"] = nil
         trace?.write(kind: "verdict", ["changed": .bool(changed), "pointer": .str("\(Int(pointerAt.x * 1000)) \(Int(pointerAt.y * 1000))")])
     }
 
@@ -32,7 +35,7 @@ extension AgentLoop {
         // No frame at all since the tap (AirPlay repeats even a still screen): "no change" is only no video, and the
         // second press is blind (2026-11-23, iPhone X: the WeChat icon tap opened a chat unseen, the press again hit
         // its 发送 key and sent the field's leftover "haode"). The next look decides.
-        if let shown = screen?.updated, shown > 0, shown < lastActed {
+        if !frameSince(lastActed) {
             DebugLog.write("step: no frame since the tap (video not coming); not pressed again")
             return false
         }

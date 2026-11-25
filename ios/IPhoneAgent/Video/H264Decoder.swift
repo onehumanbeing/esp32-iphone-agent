@@ -88,6 +88,25 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         resetSession()  // rebuilt at the next IDR/config
     }
 
+    /// A fresh session at once when the app goes to the background, the cached GOP decoded into it. The session
+    /// from the foreground hung there: no frame and no error for 10 s, until iOS ended it (-12903) and the GOP was
+    /// decoded again (2026-11-25, iPhone 13 Pro: the first frame of a run took 11 s). A session made in the
+    /// background decodes on.
+    /// Right at the background notification the new session fails too (2026-11-25: failed, then iOS ended the old
+    /// one 2.7 s later): tried again every 0.5 s, up to `renewTries` times (3 s), then the decode-error path as before.
+    static let renewTries = 6
+    func renew(_ why: String, attempt: Int = 1) {
+        queue.asyncAfter(deadline: .now() + (attempt == 1 ? 0 : 0.5)) { [self] in
+            guard session != nil || attempt > 1 else { return }
+            resetSession()
+            guard gop.first?.idr == true else { return }
+            let started = CFAbsoluteTimeGetCurrent(), ok = replay(), n = gop.count
+            let ms = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
+            DispatchQueue.main.async { DebugLog.write("decoder: new session \(why) (try \(attempt)); GOP decoded again (\(n) units, \(ms) ms, \(ok ? "ok" : "failed"))") }
+            if !ok, attempt < Self.renewTries { renew(why, attempt: attempt + 1) }
+        }
+    }
+
     /// Decode the cached GOP into a fresh session; only its last frame is shown.
     private func replay() -> Bool {
         for (i, u) in gop.enumerated() where decodeOne(u, emit: i == gop.count - 1) != noErr { return false }
@@ -126,6 +145,8 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
             guard emit else { return }
             self.emitThinned(image, ms: (CFAbsoluteTimeGetCurrent() - started) * 1000, unit: unit)
         }
+        let callMs = (CFAbsoluteTimeGetCurrent() - started) * 1000
+        if callMs > 500 { DispatchQueue.main.async { DebugLog.write(String(format: "decoder: a decode call took %.0f ms (status %d)", callMs, status)) } }
         return status
     }
 

@@ -96,6 +96,7 @@ import XCTest
         let model = SystemRecorder { _ in "THINK: try\nDO: tap 500 500" }  // the fake screen never changes
         let screen = FakeScreen()
         screen.frame = AgentTests.jpeg()
+        screen.updated = 1  // no frame after any action: an unknown result, which StillRepeat never counts
         let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: model, planner: model, trace: nil,
                               maxStalls: 3)
         var asked: [String] = []

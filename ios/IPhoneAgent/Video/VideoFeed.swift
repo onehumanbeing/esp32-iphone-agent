@@ -23,6 +23,8 @@ import UIKit
     func afterAction(since: Double, ignoring: [CGPoint], busy: [CGRect]) async
     /// A frame captured from now on, not the shown one (LinkCheck): false when none arrives; nil = can't tell.
     func freshFrame() async -> Bool?
+    /// Throw when a source cannot recover without starting a new session (the phone's own capture was stopped).
+    func checkAvailability() throws
 }
 
 /// How a run gets its frames: the live stream (`stream on`, the default: a frame in under a second), or one
@@ -51,16 +53,23 @@ enum FrameMode: String {
     /// steps too, and each first wait ran to 4 s (2026-11-17, Meituan: 4 s in most steps). Within `recentFor`, the
     /// first wait is capped at `recentCap`.
     static var lastMoving = -1000.0
-    static let recentFor = 30.0, recentCap = 2.0
+    static let recentFor = 120.0, recentCap = 1.0
+    /// Steps in a row whose screen never stood still. From `alwaysAfter` on, every wait is capped at `movingCap` from
+    /// the first: a game, a video or a live map never stops, and each step still waited 2 s before the cap, 3-7 s per
+    /// step in all (2026-11-26, Kingdom Rush). A wait that finds a quiet moment ends it.
+    static var movingSteps = 0, countedThisStep = false
+    static let alwaysAfter = 1
+    static var alwaysMoving: Bool { movingSteps >= alwaysAfter }
     static var settle = 0.0  // s spent in `settled`
     static var snaps = 0  // snaps asked for
     static var replied = 0.0  // when the actor's last reply arrived (AgentLoop.ask), for Metrics.Step.leadMs
     static var record = 0.0  // s the steps list took to update (AgentLoop.record)
     static var tree = ""  // the actor's tree this step: "server", "device total … ocr … cv …" (ms), "none"
-    static func reset() { moving = false; settle = 0; snaps = 0; replied = 0; record = 0; tree = "" }
+    static func reset() { moving = false; countedThisStep = false; settle = 0; snaps = 0; replied = 0; record = 0; tree = "" }
 }
 
 extension ScreenSource {
+    func checkAvailability() throws {}
     var changed: Double { updated }
     var stale: Bool { false }
     var geometry: ScreenGeometry? { nil }
@@ -83,11 +92,11 @@ extension ScreenSource {
     /// ran to its `most` (4 s, then the 0.8 s cap) although the gesture's result had long shown.
     ///
     /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
-    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 4, ignoring spots: [CGPoint] = [],
+    func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 3, ignoring spots: [CGPoint] = [],
                  busy: [CGRect] = []) async {
         let started = now()
         let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor
-        let cap = StepWaits.moving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
+        let cap = StepWaits.moving || StepWaits.alwaysMoving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
         let most = max(min(most, cap), least)  // the cap shortens the wait for quiet, never the minimum look delay
         defer { StepWaits.settle += now() - started }
         try? await Task.sleep(nanoseconds: UInt64(least * 1e9))
@@ -101,6 +110,16 @@ extension ScreenSource {
             if await Task.detached(priority: .userInitiated, operation: { Vision.changed(a, b, ignore: spots, busy: busy) }).value {
                 still = b
                 moved = checked
+            }
+        }
+        if !Task.isCancelled, now() - started < most { StepWaits.movingSteps = 0 }  // it stood still
+        if !Task.isCancelled, now() - started >= most, StepWaits.moving || StepWaits.alwaysMoving || most >= StepWaits.longWait
+            || recent && most >= StepWaits.recentCap, !StepWaits.countedThisStep {
+            StepWaits.countedThisStep = true
+            StepWaits.movingSteps += 1
+            if StepWaits.movingSteps == StepWaits.alwaysAfter {
+                DebugLog.write(String(format: "settle: the screen has not stood still for %d steps; every wait is capped at %.1f s until it does",
+                                      StepWaits.alwaysAfter, StepWaits.movingCap))
             }
         }
         if !Task.isCancelled, !StepWaits.moving, most >= StepWaits.longWait || recent && most >= StepWaits.recentCap,
@@ -182,6 +201,9 @@ extension ScreenSource {
             }
         }
     }
+
+    /// The app went to the background: decode on in a new session (H264Decoder.renew).
+    func enteredBackground() { decoder.renew("in background") }
 
     /// After an action whose frame never came (the stream broke and the snap failed or was older too): the shown
     /// frame is stale, so the screen is not live until one captured after the action decodes. 2026-11-06: frames
