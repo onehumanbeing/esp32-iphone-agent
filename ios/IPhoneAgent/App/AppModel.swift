@@ -548,7 +548,10 @@ import UIKit
             DebugLog.write("board: booted \(up / 1000) s ago (reset: \(s.rst ?? "?"), heap \((s.heap ?? 0) / 1024) KB)")
             reportBoardReboot(s, up: up)
             // On another Wi-Fi with the board (station mode, harness/board.py net sta) there is no hotspot to rejoin.
-            if (wasOnBoardWiFi || hotspotSSID != nil) && board.net?.mode != "sta" { rejoinAfterReboot() }
+            // The status says so before `net` is read again (it is nil until then: the board on this iPhone's own
+            // hotspot was taken for a hotspot board, and the phone told to join itself, 2026-11-25).
+            let onOtherWiFi = board.net?.mode == "sta" || s.net == "sta" || s.net == "none"
+            if (wasOnBoardWiFi || hotspotSSID != nil) && !onOtherWiFi { rejoinAfterReboot() }
         }
     }
 

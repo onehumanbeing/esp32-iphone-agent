@@ -360,7 +360,7 @@ struct SeePage: View {
             }
             if !joined {
                 if let net = app.manualHotspot, let ssid = net.ssid, failure != nil { manual(ssid: ssid, pass: net.pass) }
-                if sharing {  // seen, not guessed: say it plainly, above the general hints
+                if sharing && !app.phoneHostsBoard {  // seen, not guessed: say it plainly, above the general hints
                     Label("This iPhone's Personal Hotspot is on. Turn it off in Settings › Personal Hotspot, then join the board's Wi-Fi.",
                           systemImage: "personalhotspot")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)

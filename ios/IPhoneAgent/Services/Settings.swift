@@ -511,8 +511,17 @@ enum Hotspot {
         interfaces.contains { $0.name.hasPrefix("bridge") && $0.ipv4.hasPrefix("172.20.10.") }
     }
 
+    /// The board is a client on this iPhone's own Personal Hotspot (told `net join <this phone's hotspot>`): the
+    /// phone is the access point, so there is nothing to join; the board is reached at its IP over the bridge.
+    static func hostsBoard(boardIP: String?) -> Bool { hostsBoard(boardIP: boardIP, interfaces()) }
+
+    static func hostsBoard(boardIP: String?, _ interfaces: [(name: String, ipv4: String)]) -> Bool {
+        guard let boardIP, boardIP.hasPrefix("172.20.10.") else { return false }
+        return interfaces.contains { $0.name.hasPrefix("bridge") && $0.ipv4.hasPrefix("172.20.10.") && $0.ipv4 != boardIP }
+    }
+
     /// IPv4 addresses by interface name.
-    private static func interfaces() -> [(name: String, ipv4: String)] {
+    static func interfaces() -> [(name: String, ipv4: String)] {
         var head: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&head) == 0, let first = head else { return [] }
         defer { freeifaddrs(head) }

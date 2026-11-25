@@ -73,6 +73,8 @@ final class LanAuthTests: XCTestCase {
         /// At these times the board's reported mode changes.
         var script: [(at: Double, net: String)] = []
         var readSSID: String?
+        var boardIP = "192.168.1.50"
+        var bridge: [(name: String, ipv4: String)] = []  // this phone's interfaces, for the Personal Hotspot check
 
         func env() -> LanJoinFlow.Env {
             LanJoinFlow.Env(
@@ -85,7 +87,7 @@ final class LanAuthTests: XCTestCase {
                     return s
                 },
                 writeNet: { self.written.append($0) },
-                readNet: { NetConfig(mode: "sta", ssid: self.readSSID, ip: "192.168.1.50") },
+                readNet: { NetConfig(mode: "sta", ssid: self.readSSID, ip: self.boardIP) },
                 phoneSSID: { self.phoneSSID },
                 joinPhone: {
                     self.joinedPhone.append($0)
@@ -95,6 +97,7 @@ final class LanAuthTests: XCTestCase {
                 videoActive: { self.video },
                 savePassword: { self.saved[$1] = $0 },
                 log: { _ in },
+                phoneHosts: { Hotspot.hostsBoard(boardIP: $0, self.bridge) },
                 sleep: { self.clock += $0 },
                 now: { self.clock })
         }
@@ -114,6 +117,18 @@ final class LanAuthTests: XCTestCase {
         XCTAssertEqual(b.joinedPhone.map(\.ssid), ["Home"])
         XCTAssertEqual(b.saved, ["Home": "secret12"])
         XCTAssertEqual(b.states, [.boardConnecting, .checkingPhone, .joined])
+    }
+
+    func testBoardOnThisPhonesHotspotIsNotJoined() async {
+        let b = Board()
+        b.script = [(2, "sta")]
+        b.readSSID = "PhoneHotspot"
+        b.boardIP = "172.20.10.10"
+        b.bridge = [("bridge100", "172.20.10.1"), ("pdp_ip0", "10.1.2.3")]
+        let joined = await b.run("PhoneHotspot")
+        XCTAssertTrue(joined)
+        XCTAssertTrue(b.joinedPhone.isEmpty, "the phone is the access point: never asked to join its own hotspot")
+        XCTAssertEqual(b.states.last, .joined)
     }
 
     func testOpenNetworkSendsNoPassword() async {
@@ -353,5 +368,37 @@ final class LanMemoryTests: XCTestCase {
         XCTAssertEqual(LanMemory.suggestion(current: "ESP32Agent-1234", boardHotspot: nil, last: "qaq"), "qaq")
         XCTAssertEqual(LanMemory.suggestion(current: nil, boardHotspot: nil, last: "qaq"), "qaq", "iOS won't name a home network")
         XCTAssertNil(LanMemory.suggestion(current: nil, boardHotspot: nil, last: nil))
+    }
+}
+
+/// Joining the board's hotspot, or not: a board that is a client of this iPhone's own Personal Hotspot.
+final class HotspotJoinDecisionTests: XCTestCase {
+    private let sharing: [(name: String, ipv4: String)] = [("bridge100", "172.20.10.1"), ("pdp_ip0", "10.1.2.3")]
+
+    func testBoardOnThisPhonesHotspotIsNeverJoined() {
+        let d = HotspotJoinDecision.decide(netMode: "sta", statusNet: "sta", boardIP: "172.20.10.10", interfaces: sharing)
+        XCTAssertEqual(d, .phoneHostsBoard(ip: "172.20.10.10"))
+        XCTAssertEqual(d.skipLine, "hotspot: board on this iPhone's Personal Hotspot at 172.20.10.10; not joining")
+        XCTAssertTrue(Hotspot.hostsBoard(boardIP: "172.20.10.10", sharing))
+    }
+
+    func testBoardStillJoiningAfterABootIsNotJoinedEither() {
+        // status net "none", `net` not read again yet: the board is a station, not an access point
+        XCTAssertEqual(HotspotJoinDecision.decide(netMode: nil, statusNet: "none", boardIP: nil, interfaces: sharing), .boardOnOtherWiFi)
+        XCTAssertEqual(HotspotJoinDecision.decide(netMode: "sta", statusNet: nil, boardIP: "", interfaces: []), .boardOnOtherWiFi)
+    }
+
+    func testBoardsOwnAccessPointIsJoinedAsBefore() {
+        XCTAssertEqual(HotspotJoinDecision.decide(netMode: "ap", statusNet: "ap", boardIP: "192.168.4.1", interfaces: []), .join)
+        XCTAssertEqual(HotspotJoinDecision.decide(netMode: "ap", statusNet: "ap", boardIP: "192.168.4.1", interfaces: sharing), .join,
+                       "Personal Hotspot on, board on its own AP: join (the page warns about the hotspot)")
+        XCTAssertNil(HotspotJoinDecision.join.skipLine)
+    }
+
+    func testAnotherIPhonesHotspotIsNotThisOne() {
+        // this phone is itself a client of some hotspot (en0 on 172.20.10.x), no bridge: not the host
+        XCTAssertFalse(Hotspot.hostsBoard(boardIP: "172.20.10.10", [("en0", "172.20.10.3")]))
+        XCTAssertFalse(Hotspot.hostsBoard(boardIP: "192.168.1.50", sharing))
+        XCTAssertFalse(Hotspot.hostsBoard(boardIP: nil, sharing))
     }
 }
