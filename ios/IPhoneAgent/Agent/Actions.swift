@@ -105,10 +105,13 @@ enum Actions {
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
         acts = blindSafe(acts)
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
-        // a bare `DO: fail` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only in THINK)
-        if let i = acts.firstIndex(where: { $0["action"]?.str == "fail" }), (acts[i]["reason"]?.str ?? "").isEmpty,
-           let why = [zh, thought].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
-            acts[i]["reason"] = .str(why)
+        // a bare `DO: fail` or `DO: done` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only
+        // in THINK; 你好明天 written, done with no answer): the model's own words go in
+        for (name, key) in [("fail", "reason"), ("done", "answer")] {
+            if let i = acts.firstIndex(where: { $0["action"]?.str == name }), (acts[i][key]?.str ?? "").isEmpty,
+               let why = [zh, thought].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
+                acts[i][key] = .str(why)
+            }
         }
         return acts
     }

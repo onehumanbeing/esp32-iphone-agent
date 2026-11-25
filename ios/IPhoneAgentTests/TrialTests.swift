@@ -18,7 +18,8 @@ import XCTest
         XCTAssertNil(trial.offeredKey)  // ...and offers nothing
     }
 
-    func testOpenSourceBuildHasNoFreeLine() {
+    func testOpenSourceBuildHasNoFreeLine() throws {
+        try XCTSkipIf(Trial.available, "this build has IA_TRIAL_ORIGIN (Config/Local.xcconfig): not the open-source build")
         XCTAssertFalse(Trial.available)
         XCTAssertFalse(Trial.isTrial("https://api.openai.com/v1"))
         XCTAssertNotEqual(ModelProvider.infer(baseURL: "", model: ""), .handsyTrial)

@@ -5,7 +5,7 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 ## Unreleased (main)
 
 - App: `open` on the pinyin keyboard: a name that is only in the candidate bar goes in with space instead of a tap, and a Return that only put composing letters in is followed by one more Return on the Top Hit.
-- App: a `fail` with no reason shows the model's own words for why (it read as an empty failure).
+- App: a `fail` with no reason or a `done` with no answer shows the model's own words (they read as empty).
 - App: Chinese typing deletes words the keyboard's first candidate added past the text (你好明天 came out as 你好明天早上), instead of reporting it typed.
 - App: `open` presses Return when the app is Spotlight's Top Hit and its name went in as plain letters, instead of finding the pointer to tap the row (about 5 s less per open). Letters still composing on the pinyin keyboard fall back to the tap.
 - App: a second task in a row saves its notes and files in its own folder; before, it reused the folder of the task before it.
