@@ -255,6 +255,7 @@ extension AppModel {
         }
         var logged = 0.0
         var shownStage: Recovery.Stage?, shownPoll = 0.0  // for the log: transitions only
+        var noVideoSince: Double?
         RunMarker.set("startup: waiting for the first frame")
         while true {
             if now() - logged >= 1 {  // why there is no usable frame yet, once a second
@@ -269,6 +270,21 @@ extension AppModel {
             guard now() < startupDeadline else { throw DeviceError(message: Recovery.reason(.frames)) }
             try Task.checkCancellation()
             guard appIsBackgrounded else { throw onScreenError() }
+            if board.connected, Recovery.noVideo(ap: board.status?.ap, gop: board.status?.gop, fps: board.status?.fps,
+                                                 hasFrame: feed.frame != nil) {
+                let since = noVideoSince ?? now()
+                if noVideoSince == nil {
+                    noVideoSince = since
+                    DebugLog.write("startup: mirroring connected but the board has no video (gop 0, fps 0)")
+                }
+                if now() - since >= Recovery.noVideoAfter {
+                    DebugLog.write(String(format: "startup: still no video after %.0f s; stopping", now() - since))
+                    Analytics.capture("startup_no_video", ["after": Int(now() - began)])
+                    throw DeviceError(message: Recovery.noVideoReason)
+                }
+            } else {
+                noVideoSince = nil
+            }
             if hasFrame(), board.connected, board.status?.inputState != nil, board.status?.needsWirelessPointer != true, !snapMode || receivedSnapshot {
                 await feed.settled(most: 1.5)  // the nudged cursor keeps fading for seconds; the Home Screen is still
                 try Task.checkCancellation()

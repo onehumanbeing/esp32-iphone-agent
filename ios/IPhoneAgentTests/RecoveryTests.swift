@@ -8,6 +8,18 @@ import XCTest
         Recovery.Link(connected: connected, sta: sta, ap: ap, net: net, frameAt: frameAt)
     }
 
+    func testMirroringWithNoVideoIsCaughtOnlyWhenTheBoardHasNothing() {
+        XCTAssertTrue(Recovery.noVideo(ap: "streaming", gop: 0, fps: 0, hasFrame: false))
+        XCTAssertTrue(Recovery.noVideo(ap: "streaming", gop: 0, fps: nil, hasFrame: false))
+        // a still screen: no new frames, but the board keeps the last picture
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: 48_000, fps: 0, hasFrame: false))
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: 0, fps: 0, hasFrame: true))
+        XCTAssertFalse(Recovery.noVideo(ap: "connected", gop: 0, fps: 0, hasFrame: false))
+        XCTAssertFalse(Recovery.noVideo(ap: "streaming", gop: nil, fps: 0, hasFrame: false))  // old firmware: unknown
+        XCTAssertLessThanOrEqual(Recovery.noVideoAfter, 60)
+        XCTAssertTrue(Recovery.noVideoReason.contains("Personal Hotspot"))
+    }
+
     func testStagesAfterABoardReboot() {
         var r = Recovery(at: 100)
         XCTAssertEqual(r.next(link(false), at: 100), .wait(.init(part: .board, ask: false)))

@@ -14952,6 +14952,16 @@
           }
         }
       }
+    },
+    "Screen Mirroring is connected, but no picture arrives. Stop Screen Mirroring and start it again. If the board is on this iPhone's Personal Hotspot, put both on another Wi-Fi: mirroring sends no picture there." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕镜像已连接，但一直没有画面。请停止屏幕镜像后重新开始。如果板子连的是这台 iPhone 的个人热点，请把两者换到别的 Wi-Fi：这种情况下镜像不会传画面。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
