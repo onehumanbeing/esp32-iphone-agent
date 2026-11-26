@@ -559,8 +559,9 @@ import UIKit
     /// `reach`: Vision.pointer's default (iPhone), or that much of the content on a letterboxed iPad frame.
     nonisolated private static func find(_ a: Data, _ b: Data, near: CGPoint, shift: Double,
                                          reach: CGPoint = CGPoint(x: 0.12, y: 0.08), quiet: [CGRect]) -> CGPoint? {
-        Vision.pointer(a, b, near: near, shift: shift, reach: reach, quiet: quiet)
-            ?? Vision.pointer(a, b, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
+        guard let (ga, gb) = Vision.pointerFrames(a, b) else { return nil }
+        return Vision.pointer(ga, gb, near: near, shift: shift, reach: reach, quiet: quiet)
+            ?? Vision.pointer(ga, gb, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
     }
 
     /// A second reading of where the last measure found the pointer, from its move back (the frame after the nudge
