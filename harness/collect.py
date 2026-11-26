@@ -72,7 +72,7 @@ def main(plan_path: str, out: str) -> None:
             elif step.get("back"):  # a small arrow near the edge: a tight landing, and the screen must change
                 x, y = w * BACK[0], h * BACK[1]
                 action = {"action": "back"}
-                if not tapcv.tap(x, y, tol=step.get("tol", 18)):
+                if not tapcv.tap(x, y, tol=step.get("tol", 10), wait=3):  # a web page (搜一搜) closes slowly
                     raise SystemExit("back left the screen as it was")
             elif "wait" in step:
                 x = y = None

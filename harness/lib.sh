@@ -30,10 +30,14 @@ PMD3=${HARNESS_PMD3:-$(command -v pymobiledevice3 || true)}
 app_copy() {
   local dir=$1 src=$2 dst=$3
   if [[ -n $PMD3 ]]; then
-    if [[ $dir == from ]]; then
+    if [[ $dir == from ]]; then  # a pull can fail while the app writes the file: try again rather than wait on devicectl
       rm -f "$dst"; mkdir -p "$(dirname "$dst")"
-      printf 'pull /%s %s\nexit\n' "$src" "$dst" | COLUMNS=4000 perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1
-      [[ -e $dst ]] && return 0
+      local try
+      for try in 1 2 3; do
+        printf 'pull /%s %s\nexit\n' "$src" "$dst" | COLUMNS=4000 perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1
+        [[ -e $dst ]] && return 0
+        sleep 0.3
+      done
     else  # the AFC shell exits 1 even after a good push: its "src --> dst" line is the answer (a second copy over
       # devicectl ran every harness command twice, interleaved, 2026-11-26)
       # (it also wraps its output at the terminal width: a long path split that line, 2026-11-26)
