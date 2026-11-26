@@ -71,6 +71,8 @@ Actions:
                              use it for small or tightly packed targets: list rows, checkmarks, toggles, small icons)
   tap X Y twice             (two taps on one spot, the second where the first landed: for "tap twice", a choice that
                              is tapped again to confirm, a double tap)
+  tap X Y hold              (long press: press about a second, then lift: a chat message's menu (转发 / Forward,
+                             复制 / Copy), an icon's quick actions, selecting a word)
   tap "WORDS"               (tap the text shown on screen, found by reading the screen: for a labelled button or row
                              like tap "删除"; if the words show in several places or not at all, the result says so)
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)

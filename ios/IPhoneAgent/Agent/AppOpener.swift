@@ -69,10 +69,18 @@ enum OpenResult: String {
     /// What goes into Spotlight for `name`, in order. A Chinese name goes in as its pinyin letters first, typed on
     /// the English keyboard (Spotlight matches app names by pinyin): no input method, no candidate to pick, nothing
     /// left uncommitted in the field. The name itself, through the pinyin keyboard, only when the letters list nothing. The same name either way, never another one.
-    static func queries(_ name: String, pasting: Bool) -> [String] {
+    /// On an iPhone in another language, a known app goes in by its name there first: Spotlight lists 地图 as Maps
+    /// and 小红书 as rednote, and their pinyin found nothing (2026-11-26: 4 opens failed, 2 minutes of one run). The
+    /// same app either way: its own row in AppNames, never another app.
+    static func queries(_ name: String, pasting: Bool, language: String = AppNames.deviceLanguage) -> [String] {
         guard !pasting, HanTyper.isHan(name), name.allSatisfy({ HanTyper.isHan(String($0)) || $0 == " " }) else { return [name] }
         let letters = Pointer.typeable(name).lowercased().filter { $0.isLetter }
-        return letters.count >= 2 ? [letters, name] : [name]
+        let pinyin = letters.count >= 2 ? [letters] : []
+        if !language.hasPrefix("zh"), let local = AppNames.alternatives(name, language: language).first,
+           Accents.typeable(local) {
+            return [local] + pinyin
+        }
+        return pinyin + [name]
     }
 
     /// This open saw the name only as a web suggestion: the app is not installed (a box: the opener is a struct).
@@ -82,7 +90,7 @@ enum OpenResult: String {
     private func open(named name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
-        let queries = Self.queries(name, pasting: pasting)
+        let queries = Self.queries(name, pasting: pasting, language: language)
         seen.webOnly = false
         for (i, query) in queries.enumerated() {
             let result = try await open(name, typing: query, pasting: pasting)

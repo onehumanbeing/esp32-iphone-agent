@@ -46,7 +46,7 @@ enum AppNames {
         ["支付宝", "Alipay"],
         ["淘宝", "Taobao"],
         ["微博", "Weibo"],
-        ["小红书", "Xiaohongshu", "RED"],
+        ["小红书", "rednote", "Xiaohongshu", "RED"],
         ["哔哩哔哩", "bilibili", "B站"],
         ["高德地图", "Amap", "高德"],
         ["美团外卖", "Meituan Waimai", "Meituan Delivery"],  // before 美团: the longer name wins (named)

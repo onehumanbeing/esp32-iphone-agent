@@ -12,7 +12,9 @@ extension AppModel {
 
     /// Start a task (or a saved intent: its checklist goes to the actor as hints).
     func run(_ task: String, intent: SavedTask? = nil, unattended: Bool = false) async {
-        guard !startingAgent, !agent.running, !recorder.busy else { return }
+        guard !startingAgent, !agent.running, !recorder.busy else {
+            return say("run not started: " + (startingAgent ? "the last start is still going" : agent.running ? "a run is going" : "recording"))
+        }
         if intent?.builtin == "diagnostics" { return await sendDiagnostics() }
         if IntentStore.unfilled(task) {  // a template: who and what are the user's to fill in first
             notice = String(localized: "Edit the parts in [brackets] first, such as who to text or call.")
