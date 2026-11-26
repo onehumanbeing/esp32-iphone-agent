@@ -27,7 +27,7 @@ from PIL import Image
 HARNESS = Path(__file__).resolve().parent
 CAL = Path.home() / ".cache" / "harness-tapcv.json"  # px per unit, learned per screen size
 TOL = 14       # px (at 1170 wide ≈ 4.5 pt): close enough to click a button
-TRIES = 4      # correction rounds before giving up on a tap
+TRIES = 6      # correction rounds before giving up on a tap
 STEP = 120     # one `move` report is at most 127 units
 
 
@@ -35,9 +35,10 @@ def run(cmd: list[str]) -> str:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout
 
 
-def hid(commands: str) -> None:
-    """Board commands through the app; `stay` keeps the pointer where the moves put it."""
-    out = subprocess.run([str(HARNESS / "hid.sh"), commands + "; stay"], capture_output=True, text=True,
+def hid(commands: str, stay: bool = True) -> None:
+    """Board commands through the app; `stay` keeps the pointer where the moves put it (else the app homes it
+    again and tracks it from there)."""
+    out = subprocess.run([str(HARNESS / "hid.sh"), commands + ("; stay" if stay else "")], capture_output=True, text=True,
                          timeout=180, env={**os.environ, "NO_LAUNCH": "1"}).stdout
     if "harness hid: done" not in out:
         sys.exit("hid failed: " + out.strip()[-300:])
@@ -49,12 +50,12 @@ def shot(path: str | None = None) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGB"), dtype=np.int16)
 
 
-def moves(dx: float, dy: float) -> str:
-    """Split a move into reports of at most STEP units: x first, then y."""
+def moves(dx: float, dy: float, step: int = STEP) -> str:
+    """Split a move into reports of at most step units: x first, then y."""
     out = []
     for axis, d in ((0, round(dx)), (1, round(dy))):
         while d:
-            s = max(-STEP, min(STEP, d))
+            s = max(-step, min(step, d))
             out.append(f"move {s} 0" if axis == 0 else f"move 0 {s}")
             d -= s
     return "; ".join(out)
@@ -93,31 +94,29 @@ def save_cal(size: tuple[int, int], k: list[float]) -> None:
     CAL.write_text(json.dumps(data))
 
 
-def point(x: float, y: float) -> np.ndarray:
-    """Put the pointer on (x, y) px; returns the last screenshot."""
-    hid("home")
+def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
+    """Put the pointer within tol px of (x, y); returns the last screenshot. The app's `point` command gets it close
+    (its own calibration, checked on the mirrored picture): long raw moves land far off, as iOS speeds the pointer
+    up on big reports (2026-11-26: 290 units right went past the screen edge, 111 down went 440 px). Then small
+    corrections, seen on screenshots. A big target (a tab, a row) can take a wider tol."""
+    hid("home", stay=False)  # the app's `point` moves from where it tracks the pointer: home it the app's way
     before = shot()
-    size = (before.shape[1], before.shape[0])
-    k = load_cal(size)
-    hid("home; " + moves(x / k[0], y / k[1]))
-    at, sent = (0.0, 0.0), (x / k[0], y / k[1])
+    h, w = before.shape[0], before.shape[1]
+    hid(f"point {x / w * 1000:.0f} {y / h * 1000:.0f}")
+    k = load_cal((w, h))
+    at = (x, y)
     for i in range(TRIES):
         after = shot()
-        p = find_pointer(before, after, (at[0] + sent[0] * k[0], at[1] + sent[1] * k[1]))
+        p = find_pointer(before, after, at)
         if p is None:
             sys.exit("pointer not found on the screenshot")
-        # learn the scale from this move (only from long moves: short ones are mostly rounding)
-        for a in (0, 1):
-            if abs(sent[a]) > 40:
-                k[a] = 0.7 * k[a] + 0.3 * abs((p[a] - at[a]) / sent[a])
-        save_cal(size, k)
         ex, ey = x - p[0], y - p[1]
         print(f"pointer at {p[0]:.0f},{p[1]:.0f}, off by {ex:.0f},{ey:.0f} px")
-        if abs(ex) <= TOL and abs(ey) <= TOL:
+        if abs(ex) <= tol and abs(ey) <= tol:
             return after
-        before, at, sent = after, p, (ex / k[0], ey / k[1])
-        hid(moves(*sent))
-    sys.exit(f"could not land within {TOL} px of {x:.0f},{y:.0f}")
+        before, at = after, (x, y)
+        hid(moves(ex / k[0], ey / k[1], step=20))  # small reports: about linear
+    sys.exit(f"could not land within {tol:.0f} px of {x:.0f},{y:.0f}")
 
 
 def ocr(img: np.ndarray) -> list[dict]:
@@ -137,8 +136,8 @@ def find_text(img: np.ndarray, text: str) -> tuple[float, float] | None:
     return b["x"] + b["w"] / 2, b["y"] + b["h"] / 2
 
 
-def tap(x: float, y: float, expect: str | None = None, wait: float = 1.5) -> bool:
-    before = point(x, y)
+def tap(x: float, y: float, expect: str | None = None, wait: float = 1.5, tol: float = TOL) -> bool:
+    before = point(x, y, tol)
     hid("click")
     time.sleep(wait)
     after = shot()

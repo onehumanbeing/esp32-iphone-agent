@@ -34,8 +34,10 @@ app_copy() {
       rm -f "$dst"; mkdir -p "$(dirname "$dst")"
       printf 'pull /%s %s\nexit\n' "$src" "$dst" | perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1
       [[ -e $dst ]] && return 0
-    elif printf 'push %s /%s\nexit\n' "$src" "$dst" | perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1; then
-      return 0
+    else  # the AFC shell exits 1 even after a good push: its "src --> dst" line is the answer (a second copy over
+      # devicectl ran every harness command twice, interleaved, 2026-11-26)
+      printf 'push %s /%s\nexit\n' "$src" "$dst" | perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" 2>&1 \
+        | grep -qF -- "--> /$dst" && return 0
     fi
   fi
   dc device copy "$dir" "${ON[@]}" --source "$src" --destination "$dst" >/dev/null 2>&1
