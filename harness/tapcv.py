@@ -18,7 +18,7 @@ service: works with or without Screen Mirroring). Text needs $HARNESS_OCR (a com
   uv run harness/tapcv.py tap-text TEXT [--expect TEXT]
   uv run harness/tapcv.py mirror BOARD [--restart]         Control Center > Screen Mirroring > BOARD, until connected
 """
-import json, os, subprocess, sys, tempfile, time
+import json, os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 
 import numpy as np
@@ -103,8 +103,9 @@ def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
     before = shot()
     h, w = before.shape[0], before.shape[1]
     hid(f"point {x / w * 1000:.0f} {y / h * 1000:.0f}")
-    k = load_cal((w, h))
-    at = (x, y)
+    k0 = load_cal((w, h))
+    k = list(k0)
+    at, last, sent = (x, y), None, None
     for i in range(TRIES):
         after = shot()
         p = find_pointer(before, after, at)
@@ -114,8 +115,16 @@ def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
         print(f"pointer at {p[0]:.0f},{p[1]:.0f}, off by {ex:.0f},{ey:.0f} px")
         if abs(ex) <= tol and abs(ey) <= tol:
             return after
-        before, at = after, (x, y)
-        hid(moves(ex / k[0], ey / k[1], step=20))  # small reports: about linear
+        # px per unit as the last correction moved it: iOS speeds up even 20-unit reports, so the stored scale
+        # overshot 3-4x and the pointer swung past the target every round (2026-11-26: off -42 px, then +129)
+        if last and sent:
+            for a in (0, 1):
+                if abs(sent[a]) >= 3:
+                    # within 0.5-4x of the stored scale: a mis-found pointer (an animating Control Center) must not set it
+                    k[a] = min(max(abs(p[a] - last[a]) / abs(sent[a]), k0[a] / 2), k0[a] * 4)
+        before, at, last = after, (x, y), p
+        sent = (round(ex / k[0]), round(ey / k[1]))
+        hid(moves(*sent, step=20))
     sys.exit(f"could not land within {tol:.0f} px of {x:.0f},{y:.0f}")
 
 
@@ -161,11 +170,23 @@ def mirroring_menu(board: str) -> np.ndarray:
     img = open_control_center()
     if find_text(img, board) is None:
         for p in mirroring_button_guesses(img):
-            if tap(*p, expect=board):
+            if tap(*p, tol=40) and listed(board):  # a tile 150 px across
                 break
         else:
             sys.exit("Screen Mirroring menu not found")
     return shot()
+
+
+def listed(board: str, seconds: float = 6) -> bool:
+    """The Screen Mirroring menu lists its devices a few seconds after it opens (2026-11-26: the board's name was
+    not there 1.5 s after the tap, so the menu was taken for the wrong tile and a run waited 5 min for a picture)."""
+    end = time.time() + seconds
+    while True:
+        if find_text(shot(), board) is not None:
+            return True
+        if time.time() > end:
+            return False
+        time.sleep(1)
 
 
 def mirror(board: str, restart: bool = False) -> bool:
@@ -183,10 +204,19 @@ def mirror(board: str, restart: bool = False) -> bool:
         if find_text(shot(), "Stop Mirroring"):
             ok = True
             break
-    img = shot()
-    tap(img.shape[1] * 0.5, img.shape[0] * 0.86)  # close Control Center: empty space under its tiles
+    close_control_center()
     print("mirroring to " + board + (" ✓" if ok else ": not confirmed"))
     return ok
+
+
+def close_control_center() -> None:
+    """Empty space under its tiles, until the status bar's clock is back (Control Center hides it): from the Screen
+    Mirroring menu the first tap only goes back to Control Center (2026-11-26: a run then started under it)."""
+    for _ in range(3):
+        img = shot()
+        if any(re.fullmatch(r"\d{1,2}:\d{2}", b["text"]) and b["y"] < img.shape[0] * 0.04 for b in ocr(img)):
+            return
+        tap(img.shape[1] * 0.5, img.shape[0] * 0.86, tol=80)
 
 
 def mirroring_button_guesses(img: np.ndarray) -> list[tuple[float, float]]:

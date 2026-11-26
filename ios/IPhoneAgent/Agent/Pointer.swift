@@ -855,7 +855,23 @@ import UIKit
             return .opened
         }
         let opener = AppOpener(home: { [self] in
+            let before = screen?.live == true ? screen?.frame : nil
             if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
+            // Settings ignores the board's keys (cmd+h and cmd+space did nothing there, 2026-11-26: `open WeChat`
+            // from Settings failed three times): the same app still in front, not the Home Screen, gets the flick
+            guard let screen, let before else { return }
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.0)
+            let after = screen.frame
+            guard await !Vision.off({ Vision.bigChange(before, after) }), await Self.keyMissed(before, after) else { return }
+            log("open: the Home key left the app in front; flicking up from the home bar")
+            try await homeSwipe()
+            // the first flick often only woke the pointer (2026-11-26: Settings stayed, cmd+space then went nowhere and
+            // the open ran out of time): settle, and once more at full speed while the same app is in front
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.0)
+            guard await Self.sameApp(before, screen.frame) else { return }
+            log("open: the flick left the app in front; once more at full speed")
+            try await homeSwipe(full: true)
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.0)
         }, key: { [self] in try await key($0) }, type: { [self] in _ = try await type($0) }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.5, least: 1.0, most: 3.0)

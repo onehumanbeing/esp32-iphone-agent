@@ -76,6 +76,7 @@ Actions:
   tap "WORDS"               (tap the text shown on screen, found by reading the screen: for a labelled button or row
                              like tap "删除"; if the words show in several places or not at all, the result says so)
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
+  swipe X1 Y1 X2 Y2 hold    (press and hold at X1,Y1 first, then move: drag an icon, a list row or a text handle)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (English, Chinese or accented Latin; emoji are dropped; tap the input field first)
@@ -83,6 +84,7 @@ Actions:
                              typing, never a 清空 / Clear button on screen)
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
   open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
+  switch                    (back to the app used just before this one, e.g. from 小红书 back to 微信; faster than open)
   home | back | wait
   wait "WORDS" [SECONDS]    (wait until WORDS show on screen, up to SECONDS (default 5); wait gone "WORDS" waits until
                              they are gone. Only for what comes by itself (a page loading, a success message): tap,

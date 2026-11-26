@@ -160,10 +160,11 @@ import XCTest
         let committed = Data([5])
         let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440]),
                                                     ("Settings", [140, 1100, 400, 1140])]
+        // a look before another Return or a tap (`cameUp`) sees the same screen again: the repeated frames
         for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
-                                     ([home, spotlight, committed, app], ["enter", "enter"], 0),
-                                     ([home, spotlight, spotlight, app], ["enter", "enter"], 0),
-                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 1)] {
+                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, spotlight, spotlight, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, committed, committed, committed, committed, app], ["enter", "enter"], 1)] {
             var queue: [Data?] = frames
             var sent: [String] = [], tapped = 0
             var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
@@ -184,12 +185,51 @@ import XCTest
         XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows([("Settings", [140, 400, 400, 440])], labels: ["Settings"], size: size)))
     }
 
+    /// The device run of 2026-11-26: Settings came up on Return, and its title and its "Apps" and "Watch" rows were
+    /// all words Spotlight had shown too. Spotlight's Top Hit header is gone: opened, no tap on the old row spot.
+    func testAnAppSharingSpotlightsWordsIsOpenedOnceTheTopHitHeaderIsGone() async throws {
+        let settingsApp = Data([6])
+        var queue: [Data?] = [home, spotlight, settingsApp]
+        var sent: [String] = [], tapped = 0
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, settingsApp] in
+                                   $0 == home ? [] : $0 == settingsApp ? ["Settings", "Apple Account", "Apps", "Watch"]
+                                       : ["Top Hit", "Settings", "Suggestions", "Settings", "Apps", "Watch"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.big = { _, _ in true }
+        opener.readBoxes = { _ in ([("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in tapped += 1 }
+        let result = try await opener.open("Settings")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }, ["enter"])
+        XCTAssertEqual(tapped, 0)
+    }
+
+    /// 2026-11-26 on the device: the look after Return was cut short and still showed Spotlight while Settings came
+    /// up; a second Return and a tap on the old row spot went into Settings. One more look first: opened.
+    func testAnAppComingUpLateGetsNoSecondReturnAndNoTap() async throws {
+        let passing = Data([7])
+        var queue: [Data?] = [home, spotlight, passing, app]
+        var sent: [String] = [], tapped = 0, logs: [String] = []
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["General", "Privacy"] : ["Top Hit", "Settings", "Settings"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.readBoxes = { _ in ([("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in tapped += 1 }
+        opener.log = { logs.append($0) }
+        let result = try await opener.open("Settings")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }, ["enter"])
+        XCTAssertEqual(tapped, 0)
+        XCTAssertTrue(logs.contains("open Settings via Spotlight: it came up after all"), "\(logs)")
+    }
+
     /// Pinyin keyboard on (2026-11-20): the typed letters are still composing, only the field reads the name and a
     /// tap there does nothing. Return commits them, Spotlight stays (a new frame, its words still there), and the
     /// result row read then is tapped.
     func testComposingLettersAreCommittedThenTheResultTapped() async throws {
         let composing = Data([4]), committed = Data([5])
-        var queue: [Data?] = [home, composing, composing, committed, committed, app]
+        var queue: [Data?] = [home, composing, composing, committed, committed, committed, committed, app]  // + the looks before each tap
         var sent: [String] = [], tapped: [CGPoint] = []
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },

@@ -185,6 +185,7 @@ enum OpenResult: String {
                 // the letters were composing on the pinyin keyboard and that Return put them in (2026-11-20); the
                 // rows are read again and one more Return opens the Top Hit (the tap after it took 7.5 s, 2026-11-26).
                 if entered < 2, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                    if entered > 0, try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return .opened }
                     entered += 1
                     log("open \(name) via Spotlight: typed, its row is the top hit → enter")
                     try await key("enter")
@@ -199,6 +200,7 @@ enum OpenResult: String {
                     if moved || entered < 2 { continue }
                 }
                 for spot in spots.prefix(2) {
+                    if entered > 0 || round > 0, try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return .opened }
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
                     try await tapAt?(spot)
                     guard let now = await look() else { return .unchecked }
@@ -236,6 +238,19 @@ enum OpenResult: String {
         return .notOpened
     }
 
+    /// One more look before another Return or a tap on a result: the look after a Return can be cut short on a
+    /// moving screen (0.8 s) and still show Spotlight while the app comes up; the second Return and the tap meant
+    /// for the result row then went into Settings and opened Apple Account (2026-11-26).
+    private func cameUp(_ last: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async throws -> Bool {
+        try await pause(0.5)
+        guard let now = await look(), !same(now, last) else { return false }
+        if await state(now, spotlight: spotlight, home: home, name, shows) == .left {
+            log("open \(name) via Spotlight: it came up after all")
+            return true
+        }
+        return false
+    }
+
     private enum After { case left, closed, still }
 
     /// What a tap or Return did: the app came up (Spotlight's words are gone), Spotlight closed to the Home Screen
@@ -250,7 +265,13 @@ enum OpenResult: String {
         if same(now, spotlight) { return .still }
         if same(now, home) { return .closed }
         if !big(spotlight, now) { return .still }
-        let before = Set(await read(spotlight).map(Scripts.fold))
+        let shown = await read(spotlight)
+        // Spotlight's Top Hit header gone: Spotlight is. The words test below took Settings for it, whose rows
+        // "Apps" and "Watch" were Spotlight's suggestions too, and a tap meant for the result opened Apple Account
+        // (2026-11-26)
+        func headed(_ lines: [String]) -> Bool { lines.contains { Self.topHitHeaders.contains(Scripts.fold($0)) } }
+        if headed(shown), !headed(lines) { return .left }
+        let before = Set(shown.map(Scripts.fold))
         let kept = lines.contains { line in
             let l = Scripts.fold(line)
             return !l.isEmpty && before.contains(l) && Self.count(name, in: [line]) == 0

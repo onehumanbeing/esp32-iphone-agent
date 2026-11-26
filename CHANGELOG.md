@@ -4,6 +4,16 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- `switch`: back to the app used just before this one (a flick along the home bar), and `swipe X1 Y1 X2 Y2 hold`:
+  press and hold, then move (drag an icon, a list row or a text handle). Both checked on an iPhone 13 Pro.
+- Opening an app from Settings works: Settings ignores the board's cmd+h and cmd+space, so the open now flicks up
+  from the home bar when the Home key leaves the same app in front.
+- An app that comes up late after Return is no longer tapped into: one more look before a second Return or a tap
+  on the result row (Settings opened, and the tap opened Apple Account). Spotlight's Top Hit header gone counts
+  as left Spotlight.
+- Harness: `tapcv.py` corrects the pointer with the scale its last move showed, waits for the Screen Mirroring
+  list, and closes Control Center until the status bar's clock is back.
+
 ## App 1.0.11.1 (TestFlight, a new build of 1.0.11)
 
 **Built and tested with an automated harness: the changes below were found, fixed and checked on a real iPhone by the harness itself.**
