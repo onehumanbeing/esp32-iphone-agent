@@ -222,6 +222,16 @@ import UIKit
         XCTAssertNil(HanTyper.addedAfter("你好", in: ["你好, Henry"]))
     }
 
+    func testPinyinLeftAsLettersIsNotReadAsRight() {
+        // 2026-11-27, iPhone 13 Pro: 外套 came out as "waitao" and the read-back took it for right
+        let text = "明天最高 48 度，记得带外套"
+        XCTAssertTrue(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度,记得带 waitao")))
+        XCTAssertFalse(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度，记得带外套")))
+        XCTAssertFalse(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度，记得带外套 Done")), "a button's English")
+        XCTAssertFalse(HanTyper.lettersLeft("harness 测试 1", in: HanTyper.core("harness 测试 1")), "letters the text has")
+        XCTAssertFalse(HanTyper.lettersLeft("hello", in: "hello wai"), "no Han: not checked")
+    }
+
     func testPlainPinyinInTheChangedAreaIsTheEnglishKeyboard() {
         // 2026-11-25, iPhone 13 Pro: Spotlight's changed area after typing 汽水音乐 on the English keyboard
         XCTAssertTrue(HanTyper.showsPlainPinyin("汽水音乐", in: HanTyper.core("search app store search maps q qishuiyinyue")))
