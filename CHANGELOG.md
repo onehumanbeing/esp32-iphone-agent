@@ -11,6 +11,9 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 - An app that comes up late after Return is no longer tapped into: one more look before a second Return or a tap
   on the result row (Settings opened, and the tap opened Apple Account). Spotlight's Top Hit header gone counts
   as left Spotlight.
+- A run starts much sooner after a long Screen Mirroring session: when the app goes to the background, the
+  video since the last keyframe is decoded again without an image per frame, asynchronously, and frames nothing
+  refers to are skipped. 455 units: 4.5 ms -> 0.9 ms each; a 2-hour session's 15362 units took 69 s before.
 - Harness: `tapcv.py` corrects the pointer with the scale its last move showed, waits for the Screen Mirroring
   list, and closes Control Center until the status bar's clock is back.
 

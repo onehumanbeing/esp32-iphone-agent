@@ -76,6 +76,18 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(units.map { $0.first! & 0x1f }, [7, 8, 5])
         XCTAssertEqual(units[0], Data([0x67, 1, 2]))
     }
+
+    /// A GOP replay skips the frames no later frame is decoded from (nal_ref_idc 0); never an IDR or a reference P.
+    func testReplaySkipsOnlyUnreferencedSlices() {
+        let start: [UInt8] = [0, 0, 0, 1]
+        func unit(_ headers: [UInt8]) -> Data { Data(headers.flatMap { start + [$0, 0x88, 0x84] }) }
+        XCTAssertTrue(H264Decoder.unreferenced(unit([0x01])))           // P slice, nal_ref_idc 0
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x41])))          // P slice, referenced
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x65])))          // IDR
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x09, 0x06])))    // no slice at all
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x01, 0x21])))    // one of two slices referenced
+        XCTAssertTrue(H264Decoder.unreferenced(unit([0x09, 0x01, 0x01])))
+    }
 }
 
 

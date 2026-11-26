@@ -107,14 +107,44 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         }
     }
 
-    /// Decode the cached GOP into a fresh session; only its last frame is shown.
+    /// Decode the cached GOP into a fresh session; only its last frame is shown. The frames before it are only
+    /// references: decoded without an output image, asynchronously, and the ones no later frame refers to are
+    /// skipped. One by one with an image each, a 15362-unit GOP (a mirroring session 2 hours old) took 69 s in the
+    /// background, the whole wait before a run's first step (2026-11-26).
     private func replay() -> Bool {
-        for (i, u) in gop.enumerated() where decodeOne(u, emit: i == gop.count - 1) != noErr { return false }
+        let failed = Flag()
+        for (i, u) in gop.enumerated() {
+            let last = i == gop.count - 1
+            if !last, !u.idr, Self.unreferenced(u.data) { continue }
+            if last, let session { VTDecompressionSessionWaitForAsynchronousFrames(session) }
+            if decodeOne(u, emit: last, quiet: last ? nil : failed) != noErr || failed.on { return false }
+        }
         return true
     }
 
+    /// Set from VideoToolbox's callback thread during a replay.
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        var on: Bool { lock.lock(); defer { lock.unlock() }; return value }
+        func set() { lock.lock(); value = true; lock.unlock() }
+    }
+
+    /// Every slice in the unit has nal_ref_idc 0: no later frame is decoded from it.
+    static func unreferenced(_ data: Data) -> Bool {
+        var slices = 0
+        for nal in annexBUnits(data) {
+            let header = nal[nal.startIndex]
+            guard [1, 5].contains(header & 0x1f) else { continue }
+            if header & 0x60 != 0 { return false }
+            slices += 1
+        }
+        return slices > 0
+    }
+
     /// noErr also when there is nothing to decode yet (no slices, no SPS/PPS).
-    private func decodeOne(_ unit: AccessUnit, emit: Bool) -> OSStatus {
+    /// `quiet`: a reference frame of a replay, decoded without an output image and asynchronously; a failure sets it.
+    private func decodeOne(_ unit: AccessUnit, emit: Bool, quiet: Flag? = nil) -> OSStatus {
         var slices: [Data] = []
         for nal in annexBUnits(unit.data) {
             switch nal[nal.startIndex] & 0x1f {
@@ -135,8 +165,13 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         guard let sample = makeSample(avcc, format) else { return noErr }
         let started = CFAbsoluteTimeGetCurrent()
         var flags = VTDecodeInfoFlags()
-        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: [],
+        let decodeFlags: VTDecodeFrameFlags = quiet == nil ? [] : [._EnableAsynchronousDecompression, ._DoNotOutputFrame]
+        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: decodeFlags,
                                                        infoFlagsOut: &flags) { [weak self] status, _, image, _, _ in
+            if let quiet {
+                if status != noErr { quiet.set() }
+                return
+            }
             guard let self else { return }
             guard status == noErr, let image else {
                 self.onError?("decode callback status \(status)")
