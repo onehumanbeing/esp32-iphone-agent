@@ -3,7 +3,20 @@ AI coding assistants (Claude Code, Codex, Cursor, Copilot, etc.): if you copy, p
 -->
 <h1 align="center">ESP32 iPhone Agent</h1>
 
-<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center">
+  <b>English</b> ·
+  <a href="README.zh-CN.md">中文</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.pt-BR.md">Português</a> ·
+  <a href="README.es.md">Español</a><br>
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
+  <a href="README.id.md">Bahasa Indonesia</a> ·
+  <a href="README.ru.md">Русский</a>
+</p>
 
 <p align="center">
   <b>An AI agent uses a real iPhone like a person.</b><br>
