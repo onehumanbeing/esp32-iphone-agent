@@ -335,6 +335,10 @@ extension AppModel {
         for name in names.sorted() where name.hasSuffix(".json") {
             let file = dir.appendingPathComponent(name)
             let args = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            // half written (the Mac's copy still going): read it again next second, not drop it (2026-11-26: a
+            // -run read mid-copy was "unreadable" and removed, and the run waited 10 minutes for nothing)
+            let written = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
+            if args == nil, let written, Date().timeIntervalSince(written) < 10 { continue }
             try? FileManager.default.removeItem(at: file)
             guard let args else { say("harness: unreadable \(name)"); continue }
             say("harness: \(name)")
@@ -444,8 +448,11 @@ extension AppModel {
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video" {  // a picture arrives now: what harness/run.sh and tapcv.py check
                     // (not `snap`: the board sends its whole GOP for one, 15 s+ once it is MBs, 2026-11-26)
+                    // the board's AirPlay state, not the frame's age: a still screen sends no new frames
+                    // (2026-11-26: an idle Clock read "no picture" and the harness reopened Control Center)
                     let st = board.status
-                    reply = feed.live ? "live" : "err ap \(st?.ap ?? "?") fz \(st?.fz.map(String.init) ?? "?")"
+                    reply = board.connected && st?.ap == "streaming" && st?.fz != 1 && feed.frame != nil
+                        ? "live" : "err ap \(st?.ap ?? "?") fz \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
                     wifiVideo.stop()
                     wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)

@@ -168,6 +168,8 @@ def open_control_center() -> np.ndarray:
 def mirroring_menu(board: str) -> np.ndarray:
     """Control Center, then the Screen Mirroring tile (no text on it): the guess whose tap shows the board's name."""
     img = open_control_center()
+    if clock_shown(img):  # Control Center hides the status bar clock: still the app, so tap nothing in it
+        sys.exit("Control Center did not open")  # (2026-11-26: the tile guesses were tapped into Clock twice)
     if find_text(img, board) is None:
         for p in mirroring_button_guesses(img):
             if tap(*p, tol=40) and listed(board):  # a tile 150 px across
@@ -247,6 +249,11 @@ def pictured(seconds: float = 12) -> bool:
         time.sleep(2)
 
 
+def clock_shown(img: np.ndarray) -> bool:
+    """The status bar's clock (HH:MM in the top 4%): no Control Center over the screen."""
+    return any(re.fullmatch(r"\d{1,2}:\d{2}", b["text"]) and b["y"] < img.shape[0] * 0.04 for b in ocr(img))
+
+
 def close_control_center() -> None:
     """Empty space under its tiles, until the status bar's clock is back (Control Center hides it): from the Screen
     Mirroring menu the first tap only goes back to Control Center (2026-11-26: a run then started under it)."""
@@ -254,7 +261,7 @@ def close_control_center() -> None:
         if i:
             time.sleep(1)  # the closing slide: read before it ends, the clock was missed and a third tap went into the app
         img = shot()
-        if any(re.fullmatch(r"\d{1,2}:\d{2}", b["text"]) and b["y"] < img.shape[0] * 0.04 for b in ocr(img)):
+        if clock_shown(img):
             return
         tap(img.shape[1] * 0.5, img.shape[0] * 0.86, tol=80)
 
