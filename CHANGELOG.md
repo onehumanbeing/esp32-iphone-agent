@@ -4,6 +4,16 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.11.1 (TestFlight, a new build of 1.0.11)
+
+**Built and tested with an automated harness: the changes below were found, fixed and checked on a real iPhone by the harness itself.**
+
+- Long press: the agent can press and hold (`tap X Y hold`), for a chat message's menu (Forward, Copy), an icon's quick actions or selecting a word.
+- Opening apps no longer hangs on iOS's "Open in …?" prompt, and an English iPhone searches a known app by its English name (Maps, rednote) instead of pinyin.
+- Faster Chinese typing: the pinyin for a text is worked out once, with no stall on the first character.
+- Faster pointer search: each screen is decoded once.
+- Harness (`harness/`): files to and from the app over pymobiledevice3 (about 1.5 s instead of 40 s), `tapcv.py` taps and restarts Screen Mirroring with no one at the phone, `collect.py` walks an app's screens and records screen, text and action, `timing.py` shows where a run's time went.
+
 ## App 1.0.11 (TestFlight)
 
 - App: Settings › Model › Sign in with ChatGPT: runs use your own ChatGPT Plus or Pro plan (the same usage limits Codex uses), with no API key.
