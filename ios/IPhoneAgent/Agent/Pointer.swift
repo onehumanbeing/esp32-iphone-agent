@@ -13,6 +13,7 @@ import UIKit
     /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
     static let rehomeEvery = 10
     static let samplesVersion = 4  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently; 4: video recalibration samples lacked the origin
+    static let longPress = 1.0             // s held for a long press (iOS opens the menu at ~0.5 s)
     static let hold = 0.35                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
@@ -747,6 +748,19 @@ import UIKit
     func clickAgain() async throws {
         log("tap again: one more click where the pointer is")
         try await device.send("click")
+        try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
+    }
+
+    func longPress(_ x: Double, _ y: Double) async throws {
+        lastTapAt = CGPoint(x: x, y: y)
+        try await point(x, y)
+        log(String(format: "long press (%.3f, %.3f)", x, y))
+        try await device.send("press")
+        do { try await Task.sleep(nanoseconds: UInt64(Self.longPress * 1e9)) } catch {
+            _ = try? await device.send("release")
+            throw error
+        }
+        try await device.send("release")
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
     }
 

@@ -115,6 +115,8 @@ extension AgentLoop {
         let a = try geometry.map { try PadGeometry.toScreen(action, $0) } ?? action
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
+        case "tap" where a["hold"]?.bool == true:
+            try await phone.longPress(p("x"), p("y"))
         case "tap":
             try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
             if a["count"]?.double == 2 { try await phone.clickAgain() }

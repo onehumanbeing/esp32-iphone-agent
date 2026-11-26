@@ -37,6 +37,14 @@ enum Actions {
         return r.contains("twice") || r.contains("double")
     }
 
+    /// "tap X Y hold": press and hold about a second, then lift (a long press: a chat message's menu with 转发 /
+    /// Forward, an icon's quick actions). WeChat, 2026-11-26: with no long press the model tried a swipe of zero
+    /// length, nothing opened, and the run asked for help at step 8.
+    static func held(_ rest: String) -> Bool {
+        let r = rest.lowercased()
+        return r.contains("hold") || r.contains("long")
+    }
+
     /// One DO line, e.g. "tap 152 362" -> {"action": "tap", "x": 152, "y": 362}.
     static func parseCommand(_ line: String) throws -> JObject {
         let (head, rest) = partition(line.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -89,6 +97,7 @@ enum Actions {
         for (k, n) in zip(keys, numbers) { action[k] = .int(n) }
         if name == "tap" && rest.lowercased().contains("precise") { action["precise"] = .bool(true) }
         if name == "tap", Self.twice(rest) { action["count"] = .int(2) }
+        if name == "tap", Self.held(rest) { action["hold"] = .bool(true) }
         return action
     }
 
