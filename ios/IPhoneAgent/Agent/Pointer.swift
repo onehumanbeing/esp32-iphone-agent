@@ -854,7 +854,7 @@ import UIKit
             log("open \(name): opened by scheme")
             return .opened
         }
-        let opener = AppOpener(home: { [self] in
+        var opener = AppOpener(home: { [self] in
             let before = screen?.live == true ? screen?.frame : nil
             // USB: the board's Home key works; over Bluetooth it answers an error, and cmd+h with an app in front did
             // nothing six times out of six (Settings, Weather; 2026-11-26), each a 3 s wait before the flick anyway.
@@ -904,6 +904,7 @@ import UIKit
             let lines = await UITreeOCR.lines(image, languages: UITreeOCR.languages(for: name), whole: true)
             return (lines, CGSize(width: image.width, height: image.height))
         }, tapAt: { [self] p in try await tap(p.x, p.y, aim: true) })
+        opener.glance = { [weak self] in self?.screen?.live == true ? self?.screen?.frame : nil }
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
         return result

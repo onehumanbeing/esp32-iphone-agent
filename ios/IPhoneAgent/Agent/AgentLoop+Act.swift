@@ -187,7 +187,7 @@ extension AgentLoop {
             if a["keyOnly"]?.bool == true { try await phone.homeKey() } else { try await phone.goHome(again: homeAgain) }
         case "open":
             let app = a["app"]?.str ?? ""
-            if AlreadyOpen.holds(app, steps) { return ("opened", OpenResult.already.rawValue) }
+            if AlreadyOpen.holds(app, steps), await !appLeftFront() { return ("opened", OpenResult.already.rawValue) }
             if HomeSwipeGuard.onHome(steps, startsOnHome: homeAtStart), try await tapHomeIcon(app) {
                 return ("opened", OpenResult.opened.rawValue)
             }
@@ -281,6 +281,17 @@ extension AgentLoop {
 /// Home key, Spotlight and the typing cost 20-57 s and came back to the same app (2026-11-17: `open 美团外卖` from
 /// one of its shop pages, 57 s, not_opened). Nothing is sent; the model is told to go back instead. Asked a second
 /// time in a row, it really opens (the run may have left the app in a way the steps do not show).
+extension AgentLoop {
+    /// The steps say the app is open, the screen may say otherwise: this app itself is in front (a link or a
+    /// notification brought it up), or the Home Screen shows. 2026-11-27 open review: 5 of the failed opens on builds
+    /// 24/25 were "already open" with this app, the App Switcher or the Home Screen in front, and nothing was sent.
+    func appLeftFront() async -> Bool {
+        if DeviceScreen.foreground { return true }
+        guard let frame = screen?.frame else { return false }
+        return await Pointer.onHomeScreen(frame)
+    }
+}
+
 enum AlreadyOpen {
     static func holds(_ app: String, _ steps: [JObject]) -> Bool {
         let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }

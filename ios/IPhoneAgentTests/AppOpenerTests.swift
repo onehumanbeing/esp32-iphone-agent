@@ -397,6 +397,33 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
     }
 
+    /// cmd+space brought nothing up (the app in front still): no cmd+a, backspace or name goes into that app; the
+    /// Search button next. A picture one frame behind is not taken for "nothing": only two looks that both match.
+    func testNothingTypedIntoTheAppInFrontWhenSpotlightDidNotComeUp() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, home, spotlight, app]
+        var glances: [Data?] = [home, home]
+        var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.glance = { glances.isEmpty ? self.spotlight : glances.removeFirst() }
+        opener.searchButton = { sent.append("search button"); return true }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        let beforeButton = sent.prefix { $0 != "search button" }
+        XCTAssertFalse(beforeButton.contains("key cmd+a"), "nothing cleared in the app in front")
+        XCTAssertFalse(beforeButton.contains { $0.hasPrefix("type") }, "nothing typed into it")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 1)
+
+        sent = []
+        queue = [home, spotlight, app]
+        glances = [home, spotlight]  // one stale frame, then Spotlight: typed at once
+        _ = try await opener.open("Notes")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
+        XCTAssertTrue(sent.contains("type Notes"))
+    }
+
     /// Past the budget no new try starts: the model gets not_opened and decides.
     func testAnOpenStopsTryingAfterItsBudget() async throws {
         var t = 0.0

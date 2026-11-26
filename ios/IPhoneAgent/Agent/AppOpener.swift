@@ -28,6 +28,9 @@ enum OpenResult: String {
     /// The agent app itself came to the front (a tap on its notification, its own shortcut as the top hit).
     var ownAppInFront: () -> Bool = { false }
     var same: (Data?, Data?) -> Bool = { Vision.similar($0, $1) }
+    /// The frame now, without waiting for it to settle: whether cmd+space brought anything up before keys are typed.
+    /// nil = not checked (tests feed their own frames to `look`).
+    var glance: (() async -> Data?)?
     /// A new screen rather than the same one redrawn (Spotlight after its letters were committed).
     var big: (Data?, Data?) -> Bool = { Vision.bigChange($0, $1) }
     var pause: (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
@@ -125,8 +128,19 @@ enum OpenResult: String {
             let reading = homeFrame.map { frame in Task { await read(frame) } }
             defer { reading?.cancel() }
             func homeLines() async -> [String] { await reading?.value ?? [] }
-            if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
+            var viaKey = false
+            if button, let searchButton, try await searchButton() {} else { try await key("cmd+space"); viaKey = true }
             try await pause(0.7)
+            // Nothing came up: the keys below would go to the app in front, cmd+a and backspace clearing its field
+            // and the name typed into it (2026-11-27 open review: a name typed into a chat's input box 4 times on
+            // build 24). Look first; the same screen as before = no Spotlight, the Search button next time.
+            // (twice, 0.6 s apart: the picture can run up to a second behind the phone)
+            if viaKey, let glance, homeFrame != nil, let up = await glance(), same(up, homeFrame),
+               (try? await pause(0.6)) != nil, let later = await glance(), same(later, homeFrame) {
+                log("open \(name): nothing came up after cmd+space; not typing into the app in front")
+                button = true
+                continue
+            }
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")
             try await key("backspace")
