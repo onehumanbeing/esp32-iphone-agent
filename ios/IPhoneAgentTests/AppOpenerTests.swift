@@ -413,7 +413,7 @@ import XCTest
     func testNothingTypedIntoTheAppInFrontWhenSpotlightDidNotComeUp() async throws {
         var sent: [String] = []
         var queue: [Data?] = [home, home, spotlight, app]
-        var glances: [Data?] = [home, home, home, home]  // nothing after cmd+space, nor after the second press
+        var glances: [Data?] = [home, home, home]  // three looks, all the Home Screen
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
                                read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
@@ -435,8 +435,9 @@ import XCTest
         XCTAssertTrue(sent.contains("type Notes"))
     }
 
-    /// The first cmd+space after this app left the front was dropped: a second press, not Home and the Search button.
-    func testADroppedCmdSpaceIsPressedOnceMore() async throws {
+    /// The picture runs behind: Spotlight shows on the third look. Typed then, with no second cmd+space (a toggle:
+    /// it closed the Spotlight that had come up, 2026-11-27).
+    func testALaggingPictureGetsNoSecondCmdSpace() async throws {
         var sent: [String] = []
         var queue: [Data?] = [home, spotlight, app]
         var glances: [Data?] = [home, home]
@@ -448,8 +449,7 @@ import XCTest
         opener.searchButton = { sent.append("search button"); return true }
         let result = try await opener.open("Notes")
         XCTAssertEqual(result, .opened)
-        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 2)
-        XCTAssertEqual(sent.filter { $0 == "home" }.count, 1, "\(sent)")
+        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1, "\(sent)")
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
     }
 

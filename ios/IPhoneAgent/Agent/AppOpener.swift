@@ -139,21 +139,20 @@ enum OpenResult: String {
             // and the name typed into it (2026-11-27 open review: a name typed into a chat's input box 4 times on
             // build 24). Look first; the same screen as before = no Spotlight, the Search button next time.
             // (twice, 0.6 s apart: the picture can run up to a second behind the phone)
+            // three looks over ~1.4 s, all the same as before = nothing came up. Not a second cmd+space: it is a
+            // toggle, and with the picture behind it closed a Spotlight that had come up (2026-11-27)
             func nothingUp() async -> Bool {
-                guard let glance, homeFrame != nil, let up = await glance(), same(up, homeFrame),
-                      (try? await pause(0.6)) != nil, let later = await glance() else { return false }
-                return same(later, homeFrame)
-            }
-            // the first cmd+space right after this app left the front is often dropped (2026-11-27: the Home Screen
-            // stayed, and going Home again for the Search button cost 9 s): press it once more first
-            if viaKey, await nothingUp() {
-                try await key("cmd+space")
-                try await pause(0.7)
-                if await nothingUp() {
-                    log("open \(name): nothing came up after cmd+space twice; not typing into the app in front")
-                    button = true
-                    continue
+                guard let glance, homeFrame != nil else { return false }
+                for wait in [0.0, 0.6, 0.8] {
+                    if wait > 0, (try? await pause(wait)) == nil { return false }
+                    guard let now = await glance(), same(now, homeFrame) else { return false }
                 }
+                return true
+            }
+            if viaKey, await nothingUp() {
+                log("open \(name): nothing came up after cmd+space; not typing into the app in front")
+                button = true
+                continue
             }
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")
