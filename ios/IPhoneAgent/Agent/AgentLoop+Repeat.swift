@@ -243,6 +243,33 @@ enum TypedGuard {
     }
 }
 
+/// The same text typed again after it was typed and committed (a tap or Return after it changed the screen): what it
+/// made (a reminder, a note, a sent message) is likely there already. Held back once; the second answer stands (a
+/// search that found nothing may need the same words again). 2026-11-26: + / type 买牛奶 / Done three times over made
+/// three reminders, and repeated sends were among the top free-line problems that week.
+enum RetypeGuard {
+    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+        guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              new["action"]?.str == "type", case let text = trim(new["text"]?.str ?? ""), !text.isEmpty,
+              steps.last?["action"]?.str != RepeatGuard.action else { return nil }  // asked once already
+        let moves = Array(steps.filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") })
+        guard let at = moves.lastIndex(where: { $0["action"]?.str == "type" && trim($0["text"]?.str ?? "") == text })
+        else { return nil }
+        let committed = moves[(at + 1)...].contains {
+            ($0["action"]?.str == "tap" || Actions.isEnter($0)) && $0["changed"] != .bool(false)
+        }
+        return committed ? new : nil
+    }
+
+    static func reason(_ text: String) -> String {
+        "Not done: \"\(text)\" was already typed earlier in this run and then committed (a tap or Return after it "
+            + "changed the screen), so what it made may already be there (a saved item, a sent message). Look for it "
+            + "on this screen first; type it again only if it is not there."
+    }
+
+    private static func trim(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
 /// Held back this often in a short while: the run is stuck, ask the person rather than try again.
 enum StuckGuard {
     static let limit = 3, window = 12
@@ -300,6 +327,9 @@ extension AgentLoop {
         } else if HomeSwipeGuard.repeated(acts.map(\.act), after: steps, startsOnHome: homeAtStart) != nil {
             DebugLog.write("home swipe guard: a swipe on the Home Screen; asking once more")
             reason = HomeSwipeGuard.reason
+        } else if let held = RetypeGuard.repeated(acts.map(\.act), after: steps) {
+            DebugLog.write("retype guard: the same text again after it was committed; asking once more")
+            reason = RetypeGuard.reason(held["text"]?.str ?? "")
         } else if TypedGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("typed guard: a send right after a type that stopped part way; asking once more")
             reason = TypedGuard.reason(steps.last { $0["action"]?.str == "type" }?["typed"]?.str ?? "")

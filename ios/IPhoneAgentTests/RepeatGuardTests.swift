@@ -108,6 +108,21 @@ import XCTest
         XCTAssertTrue(StepText.notMoves.contains(RepeatGuard.action))
     }
 
+    func testTheSameTextTypedAgainAfterItWasCommittedIsHeldBackOnce() {
+        let type: JObject = ["action": .str("type"), "text": .str("买牛奶")]
+        let done = tap(903, 98, changed: true)
+        // + / type / Done, then + and the same text again (2026-11-26: three reminders)
+        let steps = [tap(863, 937, changed: true), type, done, tap(863, 937, changed: true)]
+        XCTAssertNotNil(RetypeGuard.repeated([type], after: steps), "the same text after its commit")
+        XCTAssertNil(RetypeGuard.repeated([["action": .str("type"), "text": .str("买面包")]], after: steps), "other text")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [tap(863, 937, changed: true), type]), "not committed yet")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [type, tap(903, 98, changed: false)]), "the commit changed nothing")
+        let asked = steps + [["action": .str(RepeatGuard.action), "reason": .str(RetypeGuard.reason("买牛奶"))]]
+        XCTAssertNil(RetypeGuard.repeated([type], after: asked), "its second answer stands")
+        let enter: JObject = ["action": .str("key"), "combo": .str("enter"), "changed": .bool(true)]
+        XCTAssertNotNil(RetypeGuard.repeated([type], after: [type, enter]), "Return committed it")
+    }
+
     func testATapOnTheConfirmedStepsSpotIsHeldBackOnce() {
         let confirmed: JObject = ["action": .str("confirmed"), "reason": .str("add to cart")]
         let steps = [tap(500, 900, changed: true), confirmed, tap(500, 938, changed: true)]

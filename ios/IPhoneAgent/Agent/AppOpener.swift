@@ -165,10 +165,20 @@ enum OpenResult: String {
             var shown = results, closed = false, changed = false, entered = 0
             for round in 0..<2 {
                 changed = false
-                let (spots, web, topHit) = await spots(shown, name, labels)
+                var (spots, web, topHit) = await spots(shown, name, labels)
+                // one look is no proof: Spotlight fills its sections in one by one, and the web suggestions can be read
+                // before the app's Top Hit above them (2026-11-27: Safari, installed, "not installed", Chrome opened)
+                if web {
+                    try await pause(1.0)
+                    if let again = await look() {
+                        shown = again
+                        (spots, web, topHit) = await self.spots(again, name, labels)
+                    }
+                }
                 if web {  // not installed: tapping it or Return opens a web search
                     seen.webOnly = true
-                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                    let note = await rowsNote(shown, name, labels)
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed (rows: \(note))")
                     return .notFound
                 }
                 // The pinyin letters stayed composing (the pinyin keyboard was on) and the name is read only low on
@@ -285,6 +295,15 @@ enum OpenResult: String {
         let (found, size) = await readBoxes(frame)
         let rows = Self.resultRows(found, labels: [name] + labels, size: size)
         return (rows.filter { !$0.web }.map(\.at), rows.first?.web == true, Self.isTopHit(rows))
+    }
+
+    /// What a "not installed" rests on, for the log: each row of the name, top first, at its height with the header
+    /// over it (2026-11-27: Safari, installed, was called not installed; the log had no way to tell why).
+    private func rowsNote(_ frame: Data, _ name: String, _ labels: [String]) async -> String {
+        guard let readBoxes else { return "?" }
+        let (found, size) = await readBoxes(frame)
+        let rows = Self.resultRows(found, labels: [name] + labels, size: size)
+        return rows.map { "y \(fmt($0.at.y)) under \($0.header.map { "\"\($0)\"" } ?? "none")" }.joined(separator: "; ")
     }
 
     private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
