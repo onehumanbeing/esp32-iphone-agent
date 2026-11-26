@@ -109,8 +109,12 @@ enum OpenResult: String {
         // typed as itself, the field shows the name too, so a result row makes two; typed as letters, one row more
         // than the Home Screen showed (its icon label) is enough
         var onHome = 0
+        // typed as its name in the iPhone's language (Calculator for 计算器), the field and the row show that name:
+        // judged by 计算器 alone it was never found, 8 s lost before the pinyin on every such open (2026-11-27)
+        let asLabel = query != name && labels.contains(query)
         func shows(_ lines: [String]) -> Bool {
-            Self.listed(name, in: lines, as: labels) || query != name && Self.count(name, in: lines) > onHome
+            Self.listed(name, in: lines, as: labels) || asLabel && Self.listed(query, in: lines, as: labels)
+                || query != name && Self.count(name, in: lines) > onHome
         }
         // cmd+space first on every open (0.2 s); the Search button (a pointer search, 10-24 s) only after it brought
         // nothing up in this open. 2026-11-17: a "Search button first" kept across runs since one miss on 11-13 meant

@@ -45,6 +45,17 @@ import XCTest
         XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type shizhong", "key enter"])
     }
 
+    /// An English iPhone: 计算器 goes in as Calculator, and the results listing Calculator are the app (2026-11-27:
+    /// judged by 计算器 alone, never found, and the pinyin after it failed too).
+    func testAChineseNameTypedInTheIPhonesLanguageIsFoundByThatName() async throws {
+        var sent: [String] = []
+        var en = opener([home, spotlight, app], lines: ["Calculator", "Calculator"], homeLines: [], appLines: ["AC", "%"]) { sent.append($0) }
+        en.language = "en"
+        let result = try await en.open("计算器")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type Calculator"], "\(sent)")
+    }
+
     /// The letters list nothing: the name itself, through the pinyin keyboard, after Home.
     func testChineseNameItselfWhenThePinyinListsNothing() async throws {
         var sent: [String] = [], typed = ""
