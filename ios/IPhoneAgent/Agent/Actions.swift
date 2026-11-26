@@ -15,7 +15,7 @@ enum Actions {
     static let actions: [String: [String]] = [
         "tap": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "circle": ["x", "y", "r"], "path": ["points"],
         "type": ["text"], "clear": [], "key": ["combo"], "done": ["answer"], "fail": ["reason"], "confirm": ["reason"],
-        "home": [], "back": [], "wait": [], "open": ["app"],
+        "home": [], "back": [], "wait": [], "open": ["app"], "switch": [],
         "read": ["what"], "collect": ["what"], "find": ["text"], "each": ["text"], "note": ["text"], "progress": ["text"], "remember": ["text"], "learn": ["text"], "write": [],
         "tool": ["text"],  // tool <name> "query" (Tools.swift)
         "guide": ["text"],  // guide APP: that app's notes from the server (AppGuides.swift)
@@ -25,7 +25,7 @@ enum Actions {
     ]
     static let textArgs: Set<String> = ["text", "combo", "answer", "reason", "what", "app"]
     /// Actions that touch the screen.
-    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open", "say"]
+    static let gestures: Set<String> = ["tap", "swipe", "circle", "path", "type", "clear", "key", "home", "back", "open", "say", "switch"]
     /// Actions that touch the notebook or memory, not the screen (AgentLoop+Memory).
     static let notebookActions: Set<String> = ["read", "note", "progress", "remember", "learn", "write", "tool", "guide", "file", "snap"]
 
@@ -97,7 +97,7 @@ enum Actions {
         for (k, n) in zip(keys, numbers) { action[k] = .int(n) }
         if name == "tap" && rest.lowercased().contains("precise") { action["precise"] = .bool(true) }
         if name == "tap", Self.twice(rest) { action["count"] = .int(2) }
-        if name == "tap", Self.held(rest) { action["hold"] = .bool(true) }
+        if name == "tap" || name == "swipe", Self.held(rest) { action["hold"] = .bool(true) }
         return action
     }
 

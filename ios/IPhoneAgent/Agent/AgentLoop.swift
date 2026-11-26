@@ -8,6 +8,10 @@ import Foundation
     func clickAgain() async throws
     /// Press at (x, y), hold about a second, lift: a long press.
     func longPress(_ x: Double, _ y: Double) async throws
+    /// Press, stand still a moment, then move while pressed: picks the thing up (an icon, a list row, a text handle).
+    func pressDrag(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) async throws
+    /// The app used before this one, in front (the home bar flicked sideways).
+    func switchApp() async throws
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws
     func drag(_ points: [CGPoint], hold: Bool) async throws
     /// nil: all of it went in; else what did not (Pointer.type).

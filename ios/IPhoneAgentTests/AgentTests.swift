@@ -431,6 +431,8 @@ import XCTest
         XCTAssertEqual(try Actions.parseCommand("tap 348 395 twice")["count"], .int(2))
         XCTAssertEqual(try Actions.parseCommand("tap 350 750 hold")["hold"], .bool(true))
         XCTAssertNil(try Actions.parseCommand("tap 350 750")["hold"])
+        XCTAssertEqual(try Actions.parseCommand("swipe 100 500 100 800 hold")["hold"], .bool(true))
+        XCTAssertEqual(try Actions.parseCommand("switch")["action"], .str("switch"))
         XCTAssertNil(try Actions.parseCommand("tap 348 395")["count"])
         for reply in ["THINK: wave\nDO: tap 480 20 twice", "THINK: build\nDO: tap 348 395\nDO: tap 348 395"] {
             let phone = FakeGestures(), screen = FakeScreen()
@@ -784,6 +786,8 @@ import XCTest
     }
     func clickAgain() async throws { calls.append("click") }
     func longPress(_ x: Double, _ y: Double) async throws { calls.append("longpress") }
+    func pressDrag(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) async throws { calls.append("pressdrag") }
+    func switchApp() async throws { calls.append("switch") }
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool) async throws { calls.append("swipe") }
     func drag(_ points: [CGPoint], hold: Bool) async throws { calls.append("drag") }
     var typeNote: String?

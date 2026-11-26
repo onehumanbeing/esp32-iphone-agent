@@ -768,12 +768,23 @@ import UIKit
         try await drag([CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2)], hold: hold)
     }
 
+    func pressDrag(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) async throws {
+        log(String(format: "press and drag (%.3f, %.3f) to (%.3f, %.3f)", x1, y1, x2, y2))
+        try await drag([CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2)], hold: true, still: Self.longPress * 0.8)
+    }
+
+    func switchApp() async throws { try await switchToPreviousApp() }
+
     /// Press at the first point, move through the rest, release: one continuous stroke. hold rests at the end
     /// first, so lists and pickers stop exactly there; system gestures (home, back) need the flick.
-    func drag(_ points: [CGPoint], hold: Bool = true) async throws {
+    func drag(_ points: [CGPoint], hold: Bool = true) async throws { try await drag(points, hold: hold, still: 0) }
+
+    /// still: seconds to stand still after the press, before moving (a press and drag).
+    func drag(_ points: [CGPoint], hold: Bool, still: Double) async throws {
         try await point(Double(points[0].x), Double(points[0].y))
         do {
             try await device.send("press")
+            if still > 0 { try await Task.sleep(nanoseconds: UInt64(still * 1e9)) }
             var from = points[0]
             for (i, p) in points.dropFirst().enumerated() {
                 if hold && absolute && i == 0 {  // ease in: the first part slowly, so the page follows without a jerk

@@ -120,6 +120,8 @@ extension AgentLoop {
         case "tap":
             try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
             if a["count"]?.double == 2 { try await phone.clickAgain() }
+        case "swipe" where a["hold"]?.bool == true: try await phone.pressDrag(p("x1"), p("y1"), p("x2"), p("y2"))
+        case "switch": try await phone.switchApp()
         case "swipe": try await phone.swipe(p("x1"), p("y1"), p("x2"), p("y2"), hold: true)
         case "path": try await phone.drag(points(a).map { CGPoint(x: $0.x / 1000, y: $0.y / 1000) }, hold: true)
         case "circle": try await phone.drag(circle(p("x"), p("y"), p("r"), aspect: geometry?.screenAspect ?? screen?.aspect ?? 9 / 19.5), hold: true)
