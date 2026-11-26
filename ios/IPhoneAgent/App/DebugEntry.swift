@@ -295,6 +295,10 @@ extension AppModel {
             switch name {
             case "stop":
                 await stopAgent(by: "debug")
+                // harness/run.sh starts the next task on this line: the stopped run's late "finished:" ended the next one
+                let deadline = now() + 15
+                while (agent.running || startingAgent), now() < deadline { try? await Task.sleep(nanoseconds: 200_000_000) }
+                say("debug: stopped")
             case "run":
                 guard await waitReady(mirroring: true) else { return say("debug: run not started, board/mirroring not ready in 30 s") }
                 guard !agent.running else { return say("debug: a run is already going") }

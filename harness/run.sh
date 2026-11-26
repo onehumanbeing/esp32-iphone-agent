@@ -7,9 +7,9 @@ source harness/lib.sh
 [[ -n ${1:-} ]] || { echo 'usage: harness/run.sh "<task>" [seconds]'; exit 1; }
 # a run left waiting (asking for help, paused) would refuse the new one ("a run is already going"): stop it first
 STOP=$(NO_LAUNCH=1 launch -stop)
-follow "$STOP" '^[^ ]+ (debug: stop|finished: )' '^[^ ]+ debug: stop' 15 >/dev/null || true
-sleep 2  # the stop is asynchronous: let a running task wind down before the new one asks
+follow "$STOP" '^[^ ]+ (debug: stop|finished: )' '^[^ ]+ debug: stopped' 20 >/dev/null || true  # the old run has wound down
 FROM=$(launch -run "$1")
-follow "$FROM" '^[^ ]+ (debug: |started: |finished: |cannot start: |LLM: )' \
-  '^[^ ]+ (finished: |cannot start: |debug: run not started|debug: a run is already going)' "${2:-600}" \
-  '(cannot start: |debug: run not started|debug: a run is already going)'
+# a run that asks for help waits for a reply nobody unattended will give: that ends it here too
+follow "$FROM" '^[^ ]+ (debug: |started: |finished: |cannot start: |LLM: |step [0-9]+: help )' \
+  '^[^ ]+ (finished: |cannot start: |(debug: )?run not started|debug: a run is already going|step [0-9]+: help )' "${2:-600}" \
+  '(cannot start: |(debug: )?run not started|debug: a run is already going)'
