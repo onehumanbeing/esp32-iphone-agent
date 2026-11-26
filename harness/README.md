@@ -79,6 +79,8 @@ uv run harness/tapcv.py tap-text Settings --expect General
 uv run harness/tapcv.py mirror <board name> --restart    # Control Center > Screen Mirroring > the board, until connected
 ```
 
+`run.sh` does this by itself before a task when `HARNESS_BOARD` names the board and there is no picture.
+
 `hid.sh "...; stay"` leaves the pointer where the moves put it (otherwise it goes back to the corner at the end).
 
 ## Security

@@ -55,6 +55,8 @@ uv run harness/tapcv.py tap-text Settings --expect General
 uv run harness/tapcv.py mirror <板子名> --restart    # 控制中心 › 屏幕镜像 › 这块板子，直到连上
 ```
 
+设置了 `HARNESS_BOARD`（板子名）时，`run.sh` 在任务开始前发现没有画面会自己做这一步。
+
 `hid.sh "...; stay"` 让指针留在移动到的位置（否则结束时回到角落）。
 
 ## 安全
