@@ -21,13 +21,14 @@ void gop_set_config(gop_buf *g, const uint8_t *annexb, size_t len, uint32_t ts) 
 static void restart(gop_buf *g) {
   g->used = 0;
   g->n = 0;
+  g->ids = 0;
   g->gen++;
 }
 
 int gop_append(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t ts) {
   if (g->used + len > g->cap || g->n == g->max) return -1;
   memcpy(g->arena + g->used, annexb, len);
-  g->aus[g->n] = (gop_au){(uint32_t)g->used, (uint32_t)len, ts, idr};
+  g->aus[g->n] = (gop_au){(uint32_t)g->used, (uint32_t)len, ts, g->ids++, idr, false};
   g->used += len;
   return g->n++;
 }
@@ -54,6 +55,31 @@ int gop_find(const gop_buf *g, uint32_t ts) {
   return -1;
 }
 
+int gop_after(const gop_buf *g, uint32_t id) {
+  int i = g->n;
+  while (i > 0 && g->aus[i - 1].id > id) i--;
+  return i;
+}
+
+// Drops the unreferenced AUs but the newest (it is the screen now), keeping the order. Most of a still screen's
+// AUs are unreferenced (2026-11-26: 14907 of 15362 in a GOP the app replayed), so a full GOP gets most of its room
+// back instead of freezing until the next IDR, which iOS may not send until mirroring restarts.
+static void squeeze(gop_buf *g) {
+  int k = 0;
+  size_t used = 0;
+  for (int i = 0; i < g->n; i++) {
+    gop_au a = g->aus[i];
+    if (a.unref && i < g->n - 1) continue;
+    if (a.off != used) memmove(g->arena + used, g->arena + a.off, a.len);
+    a.off = (uint32_t)used;
+    used += a.len;
+    g->aus[k++] = a;
+  }
+  if (k < g->n) g->squeezes++;
+  g->n = k;
+  g->used = used;
+}
+
 void gop_drop_front(gop_buf *g, int k) {
   if (k <= 0) return;
   if (k >= g->n) return gop_clear(g);
@@ -73,7 +99,17 @@ int gop_push(gop_buf *g, const uint8_t *annexb, size_t len, bool idr, uint32_t t
   } else if (g->wait_idr || g->frozen) {
     return -1;
   }
+  bool unref = !idr && annexb_unreferenced(annexb, len);
   int i = gop_append(g, annexb, len, idr, ts);
+  if (i < 0 && g->n) {
+    // Full: squeeze out the unreferenced AUs. Only when that gives back an eighth of the room, so a GOP of
+    // reference frames freezes as before instead of being squeezed (a PSRAM memmove of MBs) at every AU.
+    size_t used = g->used;
+    int n = g->n;
+    squeeze(g);
+    if (used - g->used >= g->cap / 8 || n - g->n >= g->max / 8) i = gop_append(g, annexb, len, idr, ts);
+  }
+  if (i >= 0) g->aus[i].unref = unref;
   if (i < 0) {
     // Full. Keep what we have: it still decodes, and iOS 26 may send no IDR for the rest of the mirroring
     // session, so restarting would leave nothing to show at all (#25). Only an IDR too big leaves it empty.
@@ -88,6 +124,20 @@ bool annexb_has_idr(const uint8_t *p, size_t len) {
   for (size_t i = 0; i + 4 < len; i++)
     if (p[i] == 0 && p[i + 1] == 0 && p[i + 2] == 1 && (p[i + 3] & 0x1f) == 5) return true;
   return false;
+}
+
+bool annexb_unreferenced(const uint8_t *p, size_t len) {
+  int slices = 0;
+  for (size_t i = 0; i + 3 < len; i++) {
+    if (p[i] || p[i + 1] || p[i + 2] != 1) continue;
+    uint8_t h = p[i + 3], type = h & 0x1f;
+    if (type == 1 || type == 5) {
+      if (h & 0x60) return false;
+      slices++;
+    }
+    i += 3;
+  }
+  return slices > 0;
 }
 
 bool avcc_to_annexb(uint8_t *p, size_t len) {

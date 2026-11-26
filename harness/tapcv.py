@@ -196,8 +196,28 @@ def mirror(board: str, restart: bool = False) -> bool:
         tap(*stop)
         time.sleep(2)
         img = mirroring_menu(board)
-    spot = find_text(img, board)
-    tap(*spot, expect="Connecting")
+    # The list fills in for a few seconds and rows move: wait until the board's row stays put, then check it is
+    # still under the pointer before the click (2026-11-26: the row moved down while the pointer was on its way,
+    # and the click went into the Mac mini above it, mirroring the phone there)
+    spot, prev = None, None
+    for _ in range(8):
+        spot = find_text(shot(), board)
+        if spot and prev and abs(spot[1] - prev[1]) < 10:
+            break
+        prev = spot
+        time.sleep(1)
+    if spot is None:
+        sys.exit(f"{board} not in the Screen Mirroring list")
+    for _ in range(3):
+        landed = point(*spot, tol=20)
+        now_at = find_text(landed, board)
+        if now_at and abs(now_at[1] - spot[1]) < 25:
+            break
+        spot = now_at or spot  # it moved: point again at where it is now
+    else:
+        sys.exit(f"{board}'s row kept moving; not clicking")
+    hid("move 1 0; move -1 0; click")
+    time.sleep(1.5)
     ok = False
     for _ in range(20):  # connected: the menu now offers Stop Mirroring
         time.sleep(1.5)
@@ -213,12 +233,14 @@ def mirror(board: str, restart: bool = False) -> bool:
 
 
 def pictured(seconds: float = 12) -> bool:
-    """The app has a frame from the board (`hid.sh shot` does not answer "no frame")."""
+    """A picture arrives now (the app's `video`: board streaming, nothing frozen, a recent frame). The app's last
+    frame alone is no proof (2026-11-26: after the board restarted, `hid.sh shot` saved the one from before it and
+    mirroring was taken for on); nor `snap`, which sends the board's whole GOP and timed out at 15 s once it was MBs."""
     end = time.time() + seconds
     while True:
-        out = subprocess.run([str(HARNESS / "hid.sh"), "shot"], capture_output=True, text=True, timeout=180,
+        out = subprocess.run([str(HARNESS / "hid.sh"), "video"], capture_output=True, text=True, timeout=180,
                              env={**os.environ, "NO_LAUNCH": "1"}).stdout
-        if "harness hid: done" in out and "no frame" not in out:
+        if "video → live" in out:
             return True
         if time.time() > end:
             return False

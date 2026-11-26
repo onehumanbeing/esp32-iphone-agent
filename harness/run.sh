@@ -10,7 +10,9 @@ STOP=$(NO_LAUNCH=1 launch -stop)
 follow "$STOP" '^[^ ]+ (debug: stop|finished: )' '^[^ ]+ debug: stopped' 20 >/dev/null || true  # the old run has wound down
 # No picture (a new app process after app.sh, a stuck session): the run would wait 5 minutes and give up. With
 # the board's AirPlay name in HARNESS_BOARD, Screen Mirroring is restarted from the Mac first (tapcv.py).
-if [[ -n ${HARNESS_BOARD:-} ]] && NO_LAUNCH=1 harness/hid.sh shot 2>&1 | grep -q 'err no frame'; then
+# `video` (app: board streaming, nothing frozen, a recent frame): the app's last frame alone may be from before the
+# board restarted (2026-11-26)
+if [[ -n ${HARNESS_BOARD:-} ]] && ! NO_LAUNCH=1 harness/hid.sh video 2>&1 | grep -q 'video → live'; then
   echo "no picture: restarting Screen Mirroring to $HARNESS_BOARD"
   for try in 1 2; do  # a restart that did not bring a picture: once more
     if uv run -q harness/tapcv.py mirror "$HARNESS_BOARD" --restart | tail -1; then break; fi

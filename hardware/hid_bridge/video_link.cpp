@@ -45,6 +45,7 @@ struct Sink {
   uint16_t seq[2];             // each side's chunk numbers
   uint32_t txGen = UINT32_MAX;
   int next, tailNext;
+  uint32_t lastId, squeezes;  // the GOP AU it copied last, and the GOP's squeezes then (copyAu)
   bool catchingUp;
   volatile uint32_t followGen = UINT32_MAX;  // the generation it sends in order, AU after AU
   volatile bool onTail;                      // it goes on from the tail past a frozen GOP
@@ -128,12 +129,19 @@ static bool sendAu(Sink &s, const uint8_t *p, size_t n, uint8_t flags, uint32_t 
   return true;
 }
 
-// Copies AU i of generation gen into the sink's scratch; false if the GOP moved on.
-static bool copyAu(Sink &s, uint32_t gen, int i, gop_au *au) {
+// Copies AU i of generation gen into the sink's scratch; false if the GOP moved on. A squeeze (gop.c) moved the
+// indexes since the last copy: i becomes the first AU after the one copied last (lastId), so none is sent twice
+// and no reference frame is skipped.
+static bool copyAu(Sink &s, uint32_t gen, int &i, uint32_t &lastId, uint32_t &squeezes, gop_au *au) {
   xSemaphoreTake(lock, portMAX_DELAY);
+  if (squeezes != gop.squeezes) {
+    squeezes = gop.squeezes;
+    if (i > 0 && gop.gen == gen) i = gop_after(&gop, lastId);
+  }
   bool ok = gop.gen == gen && i < gop.n && gop.aus[i].len <= SCRATCH_CAP;
   if (ok) {
     *au = gop.aus[i];
+    lastId = au->id;
     memcpy(s.scratch, gop.arena + au->off, au->len);
   }
   xSemaphoreGive(lock);
@@ -184,7 +192,8 @@ static void unfollow(Sink &s, char why) {
 
 // Snapshot of the GOP state: generation, AU count, SPS/PPS. A frozen GOP counts as none (it may end minutes
 // ago), except for a stream that goes on from the tail.
-static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint32_t *cfg_ts, const Sink *following) {
+static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint32_t *cfg_ts, const Sink *following,
+                     uint32_t *endId = NULL) {
   xSemaphoreTake(lock, portMAX_DELAY);
   *gen = gop.gen;
   if (gop.frozen && !(following && tailLive && following->onTail && following->followGen == gop.gen)) {
@@ -194,6 +203,7 @@ static bool snapshot(uint32_t *gen, int *n, uint8_t *cfg, size_t *cfg_len, uint3
     return false;
   }
   *n = gop.wait_idr ? 0 : gop.n;
+  if (endId) *endId = *n ? gop.aus[*n - 1].id : 0;
   *cfg_len = gop.cfg_len;
   *cfg_ts = gop.cfg_ts;
   memcpy(cfg, gop.cfg, gop.cfg_len);
@@ -208,7 +218,8 @@ static String doSnap(Sink &s) {
     uint32_t gen, cfg_ts;
     size_t cfg_len;
     int n;
-    if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts, NULL)) {
+    uint32_t endId;
+    if (!snapshot(&gen, &n, cfg, &cfg_len, &cfg_ts, NULL, &endId)) {
       if (frozenNow()) return "err video frozen (restart screen mirroring)";
       // wait_idr is true from boot; only surface the keyframe wait once mirroring is actually up.
       if (waitingIdrNow() && airplay_state() == AIRPLAY_STREAMING) return "err waiting for keyframe";
@@ -216,9 +227,11 @@ static String doSnap(Sink &s) {
     }
     if (!sendAu(s, cfg, cfg_len, VF_CONFIG | VF_SNAP, cfg_ts)) return "err video send failed";
     bool complete = true;
-    for (int i = 0; i < n && complete; i++) {
+    uint32_t lastId = 0, squeezes = 0;
+    // up to the AU that was newest at the snapshot, by id: a squeeze mid-send moves the indexes
+    for (int i = 0; complete && (i == 0 || lastId < endId); i++) {
       gop_au au;
-      complete = copyAu(s, gen, i, &au);
+      complete = copyAu(s, gen, i, lastId, squeezes, &au);
       if (complete && !sendAu(s, s.scratch, au.len, VF_SNAP | (au.idr ? VF_IDR : 0), au.ts)) return "err video send failed";
     }
     if (complete) return "ok";  // else a new IDR replaced the GOP mid-send: start over with it
@@ -258,6 +271,8 @@ static bool resumeAt(Sink &s, uint32_t ts) {
   if (ok) {
     s.txGen = s.followGen = gop.gen;
     s.next = j >= 0 ? gop.n : i + 1;
+    s.lastId = s.next > 0 ? gop.aus[s.next - 1].id : 0;
+    s.squeezes = gop.squeezes;
     s.tailNext = j >= 0 ? j + 1 : 0;
     s.onTail = gop.frozen;
     s.catchingUp = s.next < gop.n;
@@ -327,7 +342,7 @@ static void streamStep(Sink &s) {
     if (!sendAu(s, cfg, cfg_len, VF_CONFIG, cfg_ts)) { s.txGen = UINT32_MAX; unfollow(s, 'c'); return; }
     s.followGen = gen;
   }
-  for (gop_au au; s.next < n && copyAu(s, gen, s.next, &au); s.next++)
+  for (gop_au au; s.next < n && copyAu(s, gen, s.next, s.lastId, s.squeezes, &au); s.next++)
     if (!sendAu(s, s.scratch, au.len, (au.idr ? VF_IDR : 0) | resumeFlag(s), au.ts)) { s.txGen = UINT32_MAX; unfollow(s, 'g'); return; }
   if (s.next < n) return;
   s.catchingUp = false;
@@ -393,7 +408,10 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   }
   xSemaphoreTake(lock, portMAX_DELAY);
   bool wasFrozen = gop.frozen, wasLive = tailLive;
+  uint32_t squeezes = gop.squeezes;
+  int before = gop.n;
   gop_push(&gop, au, len, idr, now);
+  int squeezed = gop.squeezes != squeezes ? before + (gop.frozen ? 0 : 1) - gop.n : 0;
   bool froze = gop.frozen && !wasFrozen;
   uint32_t frozeFor = idr && wasFrozen && frozeAt ? now - frozeAt : 0;
   if (froze) frozeAt = now;
@@ -430,6 +448,8 @@ void video_on_au(const uint8_t *au, size_t len, bool idr) {
   int aus = gop.n;
   uint32_t kb = gop.used / 1024;
   xSemaphoreGive(lock);
+  if (squeezed) board_log("video: GOP full; dropped %d unreferenced AUs, now %d AUs, %lu KB", squeezed, aus,
+                          (unsigned long)kb);
   if (froze) board_log("video: GOP full (%d AUs, %lu KB); the streams in step go on from the tail\n", aus,
                            (unsigned long)kb);
   if (frozeFor) board_log("video: an IDR ended the full GOP after %lu s", (unsigned long)(frozeFor / 1000));
@@ -487,6 +507,12 @@ VideoDiag video_diag() {
   xSemaphoreTake(lock, portMAX_DELAY);
   d.gopAus = gop.n;
   d.gopKb = gop.used / 1024;
+  d.gopUnref = 0;
+  d.gopUnrefKb = 0;
+  for (int i = 0; i + 1 < gop.n; i++)
+    if (gop.aus[i].unref) d.gopUnref++, d.gopUnrefKb += gop.aus[i].len;
+  d.gopUnrefKb /= 1024;
+  d.squeezes = gop.squeezes;
   d.overflows = gop.overflows;
   d.frozen = gop.frozen && !(tailLive && sink.who == FROM_APP && sink.onTail);
   d.frozenMs = gop.frozen && frozeAt ? now - frozeAt : 0;

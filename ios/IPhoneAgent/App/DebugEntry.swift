@@ -442,6 +442,10 @@ extension AppModel {
                 } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
+                } else if command == "video" {  // a picture arrives now: what harness/run.sh and tapcv.py check
+                    // (not `snap`: the board sends its whole GOP for one, 15 s+ once it is MBs, 2026-11-26)
+                    let st = board.status
+                    reply = feed.live ? "live" : "err ap \(st?.ap ?? "?") fz \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
                     wifiVideo.stop()
                     wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)

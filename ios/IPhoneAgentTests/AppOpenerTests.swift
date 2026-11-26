@@ -426,5 +426,7 @@ import XCTest
         XCTAssertFalse(SearchPill.covers(pill!, CGPoint(x: 0.5, y: 0.9)), "the dock")
         XCTAssertNotNil(SearchPill.label([("搜索", [460, 1640, 540, 1680])], size: size))
         XCTAssertNil(SearchPill.label([("Search", [440, 120, 560, 160])], size: size), "an app's own search field at the top")
+        // Settings on iOS 27: left-aligned search fields low on the screen (measured at 73% and 93%, x 0.18)
+        XCTAssertNil(SearchPill.label([("Search", [180, 1452, 320, 1492]), ("Search", [175, 1862, 313, 1902])], size: size))
     }
 }

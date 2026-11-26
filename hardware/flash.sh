@@ -93,7 +93,7 @@ stty -f "$PORT" 1200 2>/dev/null || stty -F "$PORT" 1200 2>/dev/null || true
 # The ROM bootloader may come back under a new name. Follow the port that appeared after the
 # reset rather than the first one listed, so other connected boards are never picked up.
 new_ports() { comm -13 <(sort <<<"$BEFORE") <(ports | sort); }
-for _ in $(seq 20); do sleep 0.5; [[ -n $(new_ports) ]] && break; done
+for _ in $(seq 120); do sleep 0.5; [[ -n $(new_ports) ]] && break; done  # macOS took 40 s+ to list the ROM port (2026-11-26)
 sleep 1  # let the ROM bootloader's serial come up
 NEW=$(new_ports)
 case $(grep -c . <<<"$NEW" || true) in

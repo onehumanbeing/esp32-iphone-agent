@@ -311,7 +311,10 @@ enum SearchPill {
         guard size.width > 0, size.height > 0 else { return nil }
         let hit = lines.first { line in
             let text = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "Q. ")).lowercased()
-            return (text == "search" || text == "搜索") && Double(line.box[1]) / size.height > 0.6
+            // centred: Settings on iOS 27 has left-aligned "Search" fields low on the screen too (2026-11-26: at 73%
+            // and 93% height, x 0.18), and open took Settings for the Home Screen, typing into its search
+            let mid = Double(line.box[0] + line.box[2]) / 2 / size.width
+            return (text == "search" || text == "搜索") && Double(line.box[1]) / size.height > 0.6 && abs(mid - 0.5) < 0.12
         }
         guard let b = hit?.box else { return nil }
         let w = Double(size.width), h = Double(size.height)

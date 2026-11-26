@@ -20,6 +20,19 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 - A plain `wait` on a screen where nothing moves ends after 4 s still instead of 15 s.
 - Harness: `tapcv.py` corrects the pointer with the scale its last move showed, waits for the Screen Mirroring
   list, and closes Control Center until the status bar's clock is back.
+- Opening an app with Settings in front no longer takes Settings for the Home Screen: on iOS 27 Settings has
+  "Search" fields low on the screen too, so the Home Screen's Search pill must be centred. It cost about 27 s and a
+  not-found open in three Clock tasks out of three.
+- A run paused for a frozen picture shows how to restart Screen Mirroring (Control Center, Screen Mirroring, Stop
+  Mirroring, choose the board again), and the Home tip says the same.
+- Board firmware: when the video buffer since the last keyframe is full, frames nothing refers to are dropped
+  first (the newest kept) instead of freezing the picture at once; `diag gop+` shows how many a drop would give back.
+  On an iPhone 13 Pro with iOS 27 every frame was a reference frame (0 of 822), so it helps only where iOS sends
+  unreferenced frames.
+- Harness: mirroring counts as on only when the app has a fresh picture (`hid.sh video`), not from its last frame
+  (stale after the board restarts) nor from `snap` (the whole buffer, 15 s+ once it is MBs); the board's row in the
+  Screen Mirroring list is clicked only once it stopped moving (a moving list sent the phone to a Mac); `flash.sh`
+  waits up to 60 s for the download port, which macOS listed after 40 s+.
 
 ## App 1.0.11.1 (TestFlight, a new build of 1.0.11)
 

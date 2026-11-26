@@ -149,6 +149,34 @@ static void test_gop(void) {
   CHECK(gop_append_ring(&r, au, 30, 10) == 7 && r.n == 1 && r.used == 30);  // bytes, not count, made it full
   CHECK(gop_append_ring(&r, au, 41, 11) == -1 && r.n == 1);  // larger than the whole ring: refused, nothing lost
 
+  // full: the unreferenced AUs but the newest are squeezed out instead of freezing (2026-11-26: most of a still
+  // screen's AUs are unreferenced; a frozen GOP needed a mirroring restart)
+  static uint8_t sarena[100];
+  static gop_au saus[8];
+  gop_buf q;
+  gop_init(&q, sarena, sizeof sarena, saus, 8);
+  uint8_t key[20] = {0, 0, 0, 1, 0x65}, ref[20] = {0, 0, 0, 1, 0x41}, unref[20] = {0, 0, 0, 1, 0x01};
+  CHECK(gop_push(&q, key, 20, true, 1) == 0 && !q.aus[0].unref);
+  CHECK(gop_push(&q, unref, 20, false, 2) == 1 && q.aus[1].unref);
+  CHECK(gop_push(&q, ref, 20, false, 3) == 2 && !q.aus[2].unref);
+  CHECK(gop_push(&q, unref, 20, false, 4) == 3 && gop_push(&q, unref, 20, false, 5) == 4 && q.used == 100);
+  uint32_t qgen = q.gen, after4 = q.aus[3].id;
+  CHECK(gop_push(&q, ref, 20, false, 6) == 3 && !q.frozen && q.squeezes == 1 && q.gen == qgen);
+  CHECK(q.n == 4 && q.used == 80 && q.aus[0].ts == 1 && q.aus[1].ts == 3 && q.aus[2].ts == 5 && q.aus[3].ts == 6);
+  CHECK(q.aus[1].off == 20 && sarena[24] == 0x41 && sarena[44] == 0x01 && sarena[64] == 0x41);
+  CHECK(gop_after(&q, after4) == 2 && gop_after(&q, q.aus[3].id) == 4 && gop_after(&q, 0) == 1);
+  CHECK(gop_push(&q, ref, 20, false, 7) == 4 && q.used == 100);
+  CHECK(gop_push(&q, ref, 20, false, 8) == 4 && q.squeezes == 2 && q.aus[3].ts == 7);  // ts 5 went, now not newest
+  // reference frames only: nothing to squeeze, it freezes as before
+  CHECK(gop_push(&q, ref, 20, false, 10) == -1 && q.frozen && q.n == 5 && q.squeezes == 2);
+  CHECK(gop_push(&q, key, 20, true, 9) == 0 && !q.frozen && q.aus[0].id == 0);
+
+  uint8_t two[] = {0, 0, 0, 1, 0x09, 0x10, 0, 0, 1, 0x01, 7, 0, 0, 1, 0x01, 7};  // AUD + two non-ref slices
+  CHECK(annexb_unreferenced(two, sizeof two));
+  two[14] = 0x61;  // the second slice is a reference
+  CHECK(!annexb_unreferenced(two, sizeof two));
+  CHECK(!annexb_unreferenced(two, 6));  // no slice at all
+
   uint8_t idr[] = {0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 9};
   CHECK(annexb_has_idr(idr, sizeof idr));
   CHECK(!annexb_has_idr(idr, 6));
