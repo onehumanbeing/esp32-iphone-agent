@@ -32,7 +32,7 @@ Asisten pemrograman (Claude Code, Codex, Cursor, Copilot, dan sebagainya): jika 
 
 | 1. Dapatkan papannya | 2. Flash sekali klik | 3. Pasang aplikasinya |
 |---|---|---|
-| Seeed Studio XIAO ESP32S3 (versi biasa, bukan Sense atau Plus).<br>**[Papan mana yang harus dibeli →](https://manina.ai/where-to-buy-esp32?from=github)** | Colokkan ke komputer dan flash di Chrome atau Edge. Tidak ada yang perlu dipasang.<br>**[Flash papannya →](https://manina.ai/install?from=github)** | Pasang aplikasi dan ikuti empat langkah penyiapannya.<br>**[Dapatkan di TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
+| Seeed Studio XIAO ESP32S3 (versi biasa, bukan Sense atau Plus).<br>**[Papan mana yang harus dibeli →](https://manina.ai/where-to-buy-esp32?from=github)** | Colokkan ke komputer dan flash di Chrome atau Edge. Tidak ada yang perlu dipasang.<br>**[Flash papannya →](https://manina.ai/id/install?from=github)** | Pasang aplikasi dan ikuti empat langkah penyiapannya.<br>**[Dapatkan di TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
 
 <p align="center"><sub>Tidak ingin mem-flash papan sendiri? Perangkat Manina AI yang tinggal dicolokkan sedang disiapkan: <a href="https://manina.ai/hardware?from=github">lihat halaman perangkat keras</a>.</sub></p>
 
@@ -49,7 +49,7 @@ Asisten pemrograman (Claude Code, Codex, Cursor, Copilot, dan sebagainya): jika 
   <a href="https://manina.ai/troubleshooting?ref=github">Pemecahan masalah</a>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: biarkan AI memakai iPhone Anda. Tanpa jailbreak, tanpa komputer, cukup papan seharga $7." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/id?ref=github"><img src="docs/images/hero.png" alt="Manina AI: biarkan AI memakai iPhone Anda. Tanpa jailbreak, tanpa komputer, cukup papan seharga $7." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="Lisensi: MIT"></a>
@@ -60,7 +60,7 @@ Asisten pemrograman (Claude Code, Codex, Cursor, Copilot, dan sebagainya): jika 
 
 <p align="center"><b>Diliput oleh</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>Ikuti kabarnya: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Demo YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Demo DeepSeek Harness</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
+<p align="center"><sub>Ikuti kabarnya: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Demo YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Demo DeepSeek Harness</a> · <a href="https://manina.ai/id?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><sub>Panduan: <a href="https://manina.ai/ai-control-iphone?ref=github">Biarkan AI mengendalikan iPhone</a> · <a href="https://manina.ai/iphone-mcp?ref=github">Server MCP iPhone</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Kendalikan iPhone dari Claude Code</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">Otomatisasi iPhone tanpa jailbreak</a></sub></p>
 
@@ -95,7 +95,7 @@ Biaya yang jujur: Anda membeli papan seharga $7, setiap langkah butuh beberapa d
 ### <a id="start-here"></a>Bukan pengembang? Mulai di sini
 
 1. **Dapatkan papannya.** Seeed XIAO ESP32S3, sekitar $7: [apa yang dibeli](https://manina.ai/docs/hardware?ref=github).
-2. **Flash di Chrome atau Edge.** Tidak ada perkakas yang dipasang: [manina.ai/install](https://manina.ai/install?ref=github).
+2. **Flash di Chrome atau Edge.** Tidak ada perkakas yang dipasang: [manina.ai/id/install](https://manina.ai/id/install?ref=github).
 3. **Pasang aplikasi dan ikuti empat langkahnya.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
    [panduan penyiapan bergambar](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
@@ -136,7 +136,7 @@ Untuk masukan nirkabel yang dibangun dari sumber, lihat [Tetikus dan papan ketik
 | Bagian | Catatan |
 |---|---|
 | **Papan ESP32-S3** | Diuji dengan [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (versi biasa, PSRAM 8 MB; bukan Sense, bukan Plus). Sekitar $7 ([Amazon](https://amzn.to/3U6QKiz)\*). ESP32-S3 apa pun dengan USB asli di port USB-C dan PSRAM semestinya berfungsi. |
-| **Atau: M5Stack StopWatch** (eksperimental) | Jam ESP32-S3 berlayar bundar dengan baterai sendiri, hanya mode Bluetooth. Ia menampilkan proses (wajah, langkah, waktu), tombolnya menjeda, melanjutkan, dan menghentikan, dan jawaban tugas yang selesai muncul di jam. Flash dari [manina.ai/install](https://manina.ai/install?board=m5stopwatch). Butuh aplikasi TestFlight 1.0.9+. |
+| **Atau: M5Stack StopWatch** (eksperimental) | Jam ESP32-S3 berlayar bundar dengan baterai sendiri, hanya mode Bluetooth. Ia menampilkan proses (wajah, langkah, waktu), tombolnya menjeda, melanjutkan, dan menghentikan, dan jawaban tugas yang selesai muncul di jam. Flash dari [manina.ai/id/install](https://manina.ai/id/install?board=m5stopwatch). Butuh aplikasi TestFlight 1.0.9+. |
 | **Kabel USB-C** | USB-C ke USB-C yang pendek, misalnya [Anker 60W, 1 ft, paket 2](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 atau yang lebih baru (aplikasi App Store), atau iOS 16.4 atau yang lebih baru dengan aplikasi [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 1.0.9+ (iPhone 8 dan iPhone X juga; di iOS 16 agen meninggalkan aplikasi lewat AssistiveTouch), dengan data seluler (Wi-Fi dipakai hotspot papan), atau Wi-Fi rumah 2,4 GHz yang bisa diikuti papan. Model USB-C dicolok langsung. Model Lightning butuh adaptor kamera Lightning ke USB, atau memakai mode Bluetooth. Lewat USB, ponsel memberi daya ke papan. Dalam mode Bluetooth, papan butuh daya sendiri. |
 | **Model penglihatan** | API obrolan yang kompatibel dengan OpenAI dan menerima gambar: API awan atau server Anda sendiri. |
@@ -162,7 +162,7 @@ Selalu bangun dengan `flash.sh`: ia menerapkan ukuran penyangga BLE di `hardware
 Target M5Stack StopWatch yang eksperimental (`hardware/flash.sh --stopwatch --build-only`) juga membutuhkan
 `arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`.
 
-Tidak ada Mac atau toolchain? [Pasang firmware dari Chrome atau Edge](https://manina.ai/install) lewat USB.
+Tidak ada Mac atau toolchain? [Pasang firmware dari Chrome atau Edge](https://manina.ai/id/install) lewat USB.
 
 ### 2. Pasang aplikasinya
 
@@ -291,7 +291,7 @@ Kode terbaru ada di `main`. [`release-1.0`](https://github.com/onehumanbeing/esp
 
 ## Kontak
 
-Pertanyaan atau masukan: [support@manina.ai](mailto:support@manina.ai) · Situs: [manina.ai](https://manina.ai)
+Pertanyaan atau masukan: [support@manina.ai](mailto:support@manina.ai) · Situs: [manina.ai](https://manina.ai/id)
 
 ## Proyek terkait
 

@@ -32,7 +32,7 @@ Asistentes de código (Claude Code, Codex, Cursor, Copilot, etc.): si copias, po
 
 | 1. Consigue la placa | 2. Grábala en un clic | 3. Instala la app |
 |---|---|---|
-| Una Seeed Studio XIAO ESP32S3 (la versión normal, ni Sense ni Plus).<br>**[Qué placa comprar →](https://manina.ai/where-to-buy-esp32?from=github)** | Conéctala al ordenador y grábala en Chrome o Edge. Nada que instalar.<br>**[Grabar la placa →](https://manina.ai/install?from=github)** | Instala la app y sigue sus cuatro pasos de configuración.<br>**[Consíguela en TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
+| Una Seeed Studio XIAO ESP32S3 (la versión normal, ni Sense ni Plus).<br>**[Qué placa comprar →](https://manina.ai/where-to-buy-esp32?from=github)** | Conéctala al ordenador y grábala en Chrome o Edge. Nada que instalar.<br>**[Grabar la placa →](https://manina.ai/es/install?from=github)** | Instala la app y sigue sus cuatro pasos de configuración.<br>**[Consíguela en TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
 
 <p align="center"><sub>¿Prefieres no grabar una placa? Llega un dispositivo Manina AI listo para enchufar: <a href="https://manina.ai/hardware?from=github">ver la página de hardware</a>.</sub></p>
 
@@ -49,7 +49,7 @@ Asistentes de código (Claude Code, Codex, Cursor, Copilot, etc.): si copias, po
   <a href="https://manina.ai/troubleshooting?ref=github">Solución de problemas</a>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: deja que una IA use tu iPhone. Sin jailbreak, sin ordenador, solo una placa de 7 $." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/es?ref=github"><img src="docs/images/hero.png" alt="Manina AI: deja que una IA use tu iPhone. Sin jailbreak, sin ordenador, solo una placa de 7 $." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="Licencia: MIT"></a>
@@ -60,7 +60,7 @@ Asistentes de código (Claude Code, Codex, Cursor, Copilot, etc.): si copias, po
 
 <p align="center"><b>Han hablado de ello</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>Sigue el proyecto: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Demo en YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Demo de DeepSeek Harness</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
+<p align="center"><sub>Sigue el proyecto: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Demo en YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Demo de DeepSeek Harness</a> · <a href="https://manina.ai/es?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><sub>Guías: <a href="https://manina.ai/ai-control-iphone?ref=github">Dejar que una IA controle un iPhone</a> · <a href="https://manina.ai/iphone-mcp?ref=github">Servidor MCP para iPhone</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Controlar un iPhone desde Claude Code</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">Automatizar un iPhone sin jailbreak</a></sub></p>
 
@@ -95,7 +95,7 @@ Los costes reales: compras una placa de 7 $, cada paso tarda unos segundos (la m
 ### <a id="start-here"></a>¿No programas? Empieza aquí
 
 1. **Consigue la placa.** Una Seeed XIAO ESP32S3, unos 7 $: [qué comprar](https://manina.ai/docs/hardware?ref=github).
-2. **Grábala en Chrome o Edge.** No hay herramientas que instalar: [manina.ai/install](https://manina.ai/install?ref=github).
+2. **Grábala en Chrome o Edge.** No hay herramientas que instalar: [manina.ai/es/install](https://manina.ai/es/install?ref=github).
 3. **Instala la app y sigue sus cuatro pasos.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
    [guía de configuración con imágenes](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
@@ -136,7 +136,7 @@ Para una entrada inalámbrica compilada desde el código, consulta [Ratón y tec
 | Pieza | Notas |
 |---|---|
 | **Placa ESP32-S3** | Probada con una [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (versión normal, 8 MB de PSRAM; ni Sense ni Plus). Unos 7 $ ([Amazon](https://amzn.to/3U6QKiz)\*). Cualquier ESP32-S3 con USB nativo en su puerto USB-C y PSRAM debería funcionar. |
-| **O: M5Stack StopWatch** (experimental) | Un reloj ESP32-S3 de pantalla redonda, con su batería, solo en modo Bluetooth. Muestra la ejecución (cara, pasos, tiempo), sus teclas pausan, reanudan y detienen, y la respuesta de una tarea terminada aparece en él. Grábalo desde [manina.ai/install](https://manina.ai/install?board=m5stopwatch). Hace falta la app de TestFlight 1.0.9+. |
+| **O: M5Stack StopWatch** (experimental) | Un reloj ESP32-S3 de pantalla redonda, con su batería, solo en modo Bluetooth. Muestra la ejecución (cara, pasos, tiempo), sus teclas pausan, reanudan y detienen, y la respuesta de una tarea terminada aparece en él. Grábalo desde [manina.ai/es/install](https://manina.ai/es/install?board=m5stopwatch). Hace falta la app de TestFlight 1.0.9+. |
 | **Cable USB-C** | USB-C a USB-C corto, por ejemplo [Anker 60W, 1 ft, pack de 2](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 o posterior (app de App Store), o iOS 16.4 o posterior con la app de [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 1.0.9+ (también iPhone 8 e iPhone X; en iOS 16 el agente sale de las apps mediante AssistiveTouch), con datos móviles (el Wi-Fi lo ocupa el hotspot de la placa), o una Wi-Fi de casa de 2,4 GHz a la que la placa pueda unirse. Los modelos USB-C se conectan directamente. Los Lightning necesitan un adaptador de Lightning a USB para cámara, o el modo Bluetooth. Por USB, el teléfono alimenta la placa. En Bluetooth, la placa necesita su propia alimentación. |
 | **Modelo de visión** | Cualquier API de chat compatible con OpenAI que acepte imágenes: una API en la nube o tu propio servidor. |
@@ -162,7 +162,7 @@ Compila siempre con `flash.sh`: aplica los tamaños de búfer BLE de `hardware/h
 El objetivo experimental M5Stack StopWatch (`hardware/flash.sh --stopwatch --build-only`) también necesita
 `arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`.
 
-¿Sin Mac ni cadena de herramientas? [Instala el firmware desde Chrome o Edge](https://manina.ai/install) por USB.
+¿Sin Mac ni cadena de herramientas? [Instala el firmware desde Chrome o Edge](https://manina.ai/es/install) por USB.
 
 ### 2. Instalar la app
 
@@ -291,7 +291,7 @@ El código más reciente está en `main`. [`release-1.0`](https://github.com/one
 
 ## Contacto
 
-Preguntas o comentarios: [support@manina.ai](mailto:support@manina.ai) · Sitio: [manina.ai](https://manina.ai)
+Preguntas o comentarios: [support@manina.ai](mailto:support@manina.ai) · Sitio: [manina.ai](https://manina.ai/es)
 
 ## Proyectos relacionados
 

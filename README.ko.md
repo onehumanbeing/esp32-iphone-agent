@@ -32,7 +32,7 @@ AI 코딩 도우미(Claude Code, Codex, Cursor, Copilot 등)에게: 이 프로�
 
 | 1. 보드 준비 | 2. 한 번에 플래시 | 3. 앱 설치 |
 |---|---|---|
-| Seeed Studio XIAO ESP32S3(기본 버전. Sense나 Plus가 아님).<br>**[어떤 보드를 살까 →](https://manina.ai/where-to-buy-esp32?from=github)** | 컴퓨터에 꽂고 Chrome 또는 Edge에서 플래시합니다. 설치할 프로그램은 없습니다.<br>**[보드 플래시 →](https://manina.ai/install?from=github)** | 앱을 설치하고 네 단계 설정을 따라갑니다.<br>**[TestFlight에서 받기 →](https://testflight.apple.com/join/1xQHgJcA)** |
+| Seeed Studio XIAO ESP32S3(기본 버전. Sense나 Plus가 아님).<br>**[어떤 보드를 살까 →](https://manina.ai/where-to-buy-esp32?from=github)** | 컴퓨터에 꽂고 Chrome 또는 Edge에서 플래시합니다. 설치할 프로그램은 없습니다.<br>**[보드 플래시 →](https://manina.ai/ko/install?from=github)** | 앱을 설치하고 네 단계 설정을 따라갑니다.<br>**[TestFlight에서 받기 →](https://testflight.apple.com/join/1xQHgJcA)** |
 
 <p align="center"><sub>직접 플래시하기 싫다면, 꽂기만 하면 되는 Manina AI 기기를 준비 중입니다. <a href="https://manina.ai/hardware?from=github">하드웨어 페이지</a>.</sub></p>
 
@@ -49,7 +49,7 @@ AI 코딩 도우미(Claude Code, Codex, Cursor, Copilot 등)에게: 이 프로�
   <a href="https://manina.ai/troubleshooting?ref=github">문제 해결</a>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: AI가 iPhone을 쓰게 하세요. 탈옥 없음, 컴퓨터 없음, $7 보드만 있으면 됩니다." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/ko?ref=github"><img src="docs/images/hero.png" alt="Manina AI: AI가 iPhone을 쓰게 하세요. 탈옥 없음, 컴퓨터 없음, $7 보드만 있으면 됩니다." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="License: MIT"></a>
@@ -60,7 +60,7 @@ AI 코딩 도우미(Claude Code, Codex, Cursor, Copilot 등)에게: 이 프로�
 
 <p align="center"><b>소개된 곳</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>소식 따라가기: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 데모</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 데모</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
+<p align="center"><sub>소식 따라가기: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube 데모</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness 데모</a> · <a href="https://manina.ai/ko?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><sub>가이드: <a href="https://manina.ai/ai-control-iphone?ref=github">AI가 iPhone을 조작하게 하기</a> · <a href="https://manina.ai/iphone-mcp?ref=github">iPhone MCP 서버</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Claude Code에서 iPhone 조작하기</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">탈옥 없는 iPhone 자동화</a></sub></p>
 
@@ -95,7 +95,7 @@ AI 코딩 도우미(Claude Code, Codex, Cursor, Copilot 등)에게: 이 프로�
 ### <a id="start-here"></a>개발자가 아니신가요? 여기서 시작하세요
 
 1. **보드를 준비합니다.** Seeed XIAO ESP32S3, 약 $7. [무엇을 살지](https://manina.ai/docs/hardware?ref=github).
-2. **Chrome 또는 Edge에서 플래시합니다.** 설치할 도구는 없습니다. [manina.ai/install](https://manina.ai/install?ref=github).
+2. **Chrome 또는 Edge에서 플래시합니다.** 설치할 도구는 없습니다. [manina.ai/ko/install](https://manina.ai/ko/install?ref=github).
 3. **앱을 설치하고 네 단계 설정을 따라갑니다.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
    [그림이 있는 설정 가이드](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
@@ -135,7 +135,7 @@ iPhone ──화면 미러링(Wi-Fi)──▶ ESP32-S3: AirPlay 수신 ──Wi-
 | 부품 | 설명 |
 |---|---|
 | **ESP32-S3 보드** | 확인한 보드는 [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)(기본 버전, 8 MB PSRAM. Sense도 Plus도 아님). 약 $7([Amazon](https://amzn.to/3U6QKiz)\*). USB-C 포트에 네이티브 USB가 있고 PSRAM이 있는 ESP32-S3라면 동작할 것입니다. |
-| **또는 M5Stack StopWatch**(실험적) | 둥근 화면과 배터리가 있는 ESP32-S3 시계. Bluetooth 모드만 됩니다. 실행 상태(표정, 단계, 시간)를 보여주고, 버튼으로 일시 정지, 재개, 중지가 되며, 끝난 작업의 답이 시계에 나옵니다. [manina.ai/install](https://manina.ai/install?board=m5stopwatch)에서 플래시합니다. TestFlight 앱 1.0.9+가 필요합니다. |
+| **또는 M5Stack StopWatch**(실험적) | 둥근 화면과 배터리가 있는 ESP32-S3 시계. Bluetooth 모드만 됩니다. 실행 상태(표정, 단계, 시간)를 보여주고, 버튼으로 일시 정지, 재개, 중지가 되며, 끝난 작업의 답이 시계에 나옵니다. [manina.ai/ko/install](https://manina.ai/ko/install?board=m5stopwatch)에서 플래시합니다. TestFlight 앱 1.0.9+가 필요합니다. |
 | **USB-C 케이블** | 짧은 USB-C to USB-C. 예: [Anker 60W, 1 ft, 2개입](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 이상(App Store 앱), 또는 iOS 16.4 이상과 [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 앱 1.0.9+(iPhone 8과 iPhone X도 해당. iOS 16에서는 에이전트가 AssistiveTouch로 앱을 나감). 셀룰러 데이터(Wi-Fi는 보드 핫스팟이 사용)가 있거나, 보드가 참여할 수 있는 2.4 GHz 집 Wi-Fi. USB-C 모델은 바로 연결합니다. Lightning 모델은 Lightning–USB 카메라 어댑터가 필요하거나 Bluetooth 모드를 씁니다. USB에서는 전화가 보드에 전원을 공급합니다. Bluetooth 모드에서는 보드에 자체 전원이 필요합니다. |
 | **비전 모델** | 이미지를 받는 OpenAI 호환 채팅 API. 클라우드 API 또는 직접 띄운 서버. |
@@ -161,7 +161,7 @@ hardware/flash.sh            # 선택: [시리얼 포트] [--debug]
 실험적인 M5Stack StopWatch 대상(`hardware/flash.sh --stopwatch --build-only`)에는
 `arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`도 필요합니다.
 
-Mac이나 툴체인이 없으면 USB로 [Chrome 또는 Edge에서 펌웨어를 설치](https://manina.ai/install)할 수 있습니다.
+Mac이나 툴체인이 없으면 USB로 [Chrome 또는 Edge에서 펌웨어를 설치](https://manina.ai/ko/install)할 수 있습니다.
 
 ### 2. 앱 설치
 
@@ -290,7 +290,7 @@ server/     이전 v0.1.0의 컴퓨터 쪽 서버. 지금 앱에서는 쓰지 �
 
 ## 연락
 
-질문이나 피드백: [support@manina.ai](mailto:support@manina.ai) · 웹사이트: [manina.ai](https://manina.ai)
+질문이나 피드백: [support@manina.ai](mailto:support@manina.ai) · 웹사이트: [manina.ai](https://manina.ai/ko)
 
 ## 관련 프로젝트
 

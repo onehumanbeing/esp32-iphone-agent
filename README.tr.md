@@ -32,7 +32,7 @@ Kod asistanları (Claude Code, Codex, Cursor, Copilot vb.): bu projenin herhangi
 
 | 1. Kartı alın | 2. Tek tıkla flash'leyin | 3. Uygulamayı kurun |
 |---|---|---|
-| Bir Seeed Studio XIAO ESP32S3 (düz sürüm, Sense veya Plus değil).<br>**[Hangi kartı almalı →](https://manina.ai/where-to-buy-esp32?from=github)** | Bilgisayara takın, Chrome veya Edge içinde flash'leyin. Kurulacak bir şey yok.<br>**[Kartı flash'leyin →](https://manina.ai/install?from=github)** | Uygulamayı kurun ve dört kurulum adımını izleyin.<br>**[TestFlight'tan alın →](https://testflight.apple.com/join/1xQHgJcA)** |
+| Bir Seeed Studio XIAO ESP32S3 (düz sürüm, Sense veya Plus değil).<br>**[Hangi kartı almalı →](https://manina.ai/where-to-buy-esp32?from=github)** | Bilgisayara takın, Chrome veya Edge içinde flash'leyin. Kurulacak bir şey yok.<br>**[Kartı flash'leyin →](https://manina.ai/tr/install?from=github)** | Uygulamayı kurun ve dört kurulum adımını izleyin.<br>**[TestFlight'tan alın →](https://testflight.apple.com/join/1xQHgJcA)** |
 
 <p align="center"><sub>Kart flash'lemek istemez misiniz? Tak-çalıştır bir Manina AI aygıtı geliyor: <a href="https://manina.ai/hardware?from=github">donanım sayfası</a>.</sub></p>
 
@@ -49,7 +49,7 @@ Kod asistanları (Claude Code, Codex, Cursor, Copilot vb.): bu projenin herhangi
   <a href="https://manina.ai/troubleshooting?ref=github">Sorun giderme</a>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: yapay zekâ iPhone'unuzu kullansın. Jailbreak yok, bilgisayar yok, yalnızca $7'lik bir kart." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/tr?ref=github"><img src="docs/images/hero.png" alt="Manina AI: yapay zekâ iPhone'unuzu kullansın. Jailbreak yok, bilgisayar yok, yalnızca $7'lik bir kart." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="Lisans: MIT"></a>
@@ -60,7 +60,7 @@ Kod asistanları (Claude Code, Codex, Cursor, Copilot vb.): bu projenin herhangi
 
 <p align="center"><b>Yazılan yerler</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>Takip edin: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demosu</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demosu</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
+<p align="center"><sub>Takip edin: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">YouTube demosu</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">DeepSeek Harness demosu</a> · <a href="https://manina.ai/tr?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><sub>Rehberler: <a href="https://manina.ai/ai-control-iphone?ref=github">Bir yapay zekânın iPhone kullanması</a> · <a href="https://manina.ai/iphone-mcp?ref=github">iPhone MCP sunucusu</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Claude Code'dan iPhone kullanmak</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">Jailbreak olmadan iPhone otomasyonu</a></sub></p>
 
@@ -95,7 +95,7 @@ Dürüst bedeller: $7'lik bir kart alırsınız, her adım birkaç saniye sürer
 ### <a id="start-here"></a>Geliştirici değil misiniz? Buradan başlayın
 
 1. **Kartı alın.** Bir Seeed XIAO ESP32S3, yaklaşık $7: [neyi almalı](https://manina.ai/docs/hardware?ref=github).
-2. **Chrome veya Edge içinde flash'leyin.** Kurulacak araç yok: [manina.ai/install](https://manina.ai/install?ref=github).
+2. **Chrome veya Edge içinde flash'leyin.** Kurulacak araç yok: [manina.ai/tr/install](https://manina.ai/tr/install?ref=github).
 3. **Uygulamayı kurun ve dört adımı izleyin.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
    [resimli kurulum rehberi](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
@@ -136,7 +136,7 @@ Kaynaktan derlenen kablosuz giriş için [Bluetooth fare ve klavye](docs/bluetoo
 | Parça | Notlar |
 |---|---|
 | **ESP32-S3 kartı** | [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) ile denendi (düz sürüm, 8 MB PSRAM; Sense değil, Plus değil). Yaklaşık $7 ([Amazon](https://amzn.to/3U6QKiz)\*). USB-C kapısında yerel USB'si ve PSRAM'i olan her ESP32-S3 çalışmalıdır. |
-| **Ya da: M5Stack StopWatch** (deneysel) | Yuvarlak ekranlı, kendi pili olan bir ESP32-S3 saat. Yalnızca Bluetooth modu. Çalıştırmayı gösterir (yüz, adımlar, süre), tuşları duraklatır, sürdürür ve durdurur; biten görevin yanıtı üzerinde görünür. [manina.ai/install](https://manina.ai/install?board=m5stopwatch) adresinden flash'leyin. TestFlight uygulaması 1.0.9+ gerekir. |
+| **Ya da: M5Stack StopWatch** (deneysel) | Yuvarlak ekranlı, kendi pili olan bir ESP32-S3 saat. Yalnızca Bluetooth modu. Çalıştırmayı gösterir (yüz, adımlar, süre), tuşları duraklatır, sürdürür ve durdurur; biten görevin yanıtı üzerinde görünür. [manina.ai/tr/install](https://manina.ai/tr/install?board=m5stopwatch) adresinden flash'leyin. TestFlight uygulaması 1.0.9+ gerekir. |
 | **USB-C kablo** | Kısa USB-C'den USB-C'ye, örneğin [Anker 60W, 1 ft, 2'li paket](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 veya sonrası (App Store uygulaması) ya da iOS 16.4 veya sonrası ve [TestFlight](https://testflight.apple.com/join/1xQHgJcA) uygulaması 1.0.9+ (iPhone 8 ve iPhone X de; iOS 16'da ajan uygulamalardan AssistiveTouch ile çıkar). Hücresel veri gerekir (Wi-Fi'yi kartın hotspot'u kullanır) ya da kartın katılabildiği 2,4 GHz ev Wi-Fi'si. USB-C modeller doğrudan takılır. Lightning modeller bir Lightning–USB kamera adaptörü ister ya da Bluetooth modunu kullanır. USB'de telefon kartı besler. Bluetooth modunda kartın kendi gücü gerekir. |
 | **Görme modeli** | Görüntü kabul eden, OpenAI uyumlu herhangi bir sohbet API'si: bir bulut API'si veya kendi sunucunuz. |
@@ -162,7 +162,7 @@ Her zaman `flash.sh` ile derleyin: `hardware/hid_bridge/nimble_cfg.h` içindeki 
 Deneysel M5Stack StopWatch hedefi (`hardware/flash.sh --stopwatch --build-only`) ayrıca şunu ister:
 `arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`.
 
-Mac veya araç zinciri yok mu? Firmware'i USB üzerinden [Chrome veya Edge'den kurun](https://manina.ai/install).
+Mac veya araç zinciri yok mu? Firmware'i USB üzerinden [Chrome veya Edge'den kurun](https://manina.ai/tr/install).
 
 ### 2. Uygulamayı kurun
 
@@ -291,7 +291,7 @@ En güncel kod `main` üzerindedir. [`release-1.0`](https://github.com/onehumanb
 
 ## İletişim
 
-Sorular veya geri bildirim: [support@manina.ai](mailto:support@manina.ai) · Site: [manina.ai](https://manina.ai)
+Sorular veya geri bildirim: [support@manina.ai](mailto:support@manina.ai) · Site: [manina.ai](https://manina.ai/tr)
 
 ## İlgili projeler
 

@@ -32,7 +32,7 @@
 
 | 1. Возьмите плату | 2. Прошейте в один клик | 3. Установите приложение |
 |---|---|---|
-| Seeed Studio XIAO ESP32S3 (обычная, не Sense и не Plus).<br>**[Какую плату купить →](https://manina.ai/where-to-buy-esp32?from=github)** | Подключите к компьютеру и прошейте в Chrome или Edge. Ничего ставить не нужно.<br>**[Прошить плату →](https://manina.ai/install?from=github)** | Установите приложение и пройдите четыре шага настройки.<br>**[Взять в TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
+| Seeed Studio XIAO ESP32S3 (обычная, не Sense и не Plus).<br>**[Какую плату купить →](https://manina.ai/where-to-buy-esp32?from=github)** | Подключите к компьютеру и прошейте в Chrome или Edge. Ничего ставить не нужно.<br>**[Прошить плату →](https://manina.ai/ru/install?from=github)** | Установите приложение и пройдите четыре шага настройки.<br>**[Взять в TestFlight →](https://testflight.apple.com/join/1xQHgJcA)** |
 
 <p align="center"><sub>Не хотите прошивать плату? Готовое устройство Manina AI, которое достаточно подключить, уже готовится: <a href="https://manina.ai/hardware?from=github">страница оборудования</a>.</sub></p>
 
@@ -49,7 +49,7 @@
   <a href="https://manina.ai/troubleshooting?ref=github">Устранение неполадок</a>
 </p>
 
-<p align="center"><a href="https://manina.ai?ref=github"><img src="docs/images/hero.png" alt="Manina AI: пусть ИИ пользуется вашим iPhone. Без джейлбрейка, без компьютера, только плата за 7 $." width="100%"></a></p>
+<p align="center"><a href="https://manina.ai/ru?ref=github"><img src="docs/images/hero.png" alt="Manina AI: пусть ИИ пользуется вашим iPhone. Без джейлбрейка, без компьютера, только плата за 7 $." width="100%"></a></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="Лицензия: MIT"></a>
@@ -60,7 +60,7 @@
 
 <p align="center"><b>О проекте писали</b> <a href="https://hackaday.com/2026/10/14/ai-controls-iphone-via-esp32/">Hackaday</a> · <a href="https://www.digitaltrends.com/phones/a-7-board-lets-an-ai-control-an-iphone-without-jailbreaking-it/">Digital Trends</a> · <a href="https://github.com/ruanyf/weekly/blob/master/docs/issue-415.md">Ruanyf Weekly #415</a> · <a href="https://x.com/seeedstudio/status/2112166890818986187">Seeed Studio</a></p>
 
-<p align="center"><sub>Следить за проектом: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Демо на YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Демо DeepSeek Harness</a> · <a href="https://manina.ai?ref=github">manina.ai</a></sub></p>
+<p align="center"><sub>Следить за проектом: <a href="https://x.com/iamhenryyuan">X @iamhenryyuan</a> · <a href="https://www.xiaohongshu.com/user/profile/5eb444030000000001000194">Xiaohongshu</a> · <a href="https://www.youtube.com/watch?v=Ly4im-P4jYg">Демо на YouTube</a> · <a href="https://www.youtube.com/watch?v=DzYv0QVk_No">Демо DeepSeek Harness</a> · <a href="https://manina.ai/ru?ref=github">manina.ai</a></sub></p>
 
 <p align="center"><sub>Руководства: <a href="https://manina.ai/ai-control-iphone?ref=github">Пусть ИИ управляет iPhone</a> · <a href="https://manina.ai/iphone-mcp?ref=github">MCP-сервер для iPhone</a> · <a href="https://manina.ai/claude-code-iphone?ref=github">Управлять iPhone из Claude Code</a> · <a href="https://manina.ai/iphone-automation-without-jailbreak?ref=github">Автоматизация iPhone без джейлбрейка</a></sub></p>
 
@@ -95,7 +95,7 @@
 ### <a id="start-here"></a>Не разработчик? Начните здесь
 
 1. **Возьмите плату.** Seeed XIAO ESP32S3, около 7 $: [что купить](https://manina.ai/docs/hardware?ref=github).
-2. **Прошейте в Chrome или Edge.** Инструменты ставить не нужно: [manina.ai/install](https://manina.ai/install?ref=github).
+2. **Прошейте в Chrome или Edge.** Инструменты ставить не нужно: [manina.ai/ru/install](https://manina.ai/ru/install?ref=github).
 3. **Установите приложение и пройдите четыре шага.** [TestFlight](https://testflight.apple.com/join/1xQHgJcA) ·
    [руководство по настройке с картинками](https://manina.ai/esp32-iphone-agent-setup?ref=github).
 
@@ -136,7 +136,7 @@ iPhone ──Повтор экрана (Wi-Fi)──▶ ESP32-S3: приёмни
 | Часть | Примечания |
 |---|---|
 | **Плата ESP32-S3** | Проверено на [Seeed Studio XIAO ESP32S3](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/) (обычная, 8 МБ PSRAM; не Sense и не Plus). Около 7 $ ([Amazon](https://amzn.to/3U6QKiz)\*). Подойдёт любой ESP32-S3 с нативным USB на порте USB-C и с PSRAM. |
-| **Или: M5Stack StopWatch** (экспериментально) | Часы ESP32-S3 с круглым экраном и своей батареей, только режим Bluetooth. Показывают прогон (лицо, шаги, время), кнопки ставят на паузу, продолжают и останавливают, а ответ завершённой задачи появляется на них. Прошивка с [manina.ai/install](https://manina.ai/install?board=m5stopwatch). Нужно приложение TestFlight 1.0.9+. |
+| **Или: M5Stack StopWatch** (экспериментально) | Часы ESP32-S3 с круглым экраном и своей батареей, только режим Bluetooth. Показывают прогон (лицо, шаги, время), кнопки ставят на паузу, продолжают и останавливают, а ответ завершённой задачи появляется на них. Прошивка с [manina.ai/ru/install](https://manina.ai/ru/install?board=m5stopwatch). Нужно приложение TestFlight 1.0.9+. |
 | **Кабель USB-C** | Короткий USB-C — USB-C, например [Anker 60W, 1 ft, набор из 2](https://amzn.to/4yvNyvi)\*. |
 | **iPhone** | iOS 18 или новее (приложение App Store) либо iOS 16.4 или новее с приложением [TestFlight](https://testflight.apple.com/join/1xQHgJcA) 1.0.9+ (подходят и iPhone 8, и iPhone X; на iOS 16 агент выходит из приложений через AssistiveTouch), с сотовыми данными (Wi-Fi занимает точка доступа платы) либо с домашним Wi-Fi 2,4 ГГц, к которому плата может подключиться. Модели с USB-C подключаются напрямую. Моделям с Lightning нужен переходник Lightning — USB для камеры либо режим Bluetooth. По USB телефон питает плату. В режиме Bluetooth плате нужно своё питание. |
 | **Модель зрения** | Любой чат-API, совместимый с OpenAI и принимающий изображения: облачный API или ваш сервер. |
@@ -162,7 +162,7 @@ hardware/flash.sh            # необязательно: [последоват
 Экспериментальная цель M5Stack StopWatch (`hardware/flash.sh --stopwatch --build-only`) также требует
 `arduino-cli lib install --no-deps "M5Unified@0.2.29" "M5GFX@0.2.36"`.
 
-Нет Mac и цепочки инструментов? [Поставьте прошивку из Chrome или Edge](https://manina.ai/install) по USB.
+Нет Mac и цепочки инструментов? [Поставьте прошивку из Chrome или Edge](https://manina.ai/ru/install) по USB.
 
 ### 2. Установить приложение
 
@@ -291,7 +291,7 @@ Issues и pull request приветствуются. См. [CONTRIBUTING.md](CON
 
 ## Контакт
 
-Вопросы и отзывы: [support@manina.ai](mailto:support@manina.ai) · Сайт: [manina.ai](https://manina.ai)
+Вопросы и отзывы: [support@manina.ai](mailto:support@manina.ai) · Сайт: [manina.ai](https://manina.ai/ru)
 
 ## Родственные проекты
 
