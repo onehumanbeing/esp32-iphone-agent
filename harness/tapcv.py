@@ -138,7 +138,9 @@ def find_text(img: np.ndarray, text: str) -> tuple[float, float] | None:
 
 def tap(x: float, y: float, expect: str | None = None, wait: float = 1.5, tol: float = TOL) -> bool:
     before = point(x, y, tol)
-    hid("click")
+    # the pointer hides after a few idle seconds (the correction screenshots), and then a click only shows it again:
+    # a one-unit wiggle first, in the same batch (2026-11-26: back arrows "did nothing" until clicked twice)
+    hid("move 1 0; move -1 0; click")
     time.sleep(wait)
     after = shot()
     changed = float((np.abs(after - before).sum(axis=2) > 60).mean())
@@ -203,7 +205,8 @@ if __name__ == "__main__":
         out = a[1] if len(a) > 1 else "/tmp/tapcv.png"
         Image.fromarray(shot().astype(np.uint8)).save(out); print(out)
     elif a[0] == "tap":
-        sys.exit(0 if tap(float(a[1]), float(a[2]), expect) else 1)
+        tol = float(a[a.index("--tol") + 1]) if "--tol" in a else TOL
+        sys.exit(0 if tap(float(a[1]), float(a[2]), expect, tol=tol) else 1)
     elif a[0] == "tap-text":
         p = find_text(shot(), a[1])
         if p is None:

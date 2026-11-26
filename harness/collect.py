@@ -28,7 +28,7 @@ import tapcv  # noqa: E402
 
 NEVER = ("发送", "添加到通讯录", "发表", "转账", "红包", "删除", "视频通话", "语音通话", "支付", "付款", "确定",
          "Send", "Delete", "Post", "Pay", "Add to Contacts")
-BACK = (0.053, 0.081)  # the back arrow, as shares of the screen
+BACK = (0.056, 0.081)  # the back arrow, as shares of the screen
 TOL = 40  # px: UI targets here are 120 px or more at 1170 wide
 
 
@@ -69,10 +69,11 @@ def main(plan_path: str, out: str) -> None:
                 tapcv.hid("press")
                 time.sleep(1.0)
                 tapcv.hid("release")
-            elif step.get("back"):
+            elif step.get("back"):  # a small arrow near the edge: a tight landing, and the screen must change
                 x, y = w * BACK[0], h * BACK[1]
                 action = {"action": "back"}
-                tapcv.tap(x, y, tol=step.get("tol", TOL))
+                if not tapcv.tap(x, y, tol=step.get("tol", 18)):
+                    raise SystemExit("back left the screen as it was")
             elif "wait" in step:
                 x = y = None
                 action = {"action": "wait", "seconds": step["wait"]}
