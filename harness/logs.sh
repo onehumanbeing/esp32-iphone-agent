@@ -14,8 +14,7 @@ else
 fi
 if [[ ${1:-} == --runs ]]; then  # the latest run's steps only: a run's screenshots and video took minutes over Wi-Fi
   RUN=${2:-$(grep -oE 'run [0-9]{8}-[0-9]{6}' "$OUT/debug.log" | tail -1 | cut -d' ' -f2)}
-  [[ -n $RUN ]] && dc device copy from --device "$DEVICE" --domain-type appDataContainer \
-    --domain-identifier "$BUNDLE" --source "Documents/traces/$RUN/${RUN_FILE:-steps.jsonl}" \
-    --destination "$OUT/traces/$RUN/${RUN_FILE:-steps.jsonl}" >/dev/null  # RUN_FILE=. for screenshots and video too
+  [[ -n $RUN ]] && app_copy from "Documents/traces/$RUN/${RUN_FILE:-steps.jsonl}" \
+    "$OUT/traces/$RUN/${RUN_FILE:-steps.jsonl}"  # RUN_FILE=. for screenshots and video too (devicectl only)
 fi
 echo "$OUT"; tail -n "${LINES:-20}" "$OUT/debug.log"

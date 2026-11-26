@@ -81,6 +81,8 @@ uv run harness/tapcv.py mirror <board name> --restart    # Control Center > Scre
 
 `run.sh` does this by itself before a task when `HARNESS_BOARD` names the board and there is no picture.
 
+Files go in and out of the app (the log, commands, screenshots) over `pymobiledevice3 apps afc` when it is installed (`HARNESS_PMD3`, else on PATH; the phone on USB): about 1.5 s a file, where devicectl can take 40 s or fail while a run and mirroring are going. Without it the scripts use devicectl.
+
 `hid.sh "...; stay"` leaves the pointer where the moves put it (otherwise it goes back to the corner at the end).
 
 ## Security

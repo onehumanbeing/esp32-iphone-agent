@@ -57,6 +57,8 @@ uv run harness/tapcv.py mirror <板子名> --restart    # 控制中心 › 屏�
 
 设置了 `HARNESS_BOARD`（板子名）时，`run.sh` 在任务开始前发现没有画面会自己做这一步。
 
+装了 pymobiledevice3 时（`HARNESS_PMD3`，否则从 PATH 找；手机连 USB），进出 App 的文件（日志、命令、截图）走 `pymobiledevice3 apps afc`，每个文件约 1.5 秒；devicectl 在任务和镜像同时进行时可能要 40 秒甚至失败。没装就用 devicectl。
+
 `hid.sh "...; stay"` 让指针留在移动到的位置（否则结束时回到角落）。
 
 ## 安全

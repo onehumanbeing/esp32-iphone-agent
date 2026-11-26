@@ -22,10 +22,28 @@ dc() {
 LIVE=${HARNESS_LIVE:-/tmp/harness-live}
 live() { [[ -e $LIVE/connected && -z ${NO_LIVE:-} ]]; }
 
+# app_copy from|to <src> <dest>: a file out of or into the app's container (its paths relative to the container,
+# Documents/…). Over pymobiledevice3's AFC shell when it is there ($HARNESS_PMD3, else on PATH; USB): ~1.5 s, where
+# devicectl took 40 s or failed outright beside a run and mirroring (2026-11-26: run.sh saw a 95 s run end 7 min late).
+# devicectl when it is not, or when AFC fails.
+PMD3=${HARNESS_PMD3:-$(command -v pymobiledevice3 || true)}
+app_copy() {
+  local dir=$1 src=$2 dst=$3
+  if [[ -n $PMD3 ]]; then
+    if [[ $dir == from ]]; then
+      rm -f "$dst"; mkdir -p "$(dirname "$dst")"
+      printf 'pull /%s %s\nexit\n' "$src" "$dst" | perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1
+      [[ -e $dst ]] && return 0
+    elif printf 'push %s /%s\nexit\n' "$src" "$dst" | perl -e 'alarm shift; exec @ARGV' 30 "$PMD3" apps afc "$BUNDLE" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+  dc device copy "$dir" "${ON[@]}" --source "$src" --destination "$dst" >/dev/null 2>&1
+}
+
 # copy_log <name> <dest>: Documents/logs/<name> (Documents/<name> for an app from before 2026-11-16).
 copy_log() {
-  dc device copy from "${ON[@]}" --source "Documents/logs/$1" --destination "$2" >/dev/null 2>&1 \
-    || dc device copy from "${ON[@]}" --source "Documents/$1" --destination "$2" >/dev/null 2>&1
+  app_copy from "Documents/logs/$1" "$2" || app_copy from "Documents/$1" "$2"
 }
 
 # pull_log <dest>: the app's recent log lines (live, else debug.recent.log, else debug.log for an older app).
@@ -76,7 +94,7 @@ launch() {
   python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" ${extra[@]+"${extra[@]}"} >"$f"
   from=$(date -u -v-2S +%Y-%m-%dT%H:%M:%S)  # follow from here; the phone's clock may run a little behind
   if live; then mv "$f" "$LIVE/outbox/$name"; else
-    dc device copy to "${ON[@]}" --source "$f" --destination "Documents/developer/harness-inbox/$name" >/dev/null
+    app_copy to "$f" "Documents/developer/harness-inbox/$name"
     rm -f "$f"
   fi
   [[ -n ${NO_LAUNCH:-} ]] || dc device process launch --device "$DEVICE" "$BUNDLE" >/dev/null
