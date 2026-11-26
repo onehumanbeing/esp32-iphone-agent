@@ -13,6 +13,7 @@ harness/logs.sh         the app's debug.log (+ --runs traces)
 harness/hid.sh "…"      raw board commands through the app (key, type, move…), plus shot / gop / video-reconnect / point
 harness/watch.sh        follow a run live: each step's action, thought, screen changed or not, pointer (run it in a Monitor)
 harness/ctl.sh pause    hold the run to look into a step (continue | stop)
+harness/tapcv.py        tap without mirroring: screenshot, find the pointer, correct, click, check (uv run)
 NO_LAUNCH=1 harness/hid.sh shot   during a run: without NO_LAUNCH the launch brings this app to the front mid-run
 harness/board.py        one-time only: put the board on the Mac's Wi-Fi (net sta | net ap)
 ```
@@ -62,6 +63,27 @@ mirroring starts). A Wi-Fi video reconnect within the same app process resumes a
 to `Documents/developer/harness-fw-<time>/` (a new folder each run: `devicectl` never replaces a file it copied before;
 never pass `--remove-existing-content`, it wipes the whole app container), then hands the app
 `-harness-ota <folder>` and follows its log until the result line (3 minutes at most).
+
+## Tapping without mirroring (tapcv.py)
+
+When mirroring is off or stuck (a new app process gets no keyframe until mirroring starts again), the agent can't see,
+but the board still moves the pointer. `tapcv.py` closes the loop from the Mac: it puts the pointer in the top-left
+corner, moves by calibrated units, finds the grey pointer disc on a screenshot (the change against the shot before
+the move), corrects until it is within 14 px, clicks, and checks the screen changed (`--expect TEXT`: that the text
+appeared). The scale is learned per screen size in `~/.cache/harness-tapcv.json`.
+
+```bash
+export HARNESS_SHOT=<command that writes a screenshot to the given path>   # e.g. pymobiledevice3 developer dvt screenshot --userspace
+export HARNESS_OCR=<command that prints [{"text","x","y","w","h"}] for an image>
+uv run harness/tapcv.py tap-text Settings --expect General
+uv run harness/tapcv.py mirror <board name> --restart    # Control Center > Screen Mirroring > the board, until connected
+```
+
+`run.sh` does this by itself before a task when `HARNESS_BOARD` names the board and there is no picture.
+
+Files go in and out of the app (the log, commands, screenshots) over `pymobiledevice3 apps afc` when it is installed (`HARNESS_PMD3`, else on PATH; the phone on USB): about 1.5 s a file, where devicectl can take 40 s or fail while a run and mirroring are going. Without it the scripts use devicectl.
+
+`hid.sh "...; stay"` leaves the pointer where the moves put it (otherwise it goes back to the corner at the end).
 
 ## Security
 

@@ -13,6 +13,7 @@ import UIKit
     /// A landing that missed by more than maxMiss re-homes at once instead (see `landing`).
     static let rehomeEvery = 10
     static let samplesVersion = 4  // 2: landings before a big miss re-homed; 3: firmware pace 2 moves differently; 4: video recalibration samples lacked the origin
+    static let longPress = 1.0             // s held for a long press (iOS opens the menu at ~0.5 s)
     static let hold = 0.35                  // s to rest before lifting, so iOS adds no momentum
     static let tapGap = 0.15                // s to stay still after a click, so iOS sees a finished tap
     static let nudge = 12                   // mouse units the pointer is wiggled by to find it on screen
@@ -559,8 +560,9 @@ import UIKit
     /// `reach`: Vision.pointer's default (iPhone), or that much of the content on a letterboxed iPad frame.
     nonisolated private static func find(_ a: Data, _ b: Data, near: CGPoint, shift: Double,
                                          reach: CGPoint = CGPoint(x: 0.12, y: 0.08), quiet: [CGRect]) -> CGPoint? {
-        Vision.pointer(a, b, near: near, shift: shift, reach: reach, quiet: quiet)
-            ?? Vision.pointer(a, b, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
+        guard let (ga, gb) = Vision.pointerFrames(a, b) else { return nil }
+        return Vision.pointer(ga, gb, near: near, shift: shift, reach: reach, quiet: quiet)
+            ?? Vision.pointer(ga, gb, near: CGPoint(x: 0.5, y: 0.5), shift: shift, reach: CGPoint(x: 0.5, y: 0.5), quiet: quiet)
     }
 
     /// A second reading of where the last measure found the pointer, from its move back (the frame after the nudge
@@ -749,16 +751,40 @@ import UIKit
         try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
     }
 
+    func longPress(_ x: Double, _ y: Double) async throws {
+        lastTapAt = CGPoint(x: x, y: y)
+        try await point(x, y)
+        log(String(format: "long press (%.3f, %.3f)", x, y))
+        try await device.send("press")
+        do { try await Task.sleep(nanoseconds: UInt64(Self.longPress * 1e9)) } catch {
+            _ = try? await device.send("release")
+            throw error
+        }
+        try await device.send("release")
+        try await Task.sleep(nanoseconds: UInt64(Self.tapGap * 1e9))
+    }
+
     func swipe(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, hold: Bool = true) async throws {
         try await drag([CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2)], hold: hold)
     }
 
+    func pressDrag(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) async throws {
+        log(String(format: "press and drag (%.3f, %.3f) to (%.3f, %.3f)", x1, y1, x2, y2))
+        try await drag([CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2)], hold: true, still: Self.longPress * 0.8)
+    }
+
+    func switchApp() async throws { try await switchToPreviousApp() }
+
     /// Press at the first point, move through the rest, release: one continuous stroke. hold rests at the end
     /// first, so lists and pickers stop exactly there; system gestures (home, back) need the flick.
-    func drag(_ points: [CGPoint], hold: Bool = true) async throws {
+    func drag(_ points: [CGPoint], hold: Bool = true) async throws { try await drag(points, hold: hold, still: 0) }
+
+    /// still: seconds to stand still after the press, before moving (a press and drag).
+    func drag(_ points: [CGPoint], hold: Bool, still: Double) async throws {
         try await point(Double(points[0].x), Double(points[0].y))
         do {
             try await device.send("press")
+            if still > 0 { try await Task.sleep(nanoseconds: UInt64(still * 1e9)) }
             var from = points[0]
             for (i, p) in points.dropFirst().enumerated() {
                 if hold && absolute && i == 0 {  // ease in: the first part slowly, so the page follows without a jerk

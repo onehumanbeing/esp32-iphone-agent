@@ -450,8 +450,12 @@ extension AppModel {
         let began = now()
         for url in AppNames.schemeURLs(app) {
             guard !appIsBackgrounded, !Task.isCancelled else { return false }
-            guard await UIApplication.shared.open(url) else { continue }
+            // Not awaited: while iOS asks "Open in X?", open's answer waits for that tap, and the tap below never came
+            // (a harness run hung 30 min on it, 2026-11-26). An app that isn't there answers false within the wait.
+            let answer = OpenAnswer()
+            UIApplication.shared.open(url, options: [:]) { answer.value = $0 }
             var away = (try? await waitForBackground(0.8)) ?? false
+            if !away, answer.value == false { continue }
             // Still here: most likely iOS asks first. Said in the middle of the screen until the app leaves (a toast
             // went unseen under the take-off screen, Henry 2026-11-20).
             let hint = homeHint
@@ -528,3 +532,6 @@ enum StartupFailure {
         return "other"
     }
 }
+
+/// open(url)'s answer, set when iOS gives it (after the "Open in X?" prompt, if one is shown).
+@MainActor private final class OpenAnswer { var value: Bool? }

@@ -38,7 +38,9 @@ import XCTest
     /// A Chinese name goes in as its pinyin letters first: no input method.
     func testChineseNameIsTypedAsPinyinLettersFirst() async throws {
         var sent: [String] = []
-        let result = try await opener([home, spotlight, app], lines: ["shizhong", "时钟"], homeLines: [], appLines: ["时钟"]) { sent.append($0) }.open("时钟")
+        var zh = opener([home, spotlight, app], lines: ["shizhong", "时钟"], homeLines: [], appLines: ["时钟"]) { sent.append($0) }
+        zh.language = "zh"  // a Chinese iPhone (an English one types the app's English name first)
+        let result = try await zh.open("时钟")
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type shizhong", "key enter"])
     }
@@ -58,9 +60,12 @@ import XCTest
     }
 
     func testOnlyAChineseNameGetsItsLettersFirst() {
-        XCTAssertEqual(AppOpener.queries("微信", pasting: false), ["weixin", "微信"])
-        XCTAssertEqual(AppOpener.queries("WeChat", pasting: false), ["WeChat"])
-        XCTAssertEqual(AppOpener.queries("微信", pasting: true), ["微信"])
+        XCTAssertEqual(AppOpener.queries("微信", pasting: false, language: "zh"), ["weixin", "微信"])
+        XCTAssertEqual(AppOpener.queries("WeChat", pasting: false, language: "zh"), ["WeChat"])
+        XCTAssertEqual(AppOpener.queries("微信", pasting: true, language: "zh"), ["微信"])
+        // an English iPhone lists them by their English names: pinyin found nothing there
+        XCTAssertEqual(AppOpener.queries("地图", pasting: false, language: "en"), ["Maps", "ditu"])
+        XCTAssertEqual(AppOpener.queries("小红书", pasting: false, language: "en"), ["rednote", "xiaohongshu"])
     }
 
     /// A name Spotlight does not list goes back to the model; code never types other names (2026-11-13).

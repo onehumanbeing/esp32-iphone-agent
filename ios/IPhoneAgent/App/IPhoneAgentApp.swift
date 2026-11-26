@@ -24,6 +24,7 @@ struct IPhoneAgentApp: App {
         _ = AppModel.shared  // also on a background launch for an App Intent, which shows no scene
         CrashReports.shared.start()
         Analytics.start()
+        Pointer.warmUpTypeable()
     }
 
     var body: some Scene {

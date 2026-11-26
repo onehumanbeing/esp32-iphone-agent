@@ -18,8 +18,7 @@ while true; do
   latest=$(grep -oE 'run [0-9]{8}-[0-9]{6}' "$f" | tail -1 | cut -d' ' -f2 || true)
   [[ $latest == "$run" ]] || run=$latest rows=0
   seen=$n; rm -f "$f"
-  if [[ -n $run ]] && dc device copy from "${ON[@]}" --source "Documents/traces/$run/steps.jsonl" --destination "$s" \
-    >/dev/null 2>&1 && out=$(python3 harness/steps.py "$s" "$rows"); then
+  if [[ -n $run ]] && app_copy from "Documents/traces/$run/steps.jsonl" "$s" && out=$(python3 harness/steps.py "$s" "$rows"); then
     (( first )) || sed '$d' <<<"$out"  # a run that was going when the watch started: from its current step on
     rows=$(tail -1 <<<"$out")
   fi

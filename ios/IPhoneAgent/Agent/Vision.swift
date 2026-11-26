@@ -231,12 +231,24 @@ enum Vision {
     /// `quiet`: spots (fractions) that moved by themselves just before (`motion`); never the pointer.
     static func pointer(_ before: Data, _ after: Data, near: CGPoint, shift: Double,
                         reach: CGPoint = CGPoint(x: 0.12, y: 0.08), quiet: [CGRect] = []) -> CGPoint? {
+        guard let (a, b) = pointerFrames(before, after) else { return nil }
+        return pointer(a, b, near: near, shift: shift, reach: reach, quiet: quiet)
+    }
+
+    /// Both frames decoded and grayed once, for several searches (near the target, then the whole screen): each
+    /// search decoded both JPEGs again, 4 decodes per missed pointer, 8 s in the background (2026-11-26).
+    static func pointerFrames(_ before: Data, _ after: Data) -> (Gray, Gray)? {
         guard let ia = image(before), let ib = image(after), ia.width == ib.width, ia.height == ib.height else {
             return nil
         }
         // at most `pointerWidth` wide: an iPad's 1200 px frame took 4.4 s per aim at full size (Debug, 2026-10-29)
         let w = min(ia.width, pointerWidth), h = w == ia.width ? ia.height : max(1, ia.height * w / ia.width)
-        let a = gray(ia, w, h), b = gray(ib, w, h)
+        return (gray(ia, w, h), gray(ib, w, h))
+    }
+
+    static func pointer(_ a: Gray, _ b: Gray, near: CGPoint, shift: Double,
+                        reach: CGPoint = CGPoint(x: 0.12, y: 0.08), quiet: [CGRect] = []) -> CGPoint? {
+        let w = a.w, h = a.h
         let nx = Double(near.x), ny = Double(near.y), rx = Double(reach.x), ry = Double(reach.y)
         let left = max(0, Int((nx - rx) * Double(w)))
         let top = max(Int(0.05 * Double(h)), Int((ny - ry) * Double(h)))  // skip the status bar
