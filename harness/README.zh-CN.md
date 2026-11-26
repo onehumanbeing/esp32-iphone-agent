@@ -12,6 +12,7 @@ harness/run.sh "<task>" 在 App 里开始一个任务，打印它怎么结束的
 harness/logs.sh         App 的 debug.log（加 --runs 带运行轨迹）
 harness/hid.sh "…"      通过 App 发原始板子命令（key、type、move……），以及 shot / gop / video-reconnect
 harness/board.py        只用一次：让板子连上 Mac 的 Wi-Fi（net sta | net ap）
+harness/tapcv.py        没有镜像也能点：截图、找指针、修正、点击、检查（uv run）
 ```
 
 所有操作都通过 `devicectl` 经 Wi-Fi 发到 iPhone。设置完成后 Mac 不再直接和板子通信：App 连着时，板子的 App 连接只属于 App，所以固件走 Mac → App → 板子，和「更新板子」的路径一样。板子以 station 方式（`net sta`）加入 Mac 的 Wi-Fi，而不是打开自己的热点，这样 iPhone 一直留在 Mac 的网络里，也能在这个网络里连到板子。
@@ -42,6 +43,19 @@ harness/hid.sh "gop; video-reconnect; shot"       # 填满 GOP，再断开 Wi-Fi
 板子重启后（每次 `fw.sh`），以及板子的 GOP 缓冲已满时运行 `app.sh` 之后（新的 App 进程需要关键帧，而 iOS 只在开始镜像时发送），都要在 iPhone 上重新选择屏幕镜像。同一个 App 进程内的 Wi-Fi 视频重连会自动恢复，不需要任何操作。
 
 `fw.sh` 把镜像和一个 `firmware.json`（大小、SHA-256、MD5，版本取自 `hardware/hid_bridge/version.h`）复制到 `Documents/developer/harness-fw-<time>/`（每次一个新目录：`devicectl` 不会替换它之前复制过的文件；千万不要传 `--remove-existing-content`，它会清空整个 App 容器），然后把 `-harness-ota <folder>` 交给 App，并跟踪它的日志直到出现结果行（最多 3 分钟）。
+
+## 没有镜像时点击（tapcv.py）
+
+镜像关了或卡住（新的 App 进程要等镜像重新开始才拿得到关键帧）时，Agent 看不到屏幕，但板子还能移动指针。`tapcv.py` 在 Mac 上做闭环：把指针推到左上角，按标定的单位移动，在截图里找到灰色的指针圆点（和移动前那张截图的差异），修正到 14 px 以内再点击，然后检查屏幕变了（`--expect TEXT`：这段文字出现了）。比例按屏幕尺寸学习，存在 `~/.cache/harness-tapcv.json`。
+
+```bash
+export HARNESS_SHOT=<把截图写到指定路径的命令>   # 例如 pymobiledevice3 developer dvt screenshot --userspace
+export HARNESS_OCR=<对一张图输出 [{"text","x","y","w","h"}] 的命令>
+uv run harness/tapcv.py tap-text Settings --expect General
+uv run harness/tapcv.py mirror <板子名> --restart    # 控制中心 › 屏幕镜像 › 这块板子，直到连上
+```
+
+`hid.sh "...; stay"` 让指针留在移动到的位置（否则结束时回到角落）。
 
 ## 安全
 

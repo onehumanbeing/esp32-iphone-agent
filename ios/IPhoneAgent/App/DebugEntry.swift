@@ -430,7 +430,9 @@ extension AppModel {
             var moved = false
             for command in commands.split(separator: ";").map({ $0.trimmingCharacters(in: .whitespaces) }) where !command.isEmpty {
                 let reply: String
-                if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
+                if command == "stay" {  // leave the pointer where these moves put it (harness/tapcv.py finds it on a screenshot)
+                    reply = "ok"
+                } else if command.hasPrefix("wait "), let s = Double(command.dropFirst(5)) {  // "wait 1.2": seconds
                     try? await Task.sleep(nanoseconds: UInt64(s * 1e9))
                     reply = "ok"
                 } else if command == "homeup" || command.hasPrefix("homeup ") {  // HomeTuning for this orientation
@@ -466,7 +468,7 @@ extension AppModel {
             }
             // raw moves leave the pointer where the app doesn't think it is: the next run's home-bar flick pressed
             // mid-screen and never left the app (2026-11-06). Once at the end, so "home; move …; move …" composes.
-            if moved { try? await pointer.reset() }
+            if moved && !commands.contains("stay") { try? await pointer.reset() }
             say("harness hid: done")
         }
     }
