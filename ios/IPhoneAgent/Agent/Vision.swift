@@ -166,9 +166,10 @@ enum Vision {
         return Double(best.0) / Double(h)
     }
 
-    static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = []) -> Bool {
-        guard let before, let after, let a = image(before), let b = image(after) else { return true }
-        if a.width != b.width || a.height != b.height { return true }
+    /// `unknown`: the answer when the frames cannot be compared (missing, undecodable, another size).
+    static func changed(_ before: Data?, _ after: Data?, at p: CGPoint, ignore: [CGPoint] = [], unknown: Bool = true) -> Bool {
+        guard let before, let after, let a = image(before), let b = image(after) else { return unknown }
+        if a.width != b.width || a.height != b.height { return unknown }
         let w = a.width / 2, h = a.height / 2, fa = gray(a, w, h), fb = gray(b, w, h), counts = kept(ignore)
         let x0 = max(0, Int((p.x - 0.06) * Double(w))), x1 = min(w - 1, Int((p.x + 0.06) * Double(w)))
         let y0 = max(0, Int((p.y - 0.02) * Double(h))), y1 = min(h - 1, Int((p.y + 0.02) * Double(h)))

@@ -82,6 +82,9 @@ extension Gestures {
     var chosenGestureDropped = false
     /// The last round sent nothing because the person paused: it says nothing about the screen.
     var roundDroppedByPause = false
+    /// The last round's first tap was dropped because its target changed since the model looked: this round's first
+    /// tap is not checked again (bounded: one more look per such tap).
+    var firstTapLookedAgain = false
     /// Ceilings, not budgets: tokens cost only when written. Henry 2026-11-19: the actor's 1000 cut every README
     /// write of a 25-order run (11 retries, never finished). A reply still cut at its ceiling is asked once more
     /// with `cutRetryTokens` (the gateway lowers anything above its own ceiling, never refuses it).
@@ -1017,14 +1020,26 @@ extension Gestures {
                 let again = name == "tap" && i > 0 && Self.sameSpot(acts[i - 1].act, act)
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
-                if earlierTap, !again, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                // The first tap too, without the settle (the look already waited for a still screen): the page can
+                // stand still, then load more while the model thinks; Settings' account row pushed the list down
+                // ~0.1 screen and the tap hit a gap (2026-11-27). Once: the round after such a look taps unchecked,
+                // so a target that keeps moving (a video, a spinner) costs one look, never a loop.
+                let firstTap = name == "tap" && !earlierTap
+                let checkFirst = firstTap && !firstTapLookedAgain  // frames that cannot be compared: tapped as before
+                if firstTap { firstTapLookedAgain = false }
+                if earlierTap && !again || checkFirst, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
                     let checked = now()
-                    timing.frameMs += await settle(ignoring: spots, busy: await still())
+                    if earlierTap { timing.frameMs += await settle(ignoring: spots, busy: await still()) }
                     let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
-                    let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask) }
+                    let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask, unknown: !checkFirst) }
                     DebugLog.write(String(format: "step: target check before tap %d took %.1f s", i + 1, now() - checked))
                     if moved {
                         DebugLog.write("step: the target of tap \(i + 1) changed since the model looked; looking again")
+                        if checkFirst {  // nothing recorded yet this round: no step to mark
+                            firstTapLookedAgain = true
+                            record(nil, ["action": .str("stale_look"), "reason": .str("the target changed after the look")])
+                            return false
+                        }
                         verdict(true)
                         return false
                     }

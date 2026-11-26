@@ -118,6 +118,36 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, AppOpener.tries)
     }
 
+    /// The picture ran behind: the look after typing still shows Siri Suggestions, whose icon grid lists the app.
+    /// No tap there (it landed on another result, 2026-11-27 case 37); looked at again until the results are in.
+    func testNoTapOnSiriSuggestionsFromBeforeTheResults() async throws {
+        let suggestions = Data([7])
+        var queue: [Data?] = [home, suggestions, spotlight, app]
+        var tapped: [CGPoint] = []
+        var opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app, suggestions] in
+                                   $0 == home ? [] : $0 == app ? ["Shopping list"]
+                                       : $0 == suggestions ? ["Siri Suggestions", "Notes", "Notes", "Settings", "Q Search"] : ["Notes", "Notes", "Apps"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.readBoxes = { [suggestions] frame in
+            (frame == suggestions ? [("Siri Suggestions", [40, 180, 400, 220]), ("Notes", [760, 620, 900, 660])]
+                                  : [("Notes", [100, 600, 300, 640])], CGSize(width: 1000, height: 2000))
+        }
+        opener.tapAt = { tapped.append($0) }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(tapped.count, 1)
+        XCTAssertEqual(Double(tapped[0].x), 0.2, accuracy: 0.001, "the results row, not the suggestions grid")
+    }
+
+    func testSuggestingIsTheHeaderWithoutATopHit() {
+        XCTAssertTrue(AppOpener.suggesting(["Siri Suggestions", "Reminders", "Q Search"]))
+        XCTAssertTrue(AppOpener.suggesting(["Siri Suggestions", "Show Less", "Reminders", "Q Reminders"]),
+                      "the last query brought back over the grid, 2026-11-27")
+        XCTAssertFalse(AppOpener.suggesting(["Top Hit", "Reminders", "Suggestions", "Reminders"]))
+        XCTAssertFalse(AppOpener.suggesting(["Q Search", "Reminders"]))
+    }
+
     /// The results list the app: its row is tapped, never Return (Wiki #1007 N1; 2026-11-20 Pocket Chess). The
     /// search field (the same text) is tapped first when it is on top and changes nothing; opened once Spotlight is gone.
     func testAListedResultIsTappedNotReturn() async throws {
@@ -246,8 +276,8 @@ import XCTest
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
                                read: { [home, composing, app] in
                                    $0 == home ? [] : $0 == app ? ["Level 1", "Play"]
-                                       : $0 == composing ? ["Pocket Chess", "pocket chess", "Siri Suggestions"]
-                                       : ["Pocket Chess", "Pocket Chess", "Siri Suggestions"] },
+                                       : $0 == composing ? ["Pocket Chess", "pocket chess", "Apps"]
+                                       : ["Pocket Chess", "Pocket Chess", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         opener.readBoxes = { [composing] frame in
             let field: (text: String, box: [Int]) = ("Pocket Chess", [100, 200, 500, 240])
@@ -268,7 +298,7 @@ import XCTest
         let committed = Data([5])
         var queue: [Data?] = [home, spotlight, committed, home, spotlight, committed]
         var opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
-                               read: { [home] in $0 == home ? [] : ["Pocket Chess", "Pocket Chess", "Siri Suggestions"] },
+                               read: { [home] in $0 == home ? [] : ["Pocket Chess", "Pocket Chess", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         var logs: [String] = []
         opener.log = { logs.append($0) }
@@ -284,7 +314,7 @@ import XCTest
     func testAnAppShowingItsNameTwiceIsOpened() async throws {
         var queue: [Data?] = [home, spotlight, app]
         let opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
-                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Notes", "iCloud Notes", "Folders"] : ["Notes", "Notes", "Siri Suggestions"] },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Notes", "iCloud Notes", "Folders"] : ["Notes", "Notes", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         let result = try await opener.open("Notes")
         XCTAssertEqual(result, .opened)

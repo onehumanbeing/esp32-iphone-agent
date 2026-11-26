@@ -528,8 +528,28 @@ import XCTest
         agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 90) } }  // moved while the model looked
         phone.onTap = { screen.frame = v.screen(spinner: 160) }
         _ = try await agent.step()
+        // the first tap's target changed while the model looked: one more look, nothing pressed (2026-11-27)
+        XCTAssertEqual(phone.aims, [])
+        XCTAssertEqual(agent.steps.last?["action"], .str("stale_look"))
+        looked = false
+        agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 230) } }  // still moving
+        _ = try await agent.step()  // looked at once more, then tapped even though it moves by itself: never a loop
         XCTAssertEqual(phone.aims, [false])
         XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
+    /// Settings loaded its account row after the look and pushed the list down: the first tap is not sent onto
+    /// the gap, the model looks again (2026-11-27).
+    func testAFirstTapWhoseTargetMovedAfterTheLookIsNotSent() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen()
+        var looks = 0
+        let model = FakeModel { _ in looks += 1; return "THINK: row\nDO: tap 500 463" }  // on the button (y 400-601 of 1080)
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.onDoing = { if case .acting = $0, looks == 1 { screen.frame = v.screen(button: true) } }
+        _ = try await agent.step()
+        XCTAssertTrue(phone.taps.isEmpty)
+        XCTAssertEqual(agent.steps.last?["action"], .str("stale_look"))
     }
 
     func testAMissedTapSaysWhereThePointerIs() async throws {

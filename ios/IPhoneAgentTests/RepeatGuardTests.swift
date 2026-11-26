@@ -552,4 +552,10 @@ final class AlreadyOpenTests: XCTestCase {
     func testAskedTwiceInARowItReallyOpens() {
         XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖"), opened("美团外卖", .already)]))
     }
+
+    /// Right after "opened" the model asks again (by another name): it does not see the app, so it is opened for real.
+    func testAskedAgainRightAfterOpenedItReallyOpens() {
+        XCTAssertFalse(AlreadyOpen.holds("Reminders", [opened("提醒事项")]))
+        XCTAssertFalse(AlreadyOpen.holds("提醒事项", [opened("提醒事项")]))
+    }
 }

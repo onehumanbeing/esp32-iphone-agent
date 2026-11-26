@@ -173,6 +173,16 @@ enum OpenResult: String {
                 results = again
                 lines = await read(again)
             }
+            // Siri Suggestions still on the picture = it is from before the results came in (the picture ran ~2 s
+            // behind). Their icon grid lists the app too: a tap there landed on whatever result had come in at that
+            // spot, an App Store page, and the open said opened (2026-11-27, case 37). Looked at until they go; still
+            // there after ~3 s, the picture has caught up and they are the screen.
+            for _ in 0..<Self.suggestionLooks where Self.suggesting(lines) {
+                try await pause(0.6)
+                guard let again = await look() else { break }
+                results = again
+                lines = await read(again)
+            }
             if !shows(lines) {
                 if same(results, homeFrame) { button = true; continue }  // Spotlight did not come up
                 // The typed name is nowhere new on screen: cmd+space did nothing and the frames differ only where
@@ -341,6 +351,21 @@ enum OpenResult: String {
     /// Spotlight's header over its Top Hit (the row Return opens), per language (folded).
     static let topHitHeaders: Set<String> = Set(["Top Hit", "最佳匹配", "最佳搜尋結果", "トップヒット", "상위 히트",
                                                  "Toptreffer", "Meilleur résultat"].map(Scripts.fold))
+
+    /// Spotlight's header over its suggestions before any results, per language (folded).
+    static let suggestionHeaders: Set<String> = Set(["Siri Suggestions", "Siri 建议", "Siri建议", "Siri 建議", "Siri建議",
+                                                     "Siriからの提案", "Siri 제안", "Siri-Vorschläge",
+                                                     "Suggestions de Siri"].map(Scripts.fold))
+    /// Looks (0.6 s apart) while Siri Suggestions are still on the picture after the name was typed.
+    static let suggestionLooks = 5
+
+    /// The lines are Spotlight before its results: the Siri Suggestions header (over the icon grid) and no Top Hit.
+    /// Not the field: Spotlight brings back the last query, so the field already read "Reminders" over the grid
+    /// (2026-11-27, phone-side capture), and the grid's Reminders spot was a web suggestion once the results came.
+    static func suggesting(_ lines: [String]) -> Bool {
+        let folded = lines.map(Scripts.fold)
+        return folded.contains { suggestionHeaders.contains($0) } && !folded.contains { topHitHeaders.contains($0) }
+    }
 
     /// The app's first row is under the Top Hit header: Return opens the app (never a field, a web suggestion,
     /// or another result that came first).

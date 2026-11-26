@@ -292,6 +292,10 @@ enum AlreadyOpen {
     static func holds(_ app: String, _ steps: [JObject]) -> Bool {
         let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }
         if let last = sent.last, last["action"]?.str == "open", last["opened"]?.str == OpenResult.already.rawValue { return false }
+        // asked again right after it was opened: the model does not see it on screen, so it is opened for real
+        // (2026-11-27, case 37: a wrong Spotlight tap said "opened", the next open said "already open" over an App
+        // Store page, and the model gave up as "not installed")
+        if let last = sent.last, last["action"]?.str == "open", same(last["app"]?.str ?? "", app) { return false }
         for s in sent.reversed() {
             switch s["action"]?.str {
             case "home": return false
