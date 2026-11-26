@@ -139,11 +139,21 @@ enum OpenResult: String {
             // and the name typed into it (2026-11-27 open review: a name typed into a chat's input box 4 times on
             // build 24). Look first; the same screen as before = no Spotlight, the Search button next time.
             // (twice, 0.6 s apart: the picture can run up to a second behind the phone)
-            if viaKey, let glance, homeFrame != nil, let up = await glance(), same(up, homeFrame),
-               (try? await pause(0.6)) != nil, let later = await glance(), same(later, homeFrame) {
-                log("open \(name): nothing came up after cmd+space; not typing into the app in front")
-                button = true
-                continue
+            func nothingUp() async -> Bool {
+                guard let glance, homeFrame != nil, let up = await glance(), same(up, homeFrame),
+                      (try? await pause(0.6)) != nil, let later = await glance() else { return false }
+                return same(later, homeFrame)
+            }
+            // the first cmd+space right after this app left the front is often dropped (2026-11-27: the Home Screen
+            // stayed, and going Home again for the Search button cost 9 s): press it once more first
+            if viaKey, await nothingUp() {
+                try await key("cmd+space")
+                try await pause(0.7)
+                if await nothingUp() {
+                    log("open \(name): nothing came up after cmd+space twice; not typing into the app in front")
+                    button = true
+                    continue
+                }
             }
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")

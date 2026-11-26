@@ -413,7 +413,7 @@ import XCTest
     func testNothingTypedIntoTheAppInFrontWhenSpotlightDidNotComeUp() async throws {
         var sent: [String] = []
         var queue: [Data?] = [home, home, spotlight, app]
-        var glances: [Data?] = [home, home]
+        var glances: [Data?] = [home, home, home, home]  // nothing after cmd+space, nor after the second press
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
                                read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
@@ -433,6 +433,24 @@ import XCTest
         _ = try await opener.open("Notes")
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
         XCTAssertTrue(sent.contains("type Notes"))
+    }
+
+    /// The first cmd+space after this app left the front was dropped: a second press, not Home and the Search button.
+    func testADroppedCmdSpaceIsPressedOnceMore() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, spotlight, app]
+        var glances: [Data?] = [home, home]
+        var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.glance = { glances.isEmpty ? self.spotlight : glances.removeFirst() }
+        opener.searchButton = { sent.append("search button"); return true }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 2)
+        XCTAssertEqual(sent.filter { $0 == "home" }.count, 1, "\(sent)")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
     }
 
     /// Past the budget no new try starts: the model gets not_opened and decides.
