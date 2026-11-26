@@ -12,7 +12,9 @@ follow "$STOP" '^[^ ]+ (debug: stop|finished: )' '^[^ ]+ debug: stopped' 20 >/de
 # the board's AirPlay name in HARNESS_BOARD, Screen Mirroring is restarted from the Mac first (tapcv.py).
 if [[ -n ${HARNESS_BOARD:-} ]] && NO_LAUNCH=1 harness/hid.sh shot 2>&1 | grep -q 'err no frame'; then
   echo "no picture: restarting Screen Mirroring to $HARNESS_BOARD"
-  uv run -q harness/tapcv.py mirror "$HARNESS_BOARD" --restart | tail -1 || true
+  for try in 1 2; do  # a restart that did not bring a picture: once more
+    if uv run -q harness/tapcv.py mirror "$HARNESS_BOARD" --restart | tail -1; then break; fi
+  done
 fi
 FROM=$(launch -run "$1")
 # a run that asks for help waits for a reply nobody unattended will give: that ends it here too

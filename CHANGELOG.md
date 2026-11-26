@@ -14,6 +14,10 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 - A run starts much sooner after a long Screen Mirroring session: when the app goes to the background, the
   video since the last keyframe is decoded again without an image per frame, asynchronously, and frames nothing
   refers to are skipped. 455 units: 4.5 ms -> 0.9 ms each; a 2-hour session's 15362 units took 69 s before.
+- Opening an app over a Bluetooth board flicks up from the home bar at once when an app is in front: the board's
+  cmd+h did nothing there six times out of six (Settings, Weather), each a 3 s check first. The name goes into
+  Spotlight straight as letters (the keyboard check before it read the screen twice, 5.3 s).
+- A plain `wait` on a screen where nothing moves ends after 4 s still instead of 15 s.
 - Harness: `tapcv.py` corrects the pointer with the scale its last move showed, waits for the Screen Mirroring
   list, and closes Control Center until the status bar's clock is back.
 

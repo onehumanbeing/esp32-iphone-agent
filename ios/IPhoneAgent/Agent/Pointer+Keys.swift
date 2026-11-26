@@ -286,6 +286,12 @@ extension Pointer {
         return await sameApp(before, after)
     }
 
+    /// The Home Screen: its Search pill is on the frame.
+    static func onHomeScreen(_ jpeg: Data) async -> Bool {
+        guard let image = Vision.image(jpeg) else { return false }
+        return SearchPill.label(await UITreeOCR.lines(image), size: CGSize(width: image.width, height: image.height)) != nil
+    }
+
     /// Most of the text on `before` is still on `after`: the same app (scrolled, perhaps), not the Home Screen.
     static func sameApp(_ before: Data?, _ after: Data?) async -> Bool {
         func words(_ jpeg: Data?) async -> Set<String> {

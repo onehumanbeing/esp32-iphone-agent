@@ -14,6 +14,10 @@ enum WaitFor {
     /// without the model looking: then it just looks, as before), and how often to check.
     nonisolated(unsafe) static var plainMost = 15.0  // tests with a still fake screen shorten it
     static let plainEvery = 0.25
+    /// Plain `wait` on a screen where nothing moves at all (no spinner, no video): over after this long still. A
+    /// loaded page stays still, and the whole 15 s went on it, two runs in a row on a search result (2026-11-26);
+    /// one that is still loading has its spinner, and that wait goes on to `plainMost`.
+    static let stillEnough = 4.0
 
     /// The words and whether they are to go, from what follows `wait`.
     static func parse(_ rest: String) -> (text: String, gone: Bool, seconds: Double)? {
@@ -82,6 +86,10 @@ extension AgentLoop {
                 let at = now() - started
                 _ = await settle(busy: moving)
                 return String(format: "the screen changed after %.1f s", at)
+            }
+            if moving.isEmpty, now() - started >= WaitFor.stillEnough {
+                return String(format: "the screen stood still for %.0f s and nothing on it moves: it is not loading; look at it and go on",
+                              WaitFor.stillEnough)
             }
             try await Task.sleep(nanoseconds: UInt64(WaitFor.plainEvery * 1e9))
         }

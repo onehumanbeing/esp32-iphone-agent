@@ -7,6 +7,16 @@ import XCTest
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
     override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
 
+    /// 2026-11-26: a plain `wait` on a loaded page that never moved took the whole 15 s, twice in a run.
+    func testPlainWaitOnAScreenWhereNothingMovesEndsAfterStillEnough() async throws {
+        WaitFor.plainMost = 15
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        let began = now()
+        let said = try await agent.waitForChange()
+        XCTAssertLessThan(now() - began, WaitFor.stillEnough + 1.5)
+        XCTAssertTrue(said?.contains("stood still") == true, said ?? "nil")
+    }
+
     func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
         let agent = AgentLoop(phone: phone, screen: screen, actor: nil, planner: nil, trace: nil)

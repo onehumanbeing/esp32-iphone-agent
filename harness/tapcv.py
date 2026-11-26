@@ -205,14 +205,32 @@ def mirror(board: str, restart: bool = False) -> bool:
             ok = True
             break
     close_control_center()
+    # "Stop Mirroring" shows while it still connects: a picture reaching the app is the proof (2026-11-26: "✓",
+    # then no frame and a run waited 5 minutes)
+    ok = ok and pictured()
     print("mirroring to " + board + (" ✓" if ok else ": not confirmed"))
     return ok
+
+
+def pictured(seconds: float = 12) -> bool:
+    """The app has a frame from the board (`hid.sh shot` does not answer "no frame")."""
+    end = time.time() + seconds
+    while True:
+        out = subprocess.run([str(HARNESS / "hid.sh"), "shot"], capture_output=True, text=True, timeout=180,
+                             env={**os.environ, "NO_LAUNCH": "1"}).stdout
+        if "harness hid: done" in out and "no frame" not in out:
+            return True
+        if time.time() > end:
+            return False
+        time.sleep(2)
 
 
 def close_control_center() -> None:
     """Empty space under its tiles, until the status bar's clock is back (Control Center hides it): from the Screen
     Mirroring menu the first tap only goes back to Control Center (2026-11-26: a run then started under it)."""
-    for _ in range(3):
+    for i in range(3):
+        if i:
+            time.sleep(1)  # the closing slide: read before it ends, the clock was missed and a third tap went into the app
         img = shot()
         if any(re.fullmatch(r"\d{1,2}:\d{2}", b["text"]) and b["y"] < img.shape[0] * 0.04 for b in ocr(img)):
             return
