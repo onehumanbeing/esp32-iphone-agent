@@ -403,7 +403,7 @@ import UIKit
             return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model, "X-Run-ID": keyRun]
         }
         guard let lease, let token else { throw TrialError.runsOnly }
-        guard !leaseLost else { throw lostReason.map(LLMError.timeUpReasons.contains) == true ? LLMError.trialTimeUp : LLMError.trialRunEnded }  // ended on the server
+        guard !leaseLost else { throw LLMError.leaseEnded(lostReason) }  // ended on the server
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }

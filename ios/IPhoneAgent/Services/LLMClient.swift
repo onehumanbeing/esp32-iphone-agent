@@ -118,6 +118,16 @@ struct LLMError: LocalizedError {
                  status: 503, kind: trialRunEnded.kind)
     }
     static let timeUpReasons: Set<String> = ["lease_ended", "lease_time_exhausted", "lease_expired"]
+    /// Ended by the gateway itself (a restart, an admin stop): said as that, not as time up. Continue goes on.
+    static var trialInterrupted: LLMError {
+        LLMError(message: String(localized: "The free line's server restarted, so this run was paused. Tap Continue to pick up where it left off."),
+                 status: 503, kind: trialRunEnded.kind)
+    }
+    /// What a lease the server ended is told as, by its reason (nil: none given).
+    static func leaseEnded(_ reason: String?) -> LLMError {
+        if reason == "lease_interrupted" { return trialInterrupted }
+        return timeUpReasons.contains(reason ?? "") ? trialTimeUp : trialRunEnded
+    }
 }
 
 /// Client for any OpenAI-compatible chat endpoint (vision models). Port of llm.py, with streaming:
@@ -376,7 +386,7 @@ struct LLMError: LocalizedError {
         default: break
         }
         if trialRunEnded(errorText) || status == 401 {
-            var ended = LLMError.timeUpReasons.contains(reason ?? "") ? LLMError.trialTimeUp : LLMError.trialRunEnded
+            var ended = LLMError.leaseEnded(reason)
             ended.reason = reason ?? "http_\(status)"
             return ended
         }

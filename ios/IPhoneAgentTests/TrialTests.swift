@@ -382,6 +382,13 @@ import XCTest
         let timeUp = LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "lease_ended"}"#)
         XCTAssertEqual(timeUp?.message, LLMError.trialTimeUp.message, "time up is said as it is")
         XCTAssertEqual(timeUp?.kind, LLMError.trialRunEnded.kind)
+        // the gateway's own restart or stop (PR #126): said as that; old gateways still send lease_ended (time up)
+        let restarted = LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "lease_interrupted"}"#)
+        XCTAssertEqual(restarted?.message, LLMError.trialInterrupted.message)
+        XCTAssertEqual(restarted?.kind, LLMError.trialRunEnded.kind, "ends the run; Continue goes on")
+        XCTAssertEqual(restarted?.reason, "lease_interrupted")
+        XCTAssertEqual(LLMError.leaseEnded("lease_interrupted").message, LLMError.trialInterrupted.message, "keep-alive path")
+        XCTAssertEqual(LLMError.leaseEnded(nil).message, LLMError.trialRunEnded.message)
         XCTAssertEqual(LLMClient.freeLineError(status: 503, errorText: #"{"status": "busy", "reason": "quota"}"#)?.message,
                        TrialError.usedUp.localizedDescription)
         XCTAssertEqual(LLMClient.freeLineError(status: 429, errorText: #"{"status": "busy", "reason": "rate_limit_day"}"#)?.message,

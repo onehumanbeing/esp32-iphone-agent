@@ -14613,6 +14613,16 @@
         }
       }
     },
+    "The free line's server restarted, so this run was paused. Tap Continue to pick up where it left off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路的服务器重启了，这次运行已暂停。点「继续」从停下的地方接着做。"
+          }
+        }
+      }
+    },
     "This free run reached its time limit, so it was paused. Tap Continue to pick up where it left off." : {
       "localizations" : {
         "zh-Hans" : {
