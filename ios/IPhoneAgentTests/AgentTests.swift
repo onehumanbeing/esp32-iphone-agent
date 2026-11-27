@@ -5,7 +5,7 @@ import XCTest
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
-    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+    override func tearDown() { WaitFor.plainMost = WaitFor.most; super.tearDown() }
 
     func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
@@ -668,7 +668,7 @@ import XCTest
 /// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
 @MainActor final class IPadAgentTests: XCTestCase {
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
-    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+    override func tearDown() { WaitFor.plainMost = WaitFor.most; super.tearDown() }
 
     func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
         let phone = FakeGestures(), screen = FakeScreen()

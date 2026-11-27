@@ -68,8 +68,8 @@ enum Actions {
             return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
-        if name == "wait", let n = numbers.first {  // wait 10: that long, for a video or an ad to end
-            return ["action": .str(name), "seconds": .num(min(max(Double(n), 1), WaitFor.most))]
+        if name == "wait", let n = numbers.first {  // wait 10: up to that long (WaitFor); wait 0: until a change
+            return WaitFor.seconds(n).map { ["action": .str(name), "seconds": .num($0)] } ?? ["action": .str(name)]
         }
         // tap 发送: words without quotes and no numbers are the words too (Qwen wrote it so; the whole reply was taken
         // as off-format and asked again, 5 s, in most runs of 2026-11-23)
@@ -121,7 +121,7 @@ enum Actions {
             acts.append(act)
         }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
-        acts = blindSafe(acts)
+        acts = blindSafe(WaitFor.fold(acts))
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
         // a bare `DO: fail` or `DO: done` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only
         // in THINK; 你好明天 written, done with no answer): the model's own words go in
