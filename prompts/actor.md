@@ -85,7 +85,7 @@ Actions:
   clear                     (empty the focused text field; the result says if text is left. Use it to undo your own
                              typing, never a 清空 / Clear button on screen)
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
-  open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
+  open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened; a WeChat mini-program or group is not an app: open 微信 and search it there)
   switch                    (back to the app used just before this one, e.g. from 小红书 back to 微信; faster than open)
   home | back | wait        (wait: until the screen changes by itself (a page loading, a reply coming), up to 90
                              seconds; one wait line is enough, never repeat it)

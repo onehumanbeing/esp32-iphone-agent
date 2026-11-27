@@ -3,6 +3,19 @@ import XCTest
 
 /// `open APP` by code: Spotlight, Return only when the results list the name, read back that the app came up.
 @MainActor final class AppOpenerTests: XCTestCase {
+    /// 2026-11-27, build 25: 5 of 30 failed opens landed on an App Store page, and the same name was opened 7 times.
+    func testAnAppStorePageIsNotInstalledAndTwoFailedOpensStopTheName() {
+        XCTAssertTrue(AppOpener.storePage(["小红书", "获取", "App 内购买", "3.2万个评分", "4.7", "年龄", "17+", "排行榜", "开发者"]))
+        XCTAssertTrue(AppOpener.storePage(["Kuaishou", "Get", "In-App Purchases", "12K Ratings", "Age", "Chart", "Developer"]))
+        XCTAssertFalse(AppOpener.storePage(["Settings", "General", "Developer", "Privacy"]), "no Get button")
+        XCTAssertTrue(AppOpener.isAppStore("App Store"))
+        func open(_ app: String, _ result: OpenResult) -> JObject { ["action": .str("open"), "app": .str(app), "opened": .str(result.rawValue)] }
+        XCTAssertFalse(OpenRetry.given("时钟", after: [open("时钟", .notFound)]))
+        XCTAssertTrue(OpenRetry.given("时钟", after: [open("时钟", .notFound), ["action": .str("home")], open("时钟", .notOpened)]))
+        XCTAssertFalse(OpenRetry.given("时钟", after: [open("时钟", .notFound), open("时钟", .opened)]), "an open that worked does not count")
+        XCTAssertTrue(AgentLoop.effect(["changed": .bool(true), "app": .str("时钟"), "opened": .str(OpenResult.failedBefore.rawValue)]).contains("App Library"))
+    }
+
     private let home = Data([1]), spotlight = Data([2]), app = Data([3])
 
     /// A phone whose screens come in order (one per look) and whose OCR reads `lines` on Spotlight.

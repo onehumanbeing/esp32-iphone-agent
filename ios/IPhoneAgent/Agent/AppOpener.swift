@@ -6,6 +6,21 @@ enum OpenResult: String {
     case opened, notFound = "not_found", notOpened = "not_opened"
     case already = "already_open"  // this run opened it and has not left it since: nothing was sent (AlreadyOpen)
     case unchecked  // no live screen: the keys went out, nothing was read back
+    case store = "app_store"  // its App Store page came up instead: not installed; sent home (AppOpener.storePage)
+    case failedBefore = "failed_before"  // this name failed to open twice in this run already: not tried again (OpenRetry)
+}
+
+/// The same name after two opens of it failed in this run is not searched for again: the model opened 时钟 7 times
+/// and failed 6 (2026-11-27, e5a9567b, build 25). It is told to look for the icon or say it is not installed.
+enum OpenRetry {
+    static let failures = 2
+    static let failed: Set<String> = [OpenResult.notFound.rawValue, OpenResult.notOpened.rawValue, OpenResult.store.rawValue]
+
+    static func given(_ app: String, after steps: [JObject]) -> Bool {
+        let n = { (s: String) in s.lowercased().filter { !$0.isWhitespace } }
+        return steps.filter { $0["action"]?.str == "open" && n($0["app"]?.str ?? "") == n(app) && failed.contains($0["opened"]?.str ?? "") }
+            .count >= failures
+    }
 }
 
 /// `open APP` done by code, read back on the screen: the Home key, Spotlight (cmd+space), the name typed, its listed
@@ -93,6 +108,37 @@ enum OpenResult: String {
     private let seen = Seen()
 
     private func open(named name: String) async throws -> OpenResult {
+        var result = try await search(name)
+        // the agent app itself came up (its notification, its own shortcut as the top hit): Home and once more
+        // (2026-11-27: 4 of 30 failed opens on build 25 ended in the agent app)
+        if result == .opened, ownAppInFront() {
+            log("open \(name): the agent app came to the front; Home and once more")
+            result = try await search(name)
+            if result == .opened, ownAppInFront() { try await home(); return .notOpened }
+        }
+        // a row that opened the App Store (state): the app is not installed (5 of 30 failed opens, build 25). Home,
+        // so no later tap lands on Get
+        if result == .store {
+            log("open \(name): its App Store page came up; not installed, Home")
+            try await home()
+        }
+        return result
+    }
+
+    static func isAppStore(_ name: String) -> Bool {
+        ["appstore", "应用商店"].contains(name.lowercased().filter { !$0.isWhitespace })
+    }
+
+    /// An App Store product page: its Get / Open button and two of its info rows.
+    static func storePage(_ lines: [String]) -> Bool {
+        let l = lines.map { Scripts.fold($0) }
+        let button = l.contains { ["get", "获取", "下载", "in-app purchases", "app 内购买"].contains($0) }
+        let rows = ["ratings", "个评分", "age", "年龄", "chart", "排行榜", "developer", "开发者", "years old", "岁"]
+            .filter { w in l.contains { $0.contains(w) } }.count
+        return button && rows >= 2
+    }
+
+    private func search(_ name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let queries = Self.queries(name, pasting: pasting, language: language)
@@ -234,7 +280,7 @@ enum OpenResult: String {
                 // the letters were composing on the pinyin keyboard and that Return put them in (2026-11-20); the
                 // rows are read again and one more Return opens the Top Hit (the tap after it took 7.5 s, 2026-11-26).
                 if entered < 2, topHit, !pasting, query.allSatisfy(\.isASCII) {
-                    if entered > 0, try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return .opened }
+                    if entered > 0, let came = try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return came }
                     entered += 1
                     log("open \(name) via Spotlight: typed, its row is the top hit → enter")
                     try await key("enter")
@@ -252,6 +298,7 @@ enum OpenResult: String {
                     guard let now = await look() else { return .unchecked }
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
+                    if after == .store { return .store }
                     if after == .closed { closed = true; break }
                     // the letters going in barely changes the frame (2026-11-26: "Settings" looked the same): the
                     // second Return is sent either way
@@ -260,12 +307,13 @@ enum OpenResult: String {
                     if moved || entered < 2 { continue }
                 }
                 for spot in spots.prefix(2) {
-                    if entered > 0 || round > 0, try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return .opened }
+                    if entered > 0 || round > 0, let came = try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return came }
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
                     try await tapAt?(spot)
                     guard let now = await look() else { return .unchecked }
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
+                    if after == .store { return .store }
                     let moved = !same(now, shown)
                     shown = now
                     closed = after == .closed
@@ -291,6 +339,7 @@ enum OpenResult: String {
                 guard let now = await look() else { return .unchecked }
                 let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                 if after == .left { return .opened }
+                if after == .store { return .store }
                 shown = now
                 closed = after == .closed
                 if closed { break }
@@ -303,17 +352,19 @@ enum OpenResult: String {
     /// One more look before another Return or a tap on a result: the look after a Return can be cut short on a
     /// moving screen (0.8 s) and still show Spotlight while the app comes up; the second Return and the tap meant
     /// for the result row then went into Settings and opened Apple Account (2026-11-26).
-    private func cameUp(_ last: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async throws -> Bool {
+    private func cameUp(_ last: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async throws -> OpenResult? {
         try await pause(0.5)
-        guard let now = await look(), !same(now, last) else { return false }
-        if await state(now, spotlight: spotlight, home: home, name, shows) == .left {
+        guard let now = await look(), !same(now, last) else { return nil }
+        switch await state(now, spotlight: spotlight, home: home, name, shows) {
+        case .left:
             log("open \(name) via Spotlight: it came up after all")
-            return true
+            return .opened
+        case .store: return .store
+        default: return nil
         }
-        return false
     }
 
-    private enum After { case left, closed, still }
+    private enum After { case left, closed, still, store }
 
     /// What a tap or Return did: the app came up (Spotlight's words are gone), Spotlight closed to the Home Screen
     /// or this app came to the front, or Spotlight is still up.
@@ -322,6 +373,7 @@ enum OpenResult: String {
     private func state(_ now: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async -> After {
         if ownAppInFront() { return .closed }
         let lines = await read(now)
+        if !Self.isAppStore(name), Self.storePage(lines) { return .store }
         // words first: on a plain wallpaper Spotlight, the Home Screen and the app can all look alike (2026-11-11)
         guard shows(lines) else { return same(now, home) && !same(spotlight, home) ? .closed : .left }
         func still(_ why: String) -> After {

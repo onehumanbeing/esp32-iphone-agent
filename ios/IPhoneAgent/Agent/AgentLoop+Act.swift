@@ -57,6 +57,11 @@ extension AgentLoop {
             + " if Spotlight still lists it, tap its icon there"
         case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
             + " tap back (top left) or its tabs to reach the page you need"
+        case .store?: out += "; \(app) is not installed: Spotlight's row opened its App Store page (back on the Home"
+            + " Screen now). Do not download it: tell the user it is not installed"
+        case .failedBefore?: out += "; \(app) already failed to open twice by name, so it was not searched again: look"
+            + " for its icon on the Home Screen or in the App Library (swipe left past the last page); if it is not there,"
+            + " tell the user it is not installed. A WeChat mini-program or group is not an app: open WeChat and search it there"
         default: break
         }
         if let typed = s["typed"]?.str { out += "; typing stopped: \(typed)" }
@@ -190,6 +195,7 @@ extension AgentLoop {
         case "open":
             let app = a["app"]?.str ?? ""
             if AlreadyOpen.holds(app, steps), !appLeftFront() { return ("opened", OpenResult.already.rawValue) }
+            if OpenRetry.given(app, after: steps) { return ("opened", OpenResult.failedBefore.rawValue) }
             if HomeSwipeGuard.onHome(steps, startsOnHome: homeAtStart), try await tapHomeIcon(app) {
                 return ("opened", OpenResult.opened.rawValue)
             }
