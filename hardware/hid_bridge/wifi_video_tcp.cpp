@@ -20,9 +20,12 @@
 #include "src/video/gop.h"
 
 const uint16_t PORT = 7201;
-const uint32_t PEER_TIMEOUT_MS = 3000;
-const int SEND_TIMEOUT_MS = 2000;
-const int RECV_TIMEOUT_MS = 5000;
+// Wi-Fi and BLE share one radio: a long BLE HID gesture (a flick, 7.3 s round trip) left Wi-Fi with no air time
+// for ~4 s both ways, the 3 s "ka late" dropped the session, the GOP overflowed and the video froze (2026-11-27,
+// 8 "ka late" in 7 h). A stall that short keeps the session; a gone app still closes its socket.
+const uint32_t PEER_TIMEOUT_MS = 8000;
+const int SEND_TIMEOUT_MS = 6000;
+const int RECV_TIMEOUT_MS = 10000;  // longer than PEER_TIMEOUT_MS: recv timing out closes the session
 
 static int listener = -1, client = -1;
 static SemaphoreHandle_t lock;              // client + writes (a record goes out whole)

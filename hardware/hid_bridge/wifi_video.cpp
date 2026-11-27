@@ -8,7 +8,7 @@
 #include "src/video/gop.h"
 
 const uint16_t PORT = 7200;
-const uint32_t PEER_TIMEOUT_MS = 3000;
+const uint32_t PEER_TIMEOUT_MS = 8000;  // as wifi_video_tcp.cpp: a radio stall during a BLE gesture is not a gone app
 const int SLOTS = 1024;                     // resend window: ~1.4 MB in PSRAM, seconds of video
 const size_t SLOT_CAP = VCHUNK_HDR + WV_PAYLOAD;
 const int MAX_NACK = 256;                   // chunks per request
