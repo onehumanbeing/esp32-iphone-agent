@@ -385,9 +385,12 @@ enum StuckGuard {
 
 extension AgentLoop {
     /// The screens the model saw before steps `i` and `j` look the same (pointer aside); unknown counts as the same.
+    /// Each pair once, and a pair whose thumbnails already differ is not compared in full: the revisit check compared
+    /// the last screen with every earlier one, full size, on the main thread, twice a round; at 61-68% CPU in the
+    /// background the app was suspended for 5-85 s at a time and the video froze (2026-11-27).
     func sameShots(_ i: Int, _ j: Int) -> Bool {
         guard let a = shots[i], let b = shots[j] else { return true }
-        return !Vision.changed(a, b, ignore: [pointerAt])
+        return shotCache.same(a, b) { !Vision.changed(a, b, ignore: [pointerAt]) }
     }
 
     /// LoadingGuard: the reason to stop when the round would wait again on a screen still loading after the limit.
@@ -485,5 +488,35 @@ extension AgentLoop {
         }
         again[0].act["think_s"] = .num((thought * 100).rounded() / 100)  // the round's thinking: every call
         return again
+    }
+}
+
+/// sameShots' memory: a small gray thumbnail per screenshot and the answer per pair, keyed by the bytes themselves
+/// (a new run's step 3 is another screenshot, so another key).
+final class ShotCache {
+    private var thumbs: [Int: Vision.Gray] = [:]
+    private var answers: [Pair: Bool] = [:]
+    private struct Pair: Hashable { let a: Int, b: Int }
+
+    func same(_ a: Data, _ b: Data, full: () -> Bool) -> Bool {
+        let key = Pair(a: a.hashValue, b: b.hashValue)
+        if let known = answers[key] { return known }
+        if answers.count > 4000 { answers = [:]; thumbs = [:] }  // memory only; recomputed if needed
+        let answer: Bool
+        if let ta = thumb(a), let tb = thumb(b), !Vision.similar(ta, tb) {
+            answer = false  // far apart even as thumbnails: not the same screen
+        } else {
+            answer = full()
+        }
+        answers[key] = answer
+        return answer
+    }
+
+    private func thumb(_ jpeg: Data) -> Vision.Gray? {
+        let key = jpeg.hashValue
+        if let t = thumbs[key] { return t }
+        guard let t = Vision.thumb(jpeg) else { return nil }
+        thumbs[key] = t
+        return t
     }
 }

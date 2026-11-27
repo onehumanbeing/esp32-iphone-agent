@@ -65,6 +65,21 @@ import XCTest
         XCTAssertFalse(Pointer.stuckReading(CGPoint(x: 0.4, y: 0.5), target: CGPoint(x: 0.5, y: 0.8), last: last))
     }
 
+    /// 2026-11-27: the revisit check compared screenshots full size on the main thread every round (61-68% CPU in
+    /// the background, the app suspended 5-85 s). A pair is compared once; thumbnails far apart skip the full pass.
+    func testScreenshotPairsAreComparedOnceAndFarApartOnesSkipTheFullPass() {
+        let cache = ShotCache()
+        let a = frame(nil), b = frame(nil, block: CGRect(x: 0.5, y: 0.6, width: 0.45, height: 0.35))
+        var full = 0
+        XCTAssertFalse(cache.same(a, b) { full += 1; return true }, "thumbnails far apart: not the same screen")
+        XCTAssertEqual(full, 0)
+        let small = frame(CGRect(x: 120, y: 300, width: 30, height: 6))
+        XCTAssertFalse(cache.same(a, small) { full += 1; return false })
+        XCTAssertFalse(cache.same(a, small) { full += 1; return true }, "asked again: the first answer")
+        XCTAssertEqual(full, 1)
+        XCTAssertTrue(Vision.similar(a, a))
+    }
+
     private func frame(_ mark: CGRect?, block: CGRect = CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.3)) -> Data {
         let size = CGSize(width: 180, height: 390)
         return UIGraphicsImageRenderer(size: size).image { ctx in

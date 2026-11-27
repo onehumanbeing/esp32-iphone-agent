@@ -208,9 +208,17 @@ enum Vision {
     /// True when two frames show the same screen, loosely: size-independent (a reference from another decode or
     /// an imported intent), the status bar and small things (pointer, badges, the clock) ignored.
     static func similar(_ a: Data?, _ b: Data?) -> Bool {
-        guard let a, let b, let ia = image(a), let ib = image(b) else { return false }
-        let w = 36, h = 78, top = Int(topMask * Double(h)) + 1
-        let ga = gray(ia, w, h), gb = gray(ib, w, h)
+        guard let a, let b, let ga = thumb(a), let gb = thumb(b) else { return false }
+        return similar(ga, gb)
+    }
+
+    /// The 36 x 78 gray thumbnail `similar` compares.
+    static func thumb(_ jpeg: Data) -> Gray? { image(jpeg).map { gray($0, 36, 78) } }
+
+    /// `similar` on two thumbnails.
+    static func similar(_ ga: Gray, _ gb: Gray) -> Bool {
+        let w = ga.w, h = ga.h, top = Int(topMask * Double(h)) + 1
+        guard gb.w == w, gb.h == h else { return false }
         var total = 0, big = 0
         for i in (top * w)..<(w * h) {
             let d = abs(Int(ga.px[i]) - Int(gb.px[i]))

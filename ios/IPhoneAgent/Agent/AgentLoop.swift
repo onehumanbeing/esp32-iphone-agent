@@ -68,6 +68,8 @@ extension Gestures {
     @Published var plan = ""
     @Published var steps: [JObject] = []
     @Published private(set) var shots: [Int: Data] = [:]  // step index -> screenshot the model decided on
+    /// Thumbnails and answers of `sameShots`, so each pair of screenshots is compared once (ShotCache).
+    let shotCache = ShotCache()
     @Published private(set) var running = false
     var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
     var touchCheck = TouchCheck()  // gestures acknowledged by the board but not reaching the iPhone
