@@ -91,6 +91,7 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $app.quickAsk) { QuickAskSheet(app: app, intents: app.intents) }
+        .fullScreenCover(isPresented: $app.inputProbe) { InputProbeView() }
         .sheet(item: $callGuide.pending) { pending in
             CallSetupSheet(pending: pending) {
                 if let task = pending.task { Task { await app.run(task, intent: pending.intent) } }

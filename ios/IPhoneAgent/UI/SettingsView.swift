@@ -226,6 +226,14 @@ struct DeveloperView: View {
                 Text(verbatim: "Debug builds only. Before: Live Speech and Live Captions on (Settings › Accessibility), Live Speech in Control Center, Listen to phone audio on. Steps: dial, you answer on the other phone, open Live Speech, say the line, you reply, read the reply, hang up. Each step is in the run's trace.")
             }
             #endif
+            Section {
+                Button { app.inputProbe = true } label: {
+                    Label { Text(verbatim: "Input probe") } icon: { SettingsIcon(symbol: "hand.tap", color: .orange) }
+                }
+                .tint(.primary)
+            } footer: {
+                Text(verbatim: "What any app can read about a tap (touch type, radius, force, hover) and about the phone (screen capture, AssistiveTouch, mouse). See docs/input-probe.md.")
+            }
             RemoteLogSection()
             Section {
                 Picker("Phrase", selection: $language) {
