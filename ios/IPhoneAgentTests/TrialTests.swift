@@ -464,6 +464,33 @@ import XCTest
         XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
     }
 
+    /// The start's phases ride after start and open on the run's first request only, the first of each key, within
+    /// the old gateway's 12 pairs and 160 characters; a new run starts without the last one's.
+    func testStepReportSendsTheStartPhasesOnce() {
+        let report = StepReport()
+        report.runStarted(at: 10)
+        report.phase("prep", seconds: 3.04)
+        report.phase("cal", seconds: 0)
+        report.phase("screen", seconds: 2.1)
+        report.phase("screen", seconds: 9)  // not twice
+        report.phase("leave", seconds: 4.26)
+        report.phase("first", seconds: -1)
+        report.phase("lease", seconds: 1e9)
+        report.phase("go", seconds: 0.3)
+        report.opened(seconds: 1)
+        let value = report.take(at: 22)[StepReport.header] ?? ""
+        XCTAssertEqual(value, "start=12.0,open=1.0,prep=3.0,cal=0.0,screen=2.1,leave=4.3,first=0.0,lease=999.9,go=0.3")
+        XCTAssertLessThanOrEqual(value.split(separator: ",").count, StepReport.maxPairs, value)
+        XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
+        report.runStarted(at: 30)
+        XCTAssertEqual(report.take(at: 31)[StepReport.header], "start=1.0", "the last run's phases are gone")
+        report.runStarted(at: 40)
+        for i in 0..<30 { report.phase("phase\(i)", seconds: 1) }
+        let full = report.take(at: 41)[StepReport.header] ?? ""
+        XCTAssertEqual(full.split(separator: ",").count, StepReport.maxPairs, full)
+        XCTAssertLessThanOrEqual(full.count, StepReport.maxLength, full)
+    }
+
     func testStepReportCarriesThePointersTrouble() {
         let report = StepReport()
         report.farLanding(); report.farLanding(); report.recalibrated()

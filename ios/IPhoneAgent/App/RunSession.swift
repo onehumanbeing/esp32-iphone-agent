@@ -69,9 +69,10 @@ extension AppModel {
             }
         }
         let job = Task {
+            let tappedAt = now()  // the start's phases (StepReport.phase) count from here
             await screenCleanup?.value  // the last run's capture has stopped: a new one may ask for sharing
             var usedInput = false
-            await prepareAgent(task, resume: resume, usedInput: &usedInput)
+            await prepareAgent(task, resume: resume, tappedAt: tappedAt, usedInput: &usedInput)
             // Startup can exit after calibration but before opening a trace for this run.
             if usedInput { await returnInput(checkKeyboard: false, traceStarted: false) }
         }
@@ -86,7 +87,7 @@ extension AppModel {
         toast = Toast(text: text)
     }
 
-    private func prepareAgent(_ task: String, resume: Bool, usedInput: inout Bool) async {
+    private func prepareAgent(_ task: String, resume: Bool, tappedAt: Double, usedInput: inout Bool) async {
         if MockMode.on {
             // Demo data sends nothing, but a run still asks first when a model is set up: the demo shows the
             // same consent a real run opens.
@@ -141,18 +142,21 @@ extension AppModel {
             }
         }
         usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
+        let calibrating = now()
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
             blocked(String(localized: "The pointer isn't calibrated yet."))
             return
         }
+        let calibrated = now() - calibrating
         guard !Task.isCancelled else { return }
         do {
             if settings.provider == .handsyTrial { try await Trial.shared.precheck() }  // free line: open? (lease later)
             let actor = try await settings.client("actor")
             let jev = settings.jevActor(around: actor)  // Jev on, asked from the app
             jev?.onNotice = { [weak self] in self?.notice = $0 }
-            if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
+            // fetched now, not inside the first step; beside the rest of the start (leaving the app takes seconds), not before it
+            if jev != nil, !JevConfig.ownActive { Task { _ = try? await Trial.shared.jevTicket() } }
             agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
             agent.checkpointModel = try await settings.checkpointClient()
@@ -179,6 +183,11 @@ extension AppModel {
         let t0 = now()
         StepReport.shared.runStarted(at: t0)
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
+        // Where the start's time went, sent with the run's first request (StepReport.take): each phase from the last.
+        var phaseFrom = t0
+        func phase(_ key: String) { StepReport.shared.phase(key, seconds: now() - phaseFrom); phaseFrom = now() }
+        StepReport.shared.phase("prep", seconds: t0 - tappedAt)  // consent, board checks, calibration, line check, clients
+        StepReport.shared.phase("cal", seconds: calibrated)  // of prep
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
         if !resume { videoHealth = VideoHealth(metrics) }
@@ -213,13 +222,15 @@ extension AppModel {
                 }
                 mark(feed.live && !feed.broken ? "screen ready" : "no screen after 10 s; going on")
             }
+            phase("screen")
             try Task.checkCancellation()
             usedInput = true
             step = .homeBar
             // started here, a task naming one app with a known scheme: straight into it (AppNames.schemes)
             let schemeApp = (resume ? agent.currentApp : startedAway ? nil : AppNames.only(in: task)).flatMap { AppNames.schemeURLs($0).isEmpty ? nil : $0 }  // resume: back into the run's app
-            if !resume && schemeApp == nil {  // resuming waits for the user to switch back: a pointer parked on the home bar only
-                // invites a stray stroke there (2026-11-12)
+            // resuming waits for the user to switch back: a pointer parked on the home bar only invites a stray stroke
+            // there (2026-11-12). Started away: the task's screen is already in front, nothing to leave.
+            if !resume && schemeApp == nil && !startedAway {
                 try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
                 mark("pointer on the home bar")
             }
@@ -251,6 +262,7 @@ extension AppModel {
             departing = false
             homeHint = nil
             mark("app in background")
+            phase("leave")
             if let prewarm = prewarmJob { await prewarm.value; mark("pre-warm done") }  // its snap holds the board
             step = .firstFrame
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
@@ -264,6 +276,9 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
+            // free line: the lease only now, with the first frame in hand (a start that fails before costs no free
+            // run), asked beside the settle below (nothing between can throw: the lease is always awaited)
+            async let claimed: Void = claimLease()
             if openedAtStart != nil, schemePrompted {
                 // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
                 // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first. Only after the
@@ -271,11 +286,13 @@ extension AppModel {
                 await screen.settled(quiet: 0.4, least: 1, most: 3)
                 mark("screen still after the scheme open")
             }
-            if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
-                step = .trialClaim
-                try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
+            phase("first")
+            if settings.provider == .handsyTrial { step = .trialClaim }
+            try await claimed
+            if settings.provider == .handsyTrial {
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Manina AI key run (no lease)" : "free line lease")
+                phase("lease")
             }
             agent.policy = (launchUnattended || settings.unattendedMode)
                 ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
@@ -296,6 +313,7 @@ extension AppModel {
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.
             mark("agent started")
+            phase("go")
             say("started: \(task)")
             began(task, early: true)
         } catch {
@@ -337,6 +355,12 @@ extension AppModel {
                 openReview(run: runID)
             }
         }
+    }
+
+    /// The free line's lease for the run (nothing on one's own model), waiting in line while it is busy.
+    private func claimLease() async throws {
+        guard settings.provider == .handsyTrial else { return }
+        try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
     }
 
     /// Wait for whichever task owns input to finish cleanup ("Stopping…" until then).
