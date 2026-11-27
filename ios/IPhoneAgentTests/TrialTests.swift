@@ -471,6 +471,69 @@ import XCTest
         XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
     }
 
+    /// The start's phases ride after start and open on the run's first request only, the first of each key, within
+    /// the old gateway's 12 pairs and 160 characters; a new run starts without the last one's.
+    func testStepReportSendsTheStartPhasesOnce() {
+        let report = StepReport()
+        report.runStarted(at: 10)
+        report.phase("prep", seconds: 3.04)
+        report.phase("cal", seconds: 0)
+        report.phase("screen", seconds: 2.1)
+        report.phase("screen", seconds: 9)  // not twice
+        report.phase("leave", seconds: 4.26)
+        report.phase("first", seconds: -1)
+        report.phase("lease", seconds: 1e9)
+        report.phase("go", seconds: 0.3)
+        report.opened(seconds: 1)
+        let value = report.take(at: 22)[StepReport.header] ?? ""
+        XCTAssertEqual(value, "start=12.0,open=1.0,prep=3.0,cal=0.0,screen=2.1,leave=4.3,first=0.0,lease=999.9,go=0.3")
+        XCTAssertLessThanOrEqual(value.split(separator: ",").count, StepReport.maxPairs, value)
+        XCTAssertLessThanOrEqual(value.count, StepReport.maxLength, value)
+        report.runStarted(at: 30)
+        XCTAssertEqual(report.take(at: 31)[StepReport.header], "start=1.0", "the last run's phases are gone")
+        report.runStarted(at: 40)
+        for i in 0..<30 { report.phase("phase\(i)", seconds: 1) }
+        let full = report.take(at: 41)[StepReport.header] ?? ""
+        XCTAssertEqual(full.split(separator: ",").count, StepReport.maxPairs, full)
+        XCTAssertLessThanOrEqual(full.count, StepReport.maxLength, full)
+    }
+
+    /// The last call's upload and new-connection seconds ride with the next step after ttft and after, once; a reused
+    /// connection sends no conn; none recorded: the header is as before.
+    func testStepReportCarriesTheNetworkSide() {
+        let report = StepReport()
+        report.replied(at: 100)
+        var step = Metrics.Step(frameMs: 500, llmMs: 6000, hidMs: 100)
+        (step.firstTokenMs, step.afterMs, step.verdictMs) = (2600, 3100, 400)
+        report.network(upload: 1.26, connect: 0.84)
+        report.finished(step)
+        XCTAssertEqual(report.take(at: 105)[StepReport.header],
+                       "llm=6.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=5.0,ttft=2.6,after=3.1,up=1.3,conn=0.8,verdict=0.4")
+        report.replied(at: 200)
+        report.network(upload: 0.2, connect: nil)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        XCTAssertEqual(report.take(at: 204)[StepReport.header], "llm=2.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=4.0,up=0.2")
+        report.replied(at: 300)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        XCTAssertEqual(report.take(at: 304)[StepReport.header], "llm=2.0,frame=0.5,hid=0.1,settle=0.0,mode=stream,gap=4.0",
+                       "sent once")
+        report.network(upload: 1, connect: 1)
+        report.clear()  // a new run
+        report.replied(at: 400)
+        report.finished(Metrics.Step(frameMs: 500, llmMs: 2000, hidMs: 100))
+        XCTAssertFalse((report.take(at: 404)[StepReport.header] ?? "").contains("up="), "not the last run's")
+    }
+
+    /// Every model client with the same limits shares one session (warm connections across a run's clients and runs).
+    func testModelClientsShareOneSessionPerLimits() {
+        XCTAssertTrue(NetPool.session(request: 75, resource: 180) === NetPool.session(request: 75, resource: 180))
+        XCTAssertFalse(NetPool.session(request: 75, resource: 180) === NetPool.session(request: 30, resource: 90))
+        XCTAssertFalse(NetPool.session(request: 2.5, resource: 2.5) === NetPool.session(request: 2.5, resource: 2.5, ephemeral: true))
+        let session = NetPool.session(request: 30, resource: 90)
+        XCTAssertEqual(session.configuration.timeoutIntervalForRequest, 30)
+        XCTAssertEqual(session.configuration.timeoutIntervalForResource, 90)
+    }
+
     func testStepReportCarriesThePointersTrouble() {
         let report = StepReport()
         report.farLanding(); report.farLanding(); report.recalibrated()

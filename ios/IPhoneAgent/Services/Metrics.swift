@@ -204,14 +204,25 @@ final class StepReport: @unchecked Sendable {
     /// opened by name before the first look (`open`). 2026-11-25: the claim-to-first-call wait was 23 s for one run
     /// in ten and no record said where it went.
     private var startedAt: Double?, openSeconds: Double?
-    func runStarted(at t: Double) { lock.withLock { (startedAt, openSeconds) = (t, nil) } }
+    private var phases: [(key: String, seconds: Double)] = []
+    func runStarted(at t: Double) { lock.withLock { (startedAt, openSeconds, phases) = (t, nil, []) } }
     func opened(seconds: Double) { lock.withLock { openSeconds = seconds } }
+    /// A startup phase's seconds (RunSession.prepareAgent: prep, cal, screen, leave, first, lease, go), sent once
+    /// after start and open on the run's first request. The first of each key counts; an old gateway drops them.
+    func phase(_ key: String, seconds: Double) {
+        lock.withLock { if !phases.contains(where: { $0.key == key }) { phases.append((key, seconds)) } }
+    }
+
+    /// The last model call's network side (NetTimings): its body's upload seconds, and the new connection's DNS + TCP +
+    /// TLS seconds (nil: reused). Sent with the next step as up / conn, after ttft and after.
+    private var upload: Double?, connect: Double?
+    func network(upload: Double, connect: Double?) { lock.withLock { (self.upload, self.connect) = (upload, connect) } }
 
     /// The actor's reply arrived: `gap` counts from here.
     func replied(at t: Double = now()) { lock.withLock { repliedAt = t } }
     /// The step after that reply is over.
     func finished(_ step: Metrics.Step) { lock.withLock { pending = step } }
-    func clear() { lock.withLock { (pending, repliedAt, far, recal) = (nil, nil, 0, 0) } }
+    func clear() { lock.withLock { (pending, repliedAt, far, recal, upload, connect) = (nil, nil, 0, 0, nil, nil) } }
 
     /// The header for the next request, once per step.
     func take(at t: Double = now()) -> [String: String] {
@@ -219,16 +230,29 @@ final class StepReport: @unchecked Sendable {
             defer { pending = nil }
             if let startedAt, repliedAt == nil {  // the run's first request
                 self.startedAt = nil
-                let open = openSeconds.map { String(format: ",open=%.1f", min(max($0, 0), 999.9)) } ?? ""
-                return [Self.header: String(format: "start=%.1f", min(max(t - startedAt, 0), 999.9)) + open]
+                let open = openSeconds.map { String(format: ",open=%.1f", Self.clamp($0)) } ?? ""
+                var value = String(format: "start=%.1f", Self.clamp(t - startedAt)) + open
+                for phase in phases {
+                    let part = String(format: ",%@=%.1f", phase.key, Self.clamp(phase.seconds))
+                    if value.split(separator: ",").count < Self.maxPairs && value.count + part.count <= Self.maxLength { value += part }
+                }
+                phases = []
+                return [Self.header: value]
             }
             guard let pending, let repliedAt else { return [:] }
             var value = pending.header(gap: t - repliedAt)
             if far + recal > 0 { value += ",far=\(far),recal=\(recal)" }  // an old gateway drops unknown keys
+            var parts = pending.parts
+            let net = [upload.map { "up=" + String(format: "%.1f", Self.clamp($0)) },
+                       connect.map { "conn=" + String(format: "%.1f", Self.clamp($0)) }].compactMap { $0 }
+            parts.insert(contentsOf: net, at: min(2, parts.count))
+            (upload, connect) = (nil, nil)
             // the gateway reads at most 12 pairs of a value up to 160 characters: the parts fill what is left
-            for part in pending.parts where value.split(separator: ",").count < Self.maxPairs
+            for part in parts where value.split(separator: ",").count < Self.maxPairs
                 && value.count + part.count + 1 <= Self.maxLength { value += "," + part }
             return [Self.header: value]
         }
     }
+
+    private static func clamp(_ seconds: Double) -> Double { min(max(seconds, 0), 999.9) }
 }

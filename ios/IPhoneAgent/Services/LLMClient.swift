@@ -176,12 +176,15 @@ struct LLMError: LocalizedError {
         if Self.tokenParams.contains(tokenParam) { (self.tokenParam, auto) = (tokenParam, false) }
         else { (self.tokenParam, auto) = ("max_tokens", true) }
         let limits = Self.timeouts(baseURL: self.baseURL, freeLine: Trial.isTrial(trimmed))
-        self.session = session ?? {
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = limits.request  // no byte for this long = hung; the agent retries
-            config.timeoutIntervalForResource = limits.resource
-            return URLSession(configuration: config)
-        }()
+        // request: no byte for this long = hung; the agent retries. Shared by every client with these limits (NetPool).
+        self.session = session ?? NetPool.session(request: limits.request, resource: limits.resource)
+    }
+
+    /// Open the connection to the model's host now (a run's start), so its first call doesn't pay TCP + TLS. Only for
+    /// a host the user agreed to send to (AIConsent).
+    func warm() {
+        guard (try? AIConsent.check(baseURL.absoluteString)) != nil else { return }
+        NetPool.warm(baseURL, on: session)
     }
 
     /// Free models on OpenRouter queue and route; the free line can take up to about a minute before its first
@@ -511,8 +514,13 @@ struct LLMError: LocalizedError {
         // reading 47 s later; the stream, with the free line's tree, was read byte by byte on a busy main thread).
         let session = session, responses = speaksResponses
         let report: @Sendable () -> Void = { [weak self] in Task { @MainActor in self?.onProgress?(.receiving) } }
+        // the body's bytes, upload time and connection (new or reused) in the log; the free line's actor-side calls
+        // (not the record reader's) also send them to the gateway with the next step
+        let timings = NetTimings(label: model, reports: Trial.isTrial(baseURL.absoluteString)
+                                 && request.value(forHTTPHeaderField: "X-Handsy-Role") == nil)
         let (status, result, errorText, retry) = try await Task.detached(priority: .userInitiated) {
-            try await Self.read(session: session, request: request, started: started, responses: responses, receiving: report)
+            try await Self.read(session: session, request: request, started: started, responses: responses,
+                                timings: timings, receiving: report)
         }.value
         retryAfter = retry
         return (status, result, errorText)
@@ -521,8 +529,9 @@ struct LLMError: LocalizedError {
     /// One request's answer: HTTP status, the parsed result (2xx), the error body otherwise, and Retry-After.
     /// `responses`: the reply is the Responses API's stream (ChatGPT sign-in).
     nonisolated static func read(session: URLSession, request: URLRequest, started: Double, responses: Bool,
+                                 timings: NetTimings? = nil,
                                  receiving: @Sendable () -> Void) async throws -> (Int, ChatResult?, String, Double?) {
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await session.bytes(for: request, delegate: timings)
         if responses, let http = response as? HTTPURLResponse {  // the plan's usage windows, on the main actor
             Task { @MainActor in ChatGPTAuth.shared.noteLimits(http) }
         }

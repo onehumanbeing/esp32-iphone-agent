@@ -177,6 +177,7 @@
 		7A0635EEEE8295BBA54B9DD9 /* ReviewSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9419B84DE8B4B7CD816AF19B /* ReviewSheets.swift */; };
 		7A2EF1713FD025342B7CF9D2 /* IntentArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE08EC61AC214B03938A0D28 /* IntentArchiveTests.swift */; };
 		7B684FAA8B218BB9798F9EC3 /* Metrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9719A5EC1DD7C5033CC8DF5 /* Metrics.swift */; };
+		4E7A1C2B9D3F5E6A7B8C9D01 /* NetPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7A1C2B9D3F5E6A7B8C9D02 /* NetPool.swift */; };
 		7B925E867DA328C9A682CDE0 /* AgentLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DBD3270E7E91B39C3C7438 /* AgentLoop.swift */; };
 		7BBA01EDC5514C6EC77AE6E2 /* IPhoneAgentApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 953BF9D5FB798BA1F3CEC832 /* IPhoneAgentApp.swift */; };
 		7C343FD3D968D9EF06A893A9 /* AgentLoop+Pause.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D90292884A43B9CF755C7F /* AgentLoop+Pause.swift */; };
@@ -695,6 +696,7 @@
 		B1B84B4F1C81E697ACB30630 /* RunShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShare.swift; sourceTree = "<group>"; };
 		B260480A536241A2B9043EE1 /* AgentShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentShortcuts.swift; sourceTree = "<group>"; };
 		B9719A5EC1DD7C5033CC8DF5 /* Metrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metrics.swift; sourceTree = "<group>"; };
+		4E7A1C2B9D3F5E6A7B8C9D02 /* NetPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetPool.swift; sourceTree = "<group>"; };
 		BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundWaitTests.swift; sourceTree = "<group>"; };
 		BC542D5506F6C9FD180C1CD3 /* CheckpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTests.swift; sourceTree = "<group>"; };
 		BE08EC61AC214B03938A0D28 /* IntentArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentArchiveTests.swift; sourceTree = "<group>"; };
@@ -1280,6 +1282,7 @@
 				C7F1E5000000000000000013 /* FileSandbox+Manage.swift */,
 				C7F1E5000000000000000011 /* FilesLayout.swift */,
 				B9719A5EC1DD7C5033CC8DF5 /* Metrics.swift */,
+				4E7A1C2B9D3F5E6A7B8C9D02 /* NetPool.swift */,
 				DAEFE87504F77098EF0AEFFC /* ModelConnectionCheck.swift */,
 				D8A02583BE955659071F3172 /* ModelProvider.swift */,
 				96A8E3AF04195B586F10EDC4 /* ModelRequestFailure.swift */,
@@ -1831,6 +1834,7 @@
 				B22E0F11E00000000000000F /* PlanDiffLine.swift in Sources */,
 				A11E0F11E00000000000000A /* PlanEditView.swift in Sources */,
 				7B684FAA8B218BB9798F9EC3 /* Metrics.swift in Sources */,
+				4E7A1C2B9D3F5E6A7B8C9D01 /* NetPool.swift in Sources */,
 				B356EECAFE045249704E63FD /* MockMode.swift in Sources */,
 				CF0916DB59A4A0D050445AE8 /* ModelCall.swift in Sources */,
 				1032BD2A5C93F44527463EC7 /* ModelConnectionCheck.swift in Sources */,
