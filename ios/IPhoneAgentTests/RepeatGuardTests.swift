@@ -121,6 +121,9 @@ import XCTest
         XCTAssertNil(RetypeGuard.repeated([type], after: asked), "its second answer stands")
         let enter: JObject = ["action": .str("key"), "combo": .str("enter"), "changed": .bool(true)]
         XCTAssertNotNil(RetypeGuard.repeated([type], after: [type, enter]), "Return committed it")
+        var refused = enter
+        refused["result"] = .str("not sent: the field holds only part of the text (not typed: \"买牛奶\").")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [type, refused]), "a Return the app did not send")
     }
 
     func testATapOnTheConfirmedStepsSpotIsHeldBackOnce() {

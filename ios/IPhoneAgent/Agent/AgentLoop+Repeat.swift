@@ -278,8 +278,11 @@ enum RetypeGuard {
         let moves = Array(steps.filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") })
         guard let at = moves.lastIndex(where: { $0["action"]?.str == "type" && trim($0["text"]?.str ?? "") == text })
         else { return nil }
+        // a Return the app did not send ("not sent: the field holds only part of the text") committed nothing: the
+        // search typed again in full was held (2026-11-27, case 20: 北京昌平 typed, Return refused, retype blocked)
         let committed = moves[(at + 1)...].contains {
             ($0["action"]?.str == "tap" || Actions.isEnter($0)) && $0["changed"] != .bool(false)
+                && !($0["result"]?.str ?? "").hasPrefix("not sent")
         }
         return committed ? new : nil
     }
