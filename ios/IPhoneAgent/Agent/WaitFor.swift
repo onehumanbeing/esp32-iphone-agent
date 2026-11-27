@@ -13,9 +13,12 @@ import Foundation
 /// were 15% of the free line's calls (32% on one phone), and one reply wrote `wait 0` 1327 times. Waiting costs
 /// nothing; a look does. The waits of one reply are one wait (`fold`).
 enum WaitFor {
-    static let seconds = 5.0, most = 120.0, every = 0.8
-    /// Plain `wait`: how long to watch for a change before asking the model again (a ceiling, 2 minutes: the user
-    /// can stop or steer meanwhile), and how often to check.
+    /// `most`: 90 s, not more. The gateway ends a free-line lease after 120 s with no model call or action check
+    /// (idle_seconds; heartbeats don't count), and deployed gateways can't change: a longer wait on a still screen
+    /// would lose the lease right as it ends. 30 s is left for the next call to arrive.
+    static let seconds = 5.0, most = 90.0, every = 0.8
+    /// Plain `wait`: how long to watch for a change before asking the model again (a ceiling, `most`: the user can
+    /// stop or steer meanwhile), and how often to check.
     nonisolated(unsafe) static var plainMost = most  // tests with a still fake screen shorten it
     static let plainEvery = 0.25
 

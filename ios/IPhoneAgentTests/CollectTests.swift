@@ -36,7 +36,10 @@ final class WaitForTests: XCTestCase {
         XCTAssertEqual(w["seconds"]?.double, 12)
         XCTAssertNil(w["gone"])
         XCTAssertEqual(try Actions.parseCommand("wait 10")["seconds"]?.double, 10)  // for a video or an ad
-        XCTAssertEqual(try Actions.parseCommand("wait 90")["seconds"]?.double, 90)  // was cut to 20
+        XCTAssertEqual(WaitFor.most, 90, "under the gateway's 120 s idle lease end")
+        XCTAssertEqual(WaitFor.plainMost, 90)
+        XCTAssertEqual(try Actions.parseCommand("wait 60")["seconds"]?.double, 60)  // was cut to 20
+        XCTAssertEqual(try Actions.parseCommand("wait 120")["seconds"]?.double, 90)
         XCTAssertEqual(try Actions.parseCommand("wait 600")["seconds"]?.double, WaitFor.most)
         XCTAssertNil(try Actions.parseCommand("wait 0")["seconds"], "wait 0: until the screen changes, not 1 s")
         XCTAssertNil(try Actions.parseCommand("wait")["seconds"])  // plain: until the screen changes
@@ -59,7 +62,7 @@ final class WaitForTests: XCTestCase {
         XCTAssertEqual(timed.map { $0["action"]?.str }, ["wait", "tap"])
         XCTAssertEqual(timed[0]["seconds"]?.double, 80)
         XCTAssertNil(try Actions.parseActions("THINK: x\nDO: wait 10\nDO: wait").first?["seconds"], "untimed wins")
-        XCTAssertEqual(try Actions.parseActions("THINK: x\nDO: wait 90\nDO: wait 90").first?["seconds"]?.double, WaitFor.most)
+        XCTAssertEqual(try Actions.parseActions("THINK: x\nDO: wait 60\nDO: wait 60").first?["seconds"]?.double, 90)
         let words = try Actions.parseActions("THINK: x\nDO: wait\nDO: wait \"成功\"")
         XCTAssertEqual(words.count, 2, "a wait for words keeps its own line")
     }
