@@ -167,3 +167,89 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["reason"]?.str, StillRepeat.reason)
     }
 }
+
+/// The run's stall count: only a round that touched the screen counts; a wait, a read or a held answer neither adds
+/// one nor starts it over (2026-11-27: tap, wait, tap, wait never reached the limit).
+final class StallCountTests: XCTestCase {
+    private func row(_ action: String, changed: Bool?, thought: Bool = true, noframe: Bool = false) -> JObject {
+        var s: JObject = ["action": .str(action)]
+        if thought { s["thought"] = .str("") }
+        if let changed { s["changed"] = .bool(changed) }
+        if noframe { s["noframe"] = .bool(true) }
+        return s
+    }
+
+    func testGesturesCountWaitsReadsAndUnknownsSkip() {
+        XCTAssertEqual(StallCount.next(2, after: [row("tap", changed: false)]), 3)
+        XCTAssertEqual(StallCount.next(2, after: [row("tap", changed: true)]), 0)
+        XCTAssertEqual(StallCount.next(2, after: [row("wait", changed: false)]), 2, "a wait alone: skipped")
+        XCTAssertEqual(StallCount.next(2, after: [row("wait", changed: true)]), 2, "not started over either")
+        XCTAssertEqual(StallCount.next(2, after: [row("read", changed: nil)]), 2)
+        XCTAssertEqual(StallCount.next(2, after: [row("tap", changed: false, noframe: true)]), 3,
+                       "no frame after it: still a stall (the backstop when frames stop), not a reset")
+        XCTAssertEqual(StallCount.next(2, after: [row("tap", changed: nil)]), 2, "held, nothing sent")
+        XCTAssertEqual(StallCount.next(2, after: [row("say", changed: false)]), 2, "say needn't move the screen")
+        XCTAssertEqual(StallCount.next(2, after: []), 2)
+    }
+
+    func testTheRoundsLastVerdictCountsWhenItTouchedTheScreen() {
+        // tap, wait in one reply: the verdict on the wait is the round's (from before the tap)
+        let round = [row("tap", changed: true), row("tap", changed: nil, thought: false), row("wait", changed: false, thought: false)]
+        XCTAssertEqual(StallCount.next(4, after: round), 5)
+        let waitOnly = [row("tap", changed: false), row("wait", changed: false)]
+        XCTAssertEqual(StallCount.next(4, after: waitOnly), 4, "the earlier round's tap is not this round's")
+    }
+
+    func testTapWaitTapWaitOnADeadScreenReachesTheLimit() {
+        var n = 0, steps: [JObject] = []
+        for i in 0..<24 {
+            steps.append(row(i % 2 == 0 ? "tap" : "wait", changed: false))
+            n = StallCount.next(n, after: steps)
+        }
+        XCTAssertEqual(n, 12, "before: 0 after every wait")
+    }
+}
+
+/// A look-ahead from the early frame is skipped only when it would be thrown away: the screen still moving, or no
+/// frame from after the action yet (2026-11-27: 16% of the Hy calls were superseded look-aheads).
+@MainActor final class LookAheadGateTests: XCTestCase {
+    override func tearDown() {
+        StepWaits.reset()
+        StepWaits.movingSteps = 0
+        StepWaits.lastMoving = -1000
+        super.tearDown()
+    }
+
+    func testSettledSaysWhetherTheScreenStoodStill() async {
+        let screen = FakeScreen()
+        let still = await screen.settled(quiet: 0.1, least: 0, most: 0.5)
+        XCTAssertTrue(still)
+        screen.updated = now() + 100  // changes all the time
+        let moving = await screen.settled(quiet: 0.1, least: 0, most: 0.3)
+        XCTAssertFalse(moving)
+    }
+
+    func testStandsOnlyWithAStillScreenAndAFrameFromAfterTheAction() {
+        let screen = FakeScreen()
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: nil, planner: nil, trace: nil)
+        agent.lastActed = 100
+        XCTAssertFalse(agent.lookAheadStands(stood: false))
+        screen.capturedAt = 99
+        XCTAssertFalse(agent.lookAheadStands(stood: true), "the early frame is from before the action")
+        screen.capturedAt = 101
+        XCTAssertTrue(agent.lookAheadStands(stood: true))
+    }
+
+    func testAStepStartsALookAheadOnlyWhenItWouldStand() async throws {
+        for (captured, expected) in [(0.0, true), (1.0, false)] {  // 0: unknown, counts as arrived; 1: long before
+            let screen = FakeScreen()
+            screen.capturedAt = captured
+            let actor = FakeModel { _ in "THINK: home\nDO: home" }
+            let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)
+            agent.speculate = true
+            _ = try await agent.step()
+            XCTAssertEqual(agent.pendingLook != nil, expected, "captured \(captured)")
+            agent.cancelSpeculative("test end")
+        }
+    }
+}

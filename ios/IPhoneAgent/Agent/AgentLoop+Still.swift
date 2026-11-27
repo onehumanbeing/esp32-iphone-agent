@@ -68,6 +68,25 @@ enum StillRepeat {
     }
 }
 
+/// The run's stall count (AgentLoop.maxStalls rounds that changed nothing: the user is asked). Before 2026-11-27 any
+/// round that was not a "no change" started it over: a `wait` (whatever it showed), a `read`, a held answer, so
+/// tap, wait, tap, wait on a dead screen never got there and the line paid a look for each. Now only a round that
+/// touched the screen (a gesture; `say` speaks into a call and needn't move it) with a verdict counts: changed starts
+/// it over, unchanged adds one, anything else leaves it as is. Unlike StillRepeat, an unchanged result with no frame
+/// after it (`noframe`) still adds one: this count is the backstop when frames stop coming (ReviewTests).
+enum StallCount {
+    static func next(_ n: Int, after steps: [JObject]) -> Int {
+        guard let last = steps.last, let changed = last["changed"]?.bool else { return n }
+        let start = steps.lastIndex { $0["thought"] != nil } ?? steps.count - 1  // the round: from its reply's first act
+        let touched = steps[start...].contains { s in
+            let name = s["action"]?.str ?? ""
+            return s["plan"] == nil && Actions.gestures.contains(name) && name != "say"
+        }
+        guard touched else { return n }
+        return changed ? 0 : n + 1
+    }
+}
+
 extension AgentLoop {
     /// A frame captured at or after `t` is shown. Unknown times (0, or no screen: the fakes) count as arrived.
     func frameSince(_ t: Double) -> Bool {

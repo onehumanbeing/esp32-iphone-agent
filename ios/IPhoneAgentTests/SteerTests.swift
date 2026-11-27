@@ -4,7 +4,7 @@ import XCTest
 /// Henry 2026-11-13: words added while a run goes join its next round (AgentLoop+Steer).
 @MainActor final class SteerTests: XCTestCase {
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
-    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+    override func tearDown() { WaitFor.plainMost = WaitFor.most; super.tearDown() }
 
     private func agent(_ actor: FakeModel) -> AgentLoop {
         let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: actor, planner: nil, trace: nil)

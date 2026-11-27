@@ -36,14 +36,35 @@ final class WaitForTests: XCTestCase {
         XCTAssertEqual(w["seconds"]?.double, 12)
         XCTAssertNil(w["gone"])
         XCTAssertEqual(try Actions.parseCommand("wait 10")["seconds"]?.double, 10)  // for a video or an ad
-        XCTAssertEqual(try Actions.parseCommand("wait 90")["seconds"]?.double, WaitFor.most)
+        XCTAssertEqual(WaitFor.most, 90, "under the gateway's 120 s idle lease end")
+        XCTAssertEqual(WaitFor.plainMost, 90)
+        XCTAssertEqual(try Actions.parseCommand("wait 60")["seconds"]?.double, 60)  // was cut to 20
+        XCTAssertEqual(try Actions.parseCommand("wait 120")["seconds"]?.double, 90)
+        XCTAssertEqual(try Actions.parseCommand("wait 600")["seconds"]?.double, WaitFor.most)
+        XCTAssertNil(try Actions.parseCommand("wait 0")["seconds"], "wait 0: until the screen changes, not 1 s")
         XCTAssertNil(try Actions.parseCommand("wait")["seconds"])  // plain: until the screen changes
         let g = try Actions.parseCommand("wait gone “加载中”")
         XCTAssertEqual(g["gone"], .bool(true))
         XCTAssertEqual(g["seconds"]?.double, WaitFor.seconds)
         XCTAssertNil(try Actions.parseCommand("wait")["text"], "plain wait settles as before")
-        XCTAssertEqual(try Actions.parseCommand("wait \"x\" 99")["seconds"]?.double, WaitFor.most)
+        XCTAssertEqual(try Actions.parseCommand("wait \"x\" 999")["seconds"]?.double, WaitFor.most)
         XCTAssertEqual(try Actions.parseCommand("find \"满减\"")["text"], .str("满减"))
+    }
+
+    /// 2026-11-27: one reply wrote `wait 0` 1327 times; waits in a row are one wait.
+    func testWaitsInARowAreOneWait() throws {
+        let zeros = try Actions.parseActions("THINK: loading\n" + String(repeating: "DO: wait 0\n", count: 1327))
+        XCTAssertEqual(zeros.count, 1)
+        XCTAssertEqual(zeros[0]["action"], .str("wait"))
+        XCTAssertNil(zeros[0]["seconds"])
+        XCTAssertEqual(zeros[0]["thought"], .str("loading"))
+        let timed = try Actions.parseActions("THINK: ad\nDO: wait 30\nDO: wait 50\nDO: tap 1 2")
+        XCTAssertEqual(timed.map { $0["action"]?.str }, ["wait", "tap"])
+        XCTAssertEqual(timed[0]["seconds"]?.double, 80)
+        XCTAssertNil(try Actions.parseActions("THINK: x\nDO: wait 10\nDO: wait").first?["seconds"], "untimed wins")
+        XCTAssertEqual(try Actions.parseActions("THINK: x\nDO: wait 60\nDO: wait 60").first?["seconds"]?.double, 90)
+        let words = try Actions.parseActions("THINK: x\nDO: wait\nDO: wait \"成功\"")
+        XCTAssertEqual(words.count, 2, "a wait for words keeps its own line")
     }
 
     func testWordsShowAnywhereInALine() {
@@ -54,6 +75,31 @@ final class WaitForTests: XCTestCase {
 
     func testFindEndsTheBatch() throws {
         XCTAssertEqual(try Actions.parseActions("THINK: x\nDO: find \"满减\"\nDO: tap \"满减\"").count, 1)
+    }
+}
+
+/// `wait N` ends as soon as the screen changes; with nothing changing it waits the N seconds (was cut to 20).
+@MainActor final class TimedWaitTests: XCTestCase {
+    func testTimedWaitEndsWhenTheScreenChanges() async throws {
+        let screen = FakeScreen()
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        let started = now()
+        let change = Task { @MainActor in
+            try await Task.sleep(nanoseconds: 1_600_000_000)
+            screen.frame = Data([0xff, 0xd8, 0x01])  // not a picture: Vision counts it as changed
+        }
+        let said = try await agent.waitFor(["action": .str("wait"), "seconds": .num(60)])
+        _ = try? await change.value
+        XCTAssertLessThan(now() - started, 5)
+        XCTAssertTrue(said?.hasPrefix("the screen changed after") == true, said ?? "nil")
+    }
+
+    func testTimedWaitOnAStillScreenWaitsItsTime() async throws {
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: FakeModel { _ in "" }, planner: nil, trace: nil)
+        let started = now()
+        let said = try await agent.waitFor(["action": .str("wait"), "seconds": .num(2)])
+        XCTAssertGreaterThanOrEqual(now() - started, 2)
+        XCTAssertEqual(said, "waited 2 s")
     }
 }
 

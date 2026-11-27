@@ -85,7 +85,10 @@ Actions:
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
   open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
   switch                    (back to the app used just before this one, e.g. from 小红书 back to 微信; faster than open)
-  home | back | wait
+  home | back | wait        (wait: until the screen changes by itself (a page loading, a reply coming), up to 90
+                             seconds; one wait line is enough, never repeat it)
+  wait SECONDS              (up to SECONDS (at most 90) for a video, an ad or a download; ends early when the
+                             screen changes)
   wait "WORDS" [SECONDS]    (wait until WORDS show on screen, up to SECONDS (default 5); wait gone "WORDS" waits until
                              they are gone. Only for what comes by itself (a page loading, a success message): tap,
                              wait "Paid", tap. Words further down the page never come by waiting: scroll or find them)
