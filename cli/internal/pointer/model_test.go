@@ -135,17 +135,22 @@ func TestRestoreKeepsThePreviousCalibration(t *testing.T) {
 	}
 }
 
-// #194: an aimed tap that cannot see the pointer is not sent and says so.
-func TestAimedTapWithoutThePointerIsNotSent(t *testing.T) {
+// #194: an aimed tap that cannot see the pointer still taps at the calibrated position (as before) with Seen
+// false; a strict one is not sent.
+func TestAimedTapWithoutThePointer(t *testing.T) {
 	d := &fakeDevice{}
 	p := newPointer(t, d, &blankScreen{})
 	p.FinishCalibration(0.5, 0.25)
-	if err := p.Tap(context.Background(), 0.5, 0.5, true, 1); err != ErrAimNotFound {
-		t.Fatalf("err %v", err)
+	if err := p.Tap(context.Background(), 0.5, 0.5, true, false, 1); err != nil || p.Seen || d.sent[len(d.sent)-1] != "click" {
+		t.Fatalf("err %v, seen %v, sent %v", err, p.Seen, d.sent)
+	}
+	d.sent = nil
+	if err := p.Tap(context.Background(), 0.5, 0.5, true, true, 1); err != ErrAimNotFound {
+		t.Fatalf("strict: err %v", err)
 	}
 	for _, s := range d.sent {
 		if s == "click" {
-			t.Fatalf("clicked: %v", d.sent)
+			t.Fatalf("strict tap clicked: %v", d.sent)
 		}
 	}
 }

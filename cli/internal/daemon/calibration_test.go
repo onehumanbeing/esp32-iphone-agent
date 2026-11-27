@@ -54,7 +54,7 @@ func TestTapSaysItWasNotVerified(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	os.WriteFile(config.CalibrationPath(s.Dir, "246f28aa6ad5"), []byte(`{"w":400,"h":860,"moves":"axis"}`), 0o600)
 	r, data := call(t, c, Request{Cmd: "tap", Pts: []float64{240, 520}})
-	if r.Status != "ok" || data["verified"] != false || !strings.Contains(data["message"].(string), "not verified") {
+	if r.Status != "ok" || data["verified"] != false || !strings.HasPrefix(data["message"].(string), "tap done (not verified: ") {
 		t.Fatalf("tap: %+v", r)
 	}
 	time.Sleep(50 * time.Millisecond)

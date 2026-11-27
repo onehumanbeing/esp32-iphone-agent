@@ -105,6 +105,7 @@ type Pointer struct {
 	Phone     string     // the phone (status src) this calibration is for
 	far       int        // aims in a row that found the pointer more than MaxMiss off: 2 calibrates again
 	Miss      float64    // how far off the last aim found the pointer (before correcting it)
+	Seen      bool       // the last aim found the pointer (and put it on the target)
 	Log       func(string)
 	Sleep     func(context.Context, time.Duration) error
 }
@@ -283,7 +284,8 @@ func (p *Pointer) frameAspect() (float64, bool) {
 // ErrNotFound: calibration could not see the pointer on screen.
 var ErrNotFound = errors.New("calibration: pointer not found on screen (is the mouse pointer visible, AssistiveTouch on, Screen Mirroring on?)")
 
-// ErrAimNotFound: an aimed tap could not see the pointer, so it was not sent (#194: it used to answer "tap done").
+// ErrAimNotFound: aim could not see the pointer. A strict tap is then not sent; otherwise it taps at the calibrated
+// position, as before, and Seen stays false (#194: it used to look like a checked tap).
 var ErrAimNotFound = errors.New("aim: pointer not found near the target, so the tap was not sent (is the pointer visible? take a screenshot: an old picture means the video is stale)")
 
 // Calibrate finds the pointer on screen at two known distances from the corner and fits the mapping from both.
@@ -434,6 +436,7 @@ func (p *Pointer) Point(ctx context.Context, x, y float64, aim bool) error {
 
 // aim is the closed loop: find the real pointer on screen, fix a miss, and learn the error for later moves.
 func (p *Pointer) aim(ctx context.Context, x, y float64) error {
+	p.Seen = false
 	found, ok, err := p.measure(ctx, x, y)
 	if err != nil {
 		return err
@@ -442,7 +445,7 @@ func (p *Pointer) aim(ctx context.Context, x, y float64) error {
 		p.Log(fmt.Sprintf("aim (%.3f, %.3f): pointer not found", x, y))
 		return ErrAimNotFound
 	}
-	p.Miss = math.Max(math.Abs(found.X-x), math.Abs(found.Y-y))
+	p.Seen, p.Miss = true, math.Max(math.Abs(found.X-x), math.Abs(found.Y-y))
 	if p.Miss <= MaxMiss { // learn from normal drift only
 		p.far = 0
 		p.remember("x", [2]float64{p.Fix(x, "x"), found.X})
@@ -642,9 +645,10 @@ func (p *Pointer) Reset(ctx context.Context) error {
 	return nil
 }
 
-// Tap clicks count times (at least once) at x, y without moving in between: 2 is a double tap.
-func (p *Pointer) Tap(ctx context.Context, x, y float64, aim bool, count int) error {
-	if err := p.Point(ctx, x, y, aim); err != nil {
+// Tap clicks count times (at least once) at x, y without moving in between: 2 is a double tap. aim: find the pointer
+// and put it on the target first (Seen says whether it was found); strict: and don't tap when it wasn't.
+func (p *Pointer) Tap(ctx context.Context, x, y float64, aim, strict bool, count int) error {
+	if err := p.Point(ctx, x, y, aim); err != nil && !(errors.Is(err, ErrAimNotFound) && !strict) {
 		return err
 	}
 	for i := 0; i < max(count, 1); i++ {

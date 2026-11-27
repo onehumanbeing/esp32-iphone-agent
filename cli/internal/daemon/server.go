@@ -35,7 +35,8 @@ type Request struct {
 	Scale   float64   `json:"scale,omitempty"`
 	MaxSize int       `json:"max_size,omitempty"`
 	Aim     bool      `json:"aim,omitempty"`
-	Count   int       `json:"count,omitempty"` // taps in a row at one point (2: double tap)
+	Strict  bool      `json:"strict,omitempty"` // with Aim: no tap when the pointer isn't seen
+	Count   int       `json:"count,omitempty"`  // taps in a row at one point (2: double tap)
 }
 
 // Response is the CLI's JSON output, as mobilecli's: {"status":"ok","data":…} or {"status":"error","error":"…"}.

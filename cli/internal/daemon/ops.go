@@ -315,7 +315,7 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 		switch req.Cmd {
 		case "tap":
 			x, y := pt(0)
-			return p.Tap(ctx, x, y, req.Aim, req.Count)
+			return p.Tap(ctx, x, y, req.Aim, req.Strict, req.Count)
 		case "longpress":
 			x, y := pt(0)
 			d := time.Duration(req.Ms) * time.Millisecond
@@ -339,10 +339,14 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 	}
 	out := map[string]any{"message": req.Cmd + " done"}
 	switch {
-	case req.Cmd == "tap" && req.Aim: // the pointer was seen before the click (else the tap failed above)
-		out["message"], out["verified"] = fmt.Sprintf("tap done: the pointer was seen %.1f%% off the target and put on it first", p.Miss*100), true
-	case req.Cmd == "tap" || req.Cmd == "longpress" || req.Cmd == "swipe": // #194: nothing checked where it landed
-		out["message"], out["verified"] = req.Cmd+" sent (not verified: take a screenshot; --aim checks a tap's position first)", false
+	// #194: say whether anything checked where it landed. "<cmd> done" stays first: scripts match it.
+	case req.Cmd == "tap" && req.Aim && p.Seen:
+		out["verified"], out["miss"] = true, p.Miss // seen this far off the target, then put on it
+	case req.Cmd == "tap" && req.Aim:
+		const why = "pointer not found, tapped at the calibrated position"
+		out["message"], out["verified"], out["warning"] = "tap done (not verified: "+why+")", false, why
+	case req.Cmd == "tap" || req.Cmd == "longpress" || req.Cmd == "swipe":
+		out["message"], out["verified"] = req.Cmd+" done (not verified: nothing checked where it landed; take a screenshot, or tap with --aim)", false
 	}
 	if req.Cmd == "text" && pointer.HasHan(req.Text) {
 		out["typed_as"] = pointer.Typeable(req.Text)
