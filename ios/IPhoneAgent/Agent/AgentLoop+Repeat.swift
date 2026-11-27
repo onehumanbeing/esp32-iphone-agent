@@ -296,6 +296,56 @@ enum RetypeGuard {
     private static func trim(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
+/// Waiting on a screen that stays on its loading state (Searching.., Loading, 加载中): the app itself is stuck, more
+/// waiting won't help. After `limit` s of waits in a row with the loading words still up, the run stops and tells
+/// the person why and what to do (2026-11-27, case 11: Notes sat on "Searching.." and the run waited 9 min, silent,
+/// to the 600 s timeout). Words only: a spinner with no words is not caught.
+enum LoadingGuard {
+    static let limit = 60.0
+
+    /// When the waits at the end of `steps` began (nil when the last move was not a wait). Holds, plans and notebook
+    /// steps between waits don't break the run of waits.
+    static func waitingSince(_ steps: [JObject]) -> Double? {
+        var since: Double?
+        for step in steps.reversed() {
+            let name = step["action"]?.str ?? ""
+            if name == "wait" { since = step["t"]?.double ?? since; continue }
+            if name == RepeatGuard.action || step["plan"] != nil || name == "plan" || Actions.notebookActions.contains(name) { continue }
+            break
+        }
+        return since
+    }
+
+    /// The round would wait again after `limit` s of waiting.
+    static func due(_ acts: [JObject], after steps: [JObject], now: Double) -> Bool {
+        guard acts.first(where: { !Actions.notebookActions.contains($0["action"]?.str ?? "") })?["action"]?.str == "wait",
+              let since = waitingSince(steps) else { return false }
+        return now - since >= limit
+    }
+
+    /// The loading line on the screen, if any (a short line: an article that mentions "loading" is not one).
+    static func loading(_ lines: [String]) -> String? {
+        let words = ["searching", "loading", "please wait", "加载中", "正在加载", "载入中", "正在载入", "搜索中", "正在搜索",
+                     "请稍候", "请稍等", "正在处理"]
+        return lines.first { line in
+            let l = line.lowercased().trimmingCharacters(in: .whitespaces)
+            return l.count <= 24 && words.contains { l.contains($0) }
+        }
+    }
+
+    /// What the person reads, in the goal's language.
+    static func reason(app: String?, shown: String, seconds: Double, goal: String) -> String {
+        let s = Int(seconds.rounded())
+        if goal.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) {
+            let who = app.map { "「\($0)」" } ?? "这个 App"
+            return "\(who)一直停在「\(shown)」，等了 \(s) 秒没有结果，可能是 App 自身卡住了。建议在后台划掉这个 App、重新打开后再试一次。"
+        }
+        let who = app.map { "\($0)" } ?? "The app"
+        return "\(who) stayed on \"\(shown)\" for \(s) s with no result; the app itself seems stuck. "
+            + "Close it from the app switcher, open it again and retry."
+    }
+}
+
 /// Held back this often in a short while: the run is stuck, ask the person rather than try again.
 enum StuckGuard {
     static let limit = 3, window = 12
@@ -318,6 +368,16 @@ extension AgentLoop {
         return !Vision.changed(a, b, ignore: [pointerAt])
     }
 
+    /// LoadingGuard: the reason to stop when the round would wait again on a screen still loading after the limit.
+    func loadingStuck(_ acts: [JObject]) async -> String? {
+        guard LoadingGuard.due(acts, after: steps, now: now()), let since = LoadingGuard.waitingSince(steps),
+              let jpeg = screen?.frame, let image = Vision.image(jpeg),
+              let shown = LoadingGuard.loading(await UITreeOCR.lines(image, fast: true).map(\.text)) else { return nil }
+        let app = steps.last { $0["action"]?.str == "open" }?["app"]?.str
+        DebugLog.write(String(format: "loading guard: still \"%@\" after %.0f s of waits; stopping", shown, now() - since))
+        return LoadingGuard.reason(app: app, shown: shown, seconds: now() - since, goal: task)
+    }
+
     /// The round's actions (nextActions), asked for once more when they start with a repeat of a gesture that just
     /// changed nothing. Not after a round a pause dropped (the flag is taken here): the person may have changed the
     /// screen meanwhile.
@@ -326,6 +386,9 @@ extension AgentLoop {
         roundDroppedByPause = false
         let acts = try await nextActions()
         guard !afterPause else { return acts }
+        if let stuck = await loadingStuck(acts.map(\.act)) {
+            return [Planned(act: ["action": .str("fail"), "reason": .str(stuck)], shot: acts[0].shot)]
+        }
         let reason: String
         if let held = RepeatGuard.repeated(acts.map(\.act), after: steps) {
             let name = held["action"]?.str ?? ""

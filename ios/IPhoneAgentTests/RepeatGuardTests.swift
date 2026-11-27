@@ -576,4 +576,23 @@ final class AlreadyOpenTests: XCTestCase {
         XCTAssertFalse(AlreadyOpen.holds("Reminders", [opened("提醒事项")]))
         XCTAssertFalse(AlreadyOpen.holds("提醒事项", [opened("提醒事项")]))
     }
+
+    /// 2026-11-27, case 11: Notes stuck on "Searching.."; the run waited 9 min in silence. After 60 s of waits with the
+    /// loading words still up, it stops and says why, in the goal's language.
+    func testWaitingOnAStuckLoadingScreenStopsAndSaysWhy() {
+        func step(_ name: String, _ t: Double) -> JObject { ["action": .str(name), "t": .num(t)] }
+        let steps = [step("type", 0), step("key", 2), step("wait", 10), step(RepeatGuard.action, 30), step("wait", 40), step("wait", 70)]
+        XCTAssertEqual(LoadingGuard.waitingSince(steps), 10)
+        let wait: [JObject] = [["action": .str("wait")]]
+        XCTAssertTrue(LoadingGuard.due(wait, after: steps, now: 71))
+        XCTAssertFalse(LoadingGuard.due(wait, after: steps, now: 69), "under a minute of waiting")
+        XCTAssertFalse(LoadingGuard.due([["action": .str("tap"), "x": .int(1), "y": .int(1)]], after: steps, now: 200))
+        XCTAssertNil(LoadingGuard.waitingSince([step("wait", 0), step("tap", 5)]), "the last move was not a wait")
+        XCTAssertEqual(LoadingGuard.loading(["All Accounts", "Searching..", "Q harness"]), "Searching..")
+        XCTAssertEqual(LoadingGuard.loading(["正在加载…"]), "正在加载…")
+        XCTAssertNil(LoadingGuard.loading(["How we cut loading time in half on every page of our site"]))
+        let zh = LoadingGuard.reason(app: "备忘录", shown: "Searching..", seconds: 61, goal: "打开备忘录，搜索“harness”")
+        XCTAssertTrue(zh.contains("「备忘录」") && zh.contains("61 秒") && zh.contains("重新打开"))
+        XCTAssertTrue(LoadingGuard.reason(app: nil, shown: "Loading", seconds: 60, goal: "Search Notes").hasPrefix("The app stayed on"))
+    }
 }
