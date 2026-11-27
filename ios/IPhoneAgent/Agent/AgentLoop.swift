@@ -1058,7 +1058,9 @@ extension Gestures {
                 let fresh = !acts[..<i].contains { ["type", "clear", "say"].contains($0.act["action"]?.str ?? "") }
                 let check: TapCheck
                 if name == "tap" {
+                    let checking = now()
                     check = await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap, fresh: fresh)
+                    if now() - checking > 1 { DebugLog.write(String(format: "step: tap checks took %.1f s", now() - checking)) }
                 } else if Actions.isEnter(act) {
                     check = await sendCheck(act, on: planned.shot ?? seen, fresh: fresh)
                 } else {

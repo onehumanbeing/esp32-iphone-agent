@@ -124,7 +124,11 @@ extension AgentLoop {
             try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
             try await phone.longPress(p("x"), p("y"))
         case "tap":
+            let looking = Date()
             try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
+            if -looking.timeIntervalSinceNow > 1 {
+                DebugLog.write(String(format: "tap: AssistiveTouch button check took %.1f s", -looking.timeIntervalSinceNow))
+            }
             try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
             if a["count"]?.double == 2 { try await phone.clickAgain() }
         case "swipe" where a["hold"]?.bool == true: try await phone.pressDrag(p("x1"), p("y1"), p("x2"), p("y2"))
