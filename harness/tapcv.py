@@ -211,7 +211,8 @@ def mirror(board: str, restart: bool = False) -> bool:
     if spot is None:
         sys.exit(f"{board} not in the Screen Mirroring list")
     for _ in range(3):
-        landed = point(*spot, tol=20)
+        # a row is ~130 px tall and its neighbours a row away: 35 px stays on it (20 failed at 23-44 px, 2026-11-27)
+        landed = point(*spot, tol=35)
         now_at = find_text(landed, board)
         if now_at and abs(now_at[1] - spot[1]) < 25:
             break
