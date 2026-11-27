@@ -580,6 +580,8 @@ String statusJson(bool full, char who) {
     snprintf(s + strlen(s), sizeof s - strlen(s), ",\"busy\":%d,\"ip\":\"%s\"", app, net_ip().c_str());
   const size_t required = strlen(s);
   snprintf(s + required, sizeof s - required, ",\"lost\":%lu", (unsigned long)v.lost);
+  // The CLI's stall check (#192): ms since the board's last frame from AirPlay. fz only says the GOP overflowed.
+  if (who == FROM_CLI) snprintf(s + strlen(s), sizeof s - strlen(s), ",\"vage\":%lu", (unsigned long)v.age_ms);
   const size_t withLoss = strlen(s);
   snprintf(s + withLoss, sizeof s - withLoss, ",\"rst\":\"%s\",\"ble\":{\"mtu\":%u}", resetReason(), ble_mtu());
   if (who == FROM_CLI)

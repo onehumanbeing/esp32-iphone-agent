@@ -27,7 +27,7 @@ const usage = `esp32agent: see and drive an iPhone through an ESP32 Agent board,
   devices                          boards nearby
   pair | unpair                    pair this computer (within 3 min of plugging the board in)
   screenshot [--format png|jpeg] [--quality N] [--scale F] [--max-size N] [--output PATH|-]
-  io tap X,Y [--aim] [--count N]   coordinates are screenshot pixels; --count 2 double-taps
+  io tap X,Y [--aim [--strict]] [--count N]   coordinates are screenshot pixels; --count 2 double-taps
   io longpress X,Y [--duration MS]
   io swipe X1,Y1,X2,Y2
   io text 'TEXT'                   ASCII; Chinese is typed as pinyin
@@ -229,6 +229,7 @@ func newFS(dev *string) *flag.FlagSet {
 
 func (a *App) io(fs *flag.FlagSet, dev *string, args []string) int {
 	aim := fs.Bool("aim", false, "find the pointer on screen and correct a miss before tapping")
+	strict := fs.Bool("strict", false, "with --aim: don't tap when the pointer isn't found (default: tap at the calibrated position)")
 	ms := fs.Int("duration", 1000, "long press, ms")
 	count := fs.Int("count", 1, "taps in a row at the point (2: double tap)")
 	pos, err := parse(fs, args)
@@ -239,7 +240,7 @@ func (a *App) io(fs *flag.FlagSet, dev *string, args []string) int {
 		return a.fail(errors.New("usage: esp32agent io tap|longpress|swipe|text|keys|button ..."))
 	}
 	sub, arg := pos[0], strings.Join(pos[1:], " ")
-	req := daemon.Request{Cmd: sub, Device: *dev, Aim: *aim, Ms: *ms, Count: *count, Text: arg}
+	req := daemon.Request{Cmd: sub, Device: *dev, Aim: *aim, Strict: *strict, Ms: *ms, Count: *count, Text: arg}
 	switch sub {
 	case "tap", "longpress", "swipe":
 		n := 2
@@ -281,6 +282,8 @@ func (a *App) screenshot(fs *flag.FlagSet, dev *string, args []string) int {
 		Data struct {
 			Format, Data, Device string
 			Width, Height        int
+			Warning              string
+			VideoAgeMs           int64 `json:"video_age_ms"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(line, &r); err != nil {
@@ -304,8 +307,11 @@ func (a *App) screenshot(fs *flag.FlagSet, dev *string, args []string) int {
 	if err := os.WriteFile(path, img, 0o644); err != nil {
 		return a.fail(err)
 	}
-	return a.print(daemon.Response{Status: "ok", Data: map[string]any{"format": r.Data.Format, "filePath": path,
-		"width": r.Data.Width, "height": r.Data.Height}})
+	out := map[string]any{"format": r.Data.Format, "filePath": path, "width": r.Data.Width, "height": r.Data.Height}
+	if r.Data.Warning != "" { // a stale frame (#192): the agent must not act on it as the screen now
+		out["stale"], out["video_age_ms"], out["warning"] = true, r.Data.VideoAgeMs, r.Data.Warning
+	}
+	return a.print(daemon.Response{Status: "ok", Data: out})
 }
 
 // screenshotPath: a file path as given, or screenshot-<device>-<time>.<ext> in a directory (default: cwd).

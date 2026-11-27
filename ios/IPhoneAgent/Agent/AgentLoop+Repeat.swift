@@ -224,6 +224,51 @@ enum DoneGuard {
         + "give the same done again: a second done is taken."
 }
 
+/// "Nothing found" right after typing a search: results come in a moment later (Notes, App Store) and the screen
+/// the model saw was still empty. Held back once so it looks again (2026-11-27, case 11: "0 条" while Notes held
+/// harness notes, the results list not up yet one frame after Return).
+enum EmptyResultGuard {
+    static func premature(_ acts: [JObject], after steps: [JObject]) -> Bool {
+        guard let done = acts.first(where: { $0["action"]?.str == "done" }), negative(done["answer"]?.str ?? ""),
+              let last = steps.last(where: { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }),
+              last["action"]?.str == "type" || Actions.isEnter(last) else { return false }
+        return !steps.contains { $0["action"]?.str == RepeatGuard.action && $0["reason"]?.str == reason }
+    }
+
+    /// The answer says nothing was found.
+    static func negative(_ answer: String) -> Bool {
+        let a = answer.lowercased()
+        let words = ["0 条", "0条", "0 个结果", "0个结果", "没有找到", "未找到", "找不到", "没有结果", "无结果", "没有搜到",
+                     "no results", "0 results", "nothing found", "found nothing", "no matches", "none found"]
+        return words.contains { a.contains($0) }
+    }
+
+    static let reason = "Not done yet: the search was only just typed, and results often take a second or two to show. "
+        + "Wait (wait 2) and look at the list again; if it is still empty, give the same done again: a second done is taken."
+}
+
+/// A done whose answer is the model thinking aloud ("But wait — … Let me read … I should report …"): the person gets
+/// its deliberation, not an answer, and here a count that said 2 and then 3 (2026-11-27, case 13). Held back once and
+/// asked for the answer alone; the second done stands.
+enum DeliberationGuard {
+    static func rambling(_ acts: [JObject], after steps: [JObject]) -> Bool {
+        guard let done = acts.first(where: { $0["action"]?.str == "done" }), thinking(done["answer"]?.str ?? "") else { return false }
+        return !steps.contains { $0["action"]?.str == RepeatGuard.action && $0["reason"]?.str == reason }
+    }
+
+    /// Words of a mind still being made up, not of an answer.
+    static func thinking(_ answer: String) -> Bool {
+        let a = answer.lowercased().replacingOccurrences(of: "’", with: "'")
+        let words = ["but wait", "wait —", "wait -", "wait,", "let me ", "i should ", "hmm", "on second thought",
+                     "等等", "让我再", "我应该", "不对，", "再想想"]
+        return words.contains { a.contains($0) }
+    }
+
+    static let reason = "Not done yet: your answer reads like your own thinking (\"wait\", \"let me\", \"I should\"), "
+        + "not an answer for the person. Give done again with only the answer: the result itself in a sentence or a "
+        + "short list, in the goal's language, with no reasoning. A second done is taken."
+}
+
 /// A send (key enter) right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters,
 /// not the words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left. A tap
 /// is never held (2026-11-20: Amap's suggestion list already showed the place, the tap on it that listedHint asks
@@ -240,6 +285,86 @@ enum TypedGuard {
     static func reason(_ left: String) -> String {
         "Not done: the last type stopped part way (\(left)), so the field may hold letters instead of the words. "
             + SendGuard.listedHint + "Else check the field; if it is wrong, \(SendGuard.clearHint) and type again, before sending."
+    }
+}
+
+/// The same text typed again after it was typed and committed (a tap or Return after it changed the screen): what it
+/// made (a reminder, a note, a sent message) is likely there already. Held back once; the second answer stands (a
+/// search that found nothing may need the same words again). 2026-11-26: + / type 买牛奶 / Done three times over made
+/// three reminders, and repeated sends were among the top free-line problems that week.
+enum RetypeGuard {
+    static func repeated(_ acts: [JObject], after steps: [JObject]) -> JObject? {
+        guard let new = acts.first(where: { Actions.gestures.contains($0["action"]?.str ?? "") }),
+              new["action"]?.str == "type", case let text = trim(new["text"]?.str ?? ""), !text.isEmpty,
+              steps.last?["action"]?.str != RepeatGuard.action else { return nil }  // asked once already
+        let moves = Array(steps.filter { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") })
+        guard let at = moves.lastIndex(where: { $0["action"]?.str == "type" && trim($0["text"]?.str ?? "") == text })
+        else { return nil }
+        // a Return the app did not send ("not sent: the field holds only part of the text") committed nothing: the
+        // search typed again in full was held (2026-11-27, case 20: 北京昌平 typed, Return refused, retype blocked)
+        let committed = moves[(at + 1)...].contains {
+            ($0["action"]?.str == "tap" || Actions.isEnter($0)) && $0["changed"] != .bool(false)
+                && !($0["result"]?.str ?? "").hasPrefix("not sent")
+        }
+        return committed ? new : nil
+    }
+
+    static func reason(_ text: String) -> String {
+        "Not done: \"\(text)\" was already typed earlier in this run and then committed (a tap or Return after it "
+            + "changed the screen), so what it made may already be there (a saved item, a sent message). Look for it "
+            + "on this screen first; type it again only if it is not there."
+    }
+
+    private static func trim(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
+/// Waiting on a screen that stays on its loading state (Searching.., Loading, 加载中): the app itself is stuck, more
+/// waiting won't help. After `limit` s of waits in a row with the loading words still up, the run stops and tells
+/// the person why and what to do (2026-11-27, case 11: Notes sat on "Searching.." and the run waited 9 min, silent,
+/// to the 600 s timeout). Words only: a spinner with no words is not caught.
+enum LoadingGuard {
+    static let limit = 60.0
+
+    /// When the waits at the end of `steps` began (nil when the last move was not a wait). Holds, plans and notebook
+    /// steps between waits don't break the run of waits.
+    static func waitingSince(_ steps: [JObject]) -> Double? {
+        var since: Double?
+        for step in steps.reversed() {
+            let name = step["action"]?.str ?? ""
+            if name == "wait" { since = step["t"]?.double ?? since; continue }
+            if name == RepeatGuard.action || step["plan"] != nil || name == "plan" || Actions.notebookActions.contains(name) { continue }
+            break
+        }
+        return since
+    }
+
+    /// The round would wait again after `limit` s of waiting.
+    static func due(_ acts: [JObject], after steps: [JObject], now: Double) -> Bool {
+        guard acts.first(where: { !Actions.notebookActions.contains($0["action"]?.str ?? "") })?["action"]?.str == "wait",
+              let since = waitingSince(steps) else { return false }
+        return now - since >= limit
+    }
+
+    /// The loading line on the screen, if any (a short line: an article that mentions "loading" is not one).
+    static func loading(_ lines: [String]) -> String? {
+        let words = ["searching", "loading", "please wait", "加载中", "正在加载", "载入中", "正在载入", "搜索中", "正在搜索",
+                     "请稍候", "请稍等", "正在处理"]
+        return lines.first { line in
+            let l = line.lowercased().trimmingCharacters(in: .whitespaces)
+            return l.count <= 24 && words.contains { l.contains($0) }
+        }
+    }
+
+    /// What the person reads, in the goal's language.
+    static func reason(app: String?, shown: String, seconds: Double, goal: String) -> String {
+        let s = Int(seconds.rounded())
+        if goal.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) {
+            let who = app.map { "「\($0)」" } ?? "这个 App"
+            return "\(who)一直停在「\(shown)」，等了 \(s) 秒没有结果，可能是 App 自身卡住了。建议在后台划掉这个 App、重新打开后再试一次。"
+        }
+        let who = app.map { "\($0)" } ?? "The app"
+        return "\(who) stayed on \"\(shown)\" for \(s) s with no result; the app itself seems stuck. "
+            + "Close it from the app switcher, open it again and retry."
     }
 }
 
@@ -260,9 +385,22 @@ enum StuckGuard {
 
 extension AgentLoop {
     /// The screens the model saw before steps `i` and `j` look the same (pointer aside); unknown counts as the same.
+    /// Each pair once, and a pair whose thumbnails already differ is not compared in full: the revisit check compared
+    /// the last screen with every earlier one, full size, on the main thread, twice a round; at 61-68% CPU in the
+    /// background the app was suspended for 5-85 s at a time and the video froze (2026-11-27).
     func sameShots(_ i: Int, _ j: Int) -> Bool {
         guard let a = shots[i], let b = shots[j] else { return true }
-        return !Vision.changed(a, b, ignore: [pointerAt])
+        return shotCache.same(a, b) { !Vision.changed(a, b, ignore: [pointerAt]) }
+    }
+
+    /// LoadingGuard: the reason to stop when the round would wait again on a screen still loading after the limit.
+    func loadingStuck(_ acts: [JObject]) async -> String? {
+        guard LoadingGuard.due(acts, after: steps, now: now()), let since = LoadingGuard.waitingSince(steps),
+              let jpeg = screen?.frame, let image = Vision.image(jpeg),
+              let shown = LoadingGuard.loading(await UITreeOCR.lines(image, fast: true).map(\.text)) else { return nil }
+        let app = steps.last { $0["action"]?.str == "open" }?["app"]?.str
+        DebugLog.write(String(format: "loading guard: still \"%@\" after %.0f s of waits; stopping", shown, now() - since))
+        return LoadingGuard.reason(app: app, shown: shown, seconds: now() - since, goal: task)
     }
 
     /// The round's actions (nextActions), asked for once more when they start with a repeat of a gesture that just
@@ -273,6 +411,9 @@ extension AgentLoop {
         roundDroppedByPause = false
         let acts = try await nextActions()
         guard !afterPause else { return acts }
+        if let stuck = await loadingStuck(acts.map(\.act)) {
+            return [Planned(act: ["action": .str("fail"), "reason": .str(stuck)], shot: acts[0].shot)]
+        }
         let reason: String
         if let held = RepeatGuard.repeated(acts.map(\.act), after: steps) {
             let name = held["action"]?.str ?? ""
@@ -300,12 +441,21 @@ extension AgentLoop {
         } else if HomeSwipeGuard.repeated(acts.map(\.act), after: steps, startsOnHome: homeAtStart) != nil {
             DebugLog.write("home swipe guard: a swipe on the Home Screen; asking once more")
             reason = HomeSwipeGuard.reason
+        } else if let held = RetypeGuard.repeated(acts.map(\.act), after: steps) {
+            DebugLog.write("retype guard: the same text again after it was committed; asking once more")
+            reason = RetypeGuard.reason(held["text"]?.str ?? "")
         } else if TypedGuard.repeated(acts.map(\.act), after: steps) != nil {
             DebugLog.write("typed guard: a send right after a type that stopped part way; asking once more")
             reason = TypedGuard.reason(steps.last { $0["action"]?.str == "type" }?["typed"]?.str ?? "")
         } else if DoneGuard.premature(acts.map(\.act), after: steps, earlierRuns: !chatContext.isEmpty || resultName != nil) {
             DebugLog.write("done guard: done before any move changed the screen; asking once more")
             reason = DoneGuard.reason
+        } else if EmptyResultGuard.premature(acts.map(\.act), after: steps) {
+            DebugLog.write("empty result guard: 'nothing found' right after typing a search; asking once more")
+            reason = EmptyResultGuard.reason
+        } else if DeliberationGuard.rambling(acts.map(\.act), after: steps) {
+            DebugLog.write("deliberation guard: a done that thinks aloud; asking for the answer alone")
+            reason = DeliberationGuard.reason
         } else if let audit = await recordAudit(acts.map(\.act)) {
             reason = audit
         } else {
@@ -338,5 +488,35 @@ extension AgentLoop {
         }
         again[0].act["think_s"] = .num((thought * 100).rounded() / 100)  // the round's thinking: every call
         return again
+    }
+}
+
+/// sameShots' memory: a small gray thumbnail per screenshot and the answer per pair, keyed by the bytes themselves
+/// (a new run's step 3 is another screenshot, so another key).
+final class ShotCache {
+    private var thumbs: [Int: Vision.Gray] = [:]
+    private var answers: [Pair: Bool] = [:]
+    private struct Pair: Hashable { let a: Int, b: Int }
+
+    func same(_ a: Data, _ b: Data, full: () -> Bool) -> Bool {
+        let key = Pair(a: a.hashValue, b: b.hashValue)
+        if let known = answers[key] { return known }
+        if answers.count > 4000 { answers = [:]; thumbs = [:] }  // memory only; recomputed if needed
+        let answer: Bool
+        if let ta = thumb(a), let tb = thumb(b), !Vision.similar(ta, tb) {
+            answer = false  // far apart even as thumbnails: not the same screen
+        } else {
+            answer = full()
+        }
+        answers[key] = answer
+        return answer
+    }
+
+    private func thumb(_ jpeg: Data) -> Vision.Gray? {
+        let key = jpeg.hashValue
+        if let t = thumbs[key] { return t }
+        guard let t = Vision.thumb(jpeg) else { return nil }
+        thumbs[key] = t
+        return t
     }
 }

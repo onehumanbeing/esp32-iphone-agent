@@ -125,6 +125,8 @@ void diag_tick() {
        (ul)v.gopKb, (ul)v.overflows, v.frozen, (ul)(v.frozenMs / 1000), (ul)(v.resyncs - p.resyncs),
        (ul)(v.resumes - p.resumes), (ul)(v.resumeMisses - p.resumeMisses), (ul)(v.tailBreaks - p.tailBreaks),
        v.following, v.lastWhy);
+  // How much a squeeze would give back (gop.c): unreferenced AUs but the newest, their KB; squeezes since boot
+  line("diag gop+: unref %d AUs %lu KB sq %lu", v.gopUnref, (ul)v.gopUnrefKb, (ul)v.squeezes);
   was = t;
   at = now;
 }

@@ -6,6 +6,21 @@ enum OpenResult: String {
     case opened, notFound = "not_found", notOpened = "not_opened"
     case already = "already_open"  // this run opened it and has not left it since: nothing was sent (AlreadyOpen)
     case unchecked  // no live screen: the keys went out, nothing was read back
+    case store = "app_store"  // its App Store page came up instead: not installed; sent home (AppOpener.storePage)
+    case failedBefore = "failed_before"  // this name failed to open twice in this run already: not tried again (OpenRetry)
+}
+
+/// The same name after two opens of it failed in this run is not searched for again: the model opened 时钟 7 times
+/// and failed 6 (2026-11-27, e5a9567b, build 25). It is told to look for the icon or say it is not installed.
+enum OpenRetry {
+    static let failures = 2
+    static let failed: Set<String> = [OpenResult.notFound.rawValue, OpenResult.notOpened.rawValue, OpenResult.store.rawValue]
+
+    static func given(_ app: String, after steps: [JObject]) -> Bool {
+        let n = { (s: String) in s.lowercased().filter { !$0.isWhitespace } }
+        return steps.filter { $0["action"]?.str == "open" && n($0["app"]?.str ?? "") == n(app) && failed.contains($0["opened"]?.str ?? "") }
+            .count >= failures
+    }
 }
 
 /// `open APP` done by code, read back on the screen: the Home key, Spotlight (cmd+space), the name typed, its listed
@@ -28,6 +43,11 @@ enum OpenResult: String {
     /// The agent app itself came to the front (a tap on its notification, its own shortcut as the top hit).
     var ownAppInFront: () -> Bool = { false }
     var same: (Data?, Data?) -> Bool = { Vision.similar($0, $1) }
+    /// The frame now, without waiting for it to settle: whether cmd+space brought anything up before keys are typed.
+    /// nil = not checked (tests feed their own frames to `look`).
+    var glance: (() async -> Data?)?
+    /// The first frame captured at least `delay` s from now; nil = none in time, or no live picture.
+    var freshAfter: ((Double) async -> Data?)?
     /// A new screen rather than the same one redrawn (Spotlight after its letters were committed).
     var big: (Data?, Data?) -> Bool = { Vision.bigChange($0, $1) }
     var pause: (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
@@ -88,6 +108,37 @@ enum OpenResult: String {
     private let seen = Seen()
 
     private func open(named name: String) async throws -> OpenResult {
+        var result = try await search(name)
+        // the agent app itself came up (its notification, its own shortcut as the top hit): Home and once more
+        // (2026-11-27: 4 of 30 failed opens on build 25 ended in the agent app)
+        if result == .opened, ownAppInFront() {
+            log("open \(name): the agent app came to the front; Home and once more")
+            result = try await search(name)
+            if result == .opened, ownAppInFront() { try await home(); return .notOpened }
+        }
+        // a row that opened the App Store (state): the app is not installed (5 of 30 failed opens, build 25). Home,
+        // so no later tap lands on Get
+        if result == .store {
+            log("open \(name): its App Store page came up; not installed, Home")
+            try await home()
+        }
+        return result
+    }
+
+    static func isAppStore(_ name: String) -> Bool {
+        ["appstore", "应用商店"].contains(name.lowercased().filter { !$0.isWhitespace })
+    }
+
+    /// An App Store product page: its Get / Open button and two of its info rows.
+    static func storePage(_ lines: [String]) -> Bool {
+        let l = lines.map { Scripts.fold($0) }
+        let button = l.contains { ["get", "获取", "下载", "in-app purchases", "app 内购买"].contains($0) }
+        let rows = ["ratings", "个评分", "age", "年龄", "chart", "排行榜", "developer", "开发者", "years old", "岁"]
+            .filter { w in l.contains { $0.contains(w) } }.count
+        return button && rows >= 2
+    }
+
+    private func search(_ name: String) async throws -> OpenResult {
         let pasting = pastes(name)
         if pasting { guard let paste, try await paste(name) else { return .notFound } }  // never typed as garbage
         let queries = Self.queries(name, pasting: pasting, language: language)
@@ -106,8 +157,12 @@ enum OpenResult: String {
         // typed as itself, the field shows the name too, so a result row makes two; typed as letters, one row more
         // than the Home Screen showed (its icon label) is enough
         var onHome = 0
+        // typed as its name in the iPhone's language (Calculator for 计算器), the field and the row show that name:
+        // judged by 计算器 alone it was never found, 8 s lost before the pinyin on every such open (2026-11-27)
+        let asLabel = query != name && labels.contains(query)
         func shows(_ lines: [String]) -> Bool {
-            Self.listed(name, in: lines, as: labels) || query != name && Self.count(name, in: lines) > onHome
+            Self.listed(name, in: lines, as: labels) || asLabel && Self.listed(query, in: lines, as: labels)
+                || query != name && Self.count(name, in: lines) > onHome
         }
         // cmd+space first on every open (0.2 s); the Search button (a pointer search, 10-24 s) only after it brought
         // nothing up in this open. 2026-11-17: a "Search button first" kept across runs since one miss on 11-13 meant
@@ -125,8 +180,28 @@ enum OpenResult: String {
             let reading = homeFrame.map { frame in Task { await read(frame) } }
             defer { reading?.cancel() }
             func homeLines() async -> [String] { await reading?.value ?? [] }
-            if button, let searchButton, try await searchButton() {} else { try await key("cmd+space") }
+            var viaKey = false
+            if button, let searchButton, try await searchButton() {} else { try await key("cmd+space"); viaKey = true }
             try await pause(0.7)
+            // Nothing came up: the keys below would go to the app in front, cmd+a and backspace clearing its field
+            // and the name typed into it (2026-11-27 open review: a name typed into a chat's input box 4 times on
+            // build 24). Look first; the same screen as before = no Spotlight, the Search button next time.
+            // (twice, 0.6 s apart: the picture can run up to a second behind the phone)
+            // three looks over ~1.4 s, all the same as before = nothing came up. Not a second cmd+space: it is a
+            // toggle, and with the picture behind it closed a Spotlight that had come up (2026-11-27)
+            func nothingUp() async -> Bool {
+                guard let glance, homeFrame != nil else { return false }
+                for wait in [0.0, 0.6, 0.8] {
+                    if wait > 0, (try? await pause(wait)) == nil { return false }
+                    guard let now = await glance(), same(now, homeFrame) else { return false }
+                }
+                return true
+            }
+            if viaKey, await nothingUp() {
+                log("open \(name): nothing came up after cmd+space; not typing into the app in front")
+                button = true
+                continue
+            }
             // Spotlight brings back the last query and typing appends to it (2026-11-11: "GoogleMaps" + "Google Maps")
             try await key("cmd+a")
             try await key("backspace")
@@ -141,6 +216,16 @@ enum OpenResult: String {
             // Siri Suggestions, so "WeChat" read as not found and it went on to type 微信 (2026-11-12). Look again
             // (not "while the screen changes": the typed name in the field alone is too small a change for `same`).
             for _ in 0..<Self.relooks where !shows(lines) && !same(results, homeFrame) {
+                try await pause(0.6)
+                guard let again = await look() else { break }
+                results = again
+                lines = await read(again)
+            }
+            // Siri Suggestions still on the picture = it is from before the results came in (the picture ran ~2 s
+            // behind). Their icon grid lists the app too: a tap there landed on whatever result had come in at that
+            // spot, an App Store page, and the open said opened (2026-11-27, case 37). Looked at until they go; still
+            // there after ~3 s, the picture has caught up and they are the screen.
+            for _ in 0..<Self.suggestionLooks where Self.suggesting(lines) {
                 try await pause(0.6)
                 guard let again = await look() else { break }
                 results = again
@@ -165,10 +250,20 @@ enum OpenResult: String {
             var shown = results, closed = false, changed = false, entered = 0
             for round in 0..<2 {
                 changed = false
-                let (spots, web, topHit) = await spots(shown, name, labels)
+                var (spots, web, topHit) = await spots(shown, name, labels)
+                // one look is no proof: Spotlight fills its sections in one by one, and the web suggestions can be read
+                // before the app's Top Hit above them (2026-11-27: Safari, installed, "not installed", Chrome opened)
+                if web {
+                    try await pause(1.0)
+                    if let again = await look() {
+                        shown = again
+                        (spots, web, topHit) = await self.spots(again, name, labels)
+                    }
+                }
                 if web {  // not installed: tapping it or Return opens a web search
                     seen.webOnly = true
-                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed")
+                    let note = await rowsNote(shown, name, labels)
+                    log("open \(name) via Spotlight: listed only as a web suggestion; not installed (rows: \(note))")
                     return .notFound
                 }
                 // The pinyin letters stayed composing (the pinyin keyboard was on) and the name is read only low on
@@ -185,12 +280,25 @@ enum OpenResult: String {
                 // the letters were composing on the pinyin keyboard and that Return put them in (2026-11-20); the
                 // rows are read again and one more Return opens the Top Hit (the tap after it took 7.5 s, 2026-11-26).
                 if entered < 2, topHit, !pasting, query.allSatisfy(\.isASCII) {
+                    if entered > 0, let came = try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return came }
                     entered += 1
                     log("open \(name) via Spotlight: typed, its row is the top hit → enter")
                     try await key("enter")
+                    // A first Return that only put composing pinyin letters in leaves Spotlight as it was: the second
+                    // one at once. It waited for a settled look and an OCR read first, then cameUp, ~9 s (2026-11-27,
+                    // Calendar on the pinyin keyboard: Top Hit still there 5.5 s after the first Return)
+                    // (a frame captured 0.7 s after it, not the shown one: the picture can run behind the phone)
+                    if entered == 1, let freshAfter {
+                        if let quick = await freshAfter(0.7), same(quick, shown) {
+                            entered += 1
+                            log("open \(name) via Spotlight: the first Return changed nothing (letters composing) → enter")
+                            try await key("enter")
+                        }
+                    }
                     guard let now = await look() else { return .unchecked }
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
+                    if after == .store { return .store }
                     if after == .closed { closed = true; break }
                     // the letters going in barely changes the frame (2026-11-26: "Settings" looked the same): the
                     // second Return is sent either way
@@ -199,11 +307,13 @@ enum OpenResult: String {
                     if moved || entered < 2 { continue }
                 }
                 for spot in spots.prefix(2) {
+                    if entered > 0 || round > 0, let came = try await cameUp(shown, spotlight: results, home: homeFrame, name, shows) { return came }
                     log("open \(name) via Spotlight: typed, result row read at (\(fmt(spot.x)),\(fmt(spot.y))) → tapped")
                     try await tapAt?(spot)
                     guard let now = await look() else { return .unchecked }
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
+                    if after == .store { return .store }
                     let moved = !same(now, shown)
                     shown = now
                     closed = after == .closed
@@ -218,7 +328,9 @@ enum OpenResult: String {
                     }
                     if closed || moved { break }  // the old spots are stale on a changed screen
                 }
-                if closed || round == 1 || overBudget() { break }
+                // past the budget, a tap that changed nothing (it missed: 2026-11-27 case 22, Safari's row at x 0.10,
+                // the click at the screen's edge) still gets the one Return below, ~1 s, before giving up
+                if closed || round == 1 || overBudget() && changed { break }
                 // the tap changed Spotlight (a keyboard candidate committed the pinyin, 2026-11-25): read its new
                 // results first; Return there opened whatever came first, a web suggestion for an app not installed
                 if changed { continue }
@@ -227,6 +339,7 @@ enum OpenResult: String {
                 guard let now = await look() else { return .unchecked }
                 let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                 if after == .left { return .opened }
+                if after == .store { return .store }
                 shown = now
                 closed = after == .closed
                 if closed { break }
@@ -236,7 +349,22 @@ enum OpenResult: String {
         return .notOpened
     }
 
-    private enum After { case left, closed, still }
+    /// One more look before another Return or a tap on a result: the look after a Return can be cut short on a
+    /// moving screen (0.8 s) and still show Spotlight while the app comes up; the second Return and the tap meant
+    /// for the result row then went into Settings and opened Apple Account (2026-11-26).
+    private func cameUp(_ last: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async throws -> OpenResult? {
+        try await pause(0.5)
+        guard let now = await look(), !same(now, last) else { return nil }
+        switch await state(now, spotlight: spotlight, home: home, name, shows) {
+        case .left:
+            log("open \(name) via Spotlight: it came up after all")
+            return .opened
+        case .store: return .store
+        default: return nil
+        }
+    }
+
+    private enum After { case left, closed, still, store }
 
     /// What a tap or Return did: the app came up (Spotlight's words are gone), Spotlight closed to the Home Screen
     /// or this app came to the front, or Spotlight is still up.
@@ -245,17 +373,28 @@ enum OpenResult: String {
     private func state(_ now: Data, spotlight: Data, home: Data?, _ name: String, _ shows: ([String]) -> Bool) async -> After {
         if ownAppInFront() { return .closed }
         let lines = await read(now)
+        if !Self.isAppStore(name), Self.storePage(lines) { return .store }
         // words first: on a plain wallpaper Spotlight, the Home Screen and the app can all look alike (2026-11-11)
         guard shows(lines) else { return same(now, home) && !same(spotlight, home) ? .closed : .left }
-        if same(now, spotlight) { return .still }
+        func still(_ why: String) -> After {
+            log("open \(name) via Spotlight: still up (\(why)); read: \(lines.prefix(8).joined(separator: " | "))")
+            return .still
+        }
+        if same(now, spotlight) { return still("same frame") }
         if same(now, home) { return .closed }
-        if !big(spotlight, now) { return .still }
-        let before = Set(await read(spotlight).map(Scripts.fold))
-        let kept = lines.contains { line in
+        if !big(spotlight, now) { return still("small change") }
+        let shown = await read(spotlight)
+        // Spotlight's Top Hit header gone: Spotlight is. The words test below took Settings for it, whose rows
+        // "Apps" and "Watch" were Spotlight's suggestions too, and a tap meant for the result opened Apple Account
+        // (2026-11-26)
+        func headed(_ lines: [String]) -> Bool { lines.contains { Self.topHitHeaders.contains(Scripts.fold($0)) } }
+        if headed(shown), !headed(lines) { return .left }
+        let before = Set(shown.map(Scripts.fold))
+        let kept = lines.first { line in
             let l = Scripts.fold(line)
             return !l.isEmpty && before.contains(l) && Self.count(name, in: [line]) == 0
         }
-        return kept ? .still : .left
+        return kept.map { still("kept \"\($0)\", top hit header \(headed(shown) ? "was" : "not") read before") } ?? .left
     }
 
     /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
@@ -266,6 +405,15 @@ enum OpenResult: String {
         return (rows.filter { !$0.web }.map(\.at), rows.first?.web == true, Self.isTopHit(rows))
     }
 
+    /// What a "not installed" rests on, for the log: each row of the name, top first, at its height with the header
+    /// over it (2026-11-27: Safari, installed, was called not installed; the log had no way to tell why).
+    private func rowsNote(_ frame: Data, _ name: String, _ labels: [String]) async -> String {
+        guard let readBoxes else { return "?" }
+        let (found, size) = await readBoxes(frame)
+        let rows = Self.resultRows(found, labels: [name] + labels, size: size)
+        return rows.map { "y \(fmt($0.at.y)) under \($0.header.map { "\"\($0)\"" } ?? "none")" }.joined(separator: "; ")
+    }
+
     private func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
 
     /// Spotlight's header over web search suggestions, per language (folded).
@@ -274,6 +422,21 @@ enum OpenResult: String {
     /// Spotlight's header over its Top Hit (the row Return opens), per language (folded).
     static let topHitHeaders: Set<String> = Set(["Top Hit", "最佳匹配", "最佳搜尋結果", "トップヒット", "상위 히트",
                                                  "Toptreffer", "Meilleur résultat"].map(Scripts.fold))
+
+    /// Spotlight's header over its suggestions before any results, per language (folded).
+    static let suggestionHeaders: Set<String> = Set(["Siri Suggestions", "Siri 建议", "Siri建议", "Siri 建議", "Siri建議",
+                                                     "Siriからの提案", "Siri 제안", "Siri-Vorschläge",
+                                                     "Suggestions de Siri"].map(Scripts.fold))
+    /// Looks (0.6 s apart) while Siri Suggestions are still on the picture after the name was typed.
+    static let suggestionLooks = 5
+
+    /// The lines are Spotlight before its results: the Siri Suggestions header (over the icon grid) and no Top Hit.
+    /// Not the field: Spotlight brings back the last query, so the field already read "Reminders" over the grid
+    /// (2026-11-27, phone-side capture), and the grid's Reminders spot was a web suggestion once the results came.
+    static func suggesting(_ lines: [String]) -> Bool {
+        let folded = lines.map(Scripts.fold)
+        return folded.contains { suggestionHeaders.contains($0) } && !folded.contains { topHitHeaders.contains($0) }
+    }
 
     /// The app's first row is under the Top Hit header: Return opens the app (never a field, a web suggestion,
     /// or another result that came first).

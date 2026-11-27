@@ -55,6 +55,12 @@ struct JevAnswer: Decodable, Equatable {
 
 @MainActor protocol JevStepping: AnyObject {
     func step(_ input: JevStepInput) async throws -> JevAnswer
+    /// Open the connection to Jev's host at the run's start: its 2.5 s budget has no room for a cold TLS handshake.
+    func warm()
+}
+
+extension JevStepping {
+    func warm() {}
 }
 
 /// Own-model runs: the app asks Jev's server itself, with a ticket from the free line's server (Trial).
@@ -69,13 +75,11 @@ struct JevAnswer: Decodable, Equatable {
          ticket: @escaping () async throws -> String = { try await Trial.shared.jevTicket() }) {
         self.url = url
         self.ticket = ticket
-        self.session = session ?? {
-            let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = Self.timeout
-            config.timeoutIntervalForResource = Self.timeout
-            return URLSession(configuration: config)
-        }()
+        // one for every run (NetPool): a new session per run made each run's first Jev step open its own connection
+        self.session = session ?? NetPool.session(request: Self.timeout, resource: Self.timeout, ephemeral: true)
     }
+
+    func warm() { if let url { NetPool.warm(url, on: session) } }
 
     func step(_ input: JevStepInput) async throws -> JevAnswer {
         guard let url else { throw TrialError.unavailable }

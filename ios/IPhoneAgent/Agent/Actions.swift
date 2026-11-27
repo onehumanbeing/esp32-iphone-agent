@@ -68,8 +68,8 @@ enum Actions {
             return action
         }
         let numbers = matches(#"-?\d+(?:\.\d+)?"#, in: rest).compactMap { Double($0) }.map { Int($0) }
-        if name == "wait", let n = numbers.first {  // wait 10: that long, for a video or an ad to end
-            return ["action": .str(name), "seconds": .num(min(max(Double(n), 1), WaitFor.most))]
+        if name == "wait", let n = numbers.first {  // wait 10: up to that long (WaitFor); wait 0: until a change
+            return WaitFor.seconds(n).map { ["action": .str(name), "seconds": .num($0)] } ?? ["action": .str(name)]
         }
         // tap 发送: words without quotes and no numbers are the words too (Qwen wrote it so; the whole reply was taken
         // as off-format and asked again, 5 s, in most runs of 2026-11-23)
@@ -121,17 +121,54 @@ enum Actions {
             acts.append(act)
         }
         guard !acts.isEmpty else { throw ParseError(message: "no DO line in reply: \(text.prefix(200))") }
-        acts = blindSafe(acts)
+        acts = blindSafe(WaitFor.fold(acts))
         acts[0] = JObject([("thought", .str(thought ?? "")), ("thought_zh", .str(zh ?? ""))]).merging(acts[0])
         // a bare `DO: fail` or `DO: done` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only
         // in THINK; 你好明天 written, done with no answer): the model's own words go in
         for (name, key) in [("fail", "reason"), ("done", "answer")] {
+            // an answer over several lines (a list): the lines after the DO line are part of it. Only the first was
+            // kept, "共有 2 个常规列表：" with the lists cut off (2026-11-27, case 13)
+            if let i = acts.firstIndex(where: { $0["action"]?.str == name }), let first = acts[i][key]?.str, !first.isEmpty,
+               let more = continuation(after: name, in: text) {
+                acts[i][key] = .str(first + "\n" + more)
+            }
             if let i = acts.firstIndex(where: { $0["action"]?.str == name }), (acts[i][key]?.str ?? "").isEmpty,
                let why = [zh, thought].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
                 acts[i][key] = .str(why)
             }
         }
+        // a done whose answer says the goal could not be done is a fail: the run counted as succeeded while it said
+        // the account button could not be tapped and the apps would not open (2026-11-27, cc19dc69)
+        if let i = acts.firstIndex(where: { $0["action"]?.str == "done" }), couldNot(acts[i]["answer"]?.str ?? "") {
+            var failed = acts[i]
+            failed["action"] = .str("fail")
+            failed["reason"] = failed["answer"]
+            failed["answer"] = nil
+            acts[i] = failed
+        }
         return acts
+    }
+
+    /// The answer says the agent itself could not do the goal (not a fact it found, like "this item can't be returned").
+    static func couldNot(_ answer: String) -> Bool {
+        let a = answer.lowercased()
+        return ["我无法", "无法完成", "未能完成", "没能完成", "没法完成", "不能完成", "无法打开", "打不开", "无法继续",
+                "i couldn't", "i could not", "i was unable", "i'm unable", "i am unable", "unable to complete",
+                "could not complete", "couldn't complete"].contains { a.contains($0) }
+    }
+
+    /// The lines after the first `DO: <name> …` line up to the next THINK/DO/PLAN/ZH line, trimmed; nil if none.
+    static func continuation(after name: String, in text: String) -> String? {
+        let lines = text.components(separatedBy: "\n")
+        let tag = try! NSRegularExpression(pattern: #"^\s*(THINK|DO|PLAN|ZH)\s*[:：]"#, options: [.caseInsensitive])
+        func tagged(_ s: String) -> Bool { tag.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
+        let head = try! NSRegularExpression(pattern: #"^\s*DO\s*[:：]\s*"# + NSRegularExpression.escapedPattern(for: name) + #"\b"#,
+                                            options: [.caseInsensitive])
+        guard let at = lines.firstIndex(where: { head.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil })
+        else { return nil }
+        let rest = lines[(at + 1)...].prefix { !tagged($0) }.joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return rest.isEmpty ? nil : rest
     }
 
     /// The part of a batch that can run without a new look. `done` only counts on its own: after other actions the

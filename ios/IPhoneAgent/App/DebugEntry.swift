@@ -60,9 +60,11 @@ struct ModelLaunchConfiguration {
 ///   iphoneagent://run?task=<urlencoded>   iphoneagent://calibrate   iphoneagent://stop
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
 ///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
+///   iphoneagent://probe?label=board          (Settings › Developer › Input probe, docs/input-probe.md)
+///   iphoneagent://tab?name=runs              (a tab: agent, runs, files, settings)
 ///   iphoneagent://display?try=1040x720,1440x1000   (Debug: advertise each size for one mirroring session, log what
 ///                                                  iOS streams, then go back to the default; ?reset=1 stops)
-/// or launch arguments: -run "<task>", -calibrate, -manualcal, -bench 256, -snap (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
+/// or launch arguments: -run "<task>", -calibrate, -manualcal, -bench 256, -snap, -probe [label] (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
 /// (e.g. `xcrun devicectl device process launch --device <id> <bundle id> -run "Open Clock"`).
 /// Commands that need the board wait up to 30 s for it (and mirroring, for a run) before giving up.
 /// The URL commands exist in Debug builds only: in a release any web page could open them.
@@ -84,6 +86,8 @@ extension AppModel {
             debugCommand(host)
         case "status":
             say(statusSummary)
+        case "probe":
+            openInputProbe(label: arg("label"))
         case "intent":
             guard let prompt = arg("prompt"), !prompt.isEmpty else { return false }
             if let old = arg("replace"), !old.isEmpty {  // intents with this name, or whose words start with it, go first
@@ -92,6 +96,11 @@ extension AppModel {
             intents.add(name: arg("name") ?? "", prompt: prompt)
         case "line":  // iphoneagent://line?free=1: runs go out on the free line (the Manina AI key kept, off); free=0: on the key
             Trial.shared.setKeyOn(arg("free") != "1")
+        case "tab":  // iphoneagent://tab?name=runs|files|settings|agent: a tab, for filming the app after a run
+            guard let tab = ["agent": AppTab.agent, "runs": .runs, "files": .files, "settings": .settings][arg("name") ?? ""]
+            else { return false }
+            review = nil  // a run's review covers the tabs
+            self.tab = tab
         case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
             CallGuide.seen = false
         case "bench":
@@ -113,7 +122,7 @@ extension AppModel {
     }
 
     /// A line from the Mac harness, relayed by the board: "run <task>", "calibrate", "stop", "bench <kb>",
-    /// "snap", "status", "log <n>", "mode <m>", "audio", "audiotest <lang>" or "ota [dir]".
+    /// "snap", "status", "log <n>", "mode <m>", "audio", "audiotest <lang>", "ota [dir]" or "probe [label|save|close]".
     func handleAppCommand(_ line: String) {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let name = parts.first ?? "", rest = parts.count > 1 ? parts[1] : ""
@@ -141,6 +150,7 @@ extension AppModel {
                 self.say(self.audio.summary + "\n" + self.audio.heard(within: 60))
             }
         case "log": relayHistory(Int(rest) ?? 50)
+        case "probe": inputProbeCommand(rest)
         case "ota":  // a test build staged in Documents/<rest or firmware>, sent over Wi-Fi like Update Board does
             if !rest.isEmpty { Firmware.localDir = rest }
             Task { [weak self] in
@@ -257,6 +267,10 @@ extension AppModel {
         }
         if args.contains("-bench") { debugCommand("bench", kb: Int(value(after: "-bench") ?? "") ?? 256) }
         if args.contains("-snap") { debugCommand("snap") }
+        if args.contains("-probe") {
+            let label = value(after: "-probe")
+            openInputProbe(label: label?.hasPrefix("-") == false ? label : nil)
+        }
         if let v = value(after: "-listen") {  // harness: Settings › Listen to phone audio
             UserDefaults.standard.set(v == "on", forKey: ListenSetting.key)
             setListening(v == "on")
@@ -335,6 +349,10 @@ extension AppModel {
         for name in names.sorted() where name.hasSuffix(".json") {
             let file = dir.appendingPathComponent(name)
             let args = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            // half written (the Mac's copy still going): read it again next second, not drop it (2026-11-26: a
+            // -run read mid-copy was "unreadable" and removed, and the run waited 10 minutes for nothing)
+            let written = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
+            if args == nil, let written, Date().timeIntervalSince(written) < 10 { continue }
             try? FileManager.default.removeItem(at: file)
             guard let args else { say("harness: unreadable \(name)"); continue }
             say("harness: \(name)")
@@ -442,6 +460,13 @@ extension AppModel {
                 } else if command == "gop" {  // the board's GOP buffer: bytes, overflows, frozen for us
                     let st = board.status
                     reply = "gop \(st?.gop.map(String.init) ?? "?") B, overflows \(st?.ovf.map(String.init) ?? "?"), frozen \(st?.fz.map(String.init) ?? "?")"
+                } else if command == "video" {  // a picture arrives now: what harness/run.sh and tapcv.py check
+                    // (not `snap`: the board sends its whole GOP for one, 15 s+ once it is MBs, 2026-11-26)
+                    // the board's AirPlay state, not the frame's age: a still screen sends no new frames
+                    // (2026-11-26: an idle Clock read "no picture" and the harness reopened Control Center)
+                    let st = board.status
+                    reply = board.connected && st?.ap == "streaming" && st?.fz != 1 && feed.frame != nil
+                        ? "live" : "err ap \(st?.ap ?? "?") fz \(st?.fz.map(String.init) ?? "?")"
                 } else if command == "video-reconnect" {  // drop the Wi-Fi video session: it must come back resuming
                     wifiVideo.stop()
                     wifiVideo.update(ip: board.net?.ip, token: board.net?.vtok)
@@ -524,3 +549,29 @@ extension AppModel {
     }
 }
 #endif
+
+extension AppModel {
+    /// Opens the input probe (docs/input-probe.md), with the label the next taps get when one is given.
+    func openInputProbe(label: String?) {
+        if let label, !label.isEmpty { InputProbeLog.shared.label = label }
+        inputProbe = true
+    }
+
+    /// "app probe [label]" opens the probe; "app probe save" writes Documents/input-probe.json and reports the counts;
+    /// "app probe close" dismisses it.
+    func inputProbeCommand(_ rest: String) {
+        let log = InputProbeLog.shared
+        switch rest {
+        case "save":
+            do {
+                try log.save()
+                let types = Dictionary(log.samples.map { ($0.type, 1) }, uniquingKeysWith: +).map { "\($0.key) \($0.value)" }
+                say("probe: wrote \(log.samples.count) samples (\(types.sorted().joined(separator: ", "))) to Documents/\(InputProbe.fileName)")
+            } catch { say("probe: write failed: \(error.localizedDescription)") }
+        case "close": inputProbe = false
+        default:
+            openInputProbe(label: rest)
+            say("probe: open, label \"\(log.label)\"")
+        }
+    }
+}

@@ -854,9 +854,41 @@ import UIKit
             log("open \(name): opened by scheme")
             return .opened
         }
-        let opener = AppOpener(home: { [self] in
-            if (try? await device.send("homescreen")) == nil { try await key("cmd+h") }
-        }, key: { [self] in try await key($0) }, type: { [self] in _ = try await type($0) }, look: { [weak self] in
+        var opener = AppOpener(home: { [self] in
+            let before = screen?.live == true ? screen?.frame : nil
+            // USB: the board's Home key works; over Bluetooth it answers an error, and cmd+h with an app in front did
+            // nothing six times out of six (Settings, Weather; 2026-11-26), each a 3 s wait before the flick anyway.
+            // So over Bluetooth: on the Home Screen nothing to do, else the flick at once.
+            let keyWorks = (try? await device.send("homescreen")) != nil
+            guard let screen, let before else {
+                if !keyWorks { try await key("cmd+h") }
+                return
+            }
+            if keyWorks {
+                await screen.settled(quiet: 0.2, least: 0.4, most: 1.0)
+                let after = screen.frame
+                guard await !Vision.off({ Vision.bigChange(before, after) }), await Self.keyMissed(before, after) else { return }
+                log("open: the Home key left the app in front; flicking up from the home bar")
+            } else {
+                if await Self.onHomeScreen(before) { return }
+                log("open: an app in front; flicking up from the home bar")
+            }
+            var sent = now()
+            try await homeSwipe()
+            // a big change in the first frames: left (no text read). The first flick often only woke the pointer
+            // (2026-11-26: Settings stayed): once more at full speed while the same app is in front
+            if let first = await screen.fresh(since: sent, timeout: 1.0), await Vision.off({ Vision.bigChange(before, first) }) { return }
+            await screen.settled(quiet: 0.2, least: 0.4, most: 1.0)
+            guard await Self.sameApp(before, screen.frame) else { return }
+            log("open: the flick left the app in front; once more at full speed")
+            sent = now()
+            try await homeSwipe(full: true)
+            _ = await screen.fresh(since: sent, timeout: 1.0)
+        }, key: { [self] in try await key($0) }, type: { [self] query in
+            // letters straight to the board: the keyboard check before them read the screen twice, 5.3 s for
+            // "rednote" (2026-11-26), and the opener handles letters left composing on the pinyin keyboard itself
+            if query.allSatisfy(\.isASCII) { _ = try await device.send("type \(query)") } else { _ = try await type(query) }
+        }, look: { [weak self] in
             guard let screen = self?.screen, screen.live else { return nil }
             await screen.settled(quiet: 0.5, least: 1.0, most: 3.0)
             return screen.frame
@@ -872,6 +904,11 @@ import UIKit
             let lines = await UITreeOCR.lines(image, languages: UITreeOCR.languages(for: name), whole: true)
             return (lines, CGSize(width: image.width, height: image.height))
         }, tapAt: { [self] p in try await tap(p.x, p.y, aim: true) })
+        opener.glance = { [weak self] in self?.screen?.live == true ? self?.screen?.frame : nil }
+        opener.freshAfter = { [weak self] delay in
+            guard let self, let screen, screen.live else { return nil }
+            return await screen.fresh(since: now() + delay, timeout: delay + 1.5)
+        }
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
         return result

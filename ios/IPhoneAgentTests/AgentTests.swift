@@ -5,7 +5,17 @@ import XCTest
 /// Port of server/tests/test_agent.py.
 @MainActor final class AgentTests: XCTestCase {
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
-    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+    override func tearDown() { WaitFor.plainMost = WaitFor.most; super.tearDown() }
+
+    /// 2026-11-26: a plain `wait` on a loaded page that never moved took the whole 15 s, twice in a run.
+    func testPlainWaitOnAScreenWhereNothingMovesEndsAfterStillEnough() async throws {
+        WaitFor.plainMost = 15
+        let agent = AgentLoop(phone: FakeGestures(), screen: FakeScreen(), actor: nil, planner: nil, trace: nil)
+        let began = now()
+        let said = try await agent.waitForChange()
+        XCTAssertLessThan(now() - began, WaitFor.stillEnough + 1.5)
+        XCTAssertTrue(said?.contains("stood still") == true, said ?? "nil")
+    }
 
     func testWirelessPointerLossPausesWithWorkingScreenAndControlLink() async throws {
         let phone = FakeGestures(), screen = FakeScreen()
@@ -167,6 +177,28 @@ import XCTest
         XCTAssertEqual(states.last, "thinking")
         XCTAssertFalse(states.contains("planning"))
         XCTAssertNil(model.onProgress)
+    }
+
+    /// A done answer over several lines keeps all of them (2026-11-27, case 13: only "共有 2 个常规列表：" was kept);
+    /// a THINK or DO line after it ends it, and the blank lines at the end go.
+    /// A done that says the goal could not be done is a fail (2026-11-27, cc19dc69: counted as succeeded); a fact found
+    /// that says "can't" stays a done.
+    func testADoneThatSaysItCouldNotIsAFail() throws {
+        let acts = try Actions.parseActions("THINK: no way in\nDO: done 账户按钮点不到，其他 App 也打不开，无法完成查看物流")
+        XCTAssertEqual(acts[0]["action"]?.str, "fail")
+        XCTAssertEqual(acts[0]["reason"]?.str, "账户按钮点不到，其他 App 也打不开，无法完成查看物流")
+        XCTAssertNil(acts[0]["answer"])
+        let fact = try Actions.parseActions("THINK: read it\nDO: done 这件商品不支持七天无理由退货")
+        XCTAssertEqual(fact[0]["action"]?.str, "done")
+        XCTAssertEqual(try Actions.parseActions("DO: done I couldn't open the app")[0]["action"]?.str, "fail")
+    }
+
+    func testAMultiLineDoneAnswerKeepsItsLines() throws {
+        let reply = "THINK: Read both lists.\nDO: done 共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）\n\n\n"
+        XCTAssertEqual(try Actions.parseActions(reply)[0]["answer"]?.str, "共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）")
+        XCTAssertEqual(try Actions.parseActions("THINK: Done.\nDO: done 好了\n\n").first?["answer"]?.str, "好了")
+        let failed = try Actions.parseActions("THINK: Stuck.\nDO: fail 打不开：\n- 没装\nTHINK: x")
+        XCTAssertEqual(failed[0]["reason"]?.str, "打不开：\n- 没装")
     }
 
     func testParseSingleAction() throws {
@@ -518,8 +550,28 @@ import XCTest
         agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 90) } }  // moved while the model looked
         phone.onTap = { screen.frame = v.screen(spinner: 160) }
         _ = try await agent.step()
+        // the first tap's target changed while the model looked: one more look, nothing pressed (2026-11-27)
+        XCTAssertEqual(phone.aims, [])
+        XCTAssertEqual(agent.steps.last?["action"], .str("stale_look"))
+        looked = false
+        agent.onDoing = { if case .acting = $0, looked { screen.frame = v.screen(spinner: 230) } }  // still moving
+        _ = try await agent.step()  // looked at once more, then tapped even though it moves by itself: never a loop
         XCTAssertEqual(phone.aims, [false])
         XCTAssertEqual(agent.steps.last?["changed"], .bool(false))
+    }
+
+    /// Settings loaded its account row after the look and pushed the list down: the first tap is not sent onto
+    /// the gap, the model looks again (2026-11-27).
+    func testAFirstTapWhoseTargetMovedAfterTheLookIsNotSent() async throws {
+        let v = VisionTests(), phone = FakeGestures(), screen = FakeScreen()
+        screen.frame = v.screen()
+        var looks = 0
+        let model = FakeModel { _ in looks += 1; return "THINK: row\nDO: tap 500 463" }  // on the button (y 400-601 of 1080)
+        let agent = AgentLoop(phone: phone, screen: screen, actor: model, planner: nil, trace: nil)
+        agent.onDoing = { if case .acting = $0, looks == 1 { screen.frame = v.screen(button: true) } }
+        _ = try await agent.step()
+        XCTAssertTrue(phone.taps.isEmpty)
+        XCTAssertEqual(agent.steps.last?["action"], .str("stale_look"))
     }
 
     func testAMissedTapSaysWhereThePointerIs() async throws {
@@ -668,7 +720,7 @@ import XCTest
 /// never came is "effect unknown". An iPhone (no geometry, never behind) is covered by every other AgentLoop test.
 @MainActor final class IPadAgentTests: XCTestCase {
     override func setUp() { super.setUp(); WaitFor.plainMost = 0.6 }  // the fake screen never changes by itself
-    override func tearDown() { WaitFor.plainMost = 15; super.tearDown() }
+    override func tearDown() { WaitFor.plainMost = WaitFor.most; super.tearDown() }
 
     func testLandscapeLetterboxCoordinatesConvertBeforeTap() async throws {
         let phone = FakeGestures(), screen = FakeScreen()

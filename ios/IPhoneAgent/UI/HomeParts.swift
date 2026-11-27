@@ -140,6 +140,11 @@ struct RecoveryPanel: View {
                         .font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
+            // a frozen picture or mirroring gone: where to tap, as in setup (a new session sends a fresh keyframe)
+            if stage.ask, stage.part == .frames || stage.part == .mirroring {
+                MiniPhoneDemo(kind: stage.part == .frames ? .restartMirroring : .controlCenter)
+                    .padding(.vertical, Space.s)
+            }
         } header: {
             if stage.part == .frames {
                 Text("Waiting for a screen image")
@@ -160,7 +165,7 @@ struct MirrorHintBanner: View {
     var body: some View {
         if app.mirrorHintShown && !busy {
             HStack(spacing: Space.xs) {
-                Text("Stuck after a long session? Restart Screen Mirroring.")
+                Text("Picture stuck? In Control Center tap Screen Mirroring › Stop Mirroring, then choose \(BoardName.current) again.")
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .contextMenu { Button("Don't Show Again") { app.dismissMirrorHint(forever: true) } }

@@ -36,7 +36,11 @@ The board runs in one of two modes, set in the iOS app (Settings > Board > Input
    - `esp32agent io swipe X1,Y1,X2,Y2` (scroll a list: swipe up from the lower to the upper middle)
    - `esp32agent io text 'hello'`, `esp32agent io keys enter`, `esp32agent io keys cmd+a`
    - `esp32agent io button HOME` (Home Screen)
-4. Screenshot again and check the result before the next step. Never chain several taps blind.
+4. Screenshot again and check the result before the next step. Never chain several taps blind: a gesture's reply
+   says `"verified": false` (`tap done (not verified: ...)`: nothing checked where it landed). Only a tap with `--aim`
+   (MCP: `aim`) checks the pointer first (`"verified": true`); if it can't see the pointer it still taps at the
+   calibrated position and says `verified: false` with a warning. Add `--strict` (MCP: `strict`) to get an error
+   and no tap instead.
 
 When the task depends on what the phone plays (a video, a call, a voice message, a spoken code),
 `esp32agent listen` gives its words from the last 30 s, or says why the phone can't be heard (listening off,
@@ -83,12 +87,18 @@ After a task succeeded, save it so the next run is faster:
 - `busy: the app is using the phone`: the iOS app is driving right now. Wait and retry later; don't fight it.
 - `screen mirroring is off`: ask the user to start Screen Mirroring to ESP32 Agent.
 - `video frozen`: ask the user to stop and restart Screen Mirroring.
+- `video stale`, or a screenshot with `"stale": true`: the iPhone stopped sending frames while mirroring stays on, so
+  the picture is old. Don't act on it: wait 10-30 s and screenshot again; if it stays stale, ask the user to restart
+  Screen Mirroring.
 - `not paired` or `pairing window closed`: ask the user to replug the board (its power, in Bluetooth mode) and
   run `esp32agent pair` within 3 minutes.
 - `phone usb asleep` (USB mode): the phone is locked; ask the user to unlock it.
 - `Bluetooth HID not paired` or `typed N of M: asleep` (Bluetooth mode): the phone's Bluetooth link to the board
   is down. Ask the user to check that Bluetooth is on and the board shows Connected on the iPhone; if the phone
   never paired it, replug the board's power and pair it within 3 minutes.
+- `near, but not taking a CLI link` (or `devices` shows the board `unreachable`): its Bluetooth slots are held, often
+  by macOS keeping it as a keyboard. Ask the user to choose Forget This Device for the board in the Mac's System
+  Settings > Bluetooth, then retry.
 - `not supported on ESP32 Agent`: there is no app list, UI tree, file access or webview; work from screenshots.
 
 ## Limits

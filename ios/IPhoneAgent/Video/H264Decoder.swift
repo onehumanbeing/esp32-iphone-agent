@@ -77,6 +77,7 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         guard status != noErr else { return }
         resetSession()
         if gop.last?.data == unit.data, gop.first?.idr == true, replay() {
+            replays += 1
             let n = gop.count
             DispatchQueue.main.async { [weak self] in
                 DebugLog.write("decoder: session lost (\(status)); decoded the GOP again (\(n) units)")
@@ -95,26 +96,73 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     /// Right at the background notification the new session fails too (2026-11-25: failed, then iOS ended the old
     /// one 2.7 s later): tried again every 0.5 s, up to `renewTries` times (3 s), then the decode-error path as before.
     static let renewTries = 6
-    func renew(_ why: String, attempt: Int = 1) {
+    /// GOP replays that worked (on `queue`). A retry of `renew` after one is not needed: between the tries the
+    /// next live unit made a session, failed, and the decode path replayed the GOP into it; the retry then threw
+    /// that working session away and decoded the whole GOP once more (2026-11-27: 26k units, 36 s + 38 s, the
+    /// first frame of a run at +79 s).
+    private var replays = 0
+
+    /// A later try of `renew` still has work to do: no replay worked since the first try.
+    static func retryNeeded(attempt: Int, replaysAtFirstTry: Int, replays: Int) -> Bool {
+        attempt == 1 || replays == replaysAtFirstTry
+    }
+
+    func renew(_ why: String, attempt: Int = 1, replaysAtFirstTry: Int? = nil) {
         queue.asyncAfter(deadline: .now() + (attempt == 1 ? 0 : 0.5)) { [self] in
             guard session != nil || attempt > 1 else { return }
+            let since = replaysAtFirstTry ?? replays
+            guard Self.retryNeeded(attempt: attempt, replaysAtFirstTry: since, replays: replays) else {
+                DispatchQueue.main.async { DebugLog.write("decoder: new session \(why) (try \(attempt)) not needed: the GOP was decoded again meanwhile") }
+                return
+            }
             resetSession()
             guard gop.first?.idr == true else { return }
             let started = CFAbsoluteTimeGetCurrent(), ok = replay(), n = gop.count
+            if ok { replays += 1 }
             let ms = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
             DispatchQueue.main.async { DebugLog.write("decoder: new session \(why) (try \(attempt)); GOP decoded again (\(n) units, \(ms) ms, \(ok ? "ok" : "failed"))") }
-            if !ok, attempt < Self.renewTries { renew(why, attempt: attempt + 1) }
+            if !ok, attempt < Self.renewTries { renew(why, attempt: attempt + 1, replaysAtFirstTry: since) }
         }
     }
 
-    /// Decode the cached GOP into a fresh session; only its last frame is shown.
+    /// Decode the cached GOP into a fresh session; only its last frame is shown. The frames before it are only
+    /// references: decoded without an output image, asynchronously, and the ones no later frame refers to are
+    /// skipped. One by one with an image each, a 15362-unit GOP (a mirroring session 2 hours old) took 69 s in the
+    /// background, the whole wait before a run's first step (2026-11-26).
     private func replay() -> Bool {
-        for (i, u) in gop.enumerated() where decodeOne(u, emit: i == gop.count - 1) != noErr { return false }
+        let failed = Flag()
+        for (i, u) in gop.enumerated() {
+            let last = i == gop.count - 1
+            if !last, !u.idr, Self.unreferenced(u.data) { continue }
+            if last, let session { VTDecompressionSessionWaitForAsynchronousFrames(session) }
+            if decodeOne(u, emit: last, quiet: last ? nil : failed) != noErr || failed.on { return false }
+        }
         return true
     }
 
+    /// Set from VideoToolbox's callback thread during a replay.
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        var on: Bool { lock.lock(); defer { lock.unlock() }; return value }
+        func set() { lock.lock(); value = true; lock.unlock() }
+    }
+
+    /// Every slice in the unit has nal_ref_idc 0: no later frame is decoded from it.
+    static func unreferenced(_ data: Data) -> Bool {
+        var slices = 0
+        for nal in annexBUnits(data) {
+            let header = nal[nal.startIndex]
+            guard [1, 5].contains(header & 0x1f) else { continue }
+            if header & 0x60 != 0 { return false }
+            slices += 1
+        }
+        return slices > 0
+    }
+
     /// noErr also when there is nothing to decode yet (no slices, no SPS/PPS).
-    private func decodeOne(_ unit: AccessUnit, emit: Bool) -> OSStatus {
+    /// `quiet`: a reference frame of a replay, decoded without an output image and asynchronously; a failure sets it.
+    private func decodeOne(_ unit: AccessUnit, emit: Bool, quiet: Flag? = nil) -> OSStatus {
         var slices: [Data] = []
         for nal in annexBUnits(unit.data) {
             switch nal[nal.startIndex] & 0x1f {
@@ -135,8 +183,13 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         guard let sample = makeSample(avcc, format) else { return noErr }
         let started = CFAbsoluteTimeGetCurrent()
         var flags = VTDecodeInfoFlags()
-        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: [],
+        let decodeFlags: VTDecodeFrameFlags = quiet == nil ? [] : [._EnableAsynchronousDecompression, ._DoNotOutputFrame]
+        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: decodeFlags,
                                                        infoFlagsOut: &flags) { [weak self] status, _, image, _, _ in
+            if let quiet {
+                if status != noErr { quiet.set() }
+                return
+            }
             guard let self else { return }
             guard status == noErr, let image else {
                 self.onError?("decode callback status \(status)")

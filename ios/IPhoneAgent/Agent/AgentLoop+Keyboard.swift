@@ -15,6 +15,14 @@ enum HandoffRelease {
 @MainActor struct InputHandoff {
     struct Result { var release: HandoffRelease?, notice: String? }
 
+    /// Whether the keyboard notice goes to the user. All input released but the keyboard not verified (the frame
+    /// was stale at the end of most runs): only worth saying after a run that typed; a run that only read and
+    /// swiped left no field to type into, and the notice came after nearly every harness run (2026-11-28).
+    static func tells(_ result: Result, typed: Bool) -> Bool {
+        guard result.notice != nil else { return false }
+        return typed || result.release != .allInputs
+    }
+
     let device: HIDDevice
     var checkKeyboard = false
     /// Stop was pressed or the setting turned off: a keyboard check cut short needs no notice.

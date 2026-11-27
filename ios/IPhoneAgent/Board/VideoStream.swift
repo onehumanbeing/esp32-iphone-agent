@@ -66,6 +66,8 @@ enum VideoTransport {
     private var timer: Task<Void, Never>?
     private var windowBytes = 0, windowStart = now()
     private let queue = DispatchQueue(label: "video-stream")
+    /// No byte from the board this long: the link is gone, reopen it.
+    static let silence = 8.0
     /// The keepalive and the last byte's time live on `queue`, not the main thread: the agent's pixel work after
     /// a tap held the main thread 2-4 s (Debug build), "ka" went out late, and the board moved the video to BLE
     /// and back, 41 times in 19 minutes (run 8, 2026-11-06); the app's own 3 s silence check misfired 15 times.
@@ -267,9 +269,11 @@ enum VideoTransport {
             if t - openedAt > 5 { reopen() }
             return
         }
-        if t - max(lastByte, beat.byte) > 3 {
+        // not 3 s: the radio gives Wi-Fi no air time for ~4 s during a long BLE HID gesture, and reopening then lost
+        // the board's place in the GOP (2026-11-27, case 36); the board waits as long (PEER_TIMEOUT_MS 8 s)
+        if t - max(lastByte, beat.byte) > Self.silence {
             lost += 1
-            log(acked ? "video: wifi silent for 3 s, back to BLE" : "video: wifi no answer to hello; reconnecting")
+            log(acked ? "video: wifi silent for \(Int(Self.silence)) s, back to BLE" : "video: wifi no answer to hello; reconnecting")
             reopen()
             return
         }

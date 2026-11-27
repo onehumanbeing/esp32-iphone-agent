@@ -428,7 +428,7 @@ enum TypeStop {
         if let frameBefore, let grab, let readNew, let frameAfter = await grab(),
            let fresh = await readNew(frameBefore, frameAfter) {
             let read = Self.core(Self.fieldText(fresh, minus: []))
-            if Self.holds(want, in: read) {
+            if Self.holds(want, in: read), !Self.lettersLeft(text, in: read) {
                 // the first candidate ran past the words asked for (nihaomingtian → 你好明天早上, 2026-11-26): what
                 // it added after them on their line, not there before, is deleted (the cursor is right after it)
                 if let extra = Self.addedAfter(want, in: fresh.words.map(\.text)) {
@@ -445,6 +445,15 @@ enum TypeStop {
             }
             freshText = read
             DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
+            // the keyboard's other candidate, read right where the keys went (近天 for 今天): wrong, typed again the
+            // careful way. Left to the full reads after, they saw nothing grow and said "read back unclear", and the
+            // note went into the notes as 近天天气不错 (2026-11-27, case 10)
+            if Self.otherCandidate(want, in: read), !Self.lettersLeft(text, in: read) {
+                pending?.cancel()
+                DebugLog.write("type: fast, another candidate went in (changed area \"\(String(read.suffix(40)))\"); deleting \(text.count), typing it the careful way")
+                try await erase(text.count)
+                return .redo
+            }
             // the pinyin itself is there as plain letters: the English keyboard. Decided here, without the two full
             // reads after (2026-11-25, iPhone 13 Pro: they took 3.5 s and read the on-screen keyboard as digits).
             if Self.showsPlainPinyin(text, in: read), !tried.contains(.letters) {
@@ -463,7 +472,7 @@ enum TypeStop {
         // last 18, the right text was deleted and typed again the slow way (2026-11-23). Its end read where the screen
         // changed is the text, even when the same message sent earlier is on the screen too: that rule sent the next
         // run (the chat held it twice) to the careful way, 98 s (Henry: speed over full protection).
-        if let end = Self.shownEnd(want), let freshText, Self.holds(end, in: freshText) {
+        if let end = Self.shownEnd(want), let freshText, Self.holds(end, in: freshText), !Self.lettersLeft(text, in: freshText) {
             DebugLog.write("type: fast, \(text.count) chars in one go, its end read back in the changed area (the field scrolls): ok")
             return confirmed()
         }
@@ -479,7 +488,7 @@ enum TypeStop {
         // a long text's shown end, read in a field that grew (the same message may be in the chat above: not asked)
         let end = Self.shownEnd(want)
         let fieldGrew = Self.fieldText(after, minus: []).count > Self.fieldText(before, minus: []).count
-        if !want.isEmpty, Self.near(want, in: now) > Self.near(want, in: was)
+        if !want.isEmpty, !Self.lettersLeft(text, in: now, was: was), Self.near(want, in: now) > Self.near(want, in: was)
             || (Self.holds(want, in: now) && !Self.holds(want, in: was))
             || (fieldGrew && end.map({ Self.holds($0, in: now) }) == true) {
             DebugLog.write("type: fast, \(text.count) chars in one go, read back once: ok")
@@ -524,6 +533,26 @@ enum TypeStop {
         // the careful way then took 1-2 minutes.
         DebugLog.write("type: fast, read back unsure (\(newLetters) new letters, read \"\(String(now.suffix(40)))\"); trusted, not typed again")
         return .done
+    }
+
+    /// The field holds a run of the letters `text`'s own pinyin is typed with: pinyin left as letters (外套 came out
+    /// as "waitao"), never an OCR slip of a Han character. `near` and `holds` allow one slip in ten, so two letters
+    /// for two characters read as right and the reminder was saved with pinyin in it (2026-11-27). Only words of 2+
+    /// letters that are part of the pinyin and not in `text` or the field before: a button's English is left alone.
+    static func lettersLeft(_ text: String, in field: String, was: String = "") -> Bool {
+        guard text.unicodeScalars.contains(where: { (0x4E00...0x9FFF).contains($0.value) }) else { return false }
+        func runs(_ s: String) -> Set<String> {
+            Set(s.lowercased().split { !($0.isASCII && $0.isLetter) }.map(String.init).filter { $0.count >= 2 })
+        }
+        let pinyin = Pointer.typeable(text).lowercased().filter { $0.isASCII && $0.isLetter }
+        let known = runs(text).union(runs(was))
+        // a run glued to one more letter at either end still counts: the screen's lines run together, and the caret
+        // read as "l" or the next line's search glyph "Q" made "zhushoul", "zhushouq", and 「文件传输zhushou」 in
+        // WeChat's search field read as typed (2026-11-27, case 56)
+        func inPinyin(_ r: String) -> Bool {
+            pinyin.contains(r) || r.count >= 5 && (pinyin.contains(String(r.dropLast())) || pinyin.contains(String(r.dropFirst())))
+        }
+        return runs(field).subtracting(known).contains(where: inPinyin)
     }
 
     /// `read` holds the pinyin of all of `text`'s Han, run together, and not the text itself.

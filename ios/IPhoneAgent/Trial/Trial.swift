@@ -161,9 +161,11 @@ import UIKit
 
     /// Before leaving the app for a run: enroll if needed, then take the line (this uses one of the
     /// install's runs). Throws a friendly error when the line is busy.
-    /// Before leaving the app: is the line open at all? Says busy/used up while the user can still read it; the
-    /// lease itself is claimed only once the screen is ready (`begin`), so a start that fails on the way (board
-    /// not on this iPhone, no mirroring) holds no lease and costs no free run.
+    /// Before leaving the app: is the line open at all? Says busy/used up while the user can still read it. The lease
+    /// itself (`begin`) is claimed right after, beside the stream, leaving the app and the first frame (StartupLease),
+    /// so its round trip and any wait in line no longer add to the start. The trade-off, approved by Henry on
+    /// 2026-11-27: a start that fails on the way (board not on this iPhone, no mirroring, no first frame) now costs a
+    /// free run; its lease is given back at once with the failed step (RunEnd stage startup), not left to idle out.
     func precheck() async throws {
         if keyed { return }
         switch await refresh() {
@@ -201,7 +203,10 @@ import UIKit
             } catch TrialError.waiting(let ms) where Date() < waitUntil {
                 if !waited { onWait?() }
                 waited = true
-                app?.homeHint = TrialError.waiting(0).localizedDescription
+                // claimed beside the start (StartupLease): never over the start's own instruction (swipe up, …)
+                if let app, app.homeHint == nil || Self.ownHints.contains(app.homeHint ?? "") {
+                    app.homeHint = TrialError.waiting(0).localizedDescription
+                }
                 try await Task.sleep(nanoseconds: UInt64(min(max(ms, 500), 10_000)) * 1_000_000)
             } catch let error as URLError where dropped < transportRetries && !Task.isCancelled {
                 dropped += 1
@@ -222,7 +227,7 @@ import UIKit
                 throw error
             }
         }
-        app?.homeHint = String(localized: "Preparing the run…")
+        if waited, app?.homeHint == TrialError.waiting(0).localizedDescription { app?.homeHint = String(localized: "Preparing the run…") }
         lease = (taken.lease_id, taken.lease_token, run)
         Self.leftover = Leftover(lease: taken.lease_id, leaseToken: taken.lease_token)
         claimedAt = Date()
@@ -233,6 +238,8 @@ import UIKit
                               claimedAt.timeIntervalSince(asked)))
         startKeepAlive(generation: taken.generation, token: token)
     }
+    /// The hints over Home that the line's wait may replace: its own, and the start's "Preparing the run…".
+    private static var ownHints: [String] { [TrialError.waiting(0).localizedDescription, String(localized: "Preparing the run…")] }
     private var claimedAt = Date()
     private var holding = false, heldEnd: RunEnd?, holds = 0  // hold(): the ended run's line, kept for one more call
     private var leaseLost = false  // the server ended our lease (idle, time, admin): the run did not end itself
@@ -403,7 +410,7 @@ import UIKit
             return ["Authorization": "Bearer \(key)", "X-Device-Model": DeviceInfo.model, "X-Run-ID": keyRun]
         }
         guard let lease, let token else { throw TrialError.runsOnly }
-        guard !leaseLost else { throw lostReason.map(LLMError.timeUpReasons.contains) == true ? LLMError.trialTimeUp : LLMError.trialRunEnded }  // ended on the server
+        guard !leaseLost else { throw LLMError.leaseEnded(lostReason) }  // ended on the server
         return ["Authorization": "Bearer \(token)", "X-Device-ID": deviceID, "X-Device-Model": DeviceInfo.model,
                 "X-Lease-ID": lease.id, "X-Lease-Token": lease.token, "X-Run-ID": lease.run]  // X-Request-ID: LLMClient
     }

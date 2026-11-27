@@ -53,7 +53,11 @@ Type Chinese as the characters themselves (type 你好, not ni hao), never as pi
 pinyin keyboard, picks the words and commits them for you, and switches back for English. Never switch the
 keyboard yourself. The result says when part of it could not be typed, and what is left.
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
-(100-250 units) and check the result; repeat if needed rather than one big swipe.
+(100-250 units) and check the result; repeat if needed rather than one big swipe. The exception is a
+full-screen feed (short videos): the next video takes one long swipe of 600+ units (swipe 500 850 500 150), one
+video per round, watching each before the next.
+A goal that says not to play a video (不要播放): read the title and numbers from the list or the card; never tap a
+video's cover, which starts it.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
 the digits (e.g. type 0700); check the result. Only if typing does not work, swipe inside that column:
 measure the row spacing from two neighbouring numbers and swipe k times that spacing to move k rows.
@@ -76,14 +80,19 @@ Actions:
   tap "WORDS"               (tap the text shown on screen, found by reading the screen: for a labelled button or row
                              like tap "删除"; if the words show in several places or not at all, the result says so)
   swipe X1 Y1 X2 Y2         (finger moves from X1,Y1 to X2,Y2: "swipe down" means Y2 > Y1)
+  swipe X1 Y1 X2 Y2 hold    (press and hold at X1,Y1 first, then move: drag an icon, a list row or a text handle)
   path X1 Y1 X2 Y2 X3 Y3 …  (one continuous stroke through 2-20 points, for drawing)
   circle X Y R              (draw a circle centered at X Y; R is the radius in x units)
   type TEXT                 (English, Chinese or accented Latin; emoji are dropped; tap the input field first)
   clear                     (empty the focused text field; the result says if text is left. Use it to undo your own
                              typing, never a 清空 / Clear button on screen)
   key COMBO                 (enter, backspace, esc, cmd+a, ...)
-  open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened)
-  home | back | wait
+  open APP                  (start the app by the name this iPhone shows for it, in the language on screen; from any screen; the result says whether it opened; a WeChat mini-program or group is not an app: open 微信 and search it there)
+  switch                    (back to the app used just before this one, e.g. from 小红书 back to 微信; faster than open)
+  home | back | wait        (wait: until the screen changes by itself (a page loading, a reply coming), up to 90
+                             seconds; one wait line is enough, never repeat it)
+  wait SECONDS              (up to SECONDS (at most 90) for a video, an ad or a download; ends early when the
+                             screen changes)
   wait "WORDS" [SECONDS]    (wait until WORDS show on screen, up to SECONDS (default 5); wait gone "WORDS" waits until
                              they are gone. Only for what comes by itself (a page loading, a success message): tap,
                              wait "Paid", tap. Words further down the page never come by waiting: scroll or find them)

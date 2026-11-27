@@ -68,6 +68,8 @@ extension Gestures {
     @Published var plan = ""
     @Published var steps: [JObject] = []
     @Published private(set) var shots: [Int: Data] = [:]  // step index -> screenshot the model decided on
+    /// Thumbnails and answers of `sameShots`, so each pair of screenshots is compared once (ShotCache).
+    let shotCache = ShotCache()
     @Published private(set) var running = false
     var pointerAt = CGPoint.zero  // last pointer position (screen fractions)
     var touchCheck = TouchCheck()  // gestures acknowledged by the board but not reaching the iPhone
@@ -82,6 +84,9 @@ extension Gestures {
     var chosenGestureDropped = false
     /// The last round sent nothing because the person paused: it says nothing about the screen.
     var roundDroppedByPause = false
+    /// The last round's first tap was dropped because its target changed since the model looked: this round's first
+    /// tap is not checked again (bounded: one more look per such tap).
+    var firstTapLookedAgain = false
     /// Ceilings, not budgets: tokens cost only when written. Henry 2026-11-19: the actor's 1000 cut every README
     /// write of a 25-order run (11 retries, never finished). A reply still cut at its ceiling is asked once more
     /// with `cutRetryTokens` (the gateway lowers anything above its own ceiling, never refuses it).
@@ -601,6 +606,7 @@ extension Gestures {
 
     func run() async {
         var failures = 0, stalls = 0, rounds = 0
+        var unchanged = 0  // rounds in a row that changed nothing, any kind (LinkCheck); stalls skips some (StallCount)
         var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         // the task's app guide is read from the server (up to 5 s) while the app opens, not after it (2026-11-25:
@@ -661,9 +667,10 @@ extension Gestures {
                     failures = 0
                     modelBackoffs = 0
                     if roundDroppedByPause { continue }  // no gesture, no stall (the next look takes the flag)
-                    stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
+                    stalls = StallCount.next(stalls, after: steps)
+                    unchanged = steps.last?["changed"] == .bool(false) ? unchanged + 1 : 0
                     if handedBack { continue }  // no screen to check or be stuck on
-                    try await checkLink(unchanged: stalls)
+                    try await checkLink(unchanged: unchanged)
                     if try await stuck() {
                         switch try await askForHelp() {
                         case .stop: return finish()
@@ -1017,14 +1024,26 @@ extension Gestures {
                 let again = name == "tap" && i > 0 && Self.sameSpot(acts[i - 1].act, act)
                 // and what the model aimed at may have moved: an answer row reflows as tiles leave it, and the
                 // later taps hit gaps or other words (2026-11-06, Duolingo: right answers undone). Look again then.
-                if earlierTap, !again, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
+                // The first tap too, without the settle (the look already waited for a still screen): the page can
+                // stand still, then load more while the model thinks; Settings' account row pushed the list down
+                // ~0.1 screen and the tap hit a gap (2026-11-27). Once: the round after such a look taps unchecked,
+                // so a target that keeps moving (a video, a spinner) costs one look, never a loop.
+                let firstTap = name == "tap" && !earlierTap
+                let checkFirst = firstTap && !firstTapLookedAgain  // frames that cannot be compared: tapped as before
+                if firstTap { firstTapLookedAgain = false }
+                if earlierTap && !again || checkFirst, name == "tap", let x = act["x"]?.double, let y = act["y"]?.double {
                     let checked = now()
-                    timing.frameMs += await settle(ignoring: spots, busy: await still())
+                    if earlierTap { timing.frameMs += await settle(ignoring: spots, busy: await still()) }
                     let (frame, at, mask) = (screen?.frame, CGPoint(x: x / 1000, y: y / 1000), spots)
-                    let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask) }
+                    let moved = await Vision.off { Vision.changed(seen, frame, at: at, ignore: mask, unknown: !checkFirst) }
                     DebugLog.write(String(format: "step: target check before tap %d took %.1f s", i + 1, now() - checked))
                     if moved {
                         DebugLog.write("step: the target of tap \(i + 1) changed since the model looked; looking again")
+                        if checkFirst {  // nothing recorded yet this round: no step to mark
+                            firstTapLookedAgain = true
+                            record(nil, ["action": .str("stale_look"), "reason": .str("the target changed after the look")])
+                            return false
+                        }
                         verdict(true)
                         return false
                     }
@@ -1034,12 +1053,15 @@ extension Gestures {
                     record(planned.shot, act)
                     return false
                 }
-                if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit / max(1, scrollGain)) }
+                if name == "swipe", SwipeClamp.feed(task) { SwipeClamp.pageTurn(&act) }
+                if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit(gain: scrollGain)) }
                 // the screen the model saw shows the field as typed: nothing typed or cleared earlier in this round
                 let fresh = !acts[..<i].contains { ["type", "clear", "say"].contains($0.act["action"]?.str ?? "") }
                 let check: TapCheck
                 if name == "tap" {
+                    let checking = now()
                     check = await checkTap(&act, shot: planned.shot ?? seen, earlierTap: earlierTap, fresh: fresh)
+                    if now() - checking > 1 { DebugLog.write(String(format: "step: tap checks took %.1f s", now() - checking)) }
                 } else if Actions.isEnter(act) {
                     check = await sendCheck(act, on: planned.shot ?? seen, fresh: fresh)
                 } else {
@@ -1088,7 +1110,7 @@ extension Gestures {
         let moving = await still()
         if canSpeculate, let screen {
             let earlyStarted = now()
-            await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
+            let stood = await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
             timing.frameMs += (now() - earlyStarted) * 1000
             let early = screen.frame
             let mask = spots
@@ -1108,7 +1130,7 @@ extension Gestures {
                 near = false
             }
             let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
-            if !needsLanding {
+            if !needsLanding, lookAheadStands(stood: stood) {
                 verdict(small)
                 confirmStill(quiet: busy, final: false)  // before the speculative prompt is built from the steps
                 prepareFrame(early)

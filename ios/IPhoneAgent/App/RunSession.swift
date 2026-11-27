@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import Foundation
 import UIKit
@@ -69,9 +70,10 @@ extension AppModel {
             }
         }
         let job = Task {
+            let tappedAt = now()  // the start's phases (StepReport.phase) count from here
             await screenCleanup?.value  // the last run's capture has stopped: a new one may ask for sharing
             var usedInput = false
-            await prepareAgent(task, resume: resume, usedInput: &usedInput)
+            await prepareAgent(task, resume: resume, tappedAt: tappedAt, usedInput: &usedInput)
             // Startup can exit after calibration but before opening a trace for this run.
             if usedInput { await returnInput(checkKeyboard: false, traceStarted: false) }
         }
@@ -86,7 +88,7 @@ extension AppModel {
         toast = Toast(text: text)
     }
 
-    private func prepareAgent(_ task: String, resume: Bool, usedInput: inout Bool) async {
+    private func prepareAgent(_ task: String, resume: Bool, tappedAt: Double, usedInput: inout Bool) async {
         if MockMode.on {
             // Demo data sends nothing, but a run still asks first when a model is set up: the demo shows the
             // same consent a real run opens.
@@ -141,24 +143,31 @@ extension AppModel {
             }
         }
         usedInput = calibrator.busy || (!pointer.calibrated && calibrator.boardReady)
+        let calibrating = now()
         guard await calibrator.ensureCalibrated() else {
             Analytics.capture("run_blocked", ["reason": "not_calibrated"])
             blocked(String(localized: "The pointer isn't calibrated yet."))
             return
         }
+        let calibrated = now() - calibrating
         guard !Task.isCancelled else { return }
         do {
             if settings.provider == .handsyTrial { try await Trial.shared.precheck() }  // free line: open? (lease later)
             let actor = try await settings.client("actor")
             let jev = settings.jevActor(around: actor)  // Jev on, asked from the app
             jev?.onNotice = { [weak self] in self?.notice = $0 }
-            if jev != nil, !JevConfig.ownActive { _ = try? await Trial.shared.jevTicket() }  // fetch it now, not inside the first step
+            // fetched now, not inside the first step; beside the rest of the start (leaving the app takes seconds), not before it
+            if jev != nil, !JevConfig.ownActive { Task { _ = try? await Trial.shared.jevTicket() } }
             agent.actor = jev ?? actor
             agent.planner = try await settings.client("planner")
             agent.checkpointModel = try await settings.checkpointClient()
             let reader = try? await settings.client("reader")  // RECORD fields read in the background
             reader?.retriesBusy = false
             agent.reader = reader
+            // the connections the first calls go over, opened now: the start's seconds hide TCP + TLS (NetPool)
+            actor.warm()
+            (agent.planner as? LLMClient)?.warm()
+            jev?.jev.warm()
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
             agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
             agent.compactTree = settings.provider == .handsyTrial && TreeSource.current == .device  // Debug only
@@ -174,11 +183,20 @@ extension AppModel {
             return
         }
         guard !Task.isCancelled else { return }
+        // free line: the lease from now on, beside the stream, leaving the app and the first frame (Henry 2026-11-27:
+        // a start that fails on the way costs a free run, given back at once below; Trial.precheck)
+        let lease = StartupLease(claim: settings.provider == .handsyTrial
+            ? { onWait in try await Trial.shared.begin(wait: Recovery.limit) { onWait() } } : nil)
         // Start is tapped in this app, so: Live Activity, go Home, let the screen settle, THEN the first
         // frame for the planner. Each sub-step is timed in the log.
         let t0 = now()
         StepReport.shared.runStarted(at: t0)
         func mark(_ what: String) { DebugLog.write(String(format: "start: %@ (+%.0f ms)", what, (now() - t0) * 1000)) }
+        // Where the start's time went, sent with the run's first request (StepReport.take): each phase from the last.
+        var phaseFrom = t0
+        func phase(_ key: String) { StepReport.shared.phase(key, seconds: now() - phaseFrom); phaseFrom = now() }
+        StepReport.shared.phase("prep", seconds: t0 - tappedAt)  // consent, board checks, calibration, line check, clients
+        StepReport.shared.phase("cal", seconds: calibrated)  // of prep
         // the run folder exists from here: a failed start keeps its log and video. A resumed run goes on in its own.
         if !(resume && traces.dir != nil) { traces.start(task: task, intent: currentIntent) }
         if !resume { videoHealth = VideoHealth(metrics) }
@@ -213,13 +231,15 @@ extension AppModel {
                 }
                 mark(feed.live && !feed.broken ? "screen ready" : "no screen after 10 s; going on")
             }
+            phase("screen")
             try Task.checkCancellation()
             usedInput = true
             step = .homeBar
             // started here, a task naming one app with a known scheme: straight into it (AppNames.schemes)
             let schemeApp = (resume ? agent.currentApp : startedAway ? nil : AppNames.only(in: task)).flatMap { AppNames.schemeURLs($0).isEmpty ? nil : $0 }  // resume: back into the run's app
-            if !resume && schemeApp == nil {  // resuming waits for the user to switch back: a pointer parked on the home bar only
-                // invites a stray stroke there (2026-11-12)
+            // resuming waits for the user to switch back: a pointer parked on the home bar only invites a stray stroke
+            // there (2026-11-12). Started away: the task's screen is already in front, nothing to leave.
+            if !resume && schemeApp == nil && !startedAway {
                 try? await pointer.aimHomeBar()  // the flick then starts with "See you later!"
                 mark("pointer on the home bar")
             }
@@ -251,6 +271,7 @@ extension AppModel {
             departing = false
             homeHint = nil
             mark("app in background")
+            phase("leave")
             if let prewarm = prewarmJob { await prewarm.value; mark("pre-warm done") }  // its snap holds the board
             step = .firstFrame
             let frameSource = try await waitForStartupFrame(boundary: frameBoundary, snapMode: snapMode)
@@ -271,11 +292,16 @@ extension AppModel {
                 await screen.settled(quiet: 0.4, least: 1, most: 3)
                 mark("screen still after the scheme open")
             }
-            if settings.provider == .handsyTrial {  // free line: the lease only now, with everything ready for the first call
+            phase("first")
+            if settings.provider == .handsyTrial {  // claimed meanwhile (StartupLease): mostly here already
                 step = .trialClaim
-                try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
+                if lease.queued { live.show(.waiting, mood: .thinking) }
+                try await lease.value()
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Manina AI key run (no lease)" : "free line lease")
+                phase("lease")
+                // the first call comes next: the connection opened at the start may have closed since
+                (((agent.actor as? JevDeciderModel)?.inner ?? agent.actor) as? LLMClient)?.warm()
             }
             agent.policy = (launchUnattended || settings.unattendedMode)
                 ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
@@ -296,6 +322,7 @@ extension AppModel {
             RunMarker.set("running")
             usedInput = false  // The running agent now owns cleanup.
             mark("agent started")
+            phase("go")
             say("started: \(task)")
             began(task, early: true)
         } catch {
@@ -310,6 +337,7 @@ extension AppModel {
             var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
             end.step = step.rawValue
             if cancelled { end.by = stopBy ?? "unknown" }
+            await lease.settle()  // a claim on its way lands first, so the line gets it back now
             Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
@@ -385,7 +413,8 @@ extension AppModel {
             }
         }
         if let message = result.release?.notice(on: link, lastShown: &lastPartialReleaseNoticeLink) { notice = message }
-        if let message = result.notice { notice = message }
+        let typed = agent.steps.contains { ["type", "key", "clear", "say"].contains($0["action"]?.str ?? "") }
+        if let message = result.notice, InputHandoff.tells(result, typed: typed) { notice = message }
     }
 
     /// A run began: the character thinks, the Live Activity appears, the video starts.
@@ -516,6 +545,7 @@ extension AppModel {
 
     func agentFinished() {
         ended()
+        MediaStop.afterRun(goal: agent.task)
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
         if onDeviceCapture { finishScreen() } else { prewarmStream() }
         endBackgroundTask()
@@ -692,5 +722,24 @@ extension AppModel {
         startingAgent = true
         defer { startingAgent = false }
         notice = await DiagnosticReport.send(self)
+    }
+}
+
+/// A goal that says not to play a video ended with one playing (a tap on a cover opened it): its sound is stopped by
+/// taking the audio session for a moment, which pauses the other app. A Bilibili video played on after case 43 and
+/// into the next runs until Henry closed it (2026-11-27). Only for such goals: a user's own music is left alone.
+enum MediaStop {
+    static func forbidsPlaying(_ goal: String) -> Bool {
+        let g = goal.lowercased()
+        return ["不要播放", "别播放", "不要点开视频", "不播放", "don't play", "do not play", "without playing"].contains { g.contains($0) }
+    }
+
+    @MainActor static func afterRun(goal: String) {
+        let session = AVAudioSession.sharedInstance()
+        guard forbidsPlaying(goal), session.isOtherAudioPlaying else { return }
+        DebugLog.write("media: the goal said not to play and another app is playing; pausing it")
+        try? session.setCategory(.playback, mode: .default, options: [])
+        try? session.setActive(true)
+        try? session.setActive(false)  // without notifyOthersOnDeactivation: the other app stays paused
     }
 }

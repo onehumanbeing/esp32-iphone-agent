@@ -83,7 +83,10 @@ Plaintext:
   and `snap` act on the CLI's own video, independent of the app's.
 - `B`: `'r'` + reply line `<id> ok…|<id> err…` (only replies to the CLI's own commands), or `'s'` + status JSON
   (once a second; the compact form when the full one does not fit). Both statuses carry `owner`
-  (`app`, `cli` or `none`: who drives the phone); the CLI's has `busy` too (1 while the app's link is up).
+  (`app`, `cli` or `none`: who drives the phone); the CLI's has `busy` too (1 while the app's link is up), and
+  `vage` (ms since the board's last frame from AirPlay; newer firmware keeps it in the compact form too). `fz` only
+  means the board's GOP buffer overflowed: a sender that stops sending leaves it 0, so the CLI calls the video stale when
+  `vage` shows no frame since a pointer move 4 s ago. Without `vage` (older firmware) staleness is unknown.
 - `V`: one video chunk exactly as on the app's `video` characteristic: `[seq u16 LE][flags u8][payload]`.
 - `A`: one phone audio record as on the app's Wi-Fi link (docs/ble-protocol.md, "Wi-Fi audio"), its own seq.
 

@@ -172,6 +172,10 @@ final class VisionTests: XCTestCase {
         XCTAssertFalse(Vision.changed(before, after, at: CGPoint(x: 0.5, y: 0.9)))  // a tile elsewhere still there
         let moved = screen(pointer: (100, 900))
         XCTAssertFalse(Vision.changed(before, moved, at: CGPoint(x: 100 / W, y: 900 / H), ignore: [CGPoint(x: 100 / W, y: 900 / H)]))
+        // frames that cannot be compared: the caller says what that means (a first tap goes ahead)
+        XCTAssertTrue(Vision.changed(before, Data([1]), at: CGPoint(x: 0.5, y: 0.5)))
+        XCTAssertFalse(Vision.changed(before, Data([1]), at: CGPoint(x: 0.5, y: 0.5), unknown: false))
+        XCTAssertTrue(Vision.changed(before, after, at: CGPoint(x: 250 / W, y: 500 / H), unknown: false))
     }
 
     /// Issue #111: Vision's completion handler and a throwing `perform` both try to resume; only one may.

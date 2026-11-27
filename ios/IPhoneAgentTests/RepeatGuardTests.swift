@@ -108,6 +108,24 @@ import XCTest
         XCTAssertTrue(StepText.notMoves.contains(RepeatGuard.action))
     }
 
+    func testTheSameTextTypedAgainAfterItWasCommittedIsHeldBackOnce() {
+        let type: JObject = ["action": .str("type"), "text": .str("买牛奶")]
+        let done = tap(903, 98, changed: true)
+        // + / type / Done, then + and the same text again (2026-11-26: three reminders)
+        let steps = [tap(863, 937, changed: true), type, done, tap(863, 937, changed: true)]
+        XCTAssertNotNil(RetypeGuard.repeated([type], after: steps), "the same text after its commit")
+        XCTAssertNil(RetypeGuard.repeated([["action": .str("type"), "text": .str("买面包")]], after: steps), "other text")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [tap(863, 937, changed: true), type]), "not committed yet")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [type, tap(903, 98, changed: false)]), "the commit changed nothing")
+        let asked = steps + [["action": .str(RepeatGuard.action), "reason": .str(RetypeGuard.reason("买牛奶"))]]
+        XCTAssertNil(RetypeGuard.repeated([type], after: asked), "its second answer stands")
+        let enter: JObject = ["action": .str("key"), "combo": .str("enter"), "changed": .bool(true)]
+        XCTAssertNotNil(RetypeGuard.repeated([type], after: [type, enter]), "Return committed it")
+        var refused = enter
+        refused["result"] = .str("not sent: the field holds only part of the text (not typed: \"买牛奶\").")
+        XCTAssertNil(RetypeGuard.repeated([type], after: [type, refused]), "a Return the app did not send")
+    }
+
     func testATapOnTheConfirmedStepsSpotIsHeldBackOnce() {
         let confirmed: JObject = ["action": .str("confirmed"), "reason": .str("add to cart")]
         let steps = [tap(500, 900, changed: true), confirmed, tap(500, 938, changed: true)]
@@ -222,6 +240,21 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertFalse(DoneGuard.premature(done, after: [asked], earlierRuns: true), "the second done stands")
     }
 
+    /// "Nothing found" right after typing a search is held once (2026-11-27, case 11: Notes results not up yet).
+    func testNothingFoundRightAfterASearchIsHeldOnce() {
+        let none: [JObject] = [["action": .str("done"), "answer": .str("在备忘录中搜索“harness”，共找到 0 条结果。")]]
+        let typed: JObject = ["action": .str("type"), "text": .str("harness")]
+        let enter: JObject = ["action": .str("key"), "combo": .str("enter")]
+        XCTAssertTrue(EmptyResultGuard.premature(none, after: [g("tap", 1, 1), typed]))
+        XCTAssertTrue(EmptyResultGuard.premature(none, after: [typed, enter]))
+        XCTAssertFalse(EmptyResultGuard.premature(none, after: [typed, g("tap", 1, 1)]), "looked at the results since")
+        let some: [JObject] = [["action": .str("done"), "answer": .str("找到 6 条")]]
+        XCTAssertFalse(EmptyResultGuard.premature(some, after: [typed]))
+        let asked: JObject = ["action": .str(RepeatGuard.action), "reason": .str(EmptyResultGuard.reason)]
+        XCTAssertFalse(EmptyResultGuard.premature(none, after: [typed, asked, typed]), "the second done stands")
+        XCTAssertTrue(EmptyResultGuard.negative("No results for Notion"))
+    }
+
     func testASendAfterAChineseTypeThatStoppedIsHeld() {
         var typed: JObject = ["action": .str("type"), "text": .str("你好"), "typed": .str("left: hao")]
         let enter: JObject = ["action": .str("key"), "combo": .str("enter")]
@@ -249,16 +282,45 @@ final class DefectGuardTests: XCTestCase {
     }
 
     func testLongSwipesAreCutButEdgeSwipesAreNot() {
-        var a = swipe(500, 800, 500, 100)
+        var a = swipe(500, 800, 500, 300)
         SwipeClamp.apply(&a)
-        XCTAssertEqual(a["y2"]?.double, 500)
+        XCTAssertEqual(a["y2"]?.double, 400)
         XCTAssertNotNil(a["result"])
+        // a page turn (a video feed's next video) keeps its length; a gliding phone's limit stays at 300 or more
+        var page = swipe(500, 850, 500, 150)
+        SwipeClamp.apply(&page, limit: SwipeClamp.limit(gain: 2))
+        XCTAssertEqual(page["y2"]?.double, 150)
+        XCTAssertNil(page["result"])
+        XCTAssertEqual(SwipeClamp.limit(gain: 2), 300)
+        XCTAssertEqual(SwipeClamp.limit(gain: 1), 400)
         var edge = swipe(500, 990, 500, 100)
         SwipeClamp.apply(&edge)
         XCTAssertEqual(edge["y2"]?.double, 100)
         var short = swipe(500, 600, 500, 400)
         SwipeClamp.apply(&short)
         XCTAssertNil(short["result"])
+    }
+
+    /// 2026-11-27, 快手 (acceptance case 101): ~395-unit swipes never left the first video; in a feed goal a
+    /// vertical swipe is sent as a whole video's swipe. A list goal, a no-play goal, a sideways or edge swipe: as before.
+    func testFeedSwipesTurnAWholeVideo() {
+        XCTAssertTrue(SwipeClamp.feed("打开快手，看 5 个视频，每个看几秒再滑到下一个"))
+        XCTAssertTrue(SwipeClamp.feed("Open TikTok and watch videos for a minute"))
+        XCTAssertFalse(SwipeClamp.feed("打开哔哩哔哩，告诉我首页第一个视频的标题（不要播放）"))
+        XCTAssertFalse(SwipeClamp.feed("打开设置，告诉我 iOS 版本号"))
+        var up = swipe(500, 700, 500, 300)
+        SwipeClamp.pageTurn(&up)
+        XCTAssertEqual([up["y1"]?.double, up["y2"]?.double], [850, 150])
+        SwipeClamp.apply(&up, limit: SwipeClamp.limit(gain: 2))
+        XCTAssertEqual(up["y2"]?.double, 150, "the clamp leaves a page turn alone")
+        var down = swipe(500, 300, 500, 650)
+        SwipeClamp.pageTurn(&down)
+        XCTAssertEqual([down["y1"]?.double, down["y2"]?.double], [150, 850])
+        for var same in [swipe(500, 600, 500, 450), swipe(800, 500, 200, 500), swipe(500, 990, 500, 400)] {
+            let before = same
+            SwipeClamp.pageTurn(&same)
+            XCTAssertEqual(same, before)
+        }
     }
 
     func testEnterIsHeldOnceAfterTypingThatStoppedPartWay() {
@@ -536,5 +598,48 @@ final class AlreadyOpenTests: XCTestCase {
 
     func testAskedTwiceInARowItReallyOpens() {
         XCTAssertFalse(AlreadyOpen.holds("美团外卖", [opened("美团外卖"), opened("美团外卖", .already)]))
+    }
+
+    /// Right after "opened" the model asks again (by another name): it does not see the app, so it is opened for real.
+    func testAskedAgainRightAfterOpenedItReallyOpens() {
+        XCTAssertFalse(AlreadyOpen.holds("Reminders", [opened("提醒事项")]))
+        XCTAssertFalse(AlreadyOpen.holds("提醒事项", [opened("提醒事项")]))
+    }
+
+    /// 2026-11-27, case 11: Notes stuck on "Searching.."; the run waited 9 min in silence. After 60 s of waits with the
+    /// loading words still up, it stops and says why, in the goal's language.
+    func testWaitingOnAStuckLoadingScreenStopsAndSaysWhy() {
+        func step(_ name: String, _ t: Double) -> JObject { ["action": .str(name), "t": .num(t)] }
+        let steps = [step("type", 0), step("key", 2), step("wait", 10), step(RepeatGuard.action, 30), step("wait", 40), step("wait", 70)]
+        XCTAssertEqual(LoadingGuard.waitingSince(steps), 10)
+        let wait: [JObject] = [["action": .str("wait")]]
+        XCTAssertTrue(LoadingGuard.due(wait, after: steps, now: 71))
+        XCTAssertFalse(LoadingGuard.due(wait, after: steps, now: 69), "under a minute of waiting")
+        XCTAssertFalse(LoadingGuard.due([["action": .str("tap"), "x": .int(1), "y": .int(1)]], after: steps, now: 200))
+        XCTAssertNil(LoadingGuard.waitingSince([step("wait", 0), step("tap", 5)]), "the last move was not a wait")
+        XCTAssertEqual(LoadingGuard.loading(["All Accounts", "Searching..", "Q harness"]), "Searching..")
+        XCTAssertEqual(LoadingGuard.loading(["正在加载…"]), "正在加载…")
+        XCTAssertNil(LoadingGuard.loading(["How we cut loading time in half on every page of our site"]))
+        let zh = LoadingGuard.reason(app: "备忘录", shown: "Searching..", seconds: 61, goal: "打开备忘录，搜索“harness”")
+        XCTAssertTrue(zh.contains("「备忘录」") && zh.contains("61 秒") && zh.contains("重新打开"))
+        XCTAssertTrue(LoadingGuard.reason(app: nil, shown: "Loading", seconds: 60, goal: "Search Notes").hasPrefix("The app stayed on"))
+    }
+
+    /// 2026-11-27, case 13: the done answer was the model's deliberation, a count of 2 and then 3. Held once.
+    func testADoneThatThinksAloudIsAskedForTheAnswerAlone() {
+        let rambling: [JObject] = [["action": .str("done"), "answer": .str("I see Reminders and 任务, 2 lists. But wait — Recently Deleted too. Let me read again: I should report 3.")]]
+        XCTAssertTrue(DeliberationGuard.rambling(rambling, after: []))
+        XCTAssertFalse(DeliberationGuard.rambling(rambling, after: [["action": .str(RepeatGuard.action), "reason": .str(DeliberationGuard.reason)]]),
+                       "the second done stands")
+        XCTAssertFalse(DeliberationGuard.rambling([["action": .str("done"), "answer": .str("共有 2 个列表：Reminders、任务")]], after: []))
+        XCTAssertFalse(DeliberationGuard.thinking("Your table is booked; the restaurant will hold it 15 minutes."))
+        XCTAssertTrue(DeliberationGuard.thinking("找到 3 条。等等，第三条是旧的，我应该只算 2 条。"))
+    }
+
+    /// 2026-11-27, case 43: a video opened against "不要播放" played on into the next runs. Only such goals pause it.
+    func testOnlyAGoalThatSaysNotToPlayStopsOtherAppsSound() {
+        XCTAssertTrue(MediaStop.forbidsPlaying("打开哔哩哔哩，在首页热门里找到排第一的视频，告诉我标题和播放量（不要播放）"))
+        XCTAssertTrue(MediaStop.forbidsPlaying("Open YouTube and tell me the top video, don't play it"))
+        XCTAssertFalse(MediaStop.forbidsPlaying("打开汽水音乐，播放周杰伦的歌"))
     }
 }

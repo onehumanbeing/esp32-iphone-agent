@@ -76,6 +76,35 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(units.map { $0.first! & 0x1f }, [7, 8, 5])
         XCTAssertEqual(units[0], Data([0x67, 1, 2]))
     }
+
+    /// A GOP replay skips the frames no later frame is decoded from (nal_ref_idc 0); never an IDR or a reference P.
+    /// A frozen GOP with the link still up and no video: ask the board to resume, at most every 10 s (case 36).
+    func testAFrozenGOPWithNoVideoAsksTheBoardToResume() {
+        XCTAssertTrue(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 4, sinceAsked: 60))
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: false, resumeMs: 5, unitAge: 4, sinceAsked: 60), "not frozen")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: nil, unitAge: 4, sinceAsked: 60), "no place to go on from")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 1, sinceAsked: 60), "video still flows (from the tail)")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 4, sinceAsked: 5), "asked just now")
+    }
+
+    /// A retry of the background renew after the decode path already replayed the GOP into a working session:
+    /// skipped, not a second full replay (2026-11-27: 36 s + 38 s before a run's first frame).
+    func testARenewRetryAfterAReplayThatWorkedIsSkipped() {
+        XCTAssertTrue(H264Decoder.retryNeeded(attempt: 1, replaysAtFirstTry: 3, replays: 3), "the first try always runs")
+        XCTAssertTrue(H264Decoder.retryNeeded(attempt: 2, replaysAtFirstTry: 3, replays: 3), "nothing worked since")
+        XCTAssertFalse(H264Decoder.retryNeeded(attempt: 2, replaysAtFirstTry: 3, replays: 4), "the decode path replayed it")
+    }
+
+    func testReplaySkipsOnlyUnreferencedSlices() {
+        let start: [UInt8] = [0, 0, 0, 1]
+        func unit(_ headers: [UInt8]) -> Data { Data(headers.flatMap { start + [$0, 0x88, 0x84] }) }
+        XCTAssertTrue(H264Decoder.unreferenced(unit([0x01])))           // P slice, nal_ref_idc 0
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x41])))          // P slice, referenced
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x65])))          // IDR
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x09, 0x06])))    // no slice at all
+        XCTAssertFalse(H264Decoder.unreferenced(unit([0x01, 0x21])))    // one of two slices referenced
+        XCTAssertTrue(H264Decoder.unreferenced(unit([0x09, 0x01, 0x01])))
+    }
 }
 
 

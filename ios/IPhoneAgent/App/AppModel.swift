@@ -84,6 +84,7 @@ import UIKit
     /// The last openByScheme went through iOS's "Open in …?" prompt (only an app's first scheme open).
     var schemePrompted = false
     @Published var quickAsk = false  // QuickAskSheet: the island's New Task, the Control Center control
+    @Published var inputProbe = false  // InputProbeView: Settings › Developer, "app probe", -probe, iphoneagent://probe
     var startupTask: Task<Void, Never>?
     var returningInput = false
     @Published var stopping = false  // Stop was tapped; input is being handed back
@@ -155,7 +156,7 @@ import UIKit
 
     /// Old traces off the disk, away from the main thread; the run list is read again after.
     private func pruneTraces() {
-        guard !MockMode.on else { return }
+        guard !MockMode.on, !TraceStore.keepsAll else { return }  // Debug builds keep every trace
         let keep = Set(intents.items.flatMap { [$0.refRun, $0.learnedFrom, $0.runs.last?.run].compactMap { $0 } })
         let root = traces.root
         Task.detached(priority: .utility) { [weak self] in
@@ -288,6 +289,7 @@ import UIKit
                                       : "video: unfrozen (new keyframe)")
             }
             self?.feed.frozen = frozen
+            self?.feed.askResumeIfFrozen { self?.wifiVideo.resume() }
             if s.ap == "streaming" { Analytics.captureOnce("mirroring_started") }
             if started { DebugLog.write("mirroring started"); self?.prewarmStream() }  // a pre-warm at link-up fails until mirroring runs
             if s.ap == "streaming", self?.networkSwitched == true { self?.networkSwitched = false }

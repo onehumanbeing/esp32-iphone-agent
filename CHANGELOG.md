@@ -4,6 +4,57 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.12 · firmware 0.2.9 (TestFlight)
+
+**Opening apps by name works: 10 apps and a mini-program out of 10, median about 8 s each, on an iPhone 13 Pro.**
+
+- Open: an App Store page no longer counts as installed, the agent app is retried past, and a name stops after two failures instead of looping. A Chinese name typed in the iPhone's language is found by that name; a dropped cmd+space is pressed once more; an app whose URL scheme iOS took gets a cold start's time to come up.
+- Video feeds: a feed's vertical swipe is sent as a whole video's swipe, so each swipe reaches the next video (it stayed on the first one before). Page-turn swipes are no longer clipped. A video that a no-play goal left playing is paused, and its cover is never tapped.
+- Fewer wasted model calls: `wait` waits for a change (up to 90 s, under the free line's idle limit), several waits in a row count as one, no look-ahead call when it would be thrown away, and the stall count no longer restarts on waits and reads.
+- Faster start: the free line's lease is taken alongside the first frame, the connection is warmed at the start, and startup waits overlap.
+- A call banner is waited out; a full-screen call is handed to you, not a fail. A done that says the goal could not be done counts as a fail, and a screen stuck loading stops the run.
+- Typing: pinyin left in the field when a glued letter hides it is caught; another candidate read where the keys went is retyped carefully.
+- Taps: an open AssistiveTouch menu is closed first, and an AssistiveTouch button over the target is dragged aside.
+- Video link: the Wi-Fi video session survives a radio stall during a Bluetooth gesture; a frozen picture asks the board to resume.
+- Handsy CLI: `connect` no longer crashes on macOS when a connect fails, and a board whose Bluetooth slots are taken is still listed (#195); pointer calibration is kept per phone, and unverified taps say so (`--strict` refuses them) (#194); stale video shows in the compact status (`vage`) (#192).
+- Developer: Settings › Developer › Input probe shows what other apps can read about taps (see docs/input-probe.md).
+- Board firmware since 0.2.6 (0.2.7 and 0.2.8 were test and StopWatch builds only; 0.2.9 brings them to every board):
+  - 0.2.9: the GOP squeeze drops unreferenced frames before freezing the picture; a 2 MB board log tail; `vage` (video age) in status; the Wi-Fi video session survives a Bluetooth radio stall; idle links holding a Bluetooth slot are dropped (#195).
+  - 0.2.8: room for 16384 video units in the GOP and 2048 in the tail; radio-share diagnostics in Bluetooth HID mode; the experimental M5Stack StopWatch target and its voice fix.
+  - 0.2.7: USB HID or Bluetooth HID in one image, switched in the app; iPad over Bluetooth: Home no longer opens Notification Center, calibration tunes how far Home pushes up.
+
+More in this build:
+
+- `switch`: back to the app used just before this one (a flick along the home bar), and `swipe X1 Y1 X2 Y2 hold`:
+  press and hold, then move (drag an icon, a list row or a text handle). Both checked on an iPhone 13 Pro.
+- Opening an app from Settings works: Settings ignores the board's cmd+h and cmd+space, so the open now flicks up
+  from the home bar when the Home key leaves the same app in front.
+- An app that comes up late after Return is no longer tapped into: one more look before a second Return or a tap
+  on the result row (Settings opened, and the tap opened Apple Account). Spotlight's Top Hit header gone counts
+  as left Spotlight.
+- A run starts much sooner after a long Screen Mirroring session: when the app goes to the background, the
+  video since the last keyframe is decoded again without an image per frame, asynchronously, and frames nothing
+  refers to are skipped. 455 units: 4.5 ms -> 0.9 ms each; a 2-hour session's 15362 units took 69 s before.
+- Opening an app over a Bluetooth board flicks up from the home bar at once when an app is in front: the board's
+  cmd+h did nothing there six times out of six (Settings, Weather), each a 3 s check first. The name goes into
+  Spotlight straight as letters (the keyboard check before it read the screen twice, 5.3 s).
+- A plain `wait` on a screen where nothing moves ends after 4 s still instead of 15 s.
+- Harness: `tapcv.py` corrects the pointer with the scale its last move showed, waits for the Screen Mirroring
+  list, and closes Control Center until the status bar's clock is back.
+- Opening an app with Settings in front no longer takes Settings for the Home Screen: on iOS 27 Settings has
+  "Search" fields low on the screen too, so the Home Screen's Search pill must be centred. It cost about 27 s and a
+  not-found open in three Clock tasks out of three.
+- A run paused for a frozen picture shows how to restart Screen Mirroring (Control Center, Screen Mirroring, Stop
+  Mirroring, choose the board again), and the Home tip says the same.
+- Board firmware: when the video buffer since the last keyframe is full, frames nothing refers to are dropped
+  first (the newest kept) instead of freezing the picture at once; `diag gop+` shows how many a drop would give back.
+  On an iPhone 13 Pro with iOS 27 every frame was a reference frame (0 of 822), so it helps only where iOS sends
+  unreferenced frames.
+- Harness: mirroring counts as on only when the app has a fresh picture (`hid.sh video`), not from its last frame
+  (stale after the board restarts) nor from `snap` (the whole buffer, 15 s+ once it is MBs); the board's row in the
+  Screen Mirroring list is clicked only once it stopped moving (a moving list sent the phone to a Mac); `flash.sh`
+  waits up to 60 s for the download port, which macOS listed after 40 s+.
+
 ## App 1.0.11.1 (TestFlight, a new build of 1.0.11)
 
 **Built and tested with an automated harness: the changes below were found, fixed and checked on a real iPhone by the harness itself.**

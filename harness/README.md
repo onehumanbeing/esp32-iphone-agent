@@ -8,6 +8,7 @@ Mac ──Wi-Fi (devicectl)── iPhone (Debug build of the app) ──USB─�
 
 harness/app.sh          build + install + start the app
 harness/fw.sh           build the firmware, copy it into the app, the app installs it on the board
+harness/flash-usb.sh    flash a board on the Mac's USB, only after its MAC matches (dual-hid boards have no OTA)
 harness/run.sh "<task>" start a task in the app, print how it ended
 harness/logs.sh         the app's debug.log (+ --runs traces)
 harness/hid.sh "…"      raw board commands through the app (key, type, move…), plus shot / gop / video-reconnect / point
@@ -46,6 +47,7 @@ harness/run.sh "Open Settings"     # run a task, print "finished: …"
 harness/logs.sh [--runs]           # copy the log (and run traces) to /tmp/harness-logs/
 harness/fw.sh --corrupt            # check: the app refuses a damaged image, the board keeps running
 harness/fw.sh --crash-test         # check: an image that aborts (9.9.9) rolls back; "failed … went back …"
+harness/flash-usb.sh 1c:29:04:3e:21:d8 --dual-hid --name Manina04   # ROM via 1200 baud, MAC read and compared, then flash.sh
 harness/fw.sh --small-gop          # test build: a 256 KB GOP that fills within minutes (then fw.sh again)
 harness/hid.sh "key ctrl+space; type abc; shot"   # keys to the app in front; shot → /tmp/harness-shots/
 harness/hid.sh "gop; video-reconnect; shot"       # GOP fill, then drop the Wi-Fi video: it must resume live

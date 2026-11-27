@@ -17,7 +17,9 @@ enum { VF_START = 1, VF_END = 2, VF_IDR = 4, VF_CONFIG = 8, VF_BENCH = 16, VF_SN
 
 typedef struct {
   uint32_t off, len, ts;
+  uint32_t id;  // counts up within a generation: where a reader was, across a squeeze
   bool idr;
+  bool unref;   // every slice has nal_ref_idc 0: no later frame needs it
 } gop_au;
 
 typedef struct {
@@ -32,6 +34,8 @@ typedef struct {
   bool frozen;      // full: the GOP stays decodable up to here, newer AUs are dropped until the next IDR
   uint32_t gen;     // bumps whenever the buffer restarts
   uint32_t overflows;
+  uint32_t ids;       // the next AU's id
+  uint32_t squeezes;  // bumps whenever unreferenced AUs were dropped (indexes moved: readers find their place by id)
 } gop_buf;
 
 void gop_init(gop_buf *g, uint8_t *arena, size_t cap, gop_au *aus, int max);
@@ -46,9 +50,12 @@ int gop_append_ring(gop_buf *g, const uint8_t *annexb, size_t len, uint32_t ts);
 // Empties the list, same generation.
 void gop_clear(gop_buf *g);
 int gop_find(const gop_buf *g, uint32_t ts);  // the last AU with this timestamp, -1 if none
+int gop_after(const gop_buf *g, uint32_t id);  // the first AU newer than id (n if none)
 void gop_drop_front(gop_buf *g, int k);       // forget the oldest k AUs (a plain AU list, e.g. the tail)
 // True if the Annex-B data contains an IDR slice (NAL type 5).
 bool annexb_has_idr(const uint8_t *p, size_t len);
+// True if it has slices and none is a reference (nal_ref_idc 0): dropping it breaks no later frame.
+bool annexb_unreferenced(const uint8_t *p, size_t len);
 // Rewrites AVCC (4-byte big-endian length prefixes) in place into Annex-B start codes.
 // Returns false if the lengths do not tile the buffer exactly.
 bool avcc_to_annexb(uint8_t *p, size_t len);

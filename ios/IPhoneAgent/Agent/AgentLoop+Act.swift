@@ -57,6 +57,11 @@ extension AgentLoop {
             + " if Spotlight still lists it, tap its icon there"
         case .already?: out += "; \(app) is already open (this screen is one of its pages), so nothing was sent:"
             + " tap back (top left) or its tabs to reach the page you need"
+        case .store?: out += "; \(app) is not installed: Spotlight's row opened its App Store page (back on the Home"
+            + " Screen now). Do not download it: tell the user it is not installed"
+        case .failedBefore?: out += "; \(app) already failed to open twice by name, so it was not searched again: look"
+            + " for its icon on the Home Screen or in the App Library (swipe left past the last page); if it is not there,"
+            + " tell the user it is not installed. A WeChat mini-program or group is not an app: open WeChat and search it there"
         default: break
         }
         if let typed = s["typed"]?.str { out += "; typing stopped: \(typed)" }
@@ -116,8 +121,14 @@ extension AgentLoop {
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
         case "tap" where a["hold"]?.bool == true:
+            try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
             try await phone.longPress(p("x"), p("y"))
         case "tap":
+            let looking = Date()
+            try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
+            if -looking.timeIntervalSinceNow > 1 {
+                DebugLog.write(String(format: "tap: AssistiveTouch button check took %.1f s", -looking.timeIntervalSinceNow))
+            }
             try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
             if a["count"]?.double == 2 { try await phone.clickAgain() }
         case "swipe" where a["hold"]?.bool == true: try await phone.pressDrag(p("x1"), p("y1"), p("x2"), p("y2"))
@@ -187,7 +198,8 @@ extension AgentLoop {
             if a["keyOnly"]?.bool == true { try await phone.homeKey() } else { try await phone.goHome(again: homeAgain) }
         case "open":
             let app = a["app"]?.str ?? ""
-            if AlreadyOpen.holds(app, steps) { return ("opened", OpenResult.already.rawValue) }
+            if AlreadyOpen.holds(app, steps), !appLeftFront() { return ("opened", OpenResult.already.rawValue) }
+            if OpenRetry.given(app, after: steps) { return ("opened", OpenResult.failedBefore.rawValue) }
             if HomeSwipeGuard.onHome(steps, startsOnHome: homeAtStart), try await tapHomeIcon(app) {
                 return ("opened", OpenResult.opened.rawValue)
             }
@@ -281,10 +293,21 @@ extension AgentLoop {
 /// Home key, Spotlight and the typing cost 20-57 s and came back to the same app (2026-11-17: `open 美团外卖` from
 /// one of its shop pages, 57 s, not_opened). Nothing is sent; the model is told to go back instead. Asked a second
 /// time in a row, it really opens (the run may have left the app in a way the steps do not show).
+extension AgentLoop {
+    /// The steps say the app is open, but this app itself is in front (a link or a notification brought it up).
+    /// 2026-11-27 open review: failed opens on builds 24/25 were "already open" with this app in front and nothing
+    /// sent. Instant on purpose: an OCR here for the Home Screen cost 1-3 s per such open (13 s on an iPhone X).
+    func appLeftFront() -> Bool { DeviceScreen.foreground }
+}
+
 enum AlreadyOpen {
     static func holds(_ app: String, _ steps: [JObject]) -> Bool {
         let sent = steps.filter { $0["action"]?.str != "plan" && $0["action"]?.str != RepeatGuard.action }
         if let last = sent.last, last["action"]?.str == "open", last["opened"]?.str == OpenResult.already.rawValue { return false }
+        // asked again right after it was opened: the model does not see it on screen, so it is opened for real
+        // (2026-11-27, case 37: a wrong Spotlight tap said "opened", the next open said "already open" over an App
+        // Store page, and the model gave up as "not installed")
+        if let last = sent.last, last["action"]?.str == "open", same(last["app"]?.str ?? "", app) { return false }
         for s in sent.reversed() {
             switch s["action"]?.str {
             case "home": return false
@@ -305,9 +328,37 @@ enum AlreadyOpen {
 
 /// Swipes have no momentum, and a long one skips what was between (scrolled past unseen); the prompt asks for
 /// 100-250, the code holds it to that. A swipe from a screen edge (Control Center, Notification Center, Back)
-/// keeps its length.
+/// keeps its length, and so does a page turn (`page` or longer: a video feed's next video, a whole page): cut to 300,
+/// and to 193 on phones whose lists glide on, 41 of 59 swipes in video feeds didn't move to the next video and users
+/// stopped the runs as looping (2026-11-27, 78 runs of build 25). The limit never drops below `floor`.
 enum SwipeClamp {
-    static let limit = 300.0, edge = 80.0  // Control Center swipes start ~50 from the top
+    static let limit = 400.0, floor = 300.0, page = 600.0, edge = 80.0  // Control Center swipes start ~50 from the top
+
+    /// The limit on a phone whose lists glide `gain` times as far as the swipe.
+    static func limit(gain: Double) -> Double { max(floor, limit / max(1, gain)) }
+
+    /// A goal about watching videos one after another in a full-screen feed (not reading a list of them: a no-play goal).
+    static func feed(_ goal: String) -> Bool {
+        let g = goal.lowercased()
+        guard !MediaStop.forbidsPlaying(goal) else { return false }
+        return ["看视频", "刷视频", "个视频", "下一个视频", "下一条视频", "短视频", "watch video", "next video", "videos", "reels", "shorts"]
+            .contains { g.contains($0) }
+    }
+
+    /// In a feed, a vertical swipe of `turn`+ units is the move to the next (or last) video: sent as the full swipe
+    /// that turns one, 850 to 150. 2026-11-27 (快手, acceptance case 101): three swipes of ~395 units, cut a little,
+    /// never left the first video; the one of 700 did, and the run named the second video's author as the fifth's.
+    static let turn = 250.0
+    static func pageTurn(_ a: inout JObject) {
+        let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
+        let (dx, dy) = (x2 - x1, y2 - y1)
+        let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
+        guard abs(dy) >= turn, abs(dy) > 2 * abs(dx), !fromEdge, hypot(dx, dy) < 700 else { return }
+        let x = Int(((x1 + x2) / 2).rounded())
+        (a["x1"], a["x2"]) = (.int(x), .int(x))
+        (a["y1"], a["y2"]) = dy < 0 ? (.int(850), .int(150)) : (.int(150), .int(850))
+        a["result"] = .str("sent as a whole video's swipe (\(dy < 0 ? "850 to 150" : "150 to 850")): one per video in a feed")
+    }
 
     /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
     static func apply(_ a: inout JObject, limit: Double = limit) {
@@ -323,7 +374,7 @@ enum SwipeClamp {
         let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
         let length = hypot(x2 - x1, y2 - y1)
         let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
-        guard length > limit, !fromEdge else { return (x2, y2, false) }
+        guard length > limit, length < page, !fromEdge else { return (x2, y2, false) }
         let k = limit / length
         return (x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, true)
     }
@@ -533,4 +584,58 @@ struct SendGuard {
         lines.contains { $0.y >= 500 && enterSendWords.contains($0.text.trimmingCharacters(in: .whitespaces).lowercased()) }
     }
 
+}
+
+/// The AssistiveTouch button (a mouse on an iPhone needs AssistiveTouch, so it rests at a screen edge) over a tap's
+/// target: the tap opened its menu instead. 2026-11-27: Calendar's 28th and a route panel's X, both aimed right, both
+/// under the button at the right edge's middle. The button is dragged to the other half of its edge first.
+extension AssistiveButton {
+    /// The button's radius as a fraction of the screen's width (60 pt of a 390 pt wide screen, a little margin).
+    static let reach = 0.085
+
+    /// `tap` lands on the button at `button` (fractions; `aspect` = width / height).
+    static func covers(_ button: CGPoint, tap: CGPoint, aspect: Double) -> Bool {
+        let dx = Double(tap.x - button.x), dy = Double(tap.y - button.y) / aspect
+        return (dx * dx + dy * dy).squareRoot() <= reach
+    }
+
+    /// The menu the button opens (its top-level items), in the mirrored picture after all (2026-11-27, two traces).
+    static let menuWords = ["notification center", "control center", "device", "siri", "home", "custom",
+                            "通知中心", "控制中心", "设备", "主屏幕", "自定"]
+
+    /// The button's menu is open: four of its items read on the screen.
+    static func menuShown(_ lines: [String]) -> Bool {
+        let read = Set(lines.map { $0.lowercased().trimmingCharacters(in: .whitespaces) })
+        let joined = read.joined(separator: " ")
+        return menuWords.filter { read.contains($0) || joined.contains($0) && $0.count > 6 }.count >= 4
+    }
+
+    /// Where to put the button out of the way of `tap`: the same edge, the other half of the screen.
+    static func aside(_ button: CGPoint, from tap: CGPoint) -> CGPoint {
+        CGPoint(x: button.x, y: tap.y < 0.5 ? 0.78 : 0.22)
+    }
+}
+
+extension AgentLoop {
+    /// Before a tap at `p`: the AssistiveTouch button on the current frame over it is moved aside.
+    func moveAssistiveButton(awayFrom p: CGPoint) async throws {
+        guard let phone, let screen, screen.live, let jpeg = screen.frame, let image = Vision.image(jpeg) else { return }
+        guard let button = await Vision.off({ AssistiveButton.find(image) }) else {
+            // no button at an edge: its menu may be open (an earlier tap landed on it). A tap outside closes it.
+            let lines = await UITreeOCR.lines(image, fast: true).map(\.text)
+            if AssistiveButton.menuShown(lines) {
+                DebugLog.write("tap: the AssistiveTouch menu is open; closing it with a tap above it first")
+                try await phone.tap(0.5, 0.12, aim: false)
+                try await Task.sleep(nanoseconds: 400_000_000)
+            }
+            return
+        }
+        guard AssistiveButton.covers(button, tap: p, aspect: screen.aspect) else { return }
+        let to = AssistiveButton.aside(button, from: p)
+        DebugLog.write(String(format: "tap (%.3f, %.3f): the AssistiveTouch button is there (%.3f, %.3f); dragged to (%.3f, %.3f) first",
+                   p.x, p.y, button.x, button.y, to.x, to.y))
+        try await phone.drag([button, to], hold: true)
+        AssistiveButton.lastSpot = to
+        try await Task.sleep(nanoseconds: 400_000_000)  // the button settles against the edge
+    }
 }

@@ -291,6 +291,16 @@
         }
       }
     },
+    "Choose “%@” again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次选择“%@”"
+          }
+        }
+      }
+    },
     "Connected. Try this first: %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1011,6 +1021,16 @@
         }
       }
     },
+    "Picture stuck? In Control Center tap Screen Mirroring › Stop Mirroring, then choose %@ again." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面卡住了？在控制中心点“屏幕镜像”›“停止镜像”，再重新选择 %@。"
+          }
+        }
+      }
+    },
     "Power it from any USB charger: it no longer needs this %@'s port." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1405,6 +1425,16 @@
         }
       }
     },
+    "Stop Mirroring" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止镜像"
+          }
+        }
+      }
+    },
     "Stuck after a long session? Restart Screen Mirroring." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1431,6 +1461,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把板子切换到蓝牙"
+          }
+        }
+      }
+    },
+    "Tap Stop Mirroring" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点“停止镜像”"
           }
         }
       }
@@ -14569,6 +14609,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法保存"
+          }
+        }
+      }
+    },
+    "The free line's server restarted, so this run was paused. Tap Continue to pick up where it left off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费线路的服务器重启了，这次运行已暂停。点「继续」从停下的地方接着做。"
           }
         }
       }

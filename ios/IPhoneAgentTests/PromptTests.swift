@@ -45,6 +45,21 @@ final class PromptTests: XCTestCase {
         XCTAssertEqual(Prompts.reader(for: .phone), Prompts.load("reader"))
     }
 
+    /// 2026-11-27: a small WeChat call banner over the top of the screen failed a healthy run. A banner is left alone
+    /// (wait or swipe it away, go on); a full-screen call is the user's, asked with confirm call, never answered or
+    /// declined by the agent, and that confirm waits for the user in every ask mode.
+    func testAnIncomingCallIsWaitedOutOrHandedToTheUser() {
+        let rules = Prompts.appRules
+        XCTAssertFalse(rules.contains("When an incoming call or FaceTime screen appears, never answer, decline or end it: give fail"))
+        XCTAssertTrue(rules.contains("never tap it or its buttons and tap nothing under it while it shows"))
+        XCTAssertTrue(rules.contains("swipe it up from its middle to dismiss it, then go on with the goal"))
+        XCTAssertTrue(rules.contains("never answer, decline or end it; give \"confirm call "))
+        let ask = "call an incoming call is on screen: please answer or decline it yourself"
+        XCTAssertTrue(rules.contains(ask))
+        XCTAssertEqual(AskMode.kind(ask), .call)
+        for mode in AskMode.allCases { XCTAssertTrue(mode.asks(ask), "\(mode)") }
+    }
+
     /// An iPad gets the same text with "iPhone" read as "iPad", without the iPhone-only passages, and its own rules
     /// after the shared ones: nothing to keep in step by hand, and the action syntax is the iPhone's word for word.
     func testIPadSharesTheTextAndAddsItsRulesLast() {

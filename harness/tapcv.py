@@ -18,7 +18,7 @@ service: works with or without Screen Mirroring). Text needs $HARNESS_OCR (a com
   uv run harness/tapcv.py tap-text TEXT [--expect TEXT]
   uv run harness/tapcv.py mirror BOARD [--restart]         Control Center > Screen Mirroring > BOARD, until connected
 """
-import json, os, subprocess, sys, tempfile, time
+import json, os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 
 import numpy as np
@@ -103,8 +103,9 @@ def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
     before = shot()
     h, w = before.shape[0], before.shape[1]
     hid(f"point {x / w * 1000:.0f} {y / h * 1000:.0f}")
-    k = load_cal((w, h))
-    at = (x, y)
+    k0 = load_cal((w, h))
+    k = list(k0)
+    at, last, sent = (x, y), None, None
     for i in range(TRIES):
         after = shot()
         p = find_pointer(before, after, at)
@@ -114,8 +115,18 @@ def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
         print(f"pointer at {p[0]:.0f},{p[1]:.0f}, off by {ex:.0f},{ey:.0f} px")
         if abs(ex) <= tol and abs(ey) <= tol:
             return after
-        before, at = after, (x, y)
-        hid(moves(ex / k[0], ey / k[1], step=20))  # small reports: about linear
+        # px per unit as the last correction moved it: iOS speeds up even 20-unit reports, so the stored scale
+        # overshot 3-4x and the pointer swung past the target every round (2026-11-26: off -42 px, then +129)
+        if last and sent:
+            for a in (0, 1):
+                if abs(sent[a]) >= 3:
+                    # within 0.5-4x of the stored scale: a mis-found pointer (an animating Control Center) must not set it
+                    k[a] = min(max(abs(p[a] - last[a]) / abs(sent[a]), k0[a] / 2), k0[a] * 4)
+        before, at, last = after, (x, y), p
+        sent = (round(ex / k[0]), round(ey / k[1]))
+        # a short correction in 20-unit reports still got iOS's speed-up and swung past the target (off 23, then
+        # -44 px, 2026-11-27): the last few units go one small report at a time
+        hid(moves(*sent, step=20 if max(map(abs, sent)) > 30 else 4))
     sys.exit(f"could not land within {tol:.0f} px of {x:.0f},{y:.0f}")
 
 
@@ -149,23 +160,43 @@ def tap(x: float, y: float, expect: str | None = None, wait: float = 1.5, tol: f
     return ok
 
 
-def open_control_center() -> np.ndarray:
-    """Press in the top-right corner and drag down, like a finger (a click there does nothing)."""
-    hid("home; " + moves(600, 0) + "; move 0 -80; press; " + "; ".join(["move 0 40"] * 6) + "; release")
+def open_control_center(attempt: int = 0) -> np.ndarray:
+    """Press in the top-right corner and drag down, like a finger (a click there does nothing). A retry starts
+    further right and higher and drags longer: the first drag left the app on screen twice in a row (2026-11-27)."""
+    right, up, drag = 600 + 40 * attempt, 80 + 40 * attempt, 6 + 2 * attempt
+    hid("home; " + moves(right, 0) + f"; move 0 -{up}; press; " + "; ".join(["move 0 40"] * drag) + "; release")
     time.sleep(1)
     return shot()
 
 
 def mirroring_menu(board: str) -> np.ndarray:
     """Control Center, then the Screen Mirroring tile (no text on it): the guess whose tap shows the board's name."""
-    img = open_control_center()
+    for attempt in range(3):
+        img = open_control_center(attempt)
+        if not clock_shown(img):  # Control Center hides the status bar clock
+            break
+        print(f"Control Center did not open (try {attempt + 1})")
+    else:  # still the app: tap nothing in it (2026-11-26: the tile guesses were tapped into Clock twice)
+        sys.exit("Control Center did not open")
     if find_text(img, board) is None:
         for p in mirroring_button_guesses(img):
-            if tap(*p, expect=board):
+            if tap(*p, tol=40) and listed(board):  # a tile 150 px across
                 break
         else:
             sys.exit("Screen Mirroring menu not found")
     return shot()
+
+
+def listed(board: str, seconds: float = 6) -> bool:
+    """The Screen Mirroring menu lists its devices a few seconds after it opens (2026-11-26: the board's name was
+    not there 1.5 s after the tap, so the menu was taken for the wrong tile and a run waited 5 min for a picture)."""
+    end = time.time() + seconds
+    while True:
+        if find_text(shot(), board) is not None:
+            return True
+        if time.time() > end:
+            return False
+        time.sleep(1)
 
 
 def mirror(board: str, restart: bool = False) -> bool:
@@ -175,18 +206,73 @@ def mirror(board: str, restart: bool = False) -> bool:
         tap(*stop)
         time.sleep(2)
         img = mirroring_menu(board)
-    spot = find_text(img, board)
-    tap(*spot, expect="Connecting")
+    # The list fills in for a few seconds and rows move: wait until the board's row stays put, then check it is
+    # still under the pointer before the click (2026-11-26: the row moved down while the pointer was on its way,
+    # and the click went into the Mac mini above it, mirroring the phone there)
+    spot, prev = None, None
+    for _ in range(8):
+        spot = find_text(shot(), board)
+        if spot and prev and abs(spot[1] - prev[1]) < 10:
+            break
+        prev = spot
+        time.sleep(1)
+    if spot is None:
+        sys.exit(f"{board} not in the Screen Mirroring list")
+    for _ in range(3):
+        # a row is ~130 px tall and its neighbours a row away: 35 px stays on it (20 failed at 23-44 px, 2026-11-27)
+        landed = point(*spot, tol=35)
+        now_at = find_text(landed, board)
+        if now_at and abs(now_at[1] - spot[1]) < 25:
+            break
+        spot = now_at or spot  # it moved: point again at where it is now
+    else:
+        sys.exit(f"{board}'s row kept moving; not clicking")
+    hid("move 1 0; move -1 0; click")
+    time.sleep(1.5)
     ok = False
     for _ in range(20):  # connected: the menu now offers Stop Mirroring
         time.sleep(1.5)
         if find_text(shot(), "Stop Mirroring"):
             ok = True
             break
-    img = shot()
-    tap(img.shape[1] * 0.5, img.shape[0] * 0.86)  # close Control Center: empty space under its tiles
+    close_control_center()
+    # "Stop Mirroring" shows while it still connects: a picture reaching the app is the proof (2026-11-26: "✓",
+    # then no frame and a run waited 5 minutes)
+    ok = ok and pictured()
     print("mirroring to " + board + (" ✓" if ok else ": not confirmed"))
     return ok
+
+
+def pictured(seconds: float = 12) -> bool:
+    """A picture arrives now (the app's `video`: board streaming, nothing frozen, a recent frame). The app's last
+    frame alone is no proof (2026-11-26: after the board restarted, `hid.sh shot` saved the one from before it and
+    mirroring was taken for on); nor `snap`, which sends the board's whole GOP and timed out at 15 s once it was MBs."""
+    end = time.time() + seconds
+    while True:
+        out = subprocess.run([str(HARNESS / "hid.sh"), "video"], capture_output=True, text=True, timeout=180,
+                             env={**os.environ, "NO_LAUNCH": "1"}).stdout
+        if "video → live" in out:
+            return True
+        if time.time() > end:
+            return False
+        time.sleep(2)
+
+
+def clock_shown(img: np.ndarray) -> bool:
+    """The status bar's clock (HH:MM in the top 4%): no Control Center over the screen."""
+    return any(re.fullmatch(r"\d{1,2}:\d{2}", b["text"]) and b["y"] < img.shape[0] * 0.04 for b in ocr(img))
+
+
+def close_control_center() -> None:
+    """Empty space under its tiles, until the status bar's clock is back (Control Center hides it): from the Screen
+    Mirroring menu the first tap only goes back to Control Center (2026-11-26: a run then started under it)."""
+    for i in range(3):
+        if i:
+            time.sleep(1)  # the closing slide: read before it ends, the clock was missed and a third tap went into the app
+        img = shot()
+        if clock_shown(img):
+            return
+        tap(img.shape[1] * 0.5, img.shape[0] * 0.86, tol=80)
 
 
 def mirroring_button_guesses(img: np.ndarray) -> list[tuple[float, float]]:

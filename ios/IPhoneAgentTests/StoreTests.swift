@@ -257,6 +257,23 @@ import XCTest
         XCTAssertEqual(left, ["20261101-100000", "20261104-100000"])
     }
 
+    /// Debug builds keep every trace, video too (2026-11-27: the 300 MB budget deleted a night of test runs before
+    /// they were copied off); Release still drops old runs' video.
+    func testDebugBuildsKeepEveryTrace() throws {
+        XCTAssertTrue(TraceStore.keepsAll, "tests run a Debug build")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("keep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root); TraceStore.keepsAll = true }
+        let video = root.appendingPathComponent("20261101-100000/video")
+        try FileManager.default.createDirectory(at: video, withIntermediateDirectories: true)
+        try Data(count: 10).write(to: video.appendingPathComponent("0001.jpg"))
+        let store = TraceStore(root: root), later = Date().addingTimeInterval(30 * 86_400)
+        store.pruneVideo(now: later)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: video.path))
+        TraceStore.keepsAll = false  // as in Release
+        store.pruneVideo(now: later)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: video.path))
+    }
+
     func testPruneKeepsEachIntentsNewestRun() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("prune-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

@@ -3,6 +3,25 @@ import XCTest
 
 /// `open APP` by code: Spotlight, Return only when the results list the name, read back that the app came up.
 @MainActor final class AppOpenerTests: XCTestCase {
+    /// 2026-11-27, case 50: JD's scheme was given up at 2.4 s, JD came up after it and the Spotlight keys went into
+    /// JD. A scheme iOS took gets a cold start's time.
+    func testASchemeIOSTookGetsAColdStartsTime() {
+        XCTAssertGreaterThanOrEqual(AppModel.coldStart, 5)
+    }
+
+    /// 2026-11-27, build 25: 5 of 30 failed opens landed on an App Store page, and the same name was opened 7 times.
+    func testAnAppStorePageIsNotInstalledAndTwoFailedOpensStopTheName() {
+        XCTAssertTrue(AppOpener.storePage(["小红书", "获取", "App 内购买", "3.2万个评分", "4.7", "年龄", "17+", "排行榜", "开发者"]))
+        XCTAssertTrue(AppOpener.storePage(["Kuaishou", "Get", "In-App Purchases", "12K Ratings", "Age", "Chart", "Developer"]))
+        XCTAssertFalse(AppOpener.storePage(["Settings", "General", "Developer", "Privacy"]), "no Get button")
+        XCTAssertTrue(AppOpener.isAppStore("App Store"))
+        func open(_ app: String, _ result: OpenResult) -> JObject { ["action": .str("open"), "app": .str(app), "opened": .str(result.rawValue)] }
+        XCTAssertFalse(OpenRetry.given("时钟", after: [open("时钟", .notFound)]))
+        XCTAssertTrue(OpenRetry.given("时钟", after: [open("时钟", .notFound), ["action": .str("home")], open("时钟", .notOpened)]))
+        XCTAssertFalse(OpenRetry.given("时钟", after: [open("时钟", .notFound), open("时钟", .opened)]), "an open that worked does not count")
+        XCTAssertTrue(AgentLoop.effect(["changed": .bool(true), "app": .str("时钟"), "opened": .str(OpenResult.failedBefore.rawValue)]).contains("App Library"))
+    }
+
     private let home = Data([1]), spotlight = Data([2]), app = Data([3])
 
     /// A phone whose screens come in order (one per look) and whose OCR reads `lines` on Spotlight.
@@ -43,6 +62,17 @@ import XCTest
         let result = try await zh.open("时钟")
         XCTAssertEqual(result, .opened)
         XCTAssertEqual(sent, ["home", "key cmd+space", "key cmd+a", "key backspace", "type shizhong", "key enter"])
+    }
+
+    /// An English iPhone: 计算器 goes in as Calculator, and the results listing Calculator are the app (2026-11-27:
+    /// judged by 计算器 alone, never found, and the pinyin after it failed too).
+    func testAChineseNameTypedInTheIPhonesLanguageIsFoundByThatName() async throws {
+        var sent: [String] = []
+        var en = opener([home, spotlight, app], lines: ["Calculator", "Calculator"], homeLines: [], appLines: ["AC", "%"]) { sent.append($0) }
+        en.language = "en"
+        let result = try await en.open("计算器")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0.hasPrefix("type") }, ["type Calculator"], "\(sent)")
     }
 
     /// The letters list nothing: the name itself, through the pinyin keyboard, after Home.
@@ -107,6 +137,36 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "key enter" }.count, AppOpener.tries)
     }
 
+    /// The picture ran behind: the look after typing still shows Siri Suggestions, whose icon grid lists the app.
+    /// No tap there (it landed on another result, 2026-11-27 case 37); looked at again until the results are in.
+    func testNoTapOnSiriSuggestionsFromBeforeTheResults() async throws {
+        let suggestions = Data([7])
+        var queue: [Data?] = [home, suggestions, spotlight, app]
+        var tapped: [CGPoint] = []
+        var opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app, suggestions] in
+                                   $0 == home ? [] : $0 == app ? ["Shopping list"]
+                                       : $0 == suggestions ? ["Siri Suggestions", "Notes", "Notes", "Settings", "Q Search"] : ["Notes", "Notes", "Apps"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.readBoxes = { [suggestions] frame in
+            (frame == suggestions ? [("Siri Suggestions", [40, 180, 400, 220]), ("Notes", [760, 620, 900, 660])]
+                                  : [("Notes", [100, 600, 300, 640])], CGSize(width: 1000, height: 2000))
+        }
+        opener.tapAt = { tapped.append($0) }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(tapped.count, 1)
+        XCTAssertEqual(Double(tapped[0].x), 0.2, accuracy: 0.001, "the results row, not the suggestions grid")
+    }
+
+    func testSuggestingIsTheHeaderWithoutATopHit() {
+        XCTAssertTrue(AppOpener.suggesting(["Siri Suggestions", "Reminders", "Q Search"]))
+        XCTAssertTrue(AppOpener.suggesting(["Siri Suggestions", "Show Less", "Reminders", "Q Reminders"]),
+                      "the last query brought back over the grid, 2026-11-27")
+        XCTAssertFalse(AppOpener.suggesting(["Top Hit", "Reminders", "Suggestions", "Reminders"]))
+        XCTAssertFalse(AppOpener.suggesting(["Q Search", "Reminders"]))
+    }
+
     /// The results list the app: its row is tapped, never Return (Wiki #1007 N1; 2026-11-20 Pocket Chess). The
     /// search field (the same text) is tapped first when it is on top and changes nothing; opened once Spotlight is gone.
     func testAListedResultIsTappedNotReturn() async throws {
@@ -160,10 +220,11 @@ import XCTest
         let committed = Data([5])
         let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440]),
                                                     ("Settings", [140, 1100, 400, 1140])]
+        // a look before another Return or a tap (`cameUp`) sees the same screen again: the repeated frames
         for (frames, keys, taps) in [([home, spotlight, app], ["enter"], 0),
-                                     ([home, spotlight, committed, app], ["enter", "enter"], 0),
-                                     ([home, spotlight, spotlight, app], ["enter", "enter"], 0),
-                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 1)] {
+                                     ([home, spotlight, committed, committed, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, spotlight, spotlight, app], ["enter", "enter"], 0),
+                                     ([home, spotlight, committed, committed, committed, committed, app], ["enter", "enter"], 1)] {
             var queue: [Data?] = frames
             var sent: [String] = [], tapped = 0
             var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
@@ -184,19 +245,79 @@ import XCTest
         XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows([("Settings", [140, 400, 400, 440])], labels: ["Settings"], size: size)))
     }
 
+    /// The first Return only put composing letters in: a frame captured after it is Spotlight still, so the second
+    /// Return goes at once, without a settled look and a read first (2026-11-27: ~9 s). One that changed: no quick one.
+    func testAnUnchangedFrameAfterTheFirstReturnGetsTheSecondAtOnce() async throws {
+        let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Calendar", [140, 400, 400, 440])]
+        for (quick, keys, looks) in [(spotlight, ["enter", "enter"], 3), (app, ["enter"], 3)] {
+            var queue: [Data?] = [home, spotlight, app]
+            var sent: [String] = [], looked = 0
+            var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in },
+                                   look: { looked += 1; return queue.isEmpty ? nil : queue.removeFirst() },
+                                   read: { [home, app] in $0 == home ? [] : $0 == app ? ["November", "Today"] : ["Calendar", "Calendar", "Top Hit"] },
+                                   same: { $0 == $1 }, pause: { _ in })
+            opener.readBoxes = { _ in (topHit, CGSize(width: 1000, height: 2000)) }
+            opener.tapAt = { _ in XCTFail("no tap") }
+            opener.freshAfter = { _ in quick }
+            let result = try await opener.open("Calendar")
+            XCTAssertEqual(result, .opened)
+            XCTAssertEqual(sent.filter { $0 == "enter" }, keys)
+            XCTAssertEqual(looked, looks)
+        }
+    }
+
+    /// The device run of 2026-11-26: Settings came up on Return, and its title and its "Apps" and "Watch" rows were
+    /// all words Spotlight had shown too. Spotlight's Top Hit header is gone: opened, no tap on the old row spot.
+    func testAnAppSharingSpotlightsWordsIsOpenedOnceTheTopHitHeaderIsGone() async throws {
+        let settingsApp = Data([6])
+        var queue: [Data?] = [home, spotlight, settingsApp]
+        var sent: [String] = [], tapped = 0
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, settingsApp] in
+                                   $0 == home ? [] : $0 == settingsApp ? ["Settings", "Apple Account", "Apps", "Watch"]
+                                       : ["Top Hit", "Settings", "Suggestions", "Settings", "Apps", "Watch"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.big = { _, _ in true }
+        opener.readBoxes = { _ in ([("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in tapped += 1 }
+        let result = try await opener.open("Settings")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }, ["enter"])
+        XCTAssertEqual(tapped, 0)
+    }
+
+    /// 2026-11-26 on the device: the look after Return was cut short and still showed Spotlight while Settings came
+    /// up; a second Return and a tap on the old row spot went into Settings. One more look first: opened.
+    func testAnAppComingUpLateGetsNoSecondReturnAndNoTap() async throws {
+        let passing = Data([7])
+        var queue: [Data?] = [home, spotlight, passing, app]
+        var sent: [String] = [], tapped = 0, logs: [String] = []
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["General", "Privacy"] : ["Top Hit", "Settings", "Settings"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.readBoxes = { _ in ([("Top Hit", [40, 150, 300, 190]), ("Settings", [140, 400, 400, 440])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in tapped += 1 }
+        opener.log = { logs.append($0) }
+        let result = try await opener.open("Settings")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }, ["enter"])
+        XCTAssertEqual(tapped, 0)
+        XCTAssertTrue(logs.contains("open Settings via Spotlight: it came up after all"), "\(logs)")
+    }
+
     /// Pinyin keyboard on (2026-11-20): the typed letters are still composing, only the field reads the name and a
     /// tap there does nothing. Return commits them, Spotlight stays (a new frame, its words still there), and the
     /// result row read then is tapped.
     func testComposingLettersAreCommittedThenTheResultTapped() async throws {
         let composing = Data([4]), committed = Data([5])
-        var queue: [Data?] = [home, composing, composing, committed, committed, app]
+        var queue: [Data?] = [home, composing, composing, committed, committed, committed, committed, app]  // + the looks before each tap
         var sent: [String] = [], tapped: [CGPoint] = []
         var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
                                look: { queue.isEmpty ? nil : queue.removeFirst() },
                                read: { [home, composing, app] in
                                    $0 == home ? [] : $0 == app ? ["Level 1", "Play"]
-                                       : $0 == composing ? ["Pocket Chess", "pocket chess", "Siri Suggestions"]
-                                       : ["Pocket Chess", "Pocket Chess", "Siri Suggestions"] },
+                                       : $0 == composing ? ["Pocket Chess", "pocket chess", "Apps"]
+                                       : ["Pocket Chess", "Pocket Chess", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         opener.readBoxes = { [composing] frame in
             let field: (text: String, box: [Int]) = ("Pocket Chess", [100, 200, 500, 240])
@@ -217,7 +338,7 @@ import XCTest
         let committed = Data([5])
         var queue: [Data?] = [home, spotlight, committed, home, spotlight, committed]
         var opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
-                               read: { [home] in $0 == home ? [] : ["Pocket Chess", "Pocket Chess", "Siri Suggestions"] },
+                               read: { [home] in $0 == home ? [] : ["Pocket Chess", "Pocket Chess", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         var logs: [String] = []
         opener.log = { logs.append($0) }
@@ -233,7 +354,7 @@ import XCTest
     func testAnAppShowingItsNameTwiceIsOpened() async throws {
         var queue: [Data?] = [home, spotlight, app]
         let opener = AppOpener(home: {}, key: { _ in }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
-                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Notes", "iCloud Notes", "Folders"] : ["Notes", "Notes", "Siri Suggestions"] },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Notes", "iCloud Notes", "Folders"] : ["Notes", "Notes", "Apps"] },
                                same: { $0 == $1 }, pause: { _ in })
         let result = try await opener.open("Notes")
         XCTAssertEqual(result, .opened)
@@ -357,6 +478,51 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
     }
 
+    /// cmd+space brought nothing up (the app in front still): no cmd+a, backspace or name goes into that app; the
+    /// Search button next. A picture one frame behind is not taken for "nothing": only two looks that both match.
+    func testNothingTypedIntoTheAppInFrontWhenSpotlightDidNotComeUp() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, home, spotlight, app]
+        var glances: [Data?] = [home, home, home]  // three looks, all the Home Screen
+        var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.glance = { glances.isEmpty ? self.spotlight : glances.removeFirst() }
+        opener.searchButton = { sent.append("search button"); return true }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        let beforeButton = sent.prefix { $0 != "search button" }
+        XCTAssertFalse(beforeButton.contains("key cmd+a"), "nothing cleared in the app in front")
+        XCTAssertFalse(beforeButton.contains { $0.hasPrefix("type") }, "nothing typed into it")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 1)
+
+        sent = []
+        queue = [home, spotlight, app]
+        glances = [home, spotlight]  // one stale frame, then Spotlight: typed at once
+        _ = try await opener.open("Notes")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
+        XCTAssertTrue(sent.contains("type Notes"))
+    }
+
+    /// The picture runs behind: Spotlight shows on the third look. Typed then, with no second cmd+space (a toggle:
+    /// it closed the Spotlight that had come up, 2026-11-27).
+    func testALaggingPictureGetsNoSecondCmdSpace() async throws {
+        var sent: [String] = []
+        var queue: [Data?] = [home, spotlight, app]
+        var glances: [Data?] = [home, home]
+        var opener = AppOpener(home: { sent.append("home") }, key: { sent.append("key \($0)") }, type: { sent.append("type \($0)") },
+                               look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home] in $0 == home ? [] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.glance = { glances.isEmpty ? self.spotlight : glances.removeFirst() }
+        opener.searchButton = { sent.append("search button"); return true }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "key cmd+space" }.count, 1, "\(sent)")
+        XCTAssertEqual(sent.filter { $0 == "search button" }.count, 0)
+    }
+
     /// Past the budget no new try starts: the model gets not_opened and decides.
     func testAnOpenStopsTryingAfterItsBudget() async throws {
         var t = 0.0
@@ -368,6 +534,39 @@ import XCTest
         let result = try await opener.open("Notes")
         XCTAssertEqual(result, .notOpened)
         XCTAssertEqual(t, 16, "one try only: the second would start past 15 s")
+    }
+
+    /// A row tap that changed nothing past the budget (it missed): one Return still goes before not_opened
+    /// (2026-11-27 case 22: Safari listed, the tap at the screen's edge did nothing, the open gave up).
+    func testAMissedRowTapPastTheBudgetStillGetsReturn() async throws {
+        var t = 0.0
+        var queue: [Data?] = [home, spotlight, spotlight, app]
+        var sent: [String] = []
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Shopping list"] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.clock = { t }
+        opener.readBoxes = { _ in ([("Notes", [100, 600, 300, 640])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in t += 20 }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }.count, 1, "\(sent)")
+    }
+
+    /// A tap on the AssistiveTouch button's spot opened its menu (2026-11-27: Calendar's 28th, a route panel's X):
+    /// the button at the right edge's middle is in the way of a tap within its disc, and goes to the other half.
+    func testATapUnderTheAssistiveTouchButtonMovesItAside() {
+        let button = CGPoint(x: 0.92, y: 0.50), aspect = 390.0 / 844.0
+        XCTAssertTrue(AssistiveButton.covers(button, tap: CGPoint(x: 0.90, y: 0.51), aspect: aspect))
+        XCTAssertTrue(AssistiveButton.covers(button, tap: CGPoint(x: 0.95, y: 0.48), aspect: aspect))
+        XCTAssertFalse(AssistiveButton.covers(button, tap: CGPoint(x: 0.70, y: 0.50), aspect: aspect), "left of it")
+        XCTAssertFalse(AssistiveButton.covers(button, tap: CGPoint(x: 0.92, y: 0.58), aspect: aspect), "the row below")
+        XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.51)), CGPoint(x: 0.92, y: 0.22))
+        XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.49)), CGPoint(x: 0.92, y: 0.78))
+        // the menu as read in a trace frame (20261127-163027/039): Notification / Center / Custom / Siri / Device / Home …
+        XCTAssertTrue(AssistiveButton.menuShown(["November", "Notification", "Center", "Custom", "Siri", "Device", "Home",
+                                                 "Control", "Center", "Today"]))
+        XCTAssertFalse(AssistiveButton.menuShown(["Settings", "Home", "Device", "General"]), "a settings page")
     }
 
     func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {
@@ -386,5 +585,7 @@ import XCTest
         XCTAssertFalse(SearchPill.covers(pill!, CGPoint(x: 0.5, y: 0.9)), "the dock")
         XCTAssertNotNil(SearchPill.label([("搜索", [460, 1640, 540, 1680])], size: size))
         XCTAssertNil(SearchPill.label([("Search", [440, 120, 560, 160])], size: size), "an app's own search field at the top")
+        // Settings on iOS 27: left-aligned search fields low on the screen (measured at 73% and 93%, x 0.18)
+        XCTAssertNil(SearchPill.label([("Search", [180, 1452, 320, 1492]), ("Search", [175, 1862, 313, 1902])], size: size))
     }
 }

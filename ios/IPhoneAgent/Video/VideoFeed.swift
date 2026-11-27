@@ -92,8 +92,10 @@ extension ScreenSource {
     /// ran to its `most` (4 s, then the 0.8 s cap) although the gesture's result had long shown.
     ///
     /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
+    /// True when it found the quiet gap, false when it ran to its `most` (or was cancelled).
+    @discardableResult
     func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 3, ignoring spots: [CGPoint] = [],
-                 busy: [CGRect] = []) async {
+                 busy: [CGRect] = []) async -> Bool {
         let started = now()
         let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor
         let cap = StepWaits.moving || StepWaits.alwaysMoving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
@@ -112,7 +114,8 @@ extension ScreenSource {
                 moved = checked
             }
         }
-        if !Task.isCancelled, now() - started < most { StepWaits.movingSteps = 0 }  // it stood still
+        let stood = !Task.isCancelled && now() - started < most
+        if stood { StepWaits.movingSteps = 0 }  // it stood still
         if !Task.isCancelled, now() - started >= most, StepWaits.moving || StepWaits.alwaysMoving || most >= StepWaits.longWait
             || recent && most >= StepWaits.recentCap, !StepWaits.countedThisStep {
             StepWaits.countedThisStep = true
@@ -128,6 +131,7 @@ extension ScreenSource {
             StepWaits.lastMoving = now()
             DebugLog.write(String(format: "settle: no still moment in %.1f s; the screen keeps moving, later waits this step are capped at %.1f s", most, StepWaits.movingCap))
         }
+        return stood
     }
 
     /// How late the shown frame arrived after the board got it (0 when unknown), capped.
@@ -263,7 +267,29 @@ extension ScreenSource {
         if !unit.snap { boardClock(ms: Int(unit.boardMs)) }  // snap units are resent late: their ages say nothing
         if unit.idr { metrics?.idrSeen() }
         if !unit.config { resumeMs = unit.boardMs }
+        unitAt = now()
         decoder.queue.async { [decoder] in decoder.decode(unit) }
+    }
+
+    /// When the last video unit arrived (0: none yet).
+    private(set) var unitAt = 0.0
+    private var frozenAskedAt = 0.0
+
+    /// The board says its GOP is frozen, no unit came for 3 s and the decoder knows where it was: ask the board to go
+    /// on from there (its tail ring past the frozen GOP). The board stops following a stream whose keep-alive came
+    /// 3 s late, and the link itself stayed up, so no reconnect sent the resume: no picture for 6 minutes until
+    /// the run timed out (2026-11-27, case 36). Every 10 s at most; true when it is due.
+    nonisolated static func frozenResumeDue(frozen: Bool, resumeMs: UInt32?, unitAge: Double, sinceAsked: Double) -> Bool {
+        frozen && resumeMs != nil && unitAge > 3 && sinceAsked > 10
+    }
+
+    func askResumeIfFrozen(_ resume: () -> Void) {
+        let t = now()
+        guard Self.frozenResumeDue(frozen: frozen, resumeMs: resumeMs, unitAge: t - unitAt, sinceAsked: t - frozenAskedAt)
+        else { return }
+        frozenAskedAt = t
+        DebugLog.write("video: the board's GOP is frozen and no video came for \(Int(t - unitAt)) s; asking it to go on after \(resumeMs ?? 0)")
+        resume()
     }
 
     /// Board timestamp of the last unit handed to the decoder: a reconnecting Wi-Fi stream asks the board to go on

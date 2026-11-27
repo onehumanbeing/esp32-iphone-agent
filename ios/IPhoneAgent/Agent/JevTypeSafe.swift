@@ -14,13 +14,10 @@ import Foundation
         url = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")) + "/systemone")
         self.apiKey = apiKey
         self.model = model.isEmpty ? Self.defaultModel : model
-        self.session = session ?? {
-            let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = JevStepClient.timeout
-            config.timeoutIntervalForResource = JevStepClient.timeout
-            return URLSession(configuration: config)
-        }()
+        self.session = session ?? NetPool.session(request: JevStepClient.timeout, resource: JevStepClient.timeout, ephemeral: true)
     }
+
+    func warm() { if let url { NetPool.warm(url, on: session) } }
 
     func step(_ input: JevStepInput) async throws -> JevAnswer {
         guard let url else { throw LLMError(message: "Jev: invalid TypeSafe address") }

@@ -3,7 +3,7 @@ import SwiftUI
 /// A looping mini-iPhone that shows where to tap for a system setting, with a finger and a caption.
 /// Under Reduce Motion the frames cross-fade instead of moving.
 struct MiniPhoneDemo: View {
-    enum Kind { case plugIn, wifi, controlCenter, assistiveTouch }
+    enum Kind { case plugIn, wifi, controlCenter, restartMirroring, assistiveTouch }
 
     let kind: Kind
     var ssid = "ESP32Agent-7C3E"
@@ -23,6 +23,11 @@ struct MiniPhoneDemo: View {
             return [("Swipe down from the top-right corner", CGPoint(x: 0.85, y: 0.04)),
                     ("Swipe down from the top-right corner", CGPoint(x: 0.85, y: 0.36)),
                     ("Tap Screen Mirroring", CGPoint(x: 0.3, y: 0.42)), ("Choose “\(BoardName.current)”", CGPoint(x: 0.5, y: 0.43))]
+        case .restartMirroring:  // a frozen picture: a new mirroring session sends a fresh keyframe
+            return [("Swipe down from the top-right corner", CGPoint(x: 0.85, y: 0.04)),
+                    ("Tap Screen Mirroring", CGPoint(x: 0.3, y: 0.42)),
+                    ("Tap Stop Mirroring", CGPoint(x: 0.5, y: 0.58)),
+                    ("Choose “\(BoardName.current)” again", CGPoint(x: 0.5, y: 0.43))]
         case .assistiveTouch:
             return [("Settings › Accessibility", CGPoint(x: 0.5, y: 0.42)), ("Touch", CGPoint(x: 0.5, y: 0.22)),
                     ("AssistiveTouch", CGPoint(x: 0.5, y: 0.22)), ("Turn AssistiveTouch on", CGPoint(x: 0.84, y: 0.22))]
@@ -87,7 +92,7 @@ struct MiniPhoneDemo: View {
             default: MiniList(title: LocalizedStringKey(stringLiteral: ssid), rows: ["Password", "••••••••"], hot: 1,
                               action: "Join")
             }
-        case .controlCenter: controlCenter
+        case .controlCenter, .restartMirroring: controlCenter
         case .assistiveTouch:
             switch frame {
             case 0: MiniList(title: "Settings", rows: ["General", "Display", "Accessibility", "Privacy"], hot: 2)
@@ -127,6 +132,8 @@ struct MiniPhoneDemo: View {
         }
     }
 
+    private var restart: Bool { kind == .restartMirroring }
+
     private var controlCenter: some View {
         ZStack(alignment: .top) {
             HomeGrid()
@@ -138,7 +145,7 @@ struct MiniPhoneDemo: View {
                         tile(nil, "wifi").frame(height: 34)
                     }
                     HStack(spacing: 6) {
-                        tile("Screen Mirroring", "rectangle.on.rectangle", hot: frame == 2).frame(height: 34)
+                        tile("Screen Mirroring", "rectangle.on.rectangle", hot: frame == (restart ? 1 : 2)).frame(height: 34)
                         tile(nil, "flashlight.off.fill").frame(height: 34)
                     }
                 }
@@ -146,7 +153,7 @@ struct MiniPhoneDemo: View {
                 .padding(.top, 30)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
-            if frame == 3 {
+            if frame >= (restart ? 2 : 3) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Screen Mirroring").font(.system(size: 9, weight: .bold))
                     HStack {
@@ -156,11 +163,18 @@ struct MiniPhoneDemo: View {
                     .foregroundStyle(.secondary)
                     HStack {
                         Image(systemName: "checkmark").font(.system(size: 8, weight: .bold))
+                            .opacity(restart && frame == 3 ? 0 : 1)
                         Text(verbatim: BoardName.current).font(.system(size: 8, weight: .semibold))
                     }
                     .padding(5)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.3)))
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(restart && frame == 2 ? 0 : 0.3)))
+                    if restart && frame == 2 {
+                        Text("Stop Mirroring").font(.system(size: 8, weight: .semibold))
+                            .padding(5)
+                            .frame(maxWidth: .infinity)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.3)))
+                    }
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.regularMaterial))
