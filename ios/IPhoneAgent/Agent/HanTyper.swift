@@ -445,6 +445,15 @@ enum TypeStop {
             }
             freshText = read
             DebugLog.write("type: fast, the changed area read \"\(String(read.suffix(40)))\"")
+            // the keyboard's other candidate, read right where the keys went (近天 for 今天): wrong, typed again the
+            // careful way. Left to the full reads after, they saw nothing grow and said "read back unclear", and the
+            // note went into the notes as 近天天气不错 (2026-11-27, case 10)
+            if Self.otherCandidate(want, in: read), !Self.lettersLeft(text, in: read) {
+                pending?.cancel()
+                DebugLog.write("type: fast, another candidate went in (changed area \"\(String(read.suffix(40)))\"); deleting \(text.count), typing it the careful way")
+                try await erase(text.count)
+                return .redo
+            }
             // the pinyin itself is there as plain letters: the English keyboard. Decided here, without the two full
             // reads after (2026-11-25, iPhone 13 Pro: they took 3.5 s and read the on-screen keyboard as digits).
             if Self.showsPlainPinyin(text, in: read), !tried.contains(.letters) {

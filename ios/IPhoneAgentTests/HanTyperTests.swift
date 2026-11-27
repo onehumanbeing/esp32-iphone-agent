@@ -150,6 +150,24 @@ import XCTest
         XCTAssertEqual(ime.sent, ["type haode", "key space", "type ,", "type mingtianjian", "key space", "type !"])
     }
 
+    /// The keyboard's other candidate read where the keys went (近天 for 今天): deleted at once and typed the careful
+    /// way, not left as "read back unclear" when the full reads see nothing grow (2026-11-27, case 10).
+    func testAnotherCandidateReadInTheChangedAreaIsRetypedCarefully() async throws {
+        let ime = FakeIME(knowing: "今天天气不错")
+        for n in 2...6 {  // the run 今天… goes in under whatever pinyin the fast way groups it by: 近 comes first
+            let run = String("今天天气不错".prefix(n))
+            ime.decoys[Pointer.typeable(run)] = ["近" + run.dropFirst()]
+        }
+        var typer = ime.typer(fast: true)
+        let frame = Data([1])
+        typer.grab = { frame }
+        typer.read = { _ in nil }  // the full reads see nothing
+        typer.readNew = { _, _ in HanTyper.Seen(words: [(ime.field, [20, 280, 700, 320])], height: 1554) }
+        let stop = try await typer.attempt("今天天气不错")
+        XCTAssertNil(stop)
+        XCTAssertEqual(ime.field, "今天天气不错")
+    }
+
     func testTheFastWayOnAnEnglishKeyboardDeletesItsLettersAndTheCarefulWaySwitches() async throws {
         let ime = FakeIME(knowing: "你好")
         ime.pinyin = false
