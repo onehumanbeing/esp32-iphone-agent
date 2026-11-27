@@ -18,7 +18,9 @@ if [[ -n ${HARNESS_BOARD:-} ]] && ! NO_LAUNCH=1 harness/hid.sh video 2>&1 | grep
     if uv run -q harness/tapcv.py mirror "$HARNESS_BOARD" --restart | tail -1; then break; fi
   done
 fi
-FROM=$(launch -run "$1")
+# On the live link the app takes the task at once; a devicectl launch then brought it to the front mid-start and the
+# run failed "Manina AI is still on screen" (2026-11-27, case 102). Launch only when the app is not on the link.
+if live; then FROM=$(NO_LAUNCH=1 launch -run "$1"); else FROM=$(launch -run "$1"); fi
 # a run that asks for help waits for a reply nobody unattended will give: that ends it here too
 follow "$FROM" '^[^ ]+ (debug: |started: |finished: |cannot start: |LLM: |step [0-9]+: help )' \
   '^[^ ]+ (finished: |cannot start: |(debug: )?run not started|debug: a run is already going|step [0-9]+: help )' "${2:-600}" \
