@@ -36,8 +36,17 @@ import Foundation
 
     static let videoDays = 3.0
 
+    /// Debug builds (the harness, development) never delete traces: the 300 MB budget deleted a whole night of test
+    /// runs before they were copied off for training (2026-11-27, Henry). Release/TestFlight/App Store still prune.
+    #if DEBUG
+    static var keepsAll = true
+    #else
+    static var keepsAll = false
+    #endif
+
     /// The video of runs older than `videoDays` goes; their steps and screenshots stay (Henry 2026-11-19).
     func pruneVideo(now: Date = Date()) {
+        guard !Self.keepsAll else { return }
         let fm = FileManager.default
         let runs = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
         for run in runs where run != dir {

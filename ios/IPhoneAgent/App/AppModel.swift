@@ -155,7 +155,7 @@ import UIKit
 
     /// Old traces off the disk, away from the main thread; the run list is read again after.
     private func pruneTraces() {
-        guard !MockMode.on else { return }
+        guard !MockMode.on, !TraceStore.keepsAll else { return }  // Debug builds keep every trace
         let keep = Set(intents.items.flatMap { [$0.refRun, $0.learnedFrom, $0.runs.last?.run].compactMap { $0 } })
         let root = traces.root
         Task.detached(priority: .utility) { [weak self] in
