@@ -546,7 +546,13 @@ enum TypeStop {
         }
         let pinyin = Pointer.typeable(text).lowercased().filter { $0.isASCII && $0.isLetter }
         let known = runs(text).union(runs(was))
-        return runs(field).subtracting(known).contains { pinyin.contains($0) }
+        // a run glued to one more letter at either end still counts: the screen's lines run together, and the caret
+        // read as "l" or the next line's search glyph "Q" made "zhushoul", "zhushouq", and 「文件传输zhushou」 in
+        // WeChat's search field read as typed (2026-11-27, case 56)
+        func inPinyin(_ r: String) -> Bool {
+            pinyin.contains(r) || r.count >= 5 && (pinyin.contains(String(r.dropLast())) || pinyin.contains(String(r.dropFirst())))
+        }
+        return runs(field).subtracting(known).contains(where: inPinyin)
     }
 
     /// `read` holds the pinyin of all of `text`'s Han, run together, and not the text itself.

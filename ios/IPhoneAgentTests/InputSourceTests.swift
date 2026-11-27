@@ -228,6 +228,11 @@ import UIKit
         XCTAssertTrue(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度,记得带 waitao")))
         XCTAssertFalse(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度，记得带外套")))
         XCTAssertFalse(HanTyper.lettersLeft(text, in: HanTyper.core("明天最高 48 度，记得带外套 Done")), "a button's English")
+        // 2026-11-27, case 56: the caret read as "l" and the next line's search glyph "Q" glued onto the letters left
+        let wechat = "文件传输助手"
+        XCTAssertTrue(HanTyper.lettersLeft(wechat, in: HanTyper.core("文件传输zhushoul 大搜索网络结果")))
+        XCTAssertTrue(HanTyper.lettersLeft(wechat, in: HanTyper.core("文件传输zhushouQ 文件传输助手")))
+        XCTAssertFalse(HanTyper.lettersLeft(wechat, in: HanTyper.core("文件传输助手 Search")))
         XCTAssertFalse(HanTyper.lettersLeft("harness 测试 1", in: HanTyper.core("harness 测试 1")), "letters the text has")
         XCTAssertFalse(HanTyper.lettersLeft("hello", in: "hello wai"), "no Han: not checked")
     }
