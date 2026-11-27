@@ -35,7 +35,8 @@ type Request struct {
 	Scale   float64   `json:"scale,omitempty"`
 	MaxSize int       `json:"max_size,omitempty"`
 	Aim     bool      `json:"aim,omitempty"`
-	Count   int       `json:"count,omitempty"` // taps in a row at one point (2: double tap)
+	Strict  bool      `json:"strict,omitempty"` // with Aim: no tap when the pointer isn't seen
+	Count   int       `json:"count,omitempty"`  // taps in a row at one point (2: double tap)
 }
 
 // Response is the CLI's JSON output, as mobilecli's: {"status":"ok","data":…} or {"status":"error","error":"…"}.
@@ -218,7 +219,12 @@ type deviceInfo struct {
 	State     string `json:"state"`
 	Paired    bool   `json:"paired"`
 	Connected bool   `json:"connected"`
+	Reason    string `json:"reason,omitempty"` // why a board in range can't be reached now
 }
+
+// slotsTaken: the board advertises only the app's identity, so it has no Bluetooth slot free for the CLI.
+const slotsTaken = "near, but not taking a CLI link: both of its Bluetooth slots are held (the phone, and often " +
+	"macOS keeping it as a keyboard). On this Mac: System Settings > Bluetooth > the board > Forget This Device, then try again"
 
 func (s *Server) devices(ctx context.Context) Response {
 	list := []deviceInfo{}
@@ -226,7 +232,7 @@ func (s *Server) devices(ctx context.Context) Response {
 	s.mu.Lock()
 	for _, c := range s.conns {
 		if c.connected() {
-			list = append(list, deviceInfo{c.ID, c.Name, "ios", "esp32agent", "online", true, true})
+			list = append(list, deviceInfo{ID: c.ID, Name: c.Name, Platform: "ios", Type: "esp32agent", State: "online", Paired: true, Connected: true})
 			seen[c.ID[8:]] = true
 		}
 	}
@@ -241,6 +247,9 @@ func (s *Server) devices(ctx context.Context) Response {
 			continue
 		}
 		d := deviceInfo{ID: suf, Name: f.Name, Platform: "ios", Type: "esp32agent", State: "online"}
+		if f.AppOnly {
+			d.State, d.Reason = "unreachable", slotsTaken
+		}
 		if ids := s.Config.Match(suf); suf != "" && len(ids) == 1 {
 			d.ID, d.Paired = ids[0], true
 		}
@@ -270,9 +279,11 @@ func (s *Server) pick(ctx context.Context, sel string, wantPaired bool) (ble.Fou
 	if err != nil {
 		return ble.Found{}, err
 	}
-	var cand, paired []ble.Found
+	var cand, paired, taken []ble.Found
 	for _, f := range found {
-		if matches(f, sel) {
+		if f.AppOnly && matches(f, sel) {
+			taken = append(taken, f)
+		} else if matches(f, sel) {
 			cand = append(cand, f)
 			if f.Suffix() != "" && len(s.Config.Match(f.Suffix())) > 0 {
 				paired = append(paired, f)
@@ -280,6 +291,8 @@ func (s *Server) pick(ctx context.Context, sel string, wantPaired bool) (ble.Fou
 		}
 	}
 	switch {
+	case len(cand) == 0 && len(taken) > 0:
+		return ble.Found{}, fmt.Errorf("board %s is %s", taken[0].Suffix(), slotsTaken)
 	case len(cand) == 0 && sel != "":
 		return ble.Found{}, fmt.Errorf("board %s not found (is it plugged into the iPhone and near this computer?)", sel)
 	case len(cand) == 0:

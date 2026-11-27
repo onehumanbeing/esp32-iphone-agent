@@ -1,5 +1,6 @@
 #include "../hid_bridge/hid_keys.h"
 #include "../hid_bridge/ble_hid_target.h"
+#include "../hid_bridge/ble_slots.h"
 #include "../hid_bridge/ota_image.h"
 #include <cassert>
 #include <cstring>
@@ -42,6 +43,24 @@ int main() {
   assert(BleHidTarget::peer(target.session()) == -1);
   assert(target.subscribe(1, true, true) && target.session() != first);  // Reconnect invalidates old queued commands.
   puts("BLE HID target selection, writer rejection and reconnect checks passed");
+  // #195: the phone (app or keyboard link) plus macOS's bonded link that does nothing.
+  const PeerLink none = {}, phone = {true, false, true, false}, mac = {true, false, false, false},
+                 macNew = {true, false, false, true}, cli = {true, true, true, false}, cliNew = {true, true, false, true};
+  assert(ble_slot_idle(mac) && !ble_slot_idle(macNew) && !ble_slot_idle(phone) && !ble_slot_idle(cli));
+  assert(!ble_slot_idle(cliNew) && !ble_slot_idle(none));
+  PeerLink links[2] = {phone, none};
+  assert(ble_wanted_adv(links, 2, false) == ADV_CLI);  // the app holds the board: the CLI's identity stays up
+  links[1] = macNew;
+  assert(ble_wanted_adv(links, 2, false) == ADV_NONE);  // both slots taken until the Mac's grace ends
+  links[0] = macNew, links[1] = none;
+  assert(ble_wanted_adv(links, 2, true) == ADV_CLI && ble_wanted_adv(links, 2, false) == ADV_APP);  // no job: no say
+  links[0] = cliNew;
+  assert(ble_wanted_adv(links, 2, true) == ADV_APP);  // a CLI link, even before its handshake, makes room for the app
+  links[1] = phone;
+  assert(ble_wanted_adv(links, 2, true) == ADV_NONE);
+  links[0] = none, links[1] = none;
+  assert(ble_wanted_adv(links, 2, true) == ADV_CLI && ble_wanted_adv(links, 2, false) == ADV_APP);
+  puts("BLE slot policy checks passed");
   uint8_t header[USB_APP_PREFIX_SIZE] = {0xe9, 6, 2, 0x3f};
   header[12] = 9;
   memcpy(header + 32, "\x32\x54\xcd\xab", 4);

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 const base = "6e400001-a9e8-4b1b-9c39-6d6f8a3c"
 
 var (
+	appUUID  = mustUUID(base + "0000") // the app's identity: the board shows it when its CLI identity has no room
 	svcUUID  = mustUUID(base + "0010")
 	inUUID   = mustUUID(base + "0011")
 	outUUID  = mustUUID(base + "0012")
@@ -53,17 +55,14 @@ func (b *BLE) enable() error {
 	return b.err
 }
 
-// Scan lists boards advertising the cli service for d.
+// Scan lists boards advertising the cli service for d, and those seen only on the app's identity (AppOnly: the board
+// is there but its Bluetooth slots are taken, so it does not advertise the CLI's).
 func (b *BLE) Scan(ctx context.Context, d time.Duration) ([]Found, error) {
 	if err := b.enable(); err != nil {
 		return nil, err
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	type seen struct {
-		f   Found
-		cli bool
-	}
 	var mu sync.Mutex
 	all := map[string]*seen{}
 	ctx, cancel := context.WithTimeout(ctx, d)
@@ -86,23 +85,50 @@ func (b *BLE) Scan(ctx context.Context, d time.Duration) ([]Found, error) {
 		}
 		s.f.RSSI = r.RSSI
 		s.cli = s.cli || r.HasServiceUUID(svcUUID)
+		s.app = s.app || r.HasServiceUUID(appUUID)
 	})
 	if err != nil && ctx.Err() == nil {
 		return nil, err
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	return boards(all), nil
+}
+
+type seen struct {
+	f        Found
+	cli, app bool
+}
+
+// boards keeps what advertised the cli service, plus the app identity of a board whose cli identity was not seen.
+func boards(all map[string]*seen) []Found {
 	var out []Found
+	cli := map[string]bool{}
 	for _, s := range all {
 		if s.cli {
 			if s.f.Name == "" {
 				s.f.Name = "ESP32 Agent"
 			}
+			cli[s.f.Suffix()] = true
 			out = append(out, s.f)
 		}
 	}
-	return out, nil
+	for _, s := range all {
+		if !s.cli && s.app && s.f.Suffix() != "" && !cli[s.f.Suffix()] {
+			s.f.AppOnly = true
+			out = append(out, s.f)
+		}
+	}
+	return out
 }
+
+// ErrNoLink: CoreBluetooth reported the connect as finished but handed back no device (tinygo bluetooth's darwin
+// Connect returns a zero Device and a nil error when the peripheral fails to connect or drops at once).
+var ErrNoLink = errors.New("the board dropped the link (busy, out of range, or no free Bluetooth slot). " +
+	"If this Mac lists the board in System Settings > Bluetooth, choose Forget This Device there: macOS may be holding its slot")
+
+// connected: Connect gave a usable device (see ErrNoLink).
+func connected(dev bluetooth.Device) bool { return !reflect.ValueOf(dev).IsZero() }
 
 // Connect opens a link: subscribe to cli_out, write frames to cli_in (write requests; the OS does long writes).
 func (b *BLE) Connect(ctx context.Context, f Found) (proto.Link, error) {
@@ -118,6 +144,9 @@ func (b *BLE) Connect(ctx context.Context, f Found) (proto.Link, error) {
 	dev, err := b.adapter.Connect(addr, bluetooth.ConnectionParams{ConnectionTimeout: bluetooth.NewDuration(10 * time.Second)})
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.Name, err)
+	}
+	if !connected(dev) {
+		return nil, fmt.Errorf("connect to %s: %w", f.Name, ErrNoLink)
 	}
 	fail := func(err error) (proto.Link, error) {
 		dev.Disconnect()

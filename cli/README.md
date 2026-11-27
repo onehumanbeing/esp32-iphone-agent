@@ -46,7 +46,7 @@ never by the OS, so stale Bluetooth bonds don't matter. Keys live in the user co
 | `io button HOME` | the only button |
 | `screencapture --format h264\|mjpeg` | live video to stdout, e.g. `\| ffplay -` |
 | `device info` | board status: `ap` (mirroring), `fz` (video frozen), `busy` (the app holds the phone), `usb`, `ble` |
-| `calibrate` | measure the pointer (runs by itself on the first tap; needs the pointer visible) |
+| `calibrate` | measure the pointer (runs by itself on the first tap, and again when the calibration no longer fits; kept per phone; needs the pointer visible) |
 | `net` | the CLI's link (`via`: `ble` or `wifi`) and the board's Wi-Fi. With this computer on the board's network (same Wi-Fi, or its hotspot) commands and video go over Wi-Fi; BLE stays as the way back |
 | `net join` | asks for your Wi-Fi's name and password (not echoed), sends them to the board over the Bluetooth session, and waits until the link moves to Wi-Fi. `net join SSID [PASSWORD]` does it without asking. The iPhone mirrors over that Wi-Fi too |
 | `net hotspot` | the board opens its own hotspot again |

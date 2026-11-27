@@ -76,7 +76,7 @@ func TestDoubleTapClicksTwiceInPlace(t *testing.T) {
 	d := &fakeDevice{}
 	p := newPointer(t, d, nil)
 	p.FinishCalibration(0.5, 0.25)
-	if err := p.Tap(context.Background(), 0.5, 0.5, false, 2); err != nil {
+	if err := p.Tap(context.Background(), 0.5, 0.5, false, false, 2); err != nil {
 		t.Fatal(err)
 	}
 	if n := len(d.sent); n < 2 || d.sent[n-1] != "click" || d.sent[n-2] != "click" {
