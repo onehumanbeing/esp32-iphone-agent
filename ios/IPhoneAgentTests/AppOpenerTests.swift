@@ -226,6 +226,27 @@ import XCTest
         XCTAssertFalse(AppOpener.isTopHit(AppOpener.resultRows([("Settings", [140, 400, 400, 440])], labels: ["Settings"], size: size)))
     }
 
+    /// The first Return only put composing letters in: a frame captured after it is Spotlight still, so the second
+    /// Return goes at once, without a settled look and a read first (2026-11-27: ~9 s). One that changed: no quick one.
+    func testAnUnchangedFrameAfterTheFirstReturnGetsTheSecondAtOnce() async throws {
+        let topHit: [(text: String, box: [Int])] = [("Top Hit", [40, 150, 300, 190]), ("Calendar", [140, 400, 400, 440])]
+        for (quick, keys, looks) in [(spotlight, ["enter", "enter"], 3), (app, ["enter"], 3)] {
+            var queue: [Data?] = [home, spotlight, app]
+            var sent: [String] = [], looked = 0
+            var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in },
+                                   look: { looked += 1; return queue.isEmpty ? nil : queue.removeFirst() },
+                                   read: { [home, app] in $0 == home ? [] : $0 == app ? ["November", "Today"] : ["Calendar", "Calendar", "Top Hit"] },
+                                   same: { $0 == $1 }, pause: { _ in })
+            opener.readBoxes = { _ in (topHit, CGSize(width: 1000, height: 2000)) }
+            opener.tapAt = { _ in XCTFail("no tap") }
+            opener.freshAfter = { _ in quick }
+            let result = try await opener.open("Calendar")
+            XCTAssertEqual(result, .opened)
+            XCTAssertEqual(sent.filter { $0 == "enter" }, keys)
+            XCTAssertEqual(looked, looks)
+        }
+    }
+
     /// The device run of 2026-11-26: Settings came up on Return, and its title and its "Apps" and "Watch" rows were
     /// all words Spotlight had shown too. Spotlight's Top Hit header is gone: opened, no tap on the old row spot.
     func testAnAppSharingSpotlightsWordsIsOpenedOnceTheTopHitHeaderIsGone() async throws {

@@ -905,6 +905,10 @@ import UIKit
             return (lines, CGSize(width: image.width, height: image.height))
         }, tapAt: { [self] p in try await tap(p.x, p.y, aim: true) })
         opener.glance = { [weak self] in self?.screen?.live == true ? self?.screen?.frame : nil }
+        opener.freshAfter = { [weak self] delay in
+            guard let self, let screen, screen.live else { return nil }
+            return await screen.fresh(since: now() + delay, timeout: delay + 1.5)
+        }
         let result = try await opener.open(name)
         log("open \(name): \(result.rawValue)")
         return result

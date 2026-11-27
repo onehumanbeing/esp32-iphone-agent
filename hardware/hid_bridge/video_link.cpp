@@ -18,8 +18,14 @@ const size_t GOP_CAP = GOP_CAP_KB * 1024;
 // AUs, not bytes, filled first: a still screen still sends ~6 small P-frames a second (~380 B each), so 8192 froze the
 // GOP after ~23 min at 3.1 MB (2026-11-22, iPhone X on iOS 16). Room for the bytes to fill first (+128 KB PSRAM).
 const int MAX_AUS = 16384;
-const size_t TAIL_CAP = 512 * 1024;     // the newest AUs after a frozen GOP (a ring), to go on from or resume in
-const int TAIL_AUS = 2048;               // ~380 B a still-screen AU: 1024 filled before the 512 KB
+// The newest AUs after a frozen GOP (a ring), to go on from or resume in. An app suspended longer than the ring
+// holds falls out of step for good: iOS sends no IDR (2026-11-27: GOP full 30 min after mirroring began; 512 KB is a
+// few seconds of a moving screen at ~300 kbps, and case 40's 33 s suspension froze the picture for 9 min). 2 MB is
+// ~55 s of a moving screen; less if PSRAM is short (the size is logged at boot).
+const size_t TAIL_CAPS[] = {2048 * 1024, 1024 * 1024, 512 * 1024};
+const int TAIL_AUS = 8192;               // ~380 B a still-screen AU: ~6 fps, ~23 min of a still screen
+static size_t tailCap;
+const size_t TAIL_RESERVE = 1536 * 1024;  // PSRAM left free after a tail bigger than the smallest
 const size_t SCRATCH_CAP = 512 * 1024;   // largest access unit we forward
 const size_t MAX_CHUNK = 512;
 
@@ -368,13 +374,19 @@ static void videoTask(void *arg) {
 bool video_begin() {
   uint8_t *arena = (uint8_t *)heap_caps_malloc(GOP_CAP, MALLOC_CAP_SPIRAM);
   gop_au *aus = (gop_au *)heap_caps_malloc(MAX_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
-  uint8_t *tailArena = (uint8_t *)heap_caps_malloc(TAIL_CAP, MALLOC_CAP_SPIRAM);
+  uint8_t *tailArena = nullptr;
+  for (size_t cap : TAIL_CAPS) {  // AirPlay allocates its frames from PSRAM as they come: leave it room
+    if (cap != TAIL_CAPS[2] && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < cap + TAIL_RESERVE) continue;
+    if ((tailArena = (uint8_t *)heap_caps_malloc(cap, MALLOC_CAP_SPIRAM))) { tailCap = cap; break; }
+  }
   gop_au *tailAus = (gop_au *)heap_caps_malloc(TAIL_AUS * sizeof(gop_au), MALLOC_CAP_SPIRAM);
   sink.scratch = (uint8_t *)heap_caps_malloc(SCRATCH_CAP, MALLOC_CAP_SPIRAM);
   sink.reqs = xQueueCreate(4, sizeof(Req));
   if (!arena || !aus || !tailArena || !tailAus || !sink.scratch || !sink.reqs) return false;
   gop_init(&gop, arena, GOP_CAP, aus, MAX_AUS);
-  gop_init(&tail, tailArena, TAIL_CAP, tailAus, TAIL_AUS);
+  gop_init(&tail, tailArena, tailCap, tailAus, TAIL_AUS);
+  board_log("video: tail %u KB, PSRAM free %u KB", (unsigned)(tailCap / 1024),
+            (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   lock = xSemaphoreCreateMutex();
   if (xTaskCreatePinnedToCore(videoTask, "video", 6 * 1024, &sink, 2, &sink.task, 1) != pdPASS) return false;
   return true;

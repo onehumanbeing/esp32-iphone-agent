@@ -31,6 +31,8 @@ enum OpenResult: String {
     /// The frame now, without waiting for it to settle: whether cmd+space brought anything up before keys are typed.
     /// nil = not checked (tests feed their own frames to `look`).
     var glance: (() async -> Data?)?
+    /// The first frame captured at least `delay` s from now; nil = none in time, or no live picture.
+    var freshAfter: ((Double) async -> Data?)?
     /// A new screen rather than the same one redrawn (Spotlight after its letters were committed).
     var big: (Data?, Data?) -> Bool = { Vision.bigChange($0, $1) }
     var pause: (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) }
@@ -236,6 +238,17 @@ enum OpenResult: String {
                     entered += 1
                     log("open \(name) via Spotlight: typed, its row is the top hit → enter")
                     try await key("enter")
+                    // A first Return that only put composing pinyin letters in leaves Spotlight as it was: the second
+                    // one at once. It waited for a settled look and an OCR read first, then cameUp, ~9 s (2026-11-27,
+                    // Calendar on the pinyin keyboard: Top Hit still there 5.5 s after the first Return)
+                    // (a frame captured 0.7 s after it, not the shown one: the picture can run behind the phone)
+                    if entered == 1, let freshAfter {
+                        if let quick = await freshAfter(0.7), same(quick, shown) {
+                            entered += 1
+                            log("open \(name) via Spotlight: the first Return changed nothing (letters composing) → enter")
+                            try await key("enter")
+                        }
+                    }
                     guard let now = await look() else { return .unchecked }
                     let after = await state(now, spotlight: shown, home: homeFrame, name, shows)
                     if after == .left { return .opened }
@@ -309,9 +322,13 @@ enum OpenResult: String {
         let lines = await read(now)
         // words first: on a plain wallpaper Spotlight, the Home Screen and the app can all look alike (2026-11-11)
         guard shows(lines) else { return same(now, home) && !same(spotlight, home) ? .closed : .left }
-        if same(now, spotlight) { return .still }
+        func still(_ why: String) -> After {
+            log("open \(name) via Spotlight: still up (\(why)); read: \(lines.prefix(8).joined(separator: " | "))")
+            return .still
+        }
+        if same(now, spotlight) { return still("same frame") }
         if same(now, home) { return .closed }
-        if !big(spotlight, now) { return .still }
+        if !big(spotlight, now) { return still("small change") }
         let shown = await read(spotlight)
         // Spotlight's Top Hit header gone: Spotlight is. The words test below took Settings for it, whose rows
         // "Apps" and "Watch" were Spotlight's suggestions too, and a tap meant for the result opened Apple Account
@@ -319,11 +336,11 @@ enum OpenResult: String {
         func headed(_ lines: [String]) -> Bool { lines.contains { Self.topHitHeaders.contains(Scripts.fold($0)) } }
         if headed(shown), !headed(lines) { return .left }
         let before = Set(shown.map(Scripts.fold))
-        let kept = lines.contains { line in
+        let kept = lines.first { line in
             let l = Scripts.fold(line)
             return !l.isEmpty && before.contains(l) && Self.count(name, in: [line]) == 0
         }
-        return kept ? .still : .left
+        return kept.map { still("kept \"\($0)\", top hit header \(headed(shown) ? "was" : "not") read before") } ?? .left
     }
 
     /// The listed rows of the app on `frame`, top first; none without boxes or a way to tap.
