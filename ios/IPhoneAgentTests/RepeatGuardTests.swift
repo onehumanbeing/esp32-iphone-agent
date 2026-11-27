@@ -237,6 +237,21 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertFalse(DoneGuard.premature(done, after: [asked], earlierRuns: true), "the second done stands")
     }
 
+    /// "Nothing found" right after typing a search is held once (2026-11-27, case 11: Notes results not up yet).
+    func testNothingFoundRightAfterASearchIsHeldOnce() {
+        let none: [JObject] = [["action": .str("done"), "answer": .str("在备忘录中搜索“harness”，共找到 0 条结果。")]]
+        let typed: JObject = ["action": .str("type"), "text": .str("harness")]
+        let enter: JObject = ["action": .str("key"), "combo": .str("enter")]
+        XCTAssertTrue(EmptyResultGuard.premature(none, after: [g("tap", 1, 1), typed]))
+        XCTAssertTrue(EmptyResultGuard.premature(none, after: [typed, enter]))
+        XCTAssertFalse(EmptyResultGuard.premature(none, after: [typed, g("tap", 1, 1)]), "looked at the results since")
+        let some: [JObject] = [["action": .str("done"), "answer": .str("找到 6 条")]]
+        XCTAssertFalse(EmptyResultGuard.premature(some, after: [typed]))
+        let asked: JObject = ["action": .str(RepeatGuard.action), "reason": .str(EmptyResultGuard.reason)]
+        XCTAssertFalse(EmptyResultGuard.premature(none, after: [typed, asked, typed]), "the second done stands")
+        XCTAssertTrue(EmptyResultGuard.negative("No results for Notion"))
+    }
+
     func testASendAfterAChineseTypeThatStoppedIsHeld() {
         var typed: JObject = ["action": .str("type"), "text": .str("你好"), "typed": .str("left: hao")]
         let enter: JObject = ["action": .str("key"), "combo": .str("enter")]

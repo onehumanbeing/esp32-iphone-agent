@@ -224,6 +224,29 @@ enum DoneGuard {
         + "give the same done again: a second done is taken."
 }
 
+/// "Nothing found" right after typing a search: results come in a moment later (Notes, App Store) and the screen
+/// the model saw was still empty. Held back once so it looks again (2026-11-27, case 11: "0 条" while Notes held
+/// harness notes, the results list not up yet one frame after Return).
+enum EmptyResultGuard {
+    static func premature(_ acts: [JObject], after steps: [JObject]) -> Bool {
+        guard let done = acts.first(where: { $0["action"]?.str == "done" }), negative(done["answer"]?.str ?? ""),
+              let last = steps.last(where: { $0["plan"] == nil && Actions.gestures.contains($0["action"]?.str ?? "") }),
+              last["action"]?.str == "type" || Actions.isEnter(last) else { return false }
+        return !steps.contains { $0["action"]?.str == RepeatGuard.action && $0["reason"]?.str == reason }
+    }
+
+    /// The answer says nothing was found.
+    static func negative(_ answer: String) -> Bool {
+        let a = answer.lowercased()
+        let words = ["0 条", "0条", "0 个结果", "0个结果", "没有找到", "未找到", "找不到", "没有结果", "无结果", "没有搜到",
+                     "no results", "0 results", "nothing found", "found nothing", "no matches", "none found"]
+        return words.contains { a.contains($0) }
+    }
+
+    static let reason = "Not done yet: the search was only just typed, and results often take a second or two to show. "
+        + "Wait (wait 2) and look at the list again; if it is still empty, give the same done again: a second done is taken."
+}
+
 /// A send (key enter) right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters,
 /// not the words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left. A tap
 /// is never held (2026-11-20: Amap's suggestion list already showed the place, the tap on it that listedHint asks
@@ -336,6 +359,9 @@ extension AgentLoop {
         } else if DoneGuard.premature(acts.map(\.act), after: steps, earlierRuns: !chatContext.isEmpty || resultName != nil) {
             DebugLog.write("done guard: done before any move changed the screen; asking once more")
             reason = DoneGuard.reason
+        } else if EmptyResultGuard.premature(acts.map(\.act), after: steps) {
+            DebugLog.write("empty result guard: 'nothing found' right after typing a search; asking once more")
+            reason = EmptyResultGuard.reason
         } else if let audit = await recordAudit(acts.map(\.act)) {
             reason = audit
         } else {
