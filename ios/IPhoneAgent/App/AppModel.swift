@@ -84,6 +84,7 @@ import UIKit
     /// The last openByScheme went through iOS's "Open in …?" prompt (only an app's first scheme open).
     var schemePrompted = false
     @Published var quickAsk = false  // QuickAskSheet: the island's New Task, the Control Center control
+    @Published var inputProbe = false  // InputProbeView: Settings › Developer, "app probe", -probe, iphoneagent://probe
     var startupTask: Task<Void, Never>?
     var returningInput = false
     @Published var stopping = false  // Stop was tapped; input is being handed back
