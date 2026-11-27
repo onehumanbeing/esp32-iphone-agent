@@ -61,6 +61,7 @@ struct ModelLaunchConfiguration {
 ///   iphoneagent://bench?kb=256             iphoneagent://snap
 ///   iphoneagent://intent?name=<n>&prompt=<p>  (adds a saved intent at the top)
 ///   iphoneagent://probe?label=board          (Settings › Developer › Input probe, docs/input-probe.md)
+///   iphoneagent://tab?name=runs              (a tab: agent, runs, files, settings)
 ///   iphoneagent://display?try=1040x720,1440x1000   (Debug: advertise each size for one mirroring session, log what
 ///                                                  iOS streams, then go back to the default; ?reset=1 stops)
 /// or launch arguments: -run "<task>", -calibrate, -manualcal, -bench 256, -snap, -probe [label] (Debug also -harness-ota <dir>, HarnessOTA.swift; -hid "<cmd>; …")
@@ -95,6 +96,10 @@ extension AppModel {
             intents.add(name: arg("name") ?? "", prompt: prompt)
         case "line":  // iphoneagent://line?free=1: runs go out on the free line (the Manina AI key kept, off); free=0: on the key
             Trial.shared.setKeyOn(arg("free") != "1")
+        case "tab":  // iphoneagent://tab?name=runs|files|settings|agent: a tab, for filming the app after a run
+            guard let tab = ["agent": AppTab.agent, "runs": .runs, "files": .files, "settings": .settings][arg("name") ?? ""]
+            else { return false }
+            self.tab = tab
         case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
             CallGuide.seen = false
         case "bench":
