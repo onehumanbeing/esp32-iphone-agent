@@ -78,6 +78,14 @@ final class VideoTests: XCTestCase {
     }
 
     /// A GOP replay skips the frames no later frame is decoded from (nal_ref_idc 0); never an IDR or a reference P.
+    /// A retry of the background renew after the decode path already replayed the GOP into a working session:
+    /// skipped, not a second full replay (2026-11-27: 36 s + 38 s before a run's first frame).
+    func testARenewRetryAfterAReplayThatWorkedIsSkipped() {
+        XCTAssertTrue(H264Decoder.retryNeeded(attempt: 1, replaysAtFirstTry: 3, replays: 3), "the first try always runs")
+        XCTAssertTrue(H264Decoder.retryNeeded(attempt: 2, replaysAtFirstTry: 3, replays: 3), "nothing worked since")
+        XCTAssertFalse(H264Decoder.retryNeeded(attempt: 2, replaysAtFirstTry: 3, replays: 4), "the decode path replayed it")
+    }
+
     func testReplaySkipsOnlyUnreferencedSlices() {
         let start: [UInt8] = [0, 0, 0, 1]
         func unit(_ headers: [UInt8]) -> Data { Data(headers.flatMap { start + [$0, 0x88, 0x84] }) }

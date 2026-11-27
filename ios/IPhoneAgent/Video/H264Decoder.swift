@@ -77,6 +77,7 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
         guard status != noErr else { return }
         resetSession()
         if gop.last?.data == unit.data, gop.first?.idr == true, replay() {
+            replays += 1
             let n = gop.count
             DispatchQueue.main.async { [weak self] in
                 DebugLog.write("decoder: session lost (\(status)); decoded the GOP again (\(n) units)")
@@ -95,15 +96,32 @@ final class H264Decoder: @unchecked Sendable {  // confined to `queue`
     /// Right at the background notification the new session fails too (2026-11-25: failed, then iOS ended the old
     /// one 2.7 s later): tried again every 0.5 s, up to `renewTries` times (3 s), then the decode-error path as before.
     static let renewTries = 6
-    func renew(_ why: String, attempt: Int = 1) {
+    /// GOP replays that worked (on `queue`). A retry of `renew` after one is not needed: between the tries the
+    /// next live unit made a session, failed, and the decode path replayed the GOP into it; the retry then threw
+    /// that working session away and decoded the whole GOP once more (2026-11-27: 26k units, 36 s + 38 s, the
+    /// first frame of a run at +79 s).
+    private var replays = 0
+
+    /// A later try of `renew` still has work to do: no replay worked since the first try.
+    static func retryNeeded(attempt: Int, replaysAtFirstTry: Int, replays: Int) -> Bool {
+        attempt == 1 || replays == replaysAtFirstTry
+    }
+
+    func renew(_ why: String, attempt: Int = 1, replaysAtFirstTry: Int? = nil) {
         queue.asyncAfter(deadline: .now() + (attempt == 1 ? 0 : 0.5)) { [self] in
             guard session != nil || attempt > 1 else { return }
+            let since = replaysAtFirstTry ?? replays
+            guard Self.retryNeeded(attempt: attempt, replaysAtFirstTry: since, replays: replays) else {
+                DispatchQueue.main.async { DebugLog.write("decoder: new session \(why) (try \(attempt)) not needed: the GOP was decoded again meanwhile") }
+                return
+            }
             resetSession()
             guard gop.first?.idr == true else { return }
             let started = CFAbsoluteTimeGetCurrent(), ok = replay(), n = gop.count
+            if ok { replays += 1 }
             let ms = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
             DispatchQueue.main.async { DebugLog.write("decoder: new session \(why) (try \(attempt)); GOP decoded again (\(n) units, \(ms) ms, \(ok ? "ok" : "failed"))") }
-            if !ok, attempt < Self.renewTries { renew(why, attempt: attempt + 1) }
+            if !ok, attempt < Self.renewTries { renew(why, attempt: attempt + 1, replaysAtFirstTry: since) }
         }
     }
 
