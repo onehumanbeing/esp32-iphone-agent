@@ -1,6 +1,6 @@
 {
   "name": "dsh-esp32agent",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "DeepSeek Harness plugin: see and drive a real iPhone through an ESP32 Agent (Manina AI) board. Adds the esp32agent MCP server and the manina skill.",
   "type": "module",
   "main": "index.js",

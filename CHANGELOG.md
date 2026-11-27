@@ -4,6 +4,8 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+- Handsy CLI 0.1.5 on npm: `esp32agent` 0.1.6 and `dsh-esp32agent` 0.1.4 install the cli-v0.1.5 binaries (fixes #192, #194, #195).
+
 ## App 1.0.12 · firmware 0.2.9 (TestFlight)
 
 **Opening apps by name works: 10 apps and a mini-program out of 10, median about 8 s each, on an iPhone 13 Pro.**
