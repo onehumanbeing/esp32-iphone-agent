@@ -601,6 +601,7 @@ extension Gestures {
 
     func run() async {
         var failures = 0, stalls = 0, rounds = 0
+        var unchanged = 0  // rounds in a row that changed nothing, any kind (LinkCheck); stalls skips some (StallCount)
         var cutOffs = 0  // of this streak's failures: model answers that timed out or were cut off
         var scripting = replay.current != nil  // a saved intent's steps first (ScriptRunner), then the model
         // the task's app guide is read from the server (up to 5 s) while the app opens, not after it (2026-11-25:
@@ -661,9 +662,10 @@ extension Gestures {
                     failures = 0
                     modelBackoffs = 0
                     if roundDroppedByPause { continue }  // no gesture, no stall (the next look takes the flag)
-                    stalls = steps.last?["changed"] == .bool(false) ? stalls + 1 : 0
+                    stalls = StallCount.next(stalls, after: steps)
+                    unchanged = steps.last?["changed"] == .bool(false) ? unchanged + 1 : 0
                     if handedBack { continue }  // no screen to check or be stuck on
-                    try await checkLink(unchanged: stalls)
+                    try await checkLink(unchanged: unchanged)
                     if try await stuck() {
                         switch try await askForHelp() {
                         case .stop: return finish()
