@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import Foundation
 import UIKit
@@ -543,6 +544,7 @@ extension AppModel {
 
     func agentFinished() {
         ended()
+        MediaStop.afterRun(goal: agent.task)
         if let last = agent.steps.last { say("finished: \(last["action"]?.str ?? "") \(last["reason"]?.str ?? last["answer"]?.str ?? "")") }
         if onDeviceCapture { finishScreen() } else { prewarmStream() }
         endBackgroundTask()
@@ -719,5 +721,24 @@ extension AppModel {
         startingAgent = true
         defer { startingAgent = false }
         notice = await DiagnosticReport.send(self)
+    }
+}
+
+/// A goal that says not to play a video ended with one playing (a tap on a cover opened it): its sound is stopped by
+/// taking the audio session for a moment, which pauses the other app. A Bilibili video played on after case 43 and
+/// into the next runs until Henry closed it (2026-11-27). Only for such goals: a user's own music is left alone.
+enum MediaStop {
+    static func forbidsPlaying(_ goal: String) -> Bool {
+        let g = goal.lowercased()
+        return ["不要播放", "别播放", "不要点开视频", "不播放", "don't play", "do not play", "without playing"].contains { g.contains($0) }
+    }
+
+    @MainActor static func afterRun(goal: String) {
+        let session = AVAudioSession.sharedInstance()
+        guard forbidsPlaying(goal), session.isOtherAudioPlaying else { return }
+        DebugLog.write("media: the goal said not to play and another app is playing; pausing it")
+        try? session.setCategory(.playback, mode: .default, options: [])
+        try? session.setActive(true)
+        try? session.setActive(false)  // without notifyOthersOnDeactivation: the other app stays paused
     }
 }

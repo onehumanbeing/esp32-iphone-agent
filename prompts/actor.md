@@ -56,6 +56,8 @@ Swipes have no momentum: content moves exactly as far as the finger and stops. P
 (100-250 units) and check the result; repeat if needed rather than one big swipe. The exception is a
 full-screen feed (short videos): the next video takes one long swipe of 600+ units (swipe 500 850 500 150), one
 video per round, watching each before the next.
+A goal that says not to play a video (不要播放): read the title and numbers from the list or the card; never tap a
+video's cover, which starts it.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
 the digits (e.g. type 0700); check the result. Only if typing does not work, swipe inside that column:
 measure the row spacing from two neighbouring numbers and swipe k times that spacing to move k rows.

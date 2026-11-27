@@ -613,4 +613,11 @@ final class AlreadyOpenTests: XCTestCase {
         XCTAssertFalse(DeliberationGuard.thinking("Your table is booked; the restaurant will hold it 15 minutes."))
         XCTAssertTrue(DeliberationGuard.thinking("找到 3 条。等等，第三条是旧的，我应该只算 2 条。"))
     }
+
+    /// 2026-11-27, case 43: a video opened against "不要播放" played on into the next runs. Only such goals pause it.
+    func testOnlyAGoalThatSaysNotToPlayStopsOtherAppsSound() {
+        XCTAssertTrue(MediaStop.forbidsPlaying("打开哔哩哔哩，在首页热门里找到排第一的视频，告诉我标题和播放量（不要播放）"))
+        XCTAssertTrue(MediaStop.forbidsPlaying("Open YouTube and tell me the top video, don't play it"))
+        XCTAssertFalse(MediaStop.forbidsPlaying("打开汽水音乐，播放周杰伦的歌"))
+    }
 }
