@@ -201,7 +201,7 @@ enum InputProbe {
 
     var fileURL: URL { AgentFiles.root.appendingPathComponent(InputProbe.fileName) }
 
-    /// Starts watching the phone-wide signals; once.
+    /// Starts watching the phone-wide signals while the probe page is open; `stop()` on close keeps normal runs quiet.
     func start() {
         signals = Self.readSignals()
         guard observers.isEmpty else { return }
@@ -223,6 +223,13 @@ enum InputProbe {
             }
         }
         changed("probeOpened")
+    }
+
+    func stop() {
+        guard !observers.isEmpty else { return }
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        changed("probeClosed")
     }
 
     private func changed(_ name: String) {
