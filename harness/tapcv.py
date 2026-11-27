@@ -124,7 +124,9 @@ def point(x: float, y: float, tol: float = TOL) -> np.ndarray:
                     k[a] = min(max(abs(p[a] - last[a]) / abs(sent[a]), k0[a] / 2), k0[a] * 4)
         before, at, last = after, (x, y), p
         sent = (round(ex / k[0]), round(ey / k[1]))
-        hid(moves(*sent, step=20))
+        # a short correction in 20-unit reports still got iOS's speed-up and swung past the target (off 23, then
+        # -44 px, 2026-11-27): the last few units go one small report at a time
+        hid(moves(*sent, step=20 if max(map(abs, sent)) > 30 else 4))
     sys.exit(f"could not land within {tol:.0f} px of {x:.0f},{y:.0f}")
 
 
@@ -158,18 +160,24 @@ def tap(x: float, y: float, expect: str | None = None, wait: float = 1.5, tol: f
     return ok
 
 
-def open_control_center() -> np.ndarray:
-    """Press in the top-right corner and drag down, like a finger (a click there does nothing)."""
-    hid("home; " + moves(600, 0) + "; move 0 -80; press; " + "; ".join(["move 0 40"] * 6) + "; release")
+def open_control_center(attempt: int = 0) -> np.ndarray:
+    """Press in the top-right corner and drag down, like a finger (a click there does nothing). A retry starts
+    further right and higher and drags longer: the first drag left the app on screen twice in a row (2026-11-27)."""
+    right, up, drag = 600 + 40 * attempt, 80 + 40 * attempt, 6 + 2 * attempt
+    hid("home; " + moves(right, 0) + f"; move 0 -{up}; press; " + "; ".join(["move 0 40"] * drag) + "; release")
     time.sleep(1)
     return shot()
 
 
 def mirroring_menu(board: str) -> np.ndarray:
     """Control Center, then the Screen Mirroring tile (no text on it): the guess whose tap shows the board's name."""
-    img = open_control_center()
-    if clock_shown(img):  # Control Center hides the status bar clock: still the app, so tap nothing in it
-        sys.exit("Control Center did not open")  # (2026-11-26: the tile guesses were tapped into Clock twice)
+    for attempt in range(3):
+        img = open_control_center(attempt)
+        if not clock_shown(img):  # Control Center hides the status bar clock
+            break
+        print(f"Control Center did not open (try {attempt + 1})")
+    else:  # still the app: tap nothing in it (2026-11-26: the tile guesses were tapped into Clock twice)
+        sys.exit("Control Center did not open")
     if find_text(img, board) is None:
         for p in mirroring_button_guesses(img):
             if tap(*p, tol=40) and listed(board):  # a tile 150 px across
