@@ -12,11 +12,13 @@ transport=$(dc device info details --device "$DEVICE" 2>/dev/null | awk -F': ' '
 [[ -n $transport ]] || { echo "iPhone $DEVICE not reachable (same Wi-Fi as this Mac? unlocked?)"; exit 1; }
 [[ $transport != wired || $WIRED == 1 ]] || { echo "iPhone is on the cable; unplug it or pass --allow-wired"; exit 1; }
 DD=${HARNESS_DERIVED:-/tmp/harness-ios}
+# Debug (keeps every trace) but optimized like Release: unoptimized, a tap took 9.6 s (median, 85 taps) against 2.4 s,
+# the first action came at 31 s against 9 s, and iOS suspended the busy app 15 times in 96 min (2026-11-27)
 if (( BUILD )); then
   xcodegen >/dev/null
   xcodebuild -project IPhoneAgent.xcodeproj -scheme IPhoneAgent -configuration Debug -destination "id=$(
     dc device info details --device "$DEVICE" | awk -F': ' '/udid/ {print $2; exit}')" \
-    -derivedDataPath "$DD" -allowProvisioningUpdates -quiet ${HARNESS_XCODE_SETTINGS:-} build
+    -derivedDataPath "$DD" -allowProvisioningUpdates -quiet SWIFT_OPTIMIZATION_LEVEL=-O ${HARNESS_XCODE_SETTINGS:-} build
 fi
 APP=$DD/Build/Products/Debug-iphoneos/IPhoneAgent.app
 BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
