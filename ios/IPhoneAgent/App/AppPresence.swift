@@ -446,6 +446,9 @@ extension AppModel {
 
     /// Opens `app` by its URL scheme while this app is in front (AppNames.schemes). False: no scheme, not in front,
     /// not installed, or the app did not leave within 2 s; the caller then goes the old way.
+    /// More seconds for an app whose scheme iOS took to come up (a cold start).
+    static let coldStart = 5.0
+
     func openByScheme(_ app: String) async -> Bool {
         let began = now()
         for url in AppNames.schemeURLs(app) {
@@ -469,6 +472,10 @@ extension AppModel {
                 away = (try? await waitForBackground(3)) ?? false
             }
             if !away { away = (try? await waitForBackground(1.2)) ?? false }
+            // iOS took the URL (the app is there) and it is still starting: a cold start of a big app takes longer.
+            // Given up at 2.4 s, JD came up after it, the Spotlight keys went into JD and the open failed
+            // (2026-11-27, case 50)
+            if !away, answer.value == true { away = (try? await waitForBackground(Self.coldStart)) ?? false }
             DebugLog.write(String(format: "open %@ by scheme: %@ (%.0f ms)", app, away ? "opened" : "did not leave", (now() - began) * 1000))
             Analytics.capture("app_left", ["method": "scheme", "away": away, "ms": Int((now() - began) * 1000)])
             return away

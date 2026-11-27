@@ -3,6 +3,12 @@ import XCTest
 
 /// `open APP` by code: Spotlight, Return only when the results list the name, read back that the app came up.
 @MainActor final class AppOpenerTests: XCTestCase {
+    /// 2026-11-27, case 50: JD's scheme was given up at 2.4 s, JD came up after it and the Spotlight keys went into
+    /// JD. A scheme iOS took gets a cold start's time.
+    func testASchemeIOSTookGetsAColdStartsTime() {
+        XCTAssertGreaterThanOrEqual(AppModel.coldStart, 5)
+    }
+
     /// 2026-11-27, build 25: 5 of 30 failed opens landed on an App Store page, and the same name was opened 7 times.
     func testAnAppStorePageIsNotInstalledAndTwoFailedOpensStopTheName() {
         XCTAssertTrue(AppOpener.storePage(["小红书", "获取", "App 内购买", "3.2万个评分", "4.7", "年龄", "17+", "排行榜", "开发者"]))
