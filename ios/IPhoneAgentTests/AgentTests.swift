@@ -181,6 +181,18 @@ import XCTest
 
     /// A done answer over several lines keeps all of them (2026-11-27, case 13: only "共有 2 个常规列表：" was kept);
     /// a THINK or DO line after it ends it, and the blank lines at the end go.
+    /// A done that says the goal could not be done is a fail (2026-11-27, cc19dc69: counted as succeeded); a fact found
+    /// that says "can't" stays a done.
+    func testADoneThatSaysItCouldNotIsAFail() throws {
+        let acts = try Actions.parseActions("THINK: no way in\nDO: done 账户按钮点不到，其他 App 也打不开，无法完成查看物流")
+        XCTAssertEqual(acts[0]["action"]?.str, "fail")
+        XCTAssertEqual(acts[0]["reason"]?.str, "账户按钮点不到，其他 App 也打不开，无法完成查看物流")
+        XCTAssertNil(acts[0]["answer"])
+        let fact = try Actions.parseActions("THINK: read it\nDO: done 这件商品不支持七天无理由退货")
+        XCTAssertEqual(fact[0]["action"]?.str, "done")
+        XCTAssertEqual(try Actions.parseActions("DO: done I couldn't open the app")[0]["action"]?.str, "fail")
+    }
+
     func testAMultiLineDoneAnswerKeepsItsLines() throws {
         let reply = "THINK: Read both lists.\nDO: done 共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）\n\n\n"
         XCTAssertEqual(try Actions.parseActions(reply)[0]["answer"]?.str, "共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）")

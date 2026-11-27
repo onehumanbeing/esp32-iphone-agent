@@ -137,7 +137,24 @@ enum Actions {
                 acts[i][key] = .str(why)
             }
         }
+        // a done whose answer says the goal could not be done is a fail: the run counted as succeeded while it said
+        // the account button could not be tapped and the apps would not open (2026-11-27, cc19dc69)
+        if let i = acts.firstIndex(where: { $0["action"]?.str == "done" }), couldNot(acts[i]["answer"]?.str ?? "") {
+            var failed = acts[i]
+            failed["action"] = .str("fail")
+            failed["reason"] = failed["answer"]
+            failed["answer"] = nil
+            acts[i] = failed
+        }
         return acts
+    }
+
+    /// The answer says the agent itself could not do the goal (not a fact it found, like "this item can't be returned").
+    static func couldNot(_ answer: String) -> Bool {
+        let a = answer.lowercased()
+        return ["我无法", "无法完成", "未能完成", "没能完成", "没法完成", "不能完成", "无法打开", "打不开", "无法继续",
+                "i couldn't", "i could not", "i was unable", "i'm unable", "i am unable", "unable to complete",
+                "could not complete", "couldn't complete"].contains { a.contains($0) }
     }
 
     /// The lines after the first `DO: <name> …` line up to the next THINK/DO/PLAN/ZH line, trimmed; nil if none.
