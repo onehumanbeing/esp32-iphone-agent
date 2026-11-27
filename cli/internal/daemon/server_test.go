@@ -156,3 +156,30 @@ func TestReconnectsAfterTheLinkDrops(t *testing.T) {
 }
 
 func mustHex(s string) []byte { b, _ := hex.DecodeString(s); return b }
+
+type takenTransport struct{}
+
+func (takenTransport) Scan(context.Context, time.Duration) ([]ble.Found, error) {
+	return []ble.Found{{Name: "ESP32 Agent E029", Addr: "app", AppOnly: true}}, nil
+}
+
+func (takenTransport) Connect(context.Context, ble.Found) (proto.Link, error) {
+	panic("an app-only board must not be connected to")
+}
+
+// A board seen only on the app's identity (its slots taken, e.g. by macOS) is listed with the reason, not dropped.
+func TestBoardWithSlotsTaken(t *testing.T) {
+	c, _ := start(t, takenTransport{})
+	r, data := call(t, c, Request{Cmd: "devices"})
+	list, _ := data["devices"].([]any)
+	if r.Status != "ok" || len(list) != 1 {
+		t.Fatalf("devices: %+v", r)
+	}
+	d := list[0].(map[string]any)
+	if d["state"] != "unreachable" || !strings.Contains(d["reason"].(string), "Forget This Device") {
+		t.Fatalf("device: %+v", d)
+	}
+	if r, _ := call(t, c, Request{Cmd: "info"}); r.Status != "error" || !strings.Contains(r.Error, "board e029 is near") {
+		t.Fatalf("info: %+v", r)
+	}
+}

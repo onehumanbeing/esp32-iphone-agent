@@ -17,7 +17,10 @@ type Found struct {
 	Name string
 	Addr string
 	RSSI int16
-	ref  any
+	// AppOnly: seen only on the identity the board shows the phone's app, never on the CLI's. The board is near but
+	// does not take a CLI link now (its two Bluetooth slots are held, often by macOS keeping it as a keyboard).
+	AppOnly bool
+	ref     any
 }
 
 // Suffix is the 4 hex digits of the name, "ESP32 Agent 6AD5" → "6ad5" (the board id's last two bytes).

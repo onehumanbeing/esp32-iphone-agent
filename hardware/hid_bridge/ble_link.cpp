@@ -9,6 +9,8 @@
 // blocks free, and never sends while a reply or status is waiting.
 #include "ble_link.h"
 #include "ble_hid.h"
+#include "ble_hid_target.h"
+#include "ble_slots.h"
 #include "hid_mode.h"
 #include <atomic>
 #include <utility>
@@ -43,12 +45,11 @@ const uint32_t CMD_ACTIVE_MS = 1000;       // ... i.e. for this long after a `cm
 const int MBUF_DATA = MYNEWT_VAL(MSYS_1_BLOCK_SIZE) - 16;  // payload per block (16 B mbuf header)
 // Up to MAX_PEERS centrals at once: the phone's app, plus a computer (the esp32agent CLI, or a debug harness).
 const int MAX_PEERS = 2;
-const uint32_t PLAIN_GRACE_MS = 15000;     // a link neither encrypted (app) nor a CLI session by then is dropped
+const uint32_t PLAIN_GRACE_MS = 15000;     // a link with no job by then (ble_slots.h) is dropped
 // One legacy advertising set wears one identity at a time: the app's (public address, service 0000) or the CLI's
 // (a random static address made at boot, service 0010; it never bonds, so no central holds a stale bond for it,
 // docs/cli-protocol.md). Two sets at once need extended advertising, which cost ~9 KB of internal RAM (2026-10-21).
-// A link up on one identity advertises the other; with none, the app's holds 3/4 of each second.
-enum AdvId { ADV_NONE, ADV_APP, ADV_CLI };
+// A link up on one identity advertises the other; with none, the app's holds 3/4 of each second (ble_slots.h).
 const uint32_t ADV_CYCLE_MS = 1000, ADV_CLI_MS = 250;
 
 enum { CH_REPLY, CH_STATUS, CH_VIDEO, CH_CLI, CH_COUNT };
@@ -150,6 +151,7 @@ static int slotFor(int h) {
   int i = slotOf(h);
   if (i < 0 && (i = slotOf(-1)) >= 0) {
     for (int c = 0; c < CH_COUNT; c++) subscribed[i][c] = false;
+    connAt[i] = millis();  // its grace starts now, not at the last link's onConnect
     peers[i] = h;
   }
   return i;
@@ -384,17 +386,34 @@ static void sendText(int ch, const Text &t, uint32_t timeout_ms) {
   }
 }
 
-// A plain link that is neither the app (it encrypts within a second) nor a CLI session: a stranger holding a slot.
-// Not within the pairing window: the app's first link stays plain while iOS shows its pairing dialog.
-static void dropIdlePlainLinks() {
-  if (ble_pair_window_open()) return;
+// The identity a link came in on: our own address on it is the CLI's random one, or the public one.
+static bool viaCli(int h) {
+  ble_gap_conn_desc d;
+  return h >= 0 && ble_gap_conn_find(h, &d) == 0 && d.our_ota_addr.type == BLE_ADDR_RANDOM;
+}
+
+static PeerLink peerLink(int i) {
+  int h = peers[i];
+  if (h < 0) return {};
+  bool job = cli_known(i) ||
+             (encrypted(h) && (subscribed[i][CH_REPLY] || subscribed[i][CH_STATUS] || subscribed[i][CH_VIDEO]));
+#ifdef HID_TRANSPORT_BLE
+  job = job || (hid_ble() && BleHidTarget::peer(ble_hid_session()) == h);
+#endif
+  bool fresh = millis() - connAt[i] <= PLAIN_GRACE_MS || (!encrypted(h) && ble_pair_window_open());
+  return {true, viaCli(h), job, fresh};
+}
+
+// A link with no job past its grace holds a slot for nothing (ble_slots.h): drop it. In the board log, since the
+// churn it causes (macOS reconnects) looks like a flapping radio from outside.
+static void dropIdleLinks() {
   for (int i = 0; i < MAX_PEERS; i++) {
     int h = peers[i];
-    if (h >= 0 && !encrypted(h) && !cli_known(i) && millis() - connAt[i] > PLAIN_GRACE_MS) {
-      BLE_LOG("conn %d: plain and idle for %lu s, dropped\n", h, PLAIN_GRACE_MS / 1000);
-      connAt[i] = millis();  // once
-      server->disconnect(h);
-    }
+    if (!ble_slot_idle(peerLink(i))) continue;
+    board_log("ble: conn %d: %s link with no job for %lu s (not the app, the phone's keyboard or a CLI), dropped", h,
+              encrypted(h) ? "encrypted" : "plain", (unsigned long)(PLAIN_GRACE_MS / 1000));
+    connAt[i] = millis();  // once
+    server->disconnect(h);
   }
 }
 
@@ -430,7 +449,7 @@ static void txTask(void *) {
       cli_send_ctrl('s', sending.c_str(), sending.length(), STATUS_TIMEOUT_MS);
       ctrlPending--;
     }
-    dropIdlePlainLinks();
+    dropIdleLinks();
     advertise();  // with nobody connected, the identities take turns
   }
 }
@@ -447,21 +466,10 @@ static NimBLEAdvertisementData appScan, cliScan;
 static SemaphoreHandle_t advLock;
 static AdvId advNow = ADV_NONE;
 
-// The identity a link came in on: our own address on it is the CLI's random one, or the public one.
-static bool viaCli(int h) {
-  ble_gap_conn_desc d;
-  return h >= 0 && ble_gap_conn_find(h, &d) == 0 && d.our_ota_addr.type == BLE_ADDR_RANDOM;
-}
-
 static AdvId wantedAdv() {
-  if (peerCount() >= MAX_PEERS) return ADV_NONE;
-  bool app = false, cli = false;
-  for (int i = 0; i < MAX_PEERS; i++)
-    if (peers[i] >= 0) (viaCli(peers[i]) ? cli : app) = true;
-  if (app && cli) return ADV_NONE;
-  if (app) return ADV_CLI;  // the CLI still learns the app holds the board (owner app, busy)
-  if (cli) return ADV_APP;  // the app can always come and take over
-  return millis() % ADV_CYCLE_MS < ADV_CLI_MS ? ADV_CLI : ADV_APP;
+  PeerLink p[MAX_PEERS];
+  for (int i = 0; i < MAX_PEERS; i++) p[i] = peerLink(i);
+  return ble_wanted_adv(p, MAX_PEERS, millis() % ADV_CYCLE_MS < ADV_CLI_MS);
 }
 
 // Brings advertising to the identity wanted now; a connection ends it, so this also restarts it.

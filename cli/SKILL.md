@@ -89,6 +89,9 @@ After a task succeeded, save it so the next run is faster:
 - `Bluetooth HID not paired` or `typed N of M: asleep` (Bluetooth mode): the phone's Bluetooth link to the board
   is down. Ask the user to check that Bluetooth is on and the board shows Connected on the iPhone; if the phone
   never paired it, replug the board's power and pair it within 3 minutes.
+- `near, but not taking a CLI link` (or `devices` shows the board `unreachable`): its Bluetooth slots are held, often
+  by macOS keeping it as a keyboard. Ask the user to choose Forget This Device for the board in the Mac's System
+  Settings > Bluetooth, then retry.
 - `not supported on ESP32 Agent`: there is no app list, UI tree, file access or webview; work from screenshots.
 
 ## Limits
