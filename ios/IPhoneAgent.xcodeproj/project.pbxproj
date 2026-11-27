@@ -245,6 +245,7 @@
 		A37B04CB8C5B3778BBDDB66B /* HarnessLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EE1A759D11ECA3AB281AAFC /* HarnessLink.swift */; };
 		A42DB537742861FF668DB34A /* JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7FAA4989F36E7F9B4C021 /* JSON.swift */; };
 		A5A1640A615256B576F9A055 /* RunSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB6FEBD55DCBE8EED6834C /* RunSession.swift */; };
+		4E7A1C2B9D3F5E6A7B8C9D03 /* StartupLease.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7A1C2B9D3F5E6A7B8C9D04 /* StartupLease.swift */; };
 		A5A78F1B4D15D843B8932932 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A02583BE955659071F3172 /* ModelProvider.swift */; };
 		A6006B2CA89BD106CA73618E /* BackgroundWaitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB5939E084BAFBEF399E60F /* BackgroundWaitTests.swift */; };
 		A8146F03F1C5164120A183B1 /* JevTypeSafe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBF5B781A13C48858EB94B4 /* JevTypeSafe.swift */; };
@@ -503,6 +504,7 @@
 		37DAF0ED4EB9934C6C2DC4BE /* SiriToolIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriToolIntents.swift; sourceTree = "<group>"; };
 		383D5864324AF3AAAF904AA6 /* ToolsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsFile.swift; sourceTree = "<group>"; };
 		38FB6FEBD55DCBE8EED6834C /* RunSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSession.swift; sourceTree = "<group>"; };
+		4E7A1C2B9D3F5E6A7B8C9D04 /* StartupLease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupLease.swift; sourceTree = "<group>"; };
 		A11C0FFEE0D1252611250002 /* HanReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanReading.swift; sourceTree = "<group>"; };
 		390F8519AC0397F988356EAE /* HanTyper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanTyper.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B02 /* HanTyper+InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HanTyper+InputSource.swift"; sourceTree = "<group>"; };
@@ -1233,6 +1235,7 @@
 				A592607CFF90ADF58D462FDB /* ScreenCapture.swift */,
 				690106A00C1E82CD803B4B8D /* RunResume.swift */,
 				38FB6FEBD55DCBE8EED6834C /* RunSession.swift */,
+				4E7A1C2B9D3F5E6A7B8C9D04 /* StartupLease.swift */,
 				37DAF0ED4EB9934C6C2DC4BE /* SiriToolIntents.swift */,
 				CCD4E24EF0EF1B7A8348D7AD /* StartupFrameBoundary.swift */,
 				C70A2F48B5948F180DF1450C /* TouchCalibration.swift */,
@@ -1869,6 +1872,7 @@
 				BEE55D8BB09C25E91CFD1A6B /* ScreenCapture.swift in Sources */,
 				3F7E156D8727F33590F29DF8 /* RunResume.swift in Sources */,
 				A5A1640A615256B576F9A055 /* RunSession.swift in Sources */,
+				4E7A1C2B9D3F5E6A7B8C9D03 /* StartupLease.swift in Sources */,
 				F6301B26DAF28C96D09F6D8E /* RunShare.swift in Sources */,
 				967BBE92D601A80A11C28BF7 /* RunViewAnnotations.swift in Sources */,
 				1DE8E596908DD14C90E40761 /* RunsView.swift in Sources */,

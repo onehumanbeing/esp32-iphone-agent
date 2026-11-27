@@ -517,6 +517,54 @@ import XCTest
         XCTAssertFalse((report.take(at: 404)[StepReport.header] ?? "").contains("up="), "not the last run's")
     }
 
+    /// Henry 2026-11-27: the lease is claimed at once, beside the rest of the start, not after the first frame.
+    @MainActor func testStartupLeaseClaimsBesideTheStart() async throws {
+        var events: [String] = []
+        let lease = StartupLease(claim: { _ in events.append("claim asked"); try await Task.sleep(nanoseconds: 50_000_000); events.append("claimed") })
+        await Task.yield()
+        events.append("first frame")  // the start goes on while the claim is on its way
+        try await lease.value()
+        events.append("first call")
+        XCTAssertEqual(events, ["claim asked", "first frame", "claimed", "first call"])
+        try await StartupLease(claim: nil).value()  // one's own model: nothing to wait for
+    }
+
+    /// A start that fails waits for a claim on its way, so the release that follows gives that lease back now.
+    @MainActor func testFailedStartReleasesALeaseOnItsWay() async {
+        var events: [String] = []
+        let lease = StartupLease(claim: { _ in try await Task.sleep(nanoseconds: 50_000_000); events.append("claimed") })
+        await Task.yield()
+        events.append("first frame failed")
+        await lease.settle()
+        events.append("released")  // Trial.shared.end(end) in prepareAgent's catch
+        XCTAssertEqual(events, ["first frame failed", "claimed", "released"])
+    }
+
+    /// A claim waiting in line is called off when the start fails or is stopped: no lease comes after the release.
+    @MainActor func testFailedStartCallsOffAClaimWaitingInLine() async {
+        var claimed = false
+        let lease = StartupLease(claim: { onWait in
+            onWait()
+            try await Task.sleep(nanoseconds: 30_000_000_000)  // the line's next poll
+            claimed = true
+        })
+        await Task.yield()
+        XCTAssertTrue(lease.queued)
+        let began = Date()
+        await lease.settle()
+        XCTAssertFalse(claimed)
+        XCTAssertLessThan(Date().timeIntervalSince(began), 5)
+    }
+
+    /// Stop while the run waits for its lease: the claim is cancelled with it.
+    @MainActor func testStopCancelsTheLeaseWait() async {
+        let lease = StartupLease(claim: { onWait in onWait(); try await Task.sleep(nanoseconds: 30_000_000_000) })
+        let waiting = Task { @MainActor in try await lease.value() }
+        await Task.yield()
+        waiting.cancel()
+        do { try await waiting.value; XCTFail("not cancelled") } catch { XCTAssertTrue(error is CancellationError, "\(error)") }
+    }
+
     /// Every model client with the same limits shares one session (warm connections across a run's clients and runs).
     func testModelClientsShareOneSessionPerLimits() {
         XCTAssertTrue(NetPool.session(request: 75, resource: 180) === NetPool.session(request: 75, resource: 180))

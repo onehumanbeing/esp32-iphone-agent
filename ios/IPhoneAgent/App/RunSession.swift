@@ -182,6 +182,10 @@ extension AppModel {
             return
         }
         guard !Task.isCancelled else { return }
+        // free line: the lease from now on, beside the stream, leaving the app and the first frame (Henry 2026-11-27:
+        // a start that fails on the way costs a free run, given back at once below; Trial.precheck)
+        let lease = StartupLease(claim: settings.provider == .handsyTrial
+            ? { onWait in try await Trial.shared.begin(wait: Recovery.limit) { onWait() } } : nil)
         // Start is tapped in this app, so: Live Activity, go Home, let the screen settle, THEN the first
         // frame for the planner. Each sub-step is timed in the log.
         let t0 = now()
@@ -280,9 +284,6 @@ extension AppModel {
                 throw DeviceError(message: String(localized: "The board answered, but no new screen image arrived. Keep Screen Mirroring connected and try again."))
             }
             mark("first frame: " + frameSource)
-            // free line: the lease only now, with the first frame in hand (a start that fails before costs no free
-            // run), asked beside the settle below (nothing between can throw: the lease is always awaited)
-            async let claimed: Void = claimLease()
             if openedAtStart != nil, schemePrompted {
                 // iOS's "Open in …?" prompt is still fading out when the app comes up: the model's first look caught it
                 // and tapped "Open" on Fiverr's own screen (2026-11-22). Let the screen go still first. Only after the
@@ -291,9 +292,10 @@ extension AppModel {
                 mark("screen still after the scheme open")
             }
             phase("first")
-            if settings.provider == .handsyTrial { step = .trialClaim }
-            try await claimed
-            if settings.provider == .handsyTrial {
+            if settings.provider == .handsyTrial {  // claimed meanwhile (StartupLease): mostly here already
+                step = .trialClaim
+                if lease.queued { live.show(.waiting, mood: .thinking) }
+                try await lease.value()
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Manina AI key run (no lease)" : "free line lease")
                 phase("lease")
@@ -334,6 +336,7 @@ extension AppModel {
             var end = RunEnd(reason: cancelled ? .userStop : .startFailed, stage: .startup, firmware: board.status?.fw?.plain)
             end.step = step.rawValue
             if cancelled { end.by = stopBy ?? "unknown" }
+            await lease.settle()  // a claim on its way lands first, so the line gets it back now
             Trial.shared.end(end)  // free line
             Analytics.capture("run_ended", runUsage.props.merging([
                 "outcome": cancelled ? "stopped" : "failed", "phase": "startup", "steps": 0,
@@ -361,12 +364,6 @@ extension AppModel {
                 openReview(run: runID)
             }
         }
-    }
-
-    /// The free line's lease for the run (nothing on one's own model), waiting in line while it is busy.
-    private func claimLease() async throws {
-        guard settings.provider == .handsyTrial else { return }
-        try await Trial.shared.begin(wait: Recovery.limit) { self.live.show(.waiting, mood: .thinking) }
     }
 
     /// Wait for whichever task owns input to finish cleanup ("Stopping…" until then).
