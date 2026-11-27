@@ -267,7 +267,29 @@ extension ScreenSource {
         if !unit.snap { boardClock(ms: Int(unit.boardMs)) }  // snap units are resent late: their ages say nothing
         if unit.idr { metrics?.idrSeen() }
         if !unit.config { resumeMs = unit.boardMs }
+        unitAt = now()
         decoder.queue.async { [decoder] in decoder.decode(unit) }
+    }
+
+    /// When the last video unit arrived (0: none yet).
+    private(set) var unitAt = 0.0
+    private var frozenAskedAt = 0.0
+
+    /// The board says its GOP is frozen, no unit came for 3 s and the decoder knows where it was: ask the board to go
+    /// on from there (its tail ring past the frozen GOP). The board stops following a stream whose keep-alive came
+    /// 3 s late, and the link itself stayed up, so no reconnect sent the resume: no picture for 6 minutes until
+    /// the run timed out (2026-11-27, case 36). Every 10 s at most; true when it is due.
+    nonisolated static func frozenResumeDue(frozen: Bool, resumeMs: UInt32?, unitAge: Double, sinceAsked: Double) -> Bool {
+        frozen && resumeMs != nil && unitAge > 3 && sinceAsked > 10
+    }
+
+    func askResumeIfFrozen(_ resume: () -> Void) {
+        let t = now()
+        guard Self.frozenResumeDue(frozen: frozen, resumeMs: resumeMs, unitAge: t - unitAt, sinceAsked: t - frozenAskedAt)
+        else { return }
+        frozenAskedAt = t
+        DebugLog.write("video: the board's GOP is frozen and no video came for \(Int(t - unitAt)) s; asking it to go on after \(resumeMs ?? 0)")
+        resume()
     }
 
     /// Board timestamp of the last unit handed to the decoder: a reconnecting Wi-Fi stream asks the board to go on

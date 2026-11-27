@@ -78,6 +78,15 @@ final class VideoTests: XCTestCase {
     }
 
     /// A GOP replay skips the frames no later frame is decoded from (nal_ref_idc 0); never an IDR or a reference P.
+    /// A frozen GOP with the link still up and no video: ask the board to resume, at most every 10 s (case 36).
+    func testAFrozenGOPWithNoVideoAsksTheBoardToResume() {
+        XCTAssertTrue(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 4, sinceAsked: 60))
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: false, resumeMs: 5, unitAge: 4, sinceAsked: 60), "not frozen")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: nil, unitAge: 4, sinceAsked: 60), "no place to go on from")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 1, sinceAsked: 60), "video still flows (from the tail)")
+        XCTAssertFalse(VideoFeed.frozenResumeDue(frozen: true, resumeMs: 5, unitAge: 4, sinceAsked: 5), "asked just now")
+    }
+
     /// A retry of the background renew after the decode path already replayed the GOP into a working session:
     /// skipped, not a second full replay (2026-11-27: 36 s + 38 s before a run's first frame).
     func testARenewRetryAfterAReplayThatWorkedIsSkipped() {

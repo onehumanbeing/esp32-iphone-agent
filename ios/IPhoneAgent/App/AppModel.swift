@@ -288,6 +288,7 @@ import UIKit
                                       : "video: unfrozen (new keyframe)")
             }
             self?.feed.frozen = frozen
+            self?.feed.askResumeIfFrozen { self?.wifiVideo.resume() }
             if s.ap == "streaming" { Analytics.captureOnce("mirroring_started") }
             if started { DebugLog.write("mirroring started"); self?.prewarmStream() }  // a pre-warm at link-up fails until mirroring runs
             if s.ap == "streaming", self?.networkSwitched == true { self?.networkSwitched = false }
