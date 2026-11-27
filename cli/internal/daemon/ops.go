@@ -26,6 +26,23 @@ var (
 	errFrozen    = errors.New("video frozen: restart Screen Mirroring on the iPhone (Control Center > Screen Mirroring > Stop Mirroring, then ESP32 Agent)")
 )
 
+// staleVideo: Screen Mirroring is on but the iPhone stopped sending frames (#192); fz stays 0 meanwhile.
+func staleVideo(age time.Duration) error {
+	return fmt.Errorf("video stale: the board has had no frame from Screen Mirroring for %.0f s although the pointer moved "+
+		"(the iPhone stopped sending; it often resumes within a minute). Wait and retry, or restart Screen Mirroring "+
+		"(Control Center > Screen Mirroring > Stop Mirroring, then ESP32 Agent)", age.Seconds())
+}
+
+// whyNotFound turns "pointer not found" into the real cause when the video stalled since t.
+func whyNotFound(c *Conn, t time.Time, err error) error {
+	if errors.Is(err, pointer.ErrNotFound) {
+		if age, ok := c.stalled(t); ok {
+			return fmt.Errorf("calibration: no fresh video to find the pointer in: %w", staleVideo(age))
+		}
+	}
+	return err
+}
+
 func num(v any) float64 { f, _ := v.(float64); return f }
 
 // videoState explains why there is no usable screen, nil when mirroring streams.
@@ -135,8 +152,12 @@ func (s *Server) screenshot(ctx context.Context, c *Conn, req Request) Response 
 		format = "jpeg"
 	}
 	s.recordShot(img, r.Dx(), r.Dy())
-	return ok(map[string]any{"format": format, "data": base64.StdEncoding.EncodeToString(data),
-		"width": r.Dx(), "height": r.Dy(), "device": c.ID})
+	out := map[string]any{"format": format, "data": base64.StdEncoding.EncodeToString(data),
+		"width": r.Dx(), "height": r.Dy(), "device": c.ID}
+	if age, stale := c.stalledNow(); stale { // marked, not refused: the last picture is still the best there is
+		out["stale"], out["video_age_ms"], out["warning"] = true, age.Milliseconds(), staleVideo(age).Error()
+	}
+	return ok(out)
 }
 
 func (c *Conn) pointer(dir string) *pointer.Pointer {
@@ -168,8 +189,9 @@ func (s *Server) calibrate(ctx context.Context, c *Conn) Response {
 		return fail(err)
 	}
 	p := c.pointer(s.Dir)
+	started := time.Now()
 	if err := p.Calibrate(ctx); err != nil {
-		return fail(err)
+		return fail(whyNotFound(c, started, err))
 	}
 	out := map[string]any{"span": map[string]int{"w": p.Span.W, "h": p.Span.H}}
 	if e, found, err := p.Verify(ctx, 0.5, 0.62); err == nil && found {
@@ -218,8 +240,9 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 			if s.videoState(ctx, c) != nil {
 				return errors.New("pointer not calibrated, and the screen is not visible: turn on Screen Mirroring, then run esp32agent calibrate")
 			}
+			started := time.Now()
 			if err := p.Calibrate(ctx); err != nil {
-				return err
+				return whyNotFound(c, started, err)
 			}
 		}
 		pt := func(i int) (float64, float64) { return req.Pts[i] / w, req.Pts[i+1] / h }

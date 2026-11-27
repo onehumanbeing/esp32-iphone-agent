@@ -281,6 +281,8 @@ func (a *App) screenshot(fs *flag.FlagSet, dev *string, args []string) int {
 		Data struct {
 			Format, Data, Device string
 			Width, Height        int
+			Warning              string
+			VideoAgeMs           int64 `json:"video_age_ms"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(line, &r); err != nil {
@@ -304,8 +306,11 @@ func (a *App) screenshot(fs *flag.FlagSet, dev *string, args []string) int {
 	if err := os.WriteFile(path, img, 0o644); err != nil {
 		return a.fail(err)
 	}
-	return a.print(daemon.Response{Status: "ok", Data: map[string]any{"format": r.Data.Format, "filePath": path,
-		"width": r.Data.Width, "height": r.Data.Height}})
+	out := map[string]any{"format": r.Data.Format, "filePath": path, "width": r.Data.Width, "height": r.Data.Height}
+	if r.Data.Warning != "" { // a stale frame (#192): the agent must not act on it as the screen now
+		out["stale"], out["video_age_ms"], out["warning"] = true, r.Data.VideoAgeMs, r.Data.Warning
+	}
+	return a.print(daemon.Response{Status: "ok", Data: out})
 }
 
 // screenshotPath: a file path as given, or screenshot-<device>-<time>.<ext> in a directory (default: cwd).

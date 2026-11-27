@@ -36,6 +36,10 @@ type Conn struct {
 	pending  map[string]chan string
 	status   map[string]any
 	statusAt time.Time
+	// When the board last got a frame from AirPlay, from the latest status's vage (#192). Zero: unknown (that
+	// status had no vage: older firmware leaves it out of the compact status; or no frame yet).
+	airplayAt time.Time
+	lastMove  time.Time // the last pointer move sent (move, home): it changes the mirrored screen
 
 	re        *video.Reassembler
 	dec       *video.Decoder
@@ -292,6 +296,10 @@ func (c *Conn) onStatus(b []byte) {
 		c.status[k] = v
 	}
 	c.statusAt = now
+	c.airplayAt = time.Time{}
+	if vage, ok := m["vage"].(float64); ok && vage > 0 {
+		c.airplayAt = now.Add(-time.Duration(vage) * time.Millisecond)
+	}
 	notify = m["owner"] == "app" || m["busy"] == float64(1)
 	if up, ok := m["up"].(float64); ok {
 		c.learnClock(now, uint32(up))
@@ -406,6 +414,30 @@ func (c *Conn) Status() (map[string]any, time.Duration) {
 	return out, time.Since(c.statusAt)
 }
 
+// StallAfter: a pointer move this old with no frame from AirPlay since means the sender stalled (the app's rule,
+// AppPresence.airplayStalled). The moving pointer changes the screen, so a still screen is no excuse.
+const StallAfter = 4 * time.Second
+
+// stalled reports a video stall since a pointer move at t: the board's last frame from AirPlay (and ours) is older
+// than t, and t is StallAfter ago. Unknown (old firmware without vage, no status yet): not stalled.
+func (c *Conn) stalled(t time.Time) (time.Duration, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if t.IsZero() || c.airplayAt.IsZero() || time.Since(t) < StallAfter || c.status["ap"] != "streaming" ||
+		!c.airplayAt.Before(t) || c.captured.After(t) {
+		return 0, false
+	}
+	return time.Since(c.airplayAt), true
+}
+
+// stalledNow: stalled since the last pointer move.
+func (c *Conn) stalledNow() (time.Duration, bool) {
+	c.mu.Lock()
+	t := c.lastMove
+	c.mu.Unlock()
+	return c.stalled(t)
+}
+
 // Screen (pointer.Screen).
 
 func (c *Conn) Live() bool {
@@ -496,6 +528,11 @@ func (d device) Send(ctx context.Context, line string) error {
 		defer func() { d.c.lastKey = time.Now() }()
 	}
 	_, err := d.c.Send(ctx, line)
+	if err == nil && (strings.HasPrefix(line, "move ") || line == "home") {
+		d.c.mu.Lock()
+		d.c.lastMove = time.Now()
+		d.c.mu.Unlock()
+	}
 	return err
 }
 

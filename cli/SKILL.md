@@ -83,6 +83,9 @@ After a task succeeded, save it so the next run is faster:
 - `busy: the app is using the phone`: the iOS app is driving right now. Wait and retry later; don't fight it.
 - `screen mirroring is off`: ask the user to start Screen Mirroring to ESP32 Agent.
 - `video frozen`: ask the user to stop and restart Screen Mirroring.
+- `video stale`, or a screenshot with `"stale": true`: the iPhone stopped sending frames while mirroring stays on, so
+  the picture is old. Don't act on it: wait 10-30 s and screenshot again; if it stays stale, ask the user to restart
+  Screen Mirroring.
 - `not paired` or `pairing window closed`: ask the user to replug the board (its power, in Bluetooth mode) and
   run `esp32agent pair` within 3 minutes.
 - `phone usb asleep` (USB mode): the phone is locked; ask the user to unlock it.

@@ -174,13 +174,17 @@ func (a *App) callTool(name string, args map[string]any) map[string]any {
 	}
 	if name == "screenshot" {
 		var d struct {
-			Format, Data  string
-			Width, Height int
+			Format, Data, Warning string
+			Width, Height         int
 		}
 		json.Unmarshal(r.Raw, &d)
+		text := fmt.Sprintf("%dx%d screenshot; tap coordinates are pixels of this image", d.Width, d.Height)
+		if d.Warning != "" {
+			text = "STALE: " + d.Warning + "\n" + text
+		}
 		return map[string]any{"content": []map[string]any{
 			{"type": "image", "data": d.Data, "mimeType": "image/" + d.Format},
-			{"type": "text", "text": fmt.Sprintf("%dx%d screenshot; tap coordinates are pixels of this image", d.Width, d.Height)},
+			{"type": "text", "text": text},
 		}, "isError": false}
 	}
 	if name == "phone_audio" {
