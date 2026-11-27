@@ -561,6 +561,17 @@ extension AssistiveButton {
         return (dx * dx + dy * dy).squareRoot() <= reach
     }
 
+    /// The menu the button opens (its top-level items), in the mirrored picture after all (2026-11-27, two traces).
+    static let menuWords = ["notification center", "control center", "device", "siri", "home", "custom",
+                            "通知中心", "控制中心", "设备", "主屏幕", "自定"]
+
+    /// The button's menu is open: four of its items read on the screen.
+    static func menuShown(_ lines: [String]) -> Bool {
+        let read = Set(lines.map { $0.lowercased().trimmingCharacters(in: .whitespaces) })
+        let joined = read.joined(separator: " ")
+        return menuWords.filter { read.contains($0) || joined.contains($0) && $0.count > 6 }.count >= 4
+    }
+
     /// Where to put the button out of the way of `tap`: the same edge, the other half of the screen.
     static func aside(_ button: CGPoint, from tap: CGPoint) -> CGPoint {
         CGPoint(x: button.x, y: tap.y < 0.5 ? 0.78 : 0.22)
@@ -570,9 +581,18 @@ extension AssistiveButton {
 extension AgentLoop {
     /// Before a tap at `p`: the AssistiveTouch button on the current frame over it is moved aside.
     func moveAssistiveButton(awayFrom p: CGPoint) async throws {
-        guard let phone, let screen, screen.live, let jpeg = screen.frame else { return }
-        guard let button = await Vision.off({ Vision.image(jpeg).flatMap(AssistiveButton.find) }),
-              AssistiveButton.covers(button, tap: p, aspect: screen.aspect) else { return }
+        guard let phone, let screen, screen.live, let jpeg = screen.frame, let image = Vision.image(jpeg) else { return }
+        guard let button = await Vision.off({ AssistiveButton.find(image) }) else {
+            // no button at an edge: its menu may be open (an earlier tap landed on it). A tap outside closes it.
+            let lines = await UITreeOCR.lines(image, fast: true).map(\.text)
+            if AssistiveButton.menuShown(lines) {
+                DebugLog.write("tap: the AssistiveTouch menu is open; closing it with a tap above it first")
+                try await phone.tap(0.5, 0.12, aim: false)
+                try await Task.sleep(nanoseconds: 400_000_000)
+            }
+            return
+        }
+        guard AssistiveButton.covers(button, tap: p, aspect: screen.aspect) else { return }
         let to = AssistiveButton.aside(button, from: p)
         DebugLog.write(String(format: "tap (%.3f, %.3f): the AssistiveTouch button is there (%.3f, %.3f); dragged to (%.3f, %.3f) first",
                    p.x, p.y, button.x, button.y, to.x, to.y))

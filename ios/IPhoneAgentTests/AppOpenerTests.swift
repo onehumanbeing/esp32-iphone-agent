@@ -544,6 +544,10 @@ import XCTest
         XCTAssertFalse(AssistiveButton.covers(button, tap: CGPoint(x: 0.92, y: 0.58), aspect: aspect), "the row below")
         XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.51)), CGPoint(x: 0.92, y: 0.22))
         XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.49)), CGPoint(x: 0.92, y: 0.78))
+        // the menu as read in a trace frame (20261127-163027/039): Notification / Center / Custom / Siri / Device / Home …
+        XCTAssertTrue(AssistiveButton.menuShown(["November", "Notification", "Center", "Custom", "Siri", "Device", "Home",
+                                                 "Control", "Center", "Today"]))
+        XCTAssertFalse(AssistiveButton.menuShown(["Settings", "Home", "Device", "General"]), "a settings page")
     }
 
     func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {
