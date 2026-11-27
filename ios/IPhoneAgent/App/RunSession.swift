@@ -163,6 +163,10 @@ extension AppModel {
             let reader = try? await settings.client("reader")  // RECORD fields read in the background
             reader?.retriesBusy = false
             agent.reader = reader
+            // the connections the first calls go over, opened now: the start's seconds hide TCP + TLS (NetPool)
+            actor.warm()
+            (agent.planner as? LLMClient)?.warm()
+            jev?.jev.warm()
             agent.screenTree = settings.provider == .handsyTrial || jev != nil  // the tree also helps the model
             agent.serverTree = jev == nil && Settings.serverTree(settings.provider)
             agent.compactTree = settings.provider == .handsyTrial && TreeSource.current == .device  // Debug only
@@ -293,6 +297,8 @@ extension AppModel {
                 try Task.checkCancellation()
                 mark(Trial.shared.keyed ? "Manina AI key run (no lease)" : "free line lease")
                 phase("lease")
+                // the first call comes next: the connection opened at the start may have closed since
+                (((agent.actor as? JevDeciderModel)?.inner ?? agent.actor) as? LLMClient)?.warm()
             }
             agent.policy = (launchUnattended || settings.unattendedMode)
                 ? .unattended(repairMirroring: MirrorSpots.load()?.validNow == true) : .attended
