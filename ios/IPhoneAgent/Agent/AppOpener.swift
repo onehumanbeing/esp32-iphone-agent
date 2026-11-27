@@ -280,7 +280,9 @@ enum OpenResult: String {
                     }
                     if closed || moved { break }  // the old spots are stale on a changed screen
                 }
-                if closed || round == 1 || overBudget() { break }
+                // past the budget, a tap that changed nothing (it missed: 2026-11-27 case 22, Safari's row at x 0.10,
+                // the click at the screen's edge) still gets the one Return below, ~1 s, before giving up
+                if closed || round == 1 || overBudget() && changed { break }
                 // the tap changed Spotlight (a keyboard candidate committed the pinyin, 2026-11-25): read its new
                 // results first; Return there opened whatever came first, a web suggestion for an app not installed
                 if changed { continue }

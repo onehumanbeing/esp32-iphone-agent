@@ -517,6 +517,23 @@ import XCTest
         XCTAssertEqual(t, 16, "one try only: the second would start past 15 s")
     }
 
+    /// A row tap that changed nothing past the budget (it missed): one Return still goes before not_opened
+    /// (2026-11-27 case 22: Safari listed, the tap at the screen's edge did nothing, the open gave up).
+    func testAMissedRowTapPastTheBudgetStillGetsReturn() async throws {
+        var t = 0.0
+        var queue: [Data?] = [home, spotlight, spotlight, app]
+        var sent: [String] = []
+        var opener = AppOpener(home: {}, key: { sent.append($0) }, type: { _ in }, look: { queue.isEmpty ? nil : queue.removeFirst() },
+                               read: { [home, app] in $0 == home ? [] : $0 == app ? ["Shopping list"] : ["Notes", "Notes"] },
+                               same: { $0 == $1 }, pause: { _ in })
+        opener.clock = { t }
+        opener.readBoxes = { _ in ([("Notes", [100, 600, 300, 640])], CGSize(width: 1000, height: 2000)) }
+        opener.tapAt = { _ in t += 20 }
+        let result = try await opener.open("Notes")
+        XCTAssertEqual(result, .opened)
+        XCTAssertEqual(sent.filter { $0 == "enter" }.count, 1, "\(sent)")
+    }
+
     func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {
         XCTAssertTrue(Pointer.needsFlick(changed: false, again: false, stayed: false), "nothing changed")
         XCTAssertTrue(Pointer.needsFlick(changed: true, again: true, stayed: false), "home again, little change")
