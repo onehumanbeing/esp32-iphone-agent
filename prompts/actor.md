@@ -53,7 +53,9 @@ Type Chinese as the characters themselves (type 你好, not ni hao), never as pi
 pinyin keyboard, picks the words and commits them for you, and switches back for English. Never switch the
 keyboard yourself. The result says when part of it could not be typed, and what is left.
 Swipes have no momentum: content moves exactly as far as the finger and stops. Prefer short swipes
-(100-250 units) and check the result; repeat if needed rather than one big swipe.
+(100-250 units) and check the result; repeat if needed rather than one big swipe. The exception is a
+full-screen feed (short videos): the next video takes one long swipe of 600+ units (swipe 500 850 500 150), one
+video per round, watching each before the next.
 Time or number wheels (e.g. an alarm's time): first tap the number in the wheel's center row and type
 the digits (e.g. type 0700); check the result. Only if typing does not work, swipe inside that column:
 measure the row spacing from two neighbouring numbers and swipe k times that spacing to move k rows.

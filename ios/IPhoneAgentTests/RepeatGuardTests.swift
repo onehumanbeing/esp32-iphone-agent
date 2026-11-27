@@ -282,10 +282,17 @@ final class DefectGuardTests: XCTestCase {
     }
 
     func testLongSwipesAreCutButEdgeSwipesAreNot() {
-        var a = swipe(500, 800, 500, 100)
+        var a = swipe(500, 800, 500, 300)
         SwipeClamp.apply(&a)
-        XCTAssertEqual(a["y2"]?.double, 500)
+        XCTAssertEqual(a["y2"]?.double, 400)
         XCTAssertNotNil(a["result"])
+        // a page turn (a video feed's next video) keeps its length; a gliding phone's limit stays at 300 or more
+        var page = swipe(500, 850, 500, 150)
+        SwipeClamp.apply(&page, limit: SwipeClamp.limit(gain: 2))
+        XCTAssertEqual(page["y2"]?.double, 150)
+        XCTAssertNil(page["result"])
+        XCTAssertEqual(SwipeClamp.limit(gain: 2), 300)
+        XCTAssertEqual(SwipeClamp.limit(gain: 1), 400)
         var edge = swipe(500, 990, 500, 100)
         SwipeClamp.apply(&edge)
         XCTAssertEqual(edge["y2"]?.double, 100)

@@ -318,9 +318,14 @@ enum AlreadyOpen {
 
 /// Swipes have no momentum, and a long one skips what was between (scrolled past unseen); the prompt asks for
 /// 100-250, the code holds it to that. A swipe from a screen edge (Control Center, Notification Center, Back)
-/// keeps its length.
+/// keeps its length, and so does a page turn (`page` or longer: a video feed's next video, a whole page): cut to 300,
+/// and to 193 on phones whose lists glide on, 41 of 59 swipes in video feeds didn't move to the next video and users
+/// stopped the runs as looping (2026-11-27, 78 runs of build 25). The limit never drops below `floor`.
 enum SwipeClamp {
-    static let limit = 300.0, edge = 80.0  // Control Center swipes start ~50 from the top
+    static let limit = 400.0, floor = 300.0, page = 600.0, edge = 80.0  // Control Center swipes start ~50 from the top
+
+    /// The limit on a phone whose lists glide `gain` times as far as the swipe.
+    static func limit(gain: Double) -> Double { max(floor, limit / max(1, gain)) }
 
     /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
     static func apply(_ a: inout JObject, limit: Double = limit) {
@@ -336,7 +341,7 @@ enum SwipeClamp {
         let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
         let length = hypot(x2 - x1, y2 - y1)
         let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
-        guard length > limit, !fromEdge else { return (x2, y2, false) }
+        guard length > limit, length < page, !fromEdge else { return (x2, y2, false) }
         let k = limit / length
         return (x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, true)
     }
