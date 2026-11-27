@@ -21,6 +21,16 @@ import XCTest
         XCTAssertTrue(device.sent.isEmpty)
     }
 
+    /// 2026-11-28: "Check the on-screen keyboard before typing." after nearly every harness run, typed or not.
+    func testKeyboardNoticeOnlyAfterARunThatTyped() {
+        let unverified = InputHandoff.Result(release: .allInputs, notice: "Check the on-screen keyboard before typing.")
+        XCTAssertFalse(InputHandoff.tells(unverified, typed: false))
+        XCTAssertTrue(InputHandoff.tells(unverified, typed: true))
+        let stuck = InputHandoff.Result(release: nil, notice: "Check that the mouse and keyboard are released.")
+        XCTAssertTrue(InputHandoff.tells(stuck, typed: false), "input not released is always said")
+        XCTAssertFalse(InputHandoff.tells(InputHandoff.Result(release: .allInputs, notice: nil), typed: true))
+    }
+
     func testVisibleOrUnfocusedScreensNeedNoInput() async throws {
         for answer in ["VISIBLE", "NO_INPUT"] {
             let device = FakeDevice(), screen = HandoffScreen()

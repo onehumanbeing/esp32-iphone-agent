@@ -413,7 +413,8 @@ extension AppModel {
             }
         }
         if let message = result.release?.notice(on: link, lastShown: &lastPartialReleaseNoticeLink) { notice = message }
-        if let message = result.notice { notice = message }
+        let typed = agent.steps.contains { ["type", "key", "clear", "say"].contains($0["action"]?.str ?? "") }
+        if let message = result.notice, InputHandoff.tells(result, typed: typed) { notice = message }
     }
 
     /// A run began: the character thinks, the Live Activity appears, the video starts.
