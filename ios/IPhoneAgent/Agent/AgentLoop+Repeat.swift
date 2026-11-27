@@ -247,6 +247,28 @@ enum EmptyResultGuard {
         + "Wait (wait 2) and look at the list again; if it is still empty, give the same done again: a second done is taken."
 }
 
+/// A done whose answer is the model thinking aloud ("But wait — … Let me read … I should report …"): the person gets
+/// its deliberation, not an answer, and here a count that said 2 and then 3 (2026-11-27, case 13). Held back once and
+/// asked for the answer alone; the second done stands.
+enum DeliberationGuard {
+    static func rambling(_ acts: [JObject], after steps: [JObject]) -> Bool {
+        guard let done = acts.first(where: { $0["action"]?.str == "done" }), thinking(done["answer"]?.str ?? "") else { return false }
+        return !steps.contains { $0["action"]?.str == RepeatGuard.action && $0["reason"]?.str == reason }
+    }
+
+    /// Words of a mind still being made up, not of an answer.
+    static func thinking(_ answer: String) -> Bool {
+        let a = answer.lowercased().replacingOccurrences(of: "’", with: "'")
+        let words = ["but wait", "wait —", "wait -", "wait,", "let me ", "i should ", "hmm", "on second thought",
+                     "等等", "让我再", "我应该", "不对，", "再想想"]
+        return words.contains { a.contains($0) }
+    }
+
+    static let reason = "Not done yet: your answer reads like your own thinking (\"wait\", \"let me\", \"I should\"), "
+        + "not an answer for the person. Give done again with only the answer: the result itself in a sentence or a "
+        + "short list, in the goal's language, with no reasoning. A second done is taken."
+}
+
 /// A send (key enter) right after a Chinese `type` that stopped part way: what is in the field may be pinyin letters,
 /// not the words (a nine-key or another keyboard, a word left uncommitted). Held back once with what was left. A tap
 /// is never held (2026-11-20: Amap's suggestion list already showed the place, the tap on it that listedHint asks
@@ -428,6 +450,9 @@ extension AgentLoop {
         } else if EmptyResultGuard.premature(acts.map(\.act), after: steps) {
             DebugLog.write("empty result guard: 'nothing found' right after typing a search; asking once more")
             reason = EmptyResultGuard.reason
+        } else if DeliberationGuard.rambling(acts.map(\.act), after: steps) {
+            DebugLog.write("deliberation guard: a done that thinks aloud; asking for the answer alone")
+            reason = DeliberationGuard.reason
         } else if let audit = await recordAudit(acts.map(\.act)) {
             reason = audit
         } else {

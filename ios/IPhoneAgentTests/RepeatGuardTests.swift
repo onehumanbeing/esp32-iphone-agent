@@ -595,4 +595,15 @@ final class AlreadyOpenTests: XCTestCase {
         XCTAssertTrue(zh.contains("「备忘录」") && zh.contains("61 秒") && zh.contains("重新打开"))
         XCTAssertTrue(LoadingGuard.reason(app: nil, shown: "Loading", seconds: 60, goal: "Search Notes").hasPrefix("The app stayed on"))
     }
+
+    /// 2026-11-27, case 13: the done answer was the model's deliberation, a count of 2 and then 3. Held once.
+    func testADoneThatThinksAloudIsAskedForTheAnswerAlone() {
+        let rambling: [JObject] = [["action": .str("done"), "answer": .str("I see Reminders and 任务, 2 lists. But wait — Recently Deleted too. Let me read again: I should report 3.")]]
+        XCTAssertTrue(DeliberationGuard.rambling(rambling, after: []))
+        XCTAssertFalse(DeliberationGuard.rambling(rambling, after: [["action": .str(RepeatGuard.action), "reason": .str(DeliberationGuard.reason)]]),
+                       "the second done stands")
+        XCTAssertFalse(DeliberationGuard.rambling([["action": .str("done"), "answer": .str("共有 2 个列表：Reminders、任务")]], after: []))
+        XCTAssertFalse(DeliberationGuard.thinking("Your table is booked; the restaurant will hold it 15 minutes."))
+        XCTAssertTrue(DeliberationGuard.thinking("找到 3 条。等等，第三条是旧的，我应该只算 2 条。"))
+    }
 }
