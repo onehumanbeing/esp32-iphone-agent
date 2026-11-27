@@ -42,6 +42,7 @@ struct InputProbeView: View {
             }
         }
         .onAppear { log.start() }
+        .onDisappear { log.stop() }
     }
 
     @ViewBuilder private var signalRows: some View {
