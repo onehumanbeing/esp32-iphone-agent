@@ -99,6 +99,7 @@ extension AppModel {
         case "tab":  // iphoneagent://tab?name=runs|files|settings|agent: a tab, for filming the app after a run
             guard let tab = ["agent": AppTab.agent, "runs": .runs, "files": .files, "settings": .settings][arg("name") ?? ""]
             else { return false }
+            review = nil  // a run's review covers the tabs
             self.tab = tab
         case "callguide":  // shows the call setup guide before calls again (undoes Don't Show Again)
             CallGuide.seen = false
