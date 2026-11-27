@@ -36,7 +36,9 @@ The board runs in one of two modes, set in the iOS app (Settings > Board > Input
    - `esp32agent io swipe X1,Y1,X2,Y2` (scroll a list: swipe up from the lower to the upper middle)
    - `esp32agent io text 'hello'`, `esp32agent io keys enter`, `esp32agent io keys cmd+a`
    - `esp32agent io button HOME` (Home Screen)
-4. Screenshot again and check the result before the next step. Never chain several taps blind.
+4. Screenshot again and check the result before the next step. Never chain several taps blind: a gesture's reply
+   says `"verified": false` (sent, nothing checked where it landed); only a tap with `--aim` (MCP: `aim`) checks the
+   pointer first, and when it can't see the pointer it doesn't tap and says so.
 
 When the task depends on what the phone plays (a video, a call, a voice message, a spoken code),
 `esp32agent listen` gives its words from the last 30 s, or says why the phone can't be heard (listening off,

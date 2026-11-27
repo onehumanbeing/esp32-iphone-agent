@@ -58,6 +58,9 @@ type Conn struct {
 
 	onApp      func() // the board said the app is using it
 	ptr        *pointer.Pointer
+	phone      string // the phone ptr's calibration is for (status src); "": not known when it was loaded
+	pace       int    // the board's move pacing ("pace"), asked once a calibration is in use; 0: not known
+	paceAsked  bool
 	lastAction time.Time
 	lastShot   time.Time
 
@@ -96,6 +99,9 @@ func (c *Conn) attach(s *proto.Session, via string, l proto.Link) error {
 	}
 	quit := make(chan struct{})
 	c.sess, c.via, c.quit, c.links = s, via, quit, c.links+1
+	if via == "ble" { // maybe a rebooted board, with new firmware: ask its pacing again
+		c.pace, c.paceAsked = 0, false
+	}
 	if via == "ble" {
 		if c.bleLink != nil && c.bleLink != l {
 			c.bleLink.Close()

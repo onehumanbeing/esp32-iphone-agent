@@ -36,7 +36,7 @@ npm：`npm install -g esp32agent`。安装脚本读取 `https://manina.ai/cli/ve
 | `io button HOME` | 唯一的按键 |
 | `screencapture --format h264\|mjpeg` | 实时视频输出到 stdout，例如 `\| ffplay -` |
 | `device info` | 板子状态：`ap`（镜像中）、`fz`（画面冻结）、`busy`（App 正在使用手机）、`usb`、`ble` |
-| `calibrate` | 测量指针（第一次点按时会自动执行；需要指针可见） |
+| `calibrate` | 测量指针（第一次点按时会自动执行，校准不再适用时也会重新执行；按手机分别保存；需要指针可见） |
 | `net` | CLI 当前的通道（`via`：`ble` 或 `wifi`）和板子的 Wi-Fi。电脑和板子在同一个网络（同一个 Wi-Fi，或电脑连着板子热点）时，命令和画面走 Wi-Fi，蓝牙作为备用通道 |
 | `net join` | 询问 Wi-Fi 名称和密码（密码不回显），通过蓝牙会话发给板子，并等到通道切到 Wi-Fi。`net join SSID [PASSWORD]` 不询问直接设置。iPhone 也通过这个 Wi-Fi 镜像 |
 | `net hotspot` | 让板子重新打开自己的热点 |

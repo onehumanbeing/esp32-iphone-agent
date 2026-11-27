@@ -11,6 +11,8 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"log"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -160,13 +162,66 @@ func (s *Server) screenshot(ctx context.Context, c *Conn, req Request) Response 
 	return ok(out)
 }
 
+// pointer is the calibrated pointer for the phone mirroring now (status src): each phone has its own calibration
+// on this board (#194: one made on an iPhone 12 was used on an iPhone 17 Pro). While the phone is not known, the
+// board's own file from before (CLI 0.1.4) is used, and the first phone seen takes it over.
 func (c *Conn) pointer(dir string) *pointer.Pointer {
+	st, _ := c.Status()
+	phone, _ := st["src"].(string)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.ptr == nil {
-		c.ptr = pointer.New(device{c}, c, config.CalibrationPath(dir, c.ID))
+	if c.ptr == nil || phone != "" && phone != c.phone {
+		legacy, old := config.CalibrationPath(dir, c.ID), c.ptr
+		file := legacy
+		if phone != "" {
+			file = config.PhoneCalibrationPath(dir, c.ID, phone)
+		}
+		p := pointer.New(device{c}, c, file)
+		p.Phone = phone
+		p.Log = func(s string) { log.Printf("%s: %s", c.ID, s) }
+		p.BoardPace = c.boardPace
+		switch {
+		case phone == "" || p.Calibrated():
+		case old != nil && c.phone == "" && old.Calibrated(): // calibrated before the phone was known: this one's
+			old.TakeOver(file, phone, legacy)
+			p = old
+		default:
+			p.Adopt(legacy)
+		}
+		if old != nil && c.phone != "" {
+			p.Log(fmt.Sprintf("pointer: the phone changed from %s to %s: using its own calibration", c.phone, phone))
+		}
+		c.ptr, c.phone = p, phone
+	}
+	if c.ptr.Calibrated() && !c.paceAsked { // in the background: no wait on a tap
+		c.paceAsked = true
+		go c.askPace()
 	}
 	return c.ptr
+}
+
+func (c *Conn) boardPace() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pace
+}
+
+// askPace learns how the board paces moves: a calibration made under another pacing no longer fits.
+func (c *Conn) askPace() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.Send(ctx, "pace")
+	n, perr := strconv.Atoi(strings.TrimSpace(r))
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case err == nil && perr == nil && n > 0:
+		c.pace = n
+	case err != nil && strings.Contains(err.Error(), "unknown command"): // firmware before pacing
+		c.pace = 1
+	case err != nil: // no answer (busy, link lost): ask again with the next gesture
+		c.paceAsked = false
+	}
 }
 
 // size is the screenshot size coordinates refer to: the latest frame, else the AirPlay resolution.
@@ -189,13 +244,20 @@ func (s *Server) calibrate(ctx context.Context, c *Conn) Response {
 		return fail(err)
 	}
 	p := c.pointer(s.Dir)
-	started := time.Now()
+	previous, started := p.Snapshot(), time.Now()
 	if err := p.Calibrate(ctx); err != nil {
 		return fail(whyNotFound(c, started, err))
 	}
 	out := map[string]any{"span": map[string]int{"w": p.Span.W, "h": p.Span.H}}
-	if e, found, err := p.Verify(ctx, 0.5, 0.62); err == nil && found {
+	switch e, found, err := p.Verify(ctx, 0.5, 0.62); {
+	case err == nil && found && e > pointer.RejectAbove: // wrong (the app's #96); the previous one may still be good
+		p.Restore(previous)
+		return fail(fmt.Errorf("calibration rejected: its check point missed by %.1f%% (over %.0f%%), so the previous "+
+			"calibration was kept; run esp32agent calibrate again", e*100, pointer.RejectAbove*100))
+	case err == nil && found:
 		out["error"] = e // miss at a check point, fraction of the screen
+	default:
+		out["warning"] = "the check point was not found, so this calibration is unverified; taps with --aim check it"
 	}
 	c.mu.Lock()
 	c.lastAction = time.Now()
@@ -236,13 +298,17 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 		if err != nil {
 			return err
 		}
-		if !p.Calibrated() {
-			if s.videoState(ctx, c) != nil {
+		// Calibrate again when the calibration no longer fits (the app's rules), if the screen can be seen; without
+		// it an existing calibration is still the best there is. All cheap checks: no wait on a normal tap.
+		if why := p.Stale(); why != "" {
+			if s.videoState(ctx, c) == nil {
+				p.Log("pointer: calibrating: " + why)
+				started := time.Now()
+				if err := p.Calibrate(ctx); err != nil {
+					return whyNotFound(c, started, err)
+				}
+			} else if !p.Calibrated() {
 				return errors.New("pointer not calibrated, and the screen is not visible: turn on Screen Mirroring, then run esp32agent calibrate")
-			}
-			started := time.Now()
-			if err := p.Calibrate(ctx); err != nil {
-				return whyNotFound(c, started, err)
 			}
 		}
 		pt := func(i int) (float64, float64) { return req.Pts[i] / w, req.Pts[i+1] / h }
@@ -271,7 +337,13 @@ func (s *Server) io(ctx context.Context, c *Conn, req Request) Response {
 	if err != nil {
 		return fail(err)
 	}
-	out := map[string]string{"message": req.Cmd + " done"}
+	out := map[string]any{"message": req.Cmd + " done"}
+	switch {
+	case req.Cmd == "tap" && req.Aim: // the pointer was seen before the click (else the tap failed above)
+		out["message"], out["verified"] = fmt.Sprintf("tap done: the pointer was seen %.1f%% off the target and put on it first", p.Miss*100), true
+	case req.Cmd == "tap" || req.Cmd == "longpress" || req.Cmd == "swipe": // #194: nothing checked where it landed
+		out["message"], out["verified"] = req.Cmd+" sent (not verified: take a screenshot; --aim checks a tap's position first)", false
+	}
 	if req.Cmd == "text" && pointer.HasHan(req.Text) {
 		out["typed_as"] = pointer.Typeable(req.Text)
 		out["note"] = "needs the iPhone's Chinese (pinyin) keyboard; if letters appear, tap the globe key and type again"

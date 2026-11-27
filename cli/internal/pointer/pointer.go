@@ -14,6 +14,7 @@ import (
 	"image"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -31,6 +32,13 @@ const (
 	// FreshWait: how long a wiggle waits for a frame captured after it. Over BLE, video yields to commands, and a
 	// frame often took over a second: calibration with 1 s saw no pointer (2026-11-06).
 	FreshWait = 3 * time.Second
+	// When a calibration no longer fits (the app's AutoCalibrator rules, #194): a check missing by more than
+	// RejectAbove, a screen shape off by AspectTolerance, landings drifted by more than Tolerance.
+	RejectAbove     = 0.06
+	AspectTolerance = 0.02
+	Tolerance       = 0.015
+	Speed           = 10.0 // the board's speed per report, the probes' and every long move's (the app's Pointer.speed)
+	SamplesVersion  = 4    // the app's: landing samples include the origin
 )
 
 // CalibrationStops are the distances at which calibration finds the pointer.
@@ -54,6 +62,7 @@ type Screen interface {
 
 type Span struct{ W, H int }
 
+// saved is the app's calibration file (Pointer.swift Saved) plus moves and src, so either side can read the other's.
 type saved struct {
 	W       int                    `json:"w"`
 	H       int                    `json:"h"`
@@ -61,6 +70,13 @@ type saved struct {
 	Quality *float64               `json:"quality,omitempty"`
 	Aspect  *float64               `json:"aspect,omitempty"`
 	Moves   string                 `json:"moves,omitempty"` // "axis": measured with moveXY's moves; older ones are redone
+	V       *int                   `json:"v,omitempty"`     // the samples' version (the app's files have no moves)
+	Pace    int                    `json:"pace,omitempty"`  // the board's move pacing it was made under; 0: unknown
+	Ox      float64                `json:"ox"`
+	Oy      float64                `json:"oy"`
+	Gain    [][]float64            `json:"gain,omitempty"`
+	Src     string                 `json:"src,omitempty"`     // the phone (status src) it was made on
+	Rekeyed string                 `json:"rekeyed,omitempty"` // a board's file from before #194, taken over by this phone
 }
 
 // MovesAxis marks a calibration measured with axis-by-axis moves.
@@ -79,8 +95,18 @@ type Pointer struct {
 	seen    map[string][][2]float64
 	Quality *float64 // pointer error at the last check, fraction of the screen
 	Aspect  *float64 // frame width / height when calibrated
-	Log     func(string)
-	Sleep   func(context.Context, time.Duration) error
+	// Where home really leaves the pointer (screen fraction): the rounded corner pushes x in to about 0.14.
+	Origin [2]float64
+	// How far a move goes at a slower speed per report, relative to Speed: (speed, ratio). Measured by the app's
+	// touch calibration; the CLI applies it when a calibration carries it.
+	Gain      [][2]float64
+	Pace      int        // the board's move pacing when calibrated; 0: unknown, taken from BoardPace when known
+	BoardPace func() int // the connected board's pacing ("pace"); 0: not known yet
+	Phone     string     // the phone (status src) this calibration is for
+	far       int        // aims in a row that found the pointer more than MaxMiss off: 2 calibrates again
+	Miss      float64    // how far off the last aim found the pointer (before correcting it)
+	Log       func(string)
+	Sleep     func(context.Context, time.Duration) error
 }
 
 func sleep(ctx context.Context, d time.Duration) error {
@@ -98,13 +124,29 @@ func sleep(ctx context.Context, d time.Duration) error {
 func New(dev Device, screen Screen, file string) *Pointer {
 	p := &Pointer{dev: dev, screen: screen, file: file, seen: map[string][][2]float64{"x": nil, "y": nil},
 		Log: func(string) {}, Sleep: sleep}
-	raw, err := os.ReadFile(file)
-	var s saved
-	if err != nil || json.Unmarshal(raw, &s) != nil || s.W <= 0 || s.H <= 0 || s.Moves != MovesAxis {
-		return p
+	if raw, err := os.ReadFile(file); err == nil {
+		p.load(raw)
 	}
+	return p
+}
+
+// load takes a saved calibration: the CLI's (moves "axis") or the app's (v). False: none in raw.
+func (p *Pointer) load(raw []byte) bool {
+	var s saved
+	if json.Unmarshal(raw, &s) != nil || s.W <= 0 || s.H <= 0 || s.Moves != MovesAxis && s.V == nil {
+		return false
+	}
+	p.reset()
 	p.Span = &Span{s.W, s.H}
-	p.Quality, p.Aspect = s.Quality, s.Aspect
+	p.Quality, p.Aspect, p.Pace, p.Origin = s.Quality, s.Aspect, s.Pace, [2]float64{s.Ox, s.Oy}
+	for _, g := range s.Gain {
+		if len(g) == 2 {
+			p.Gain = append(p.Gain, [2]float64{g[0], g[1]})
+		}
+	}
+	if s.V != nil && *s.V != SamplesVersion { // the app's older samples: it drops them too
+		return true
+	}
 	for _, axis := range []string{"x", "y"} {
 		for _, v := range s.Seen[axis] {
 			if len(v) == 2 {
@@ -112,7 +154,92 @@ func New(dev Device, screen Screen, file string) *Pointer {
 			}
 		}
 	}
-	return p
+	return true
+}
+
+func (p *Pointer) reset() {
+	p.Span, p.Quality, p.Aspect, p.Pace, p.Origin, p.Gain, p.far = nil, nil, nil, 0, [2]float64{}, nil, 0
+	p.seen, p.pos = map[string][][2]float64{"x": nil, "y": nil}, nil
+}
+
+// Adopt takes over legacy, a board's calibration from before they were keyed by phone, once: it becomes this
+// phone's (in this pointer's file), and legacy is marked so another phone does not take it too. Older CLIs
+// ignore the mark and still read it.
+func (p *Pointer) Adopt(legacy string) bool {
+	raw, err := os.ReadFile(legacy)
+	var s saved
+	if p.Span != nil || err != nil || json.Unmarshal(raw, &s) != nil || s.Rekeyed != "" || !p.load(raw) {
+		return false
+	}
+	p.Log(fmt.Sprintf("calibration: %s taken over for %s", legacy, p.Phone))
+	p.TakeOver(p.file, p.Phone, legacy)
+	return true
+}
+
+// TakeOver saves this calibration as phone's, in file, and marks legacy (if there is one) as taken.
+func (p *Pointer) TakeOver(file, phone, legacy string) {
+	p.file, p.Phone = file, phone
+	p.save()
+	var m map[string]any
+	if raw, err := os.ReadFile(legacy); err == nil && json.Unmarshal(raw, &m) == nil && m["rekeyed"] == nil {
+		m["rekeyed"] = phone
+		raw, _ = json.Marshal(m)
+		os.WriteFile(legacy, raw, 0o600)
+	}
+}
+
+// Snapshot is the calibration as it is (nil: none), for Restore when a new one is rejected.
+func (p *Pointer) Snapshot() []byte {
+	if p.Span == nil {
+		return nil
+	}
+	return p.marshal()
+}
+
+// Restore goes back to a Snapshot: the previous calibration, or none (the app's issue #96).
+func (p *Pointer) Restore(snap []byte) {
+	p.reset()
+	if snap != nil && p.load(snap) {
+		p.save()
+	} else if p.file != "" {
+		os.Remove(p.file)
+	}
+}
+
+// Stale says why the calibration no longer fits ("": it does), by the app's rules (AutoCalibrator.needed).
+func (p *Pointer) Stale() string {
+	if p.Span == nil {
+		return "not calibrated"
+	}
+	if bp := p.boardPace(); bp != 0 {
+		if p.Pace == 0 { // made before the board's pacing was known (or by CLI 0.1.4): under this one
+			p.Pace = bp
+			p.save()
+		}
+		if p.Pace != bp {
+			return fmt.Sprintf("made under the board's move pacing %d, the board now uses %d", p.Pace, bp)
+		}
+	}
+	if p.Quality != nil && *p.Quality > RejectAbove {
+		return fmt.Sprintf("its check missed by %.1f%%", *p.Quality*100)
+	}
+	if a, ok := p.frameAspect(); ok && p.Aspect != nil && math.Abs(a-*p.Aspect) > AspectTolerance {
+		return fmt.Sprintf("the screen's shape changed (%.3f, calibrated at %.3f)", a, *p.Aspect)
+	}
+	if d := p.Drift(); d > Tolerance {
+		return fmt.Sprintf("the learned correction drifted %.1f%%", d*100)
+	}
+	if p.far >= 2 {
+		return "two aims in a row found the pointer far off"
+	}
+	return ""
+}
+
+func (p *Pointer) boardPace() int {
+	if p.BoardPace == nil {
+		return 0
+	}
+	return p.BoardPace()
 }
 
 func (p *Pointer) Calibrated() bool { return p.Span != nil }
@@ -138,16 +265,26 @@ func (p *Pointer) send(ctx context.Context, format string, a ...any) error {
 }
 
 func (p *Pointer) screenAspect() float64 {
-	if p.screen != nil {
-		if f := p.screen.Frame(); f != nil && f.Bounds().Dy() > 0 {
-			return float64(f.Bounds().Dx()) / float64(f.Bounds().Dy())
-		}
+	if a, ok := p.frameAspect(); ok {
+		return a
 	}
 	return 9 / 19.5
 }
 
+func (p *Pointer) frameAspect() (float64, bool) {
+	if p.screen != nil {
+		if f := p.screen.Frame(); f != nil && f.Bounds().Dy() > 0 {
+			return float64(f.Bounds().Dx()) / float64(f.Bounds().Dy()), true
+		}
+	}
+	return 0, false
+}
+
 // ErrNotFound: calibration could not see the pointer on screen.
 var ErrNotFound = errors.New("calibration: pointer not found on screen (is the mouse pointer visible, AssistiveTouch on, Screen Mirroring on?)")
+
+// ErrAimNotFound: an aimed tap could not see the pointer, so it was not sent (#194: it used to answer "tap done").
+var ErrAimNotFound = errors.New("aim: pointer not found near the target, so the tap was not sent (is the pointer visible? take a screenshot: an old picture means the video is stale)")
 
 // Calibrate finds the pointer on screen at two known distances from the corner and fits the mapping from both.
 func (p *Pointer) Calibrate(ctx context.Context) error {
@@ -197,14 +334,19 @@ func (p *Pointer) Calibrate(ctx context.Context) error {
 		return ErrNotFound
 	}
 	p.Span = &s
-	aspect := p.screenAspect()
-	p.Quality, p.Aspect = nil, &aspect
-	p.seen = map[string][][2]float64{"x": nil, "y": nil}
-	for _, f := range found { // where each stop landed, so moves are corrected for the offset too
-		p.remember("x", [2]float64{float64(f.units) / float64(s.W), f.x})
-		p.remember("y", [2]float64{float64(f.units) / float64(s.H), f.y})
+	// the corner home leaves the pointer in is not exactly (0, 0): fit it from the same two stops (Pointer.swift)
+	o := [2]float64{a.x - float64(a.units)/float64(s.W), a.y - float64(a.units)/float64(s.H)}
+	if math.Abs(o[0]) > 0.2 || math.Abs(o[1]) > 0.2 { // not a corner: none
+		o = [2]float64{}
 	}
-	p.Log(fmt.Sprintf("calibration: span %d x %d", s.W, s.H))
+	aspect := p.screenAspect()
+	p.Quality, p.Aspect, p.Origin, p.Pace, p.far = nil, &aspect, o, p.boardPace(), 0 // the speed gain still holds
+	p.seen = map[string][][2]float64{"x": nil, "y": nil}
+	for _, f := range found { // where each stop landed, in the same terms as dx/dy aim
+		p.remember("x", [2]float64{float64(f.units)/float64(s.W) + o[0], f.x})
+		p.remember("y", [2]float64{float64(f.units)/float64(s.H) + o[1], f.y})
+	}
+	p.Log(fmt.Sprintf("calibration: span %d x %d, offset %.3f / %.3f", s.W, s.H, o[0], o[1]))
 	return p.save()
 }
 
@@ -241,7 +383,7 @@ func (p *Pointer) findPointer(ctx context.Context) (Point, bool, error) {
 // FinishCalibration: x, y is where the pointer ended up after `home` + `move 200 200` (one point).
 func (p *Pointer) FinishCalibration(x, y float64) error {
 	aspect := p.screenAspect()
-	p.Quality, p.Aspect = nil, &aspect
+	p.Quality, p.Aspect, p.Origin, p.Gain, p.Pace, p.far = nil, &aspect, [2]float64{}, nil, p.boardPace(), 0
 	p.Span = &Span{int(math.RoundToEven(CalibrationMove / x)), int(math.RoundToEven(CalibrationMove / y))}
 	p.seen = map[string][][2]float64{"x": nil, "y": nil}
 	return p.save()
@@ -252,15 +394,25 @@ func (p *Pointer) save() error {
 	if p.Span == nil || p.file == "" {
 		return nil
 	}
-	s := saved{W: p.Span.W, H: p.Span.H, Seen: map[string][][]float64{}, Quality: p.Quality, Aspect: p.Aspect, Moves: MovesAxis}
+	return os.WriteFile(p.file, p.marshal(), 0o600)
+}
+
+// marshal writes the app's fields too (v, pace, ox, oy, gain), and moves "axis" so CLI 0.1.4 still reads it.
+func (p *Pointer) marshal() []byte {
+	v := SamplesVersion
+	s := saved{W: p.Span.W, H: p.Span.H, Seen: map[string][][]float64{}, Quality: p.Quality, Aspect: p.Aspect, Moves: MovesAxis,
+		V: &v, Pace: p.Pace, Ox: p.Origin[0], Oy: p.Origin[1], Src: p.Phone}
 	for axis, pts := range p.seen {
 		s.Seen[axis] = [][]float64{}
 		for _, v := range pts {
 			s.Seen[axis] = append(s.Seen[axis], []float64{v[0], v[1]})
 		}
 	}
+	for _, g := range p.Gain {
+		s.Gain = append(s.Gain, []float64{g[0], g[1]})
+	}
 	raw, _ := json.Marshal(s)
-	return os.WriteFile(p.file, raw, 0o600)
+	return raw
 }
 
 // ErrNotCalibrated: run Calibrate first.
@@ -288,23 +440,30 @@ func (p *Pointer) aim(ctx context.Context, x, y float64) error {
 	}
 	if !ok {
 		p.Log(fmt.Sprintf("aim (%.3f, %.3f): pointer not found", x, y))
-		return nil
+		return ErrAimNotFound
 	}
-	if math.Max(math.Abs(found.X-x), math.Abs(found.Y-y)) <= MaxMiss { // learn from normal drift only
+	p.Miss = math.Max(math.Abs(found.X-x), math.Abs(found.Y-y))
+	if p.Miss <= MaxMiss { // learn from normal drift only
+		p.far = 0
 		p.remember("x", [2]float64{p.Fix(x, "x"), found.X})
 		p.remember("y", [2]float64{p.Fix(y, "y"), found.Y})
 		p.save()
+	} else { // far off: the next gesture starts from the corner again; twice in a row calibrates again (Stale)
+		p.far++
+		p.Log(fmt.Sprintf("aim (%.3f, %.3f): pointer found far off at (%.3f, %.3f)", x, y, found.X, found.Y))
 	}
 	if math.Abs(found.X-x) <= AimTolerance && math.Abs(found.Y-y) <= AimTolerance {
 		return nil
 	}
 	mx := int(math.RoundToEven((x - found.X) * float64(p.Span.W)))
 	my := int(math.RoundToEven((y - found.Y) * float64(p.Span.H)))
-	if err := p.moveXY(ctx, mx, my); err != nil { // fix this miss right away
+	if err := p.travel(ctx, mx, my); err != nil { // fix this miss right away
 		return err
 	}
-	if p.pos != nil {
+	if p.pos != nil && p.far == 0 {
 		p.pos = &[2]int{p.pos[0] + mx, p.pos[1] + my}
+	} else {
+		p.pos = nil
 	}
 	return nil
 }
@@ -410,11 +569,48 @@ func (p *Pointer) moveTo(ctx context.Context, tx, ty int, rehome bool) error {
 	}
 	x, y := p.pos[0], p.pos[1]
 	p.pos = nil // unknown until the move succeeds
-	if err := p.moveXY(ctx, tx-x, ty-y); err != nil {
+	if err := p.travel(ctx, tx-x, ty-y); err != nil {
 		return err
 	}
 	p.pos, p.moves = &[2]int{tx, ty}, p.moves+1
 	return nil
+}
+
+// travel moves by (dx, dy) as meant at full speed: each axis's move paced for the speed gain (the app's travel).
+func (p *Pointer) travel(ctx context.Context, dx, dy int) error {
+	dx, _ = p.paced(dx, 0)
+	_, dy = p.paced(0, dy)
+	return p.moveXY(ctx, dx, dy)
+}
+
+// ratio is how far a move goes at v per report relative to Speed, between the measured speeds (Pointer.swift).
+func (p *Pointer) ratio(v float64) float64 {
+	pts := append([][2]float64{{Speed, 1}}, p.Gain...)
+	sort.Slice(pts, func(i, j int) bool { return pts[i][0] < pts[j][0] })
+	if v <= pts[0][0] {
+		return pts[0][1]
+	}
+	for i := 1; i < len(pts); i++ {
+		if a, b := pts[i-1], pts[i]; v <= b[0] {
+			return a[1] + (b[1]-a[1])*(v-a[0])/(b[0]-a[0])
+		}
+	}
+	return 1
+}
+
+// paced: the units to send for a move meant to go (mx, my) at full speed. The board paces a move of length L at
+// L / ceil(L / Speed) per report, so a short one is slower and goes ratio(v) as far.
+func (p *Pointer) paced(mx, my int) (int, int) {
+	d := math.Hypot(float64(mx), float64(my))
+	if d == 0 || len(p.Gain) == 0 {
+		return mx, my
+	}
+	l := d
+	for i := 0; i < 4; i++ {
+		l = d / p.ratio(l/math.Max(math.Ceil(l/Speed), 1))
+	}
+	k := l / d
+	return int(math.Round(float64(mx) * k)), int(math.Round(float64(my) * k))
 }
 
 // moveXY moves the pointer along x, then along y. The board paces a move in reports of at most 10 units per axis,
@@ -605,10 +801,11 @@ func (p *Pointer) HomeSwipe(ctx context.Context) error {
 	return p.Swipe(ctx, 0.5, 0.995, 0.5, 0.15, false)
 }
 
+// dx, dy: mouse units from home for a target, less the origin home really leaves the pointer at.
 func (p *Pointer) dx(x float64) int {
-	return int(math.RoundToEven(math.Min(math.Max(p.Fix(x, "x"), 0), 1) * float64(p.Span.W)))
+	return int(math.RoundToEven((math.Min(math.Max(p.Fix(x, "x"), 0), 1) - p.Origin[0]) * float64(p.Span.W)))
 }
 
 func (p *Pointer) dy(y float64) int {
-	return int(math.RoundToEven(math.Min(math.Max(p.Fix(y, "y"), 0), 1) * float64(p.Span.H)))
+	return int(math.RoundToEven((math.Min(math.Max(p.Fix(y, "y"), 0), 1) - p.Origin[1]) * float64(p.Span.H)))
 }

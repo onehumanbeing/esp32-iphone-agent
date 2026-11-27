@@ -144,7 +144,12 @@ func (c *Config) Forget(id string) error {
 	c.mu.Lock()
 	delete(c.Boards, id)
 	c.mu.Unlock()
-	os.Remove(CalibrationPath(filepath.Dir(c.path), id))
+	dir := filepath.Dir(c.path)
+	os.Remove(CalibrationPath(dir, id))
+	phones, _ := filepath.Glob(filepath.Join(dir, "calibration-"+id+"-*.json"))
+	for _, f := range phones {
+		os.Remove(f)
+	}
 	return c.Save()
 }
 
@@ -162,7 +167,19 @@ func (c *Config) Match(sel string) []string {
 	return out
 }
 
-// CalibrationPath is where a board's pointer calibration lives.
+// CalibrationPath is where a board's pointer calibration lived before they were kept per phone (CLI 0.1.4): now
+// the fallback while the phone is not known, and taken over once by the first phone seen (#194).
 func CalibrationPath(dir, boardID string) string {
 	return filepath.Join(dir, "calibration-"+boardID+".json")
+}
+
+// PhoneCalibrationPath is where the calibration for one phone (the status src, "iPhone13,2") on a board lives.
+func PhoneCalibrationPath(dir, boardID, phone string) string {
+	safe := []byte(phone)
+	for i, b := range safe {
+		if !('a' <= b && b <= 'z' || 'A' <= b && b <= 'Z' || '0' <= b && b <= '9') {
+			safe[i] = '-'
+		}
+	}
+	return filepath.Join(dir, "calibration-"+boardID+"-"+string(safe)+".json")
 }
