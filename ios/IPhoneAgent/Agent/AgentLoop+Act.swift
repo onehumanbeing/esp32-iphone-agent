@@ -337,6 +337,29 @@ enum SwipeClamp {
     /// The limit on a phone whose lists glide `gain` times as far as the swipe.
     static func limit(gain: Double) -> Double { max(floor, limit / max(1, gain)) }
 
+    /// A goal about watching videos one after another in a full-screen feed (not reading a list of them: a no-play goal).
+    static func feed(_ goal: String) -> Bool {
+        let g = goal.lowercased()
+        guard !MediaStop.forbidsPlaying(goal) else { return false }
+        return ["看视频", "刷视频", "个视频", "下一个视频", "下一条视频", "短视频", "watch video", "next video", "videos", "reels", "shorts"]
+            .contains { g.contains($0) }
+    }
+
+    /// In a feed, a vertical swipe of `turn`+ units is the move to the next (or last) video: sent as the full swipe
+    /// that turns one, 850 to 150. 2026-11-27 (快手, acceptance case 101): three swipes of ~395 units, cut a little,
+    /// never left the first video; the one of 700 did, and the run named the second video's author as the fifth's.
+    static let turn = 250.0
+    static func pageTurn(_ a: inout JObject) {
+        let x1 = a["x1"]?.double ?? 0, y1 = a["y1"]?.double ?? 0, x2 = a["x2"]?.double ?? 0, y2 = a["y2"]?.double ?? 0
+        let (dx, dy) = (x2 - x1, y2 - y1)
+        let fromEdge = x1 < edge || x1 > 1000 - edge || y1 < edge || y1 > 1000 - edge
+        guard abs(dy) >= turn, abs(dy) > 2 * abs(dx), !fromEdge, hypot(dx, dy) < 700 else { return }
+        let x = Int(((x1 + x2) / 2).rounded())
+        (a["x1"], a["x2"]) = (.int(x), .int(x))
+        (a["y1"], a["y2"]) = dy < 0 ? (.int(850), .int(150)) : (.int(150), .int(850))
+        a["result"] = .str("sent as a whole video's swipe (\(dy < 0 ? "850 to 150" : "150 to 850")): one per video in a feed")
+    }
+
     /// The model's swipe, cut to the limit (its end moved, a note for the next round). Replayed swipes are not.
     static func apply(_ a: inout JObject, limit: Double = limit) {
         let (x, y, cut) = end(a, limit: limit)

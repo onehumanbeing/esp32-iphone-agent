@@ -301,6 +301,28 @@ final class DefectGuardTests: XCTestCase {
         XCTAssertNil(short["result"])
     }
 
+    /// 2026-11-27, 快手 (acceptance case 101): ~395-unit swipes never left the first video; in a feed goal a
+    /// vertical swipe is sent as a whole video's swipe. A list goal, a no-play goal, a sideways or edge swipe: as before.
+    func testFeedSwipesTurnAWholeVideo() {
+        XCTAssertTrue(SwipeClamp.feed("打开快手，看 5 个视频，每个看几秒再滑到下一个"))
+        XCTAssertTrue(SwipeClamp.feed("Open TikTok and watch videos for a minute"))
+        XCTAssertFalse(SwipeClamp.feed("打开哔哩哔哩，告诉我首页第一个视频的标题（不要播放）"))
+        XCTAssertFalse(SwipeClamp.feed("打开设置，告诉我 iOS 版本号"))
+        var up = swipe(500, 700, 500, 300)
+        SwipeClamp.pageTurn(&up)
+        XCTAssertEqual([up["y1"]?.double, up["y2"]?.double], [850, 150])
+        SwipeClamp.apply(&up, limit: SwipeClamp.limit(gain: 2))
+        XCTAssertEqual(up["y2"]?.double, 150, "the clamp leaves a page turn alone")
+        var down = swipe(500, 300, 500, 650)
+        SwipeClamp.pageTurn(&down)
+        XCTAssertEqual([down["y1"]?.double, down["y2"]?.double], [150, 850])
+        for var same in [swipe(500, 600, 500, 450), swipe(800, 500, 200, 500), swipe(500, 990, 500, 400)] {
+            let before = same
+            SwipeClamp.pageTurn(&same)
+            XCTAssertEqual(same, before)
+        }
+    }
+
     func testEnterIsHeldOnceAfterTypingThatStoppedPartWay() {
         var g = SendGuard()
         g.typed("我们晚上七点见", missing: SendGuard.missing("\"七点\" is not among the candidates for qidian (cleared); typed \"我们晚上\", not typed: \"七点见\""))

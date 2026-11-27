@@ -1053,6 +1053,7 @@ extension Gestures {
                     record(planned.shot, act)
                     return false
                 }
+                if name == "swipe", SwipeClamp.feed(task) { SwipeClamp.pageTurn(&act) }
                 if name == "swipe" { SwipeClamp.apply(&act, limit: SwipeClamp.limit(gain: scrollGain)) }
                 // the screen the model saw shows the field as typed: nothing typed or cleared earlier in this round
                 let fresh = !acts[..<i].contains { ["type", "clear", "say"].contains($0.act["action"]?.str ?? "") }
