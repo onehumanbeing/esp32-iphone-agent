@@ -534,6 +534,18 @@ import XCTest
         XCTAssertEqual(sent.filter { $0 == "enter" }.count, 1, "\(sent)")
     }
 
+    /// A tap on the AssistiveTouch button's spot opened its menu (2026-11-27: Calendar's 28th, a route panel's X):
+    /// the button at the right edge's middle is in the way of a tap within its disc, and goes to the other half.
+    func testATapUnderTheAssistiveTouchButtonMovesItAside() {
+        let button = CGPoint(x: 0.92, y: 0.50), aspect = 390.0 / 844.0
+        XCTAssertTrue(AssistiveButton.covers(button, tap: CGPoint(x: 0.90, y: 0.51), aspect: aspect))
+        XCTAssertTrue(AssistiveButton.covers(button, tap: CGPoint(x: 0.95, y: 0.48), aspect: aspect))
+        XCTAssertFalse(AssistiveButton.covers(button, tap: CGPoint(x: 0.70, y: 0.50), aspect: aspect), "left of it")
+        XCTAssertFalse(AssistiveButton.covers(button, tap: CGPoint(x: 0.92, y: 0.58), aspect: aspect), "the row below")
+        XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.51)), CGPoint(x: 0.92, y: 0.22))
+        XCTAssertEqual(AssistiveButton.aside(button, from: CGPoint(x: 0.9, y: 0.49)), CGPoint(x: 0.92, y: 0.78))
+    }
+
     func testTheHomeKeyFlicksWhenItMissedUnderAnAnimatedApp() {
         XCTAssertTrue(Pointer.needsFlick(changed: false, again: false, stayed: false), "nothing changed")
         XCTAssertTrue(Pointer.needsFlick(changed: true, again: true, stayed: false), "home again, little change")

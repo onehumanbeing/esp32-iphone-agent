@@ -116,8 +116,10 @@ extension AgentLoop {
         func p(_ k: String) -> Double { (a[k]?.double ?? 0) / 1000 }
         switch a["action"]?.str {
         case "tap" where a["hold"]?.bool == true:
+            try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
             try await phone.longPress(p("x"), p("y"))
         case "tap":
+            try await moveAssistiveButton(awayFrom: CGPoint(x: p("x"), y: p("y")))
             try await phone.tap(p("x"), p("y"), aim: aim || a["precise"]?.bool ?? false || missed || retaps(a) || backedOut)
             if a["count"]?.double == 2 { try await phone.clickAgain() }
         case "swipe" where a["hold"]?.bool == true: try await phone.pressDrag(p("x1"), p("y1"), p("x2"), p("y2"))
@@ -544,4 +546,38 @@ struct SendGuard {
         lines.contains { $0.y >= 500 && enterSendWords.contains($0.text.trimmingCharacters(in: .whitespaces).lowercased()) }
     }
 
+}
+
+/// The AssistiveTouch button (a mouse on an iPhone needs AssistiveTouch, so it rests at a screen edge) over a tap's
+/// target: the tap opened its menu instead. 2026-11-27: Calendar's 28th and a route panel's X, both aimed right, both
+/// under the button at the right edge's middle. The button is dragged to the other half of its edge first.
+extension AssistiveButton {
+    /// The button's radius as a fraction of the screen's width (60 pt of a 390 pt wide screen, a little margin).
+    static let reach = 0.085
+
+    /// `tap` lands on the button at `button` (fractions; `aspect` = width / height).
+    static func covers(_ button: CGPoint, tap: CGPoint, aspect: Double) -> Bool {
+        let dx = Double(tap.x - button.x), dy = Double(tap.y - button.y) / aspect
+        return (dx * dx + dy * dy).squareRoot() <= reach
+    }
+
+    /// Where to put the button out of the way of `tap`: the same edge, the other half of the screen.
+    static func aside(_ button: CGPoint, from tap: CGPoint) -> CGPoint {
+        CGPoint(x: button.x, y: tap.y < 0.5 ? 0.78 : 0.22)
+    }
+}
+
+extension AgentLoop {
+    /// Before a tap at `p`: the AssistiveTouch button on the current frame over it is moved aside.
+    func moveAssistiveButton(awayFrom p: CGPoint) async throws {
+        guard let phone, let screen, screen.live, let jpeg = screen.frame else { return }
+        guard let button = await Vision.off({ Vision.image(jpeg).flatMap(AssistiveButton.find) }),
+              AssistiveButton.covers(button, tap: p, aspect: screen.aspect) else { return }
+        let to = AssistiveButton.aside(button, from: p)
+        DebugLog.write(String(format: "tap (%.3f, %.3f): the AssistiveTouch button is there (%.3f, %.3f); dragged to (%.3f, %.3f) first",
+                   p.x, p.y, button.x, button.y, to.x, to.y))
+        try await phone.drag([button, to], hold: true)
+        AssistiveButton.lastSpot = to
+        try await Task.sleep(nanoseconds: 400_000_000)  // the button settles against the edge
+    }
 }
