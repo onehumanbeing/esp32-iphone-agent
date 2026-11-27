@@ -4,6 +4,27 @@ Full changelog with board firmware and every channel: [manina.ai/docs/changelog]
 
 ## Unreleased (main)
 
+## App 1.0.12 · firmware 0.2.9 (TestFlight)
+
+**Opening apps by name works: 10 apps and a mini-program out of 10, median about 8 s each, on an iPhone 13 Pro.**
+
+- Open: an App Store page no longer counts as installed, the agent app is retried past, and a name stops after two failures instead of looping. A Chinese name typed in the iPhone's language is found by that name; a dropped cmd+space is pressed once more; an app whose URL scheme iOS took gets a cold start's time to come up.
+- Video feeds: a feed's vertical swipe is sent as a whole video's swipe, so each swipe reaches the next video (it stayed on the first one before). Page-turn swipes are no longer clipped. A video that a no-play goal left playing is paused, and its cover is never tapped.
+- Fewer wasted model calls: `wait` waits for a change (up to 90 s, under the free line's idle limit), several waits in a row count as one, no look-ahead call when it would be thrown away, and the stall count no longer restarts on waits and reads.
+- Faster start: the free line's lease is taken alongside the first frame, the connection is warmed at the start, and startup waits overlap.
+- A call banner is waited out; a full-screen call is handed to you, not a fail. A done that says the goal could not be done counts as a fail, and a screen stuck loading stops the run.
+- Typing: pinyin left in the field when a glued letter hides it is caught; another candidate read where the keys went is retyped carefully.
+- Taps: an open AssistiveTouch menu is closed first, and an AssistiveTouch button over the target is dragged aside.
+- Video link: the Wi-Fi video session survives a radio stall during a Bluetooth gesture; a frozen picture asks the board to resume.
+- Handsy CLI: `connect` no longer crashes on macOS when a connect fails, and a board whose Bluetooth slots are taken is still listed (#195); pointer calibration is kept per phone, and unverified taps say so (`--strict` refuses them) (#194); stale video shows in the compact status (`vage`) (#192).
+- Developer: Settings › Developer › Input probe shows what other apps can read about taps (see docs/input-probe.md).
+- Board firmware since 0.2.6 (0.2.7 and 0.2.8 were test and StopWatch builds only; 0.2.9 brings them to every board):
+  - 0.2.9: the GOP squeeze drops unreferenced frames before freezing the picture; a 2 MB board log tail; `vage` (video age) in status; the Wi-Fi video session survives a Bluetooth radio stall; idle links holding a Bluetooth slot are dropped (#195).
+  - 0.2.8: room for 16384 video units in the GOP and 2048 in the tail; radio-share diagnostics in Bluetooth HID mode; the experimental M5Stack StopWatch target and its voice fix.
+  - 0.2.7: USB HID or Bluetooth HID in one image, switched in the app; iPad over Bluetooth: Home no longer opens Notification Center, calibration tunes how far Home pushes up.
+
+More in this build:
+
 - `switch`: back to the app used just before this one (a flick along the home bar), and `swipe X1 Y1 X2 Y2 hold`:
   press and hold, then move (drag an icon, a list row or a text handle). Both checked on an iPhone 13 Pro.
 - Opening an app from Settings works: Settings ignores the board's cmd+h and cmd+space, so the open now flicks up
