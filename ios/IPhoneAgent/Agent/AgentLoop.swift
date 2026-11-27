@@ -1088,7 +1088,7 @@ extension Gestures {
         let moving = await still()
         if canSpeculate, let screen {
             let earlyStarted = now()
-            await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
+            let stood = await screen.settled(quiet: Self.earlyQuiet, least: Self.earlyLeast, most: 1.5, ignoring: spots, busy: moving)
             timing.frameMs += (now() - earlyStarted) * 1000
             let early = screen.frame
             let mask = spots
@@ -1108,7 +1108,7 @@ extension Gestures {
                 near = false
             }
             let needsLanding = !big && target != nil && !Self.changedNearTarget(near)
-            if !needsLanding {
+            if !needsLanding, lookAheadStands(stood: stood) {
                 verdict(small)
                 confirmStill(quiet: busy, final: false)  // before the speculative prompt is built from the steps
                 prepareFrame(early)

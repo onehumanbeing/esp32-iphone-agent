@@ -92,8 +92,10 @@ extension ScreenSource {
     /// ran to its `most` (4 s, then the 0.8 s cap) although the gesture's result had long shown.
     ///
     /// Once a long wait in the step found no quiet gap, waits are capped at `StepWaits.movingCap` (see there).
+    /// True when it found the quiet gap, false when it ran to its `most` (or was cancelled).
+    @discardableResult
     func settled(quiet: Double = 0.5, least: Double = 0.3, most: Double = 3, ignoring spots: [CGPoint] = [],
-                 busy: [CGRect] = []) async {
+                 busy: [CGRect] = []) async -> Bool {
         let started = now()
         let recent = !StepWaits.moving && started - StepWaits.lastMoving < StepWaits.recentFor
         let cap = StepWaits.moving || StepWaits.alwaysMoving ? StepWaits.movingCap : recent ? StepWaits.recentCap : most
@@ -112,7 +114,8 @@ extension ScreenSource {
                 moved = checked
             }
         }
-        if !Task.isCancelled, now() - started < most { StepWaits.movingSteps = 0 }  // it stood still
+        let stood = !Task.isCancelled && now() - started < most
+        if stood { StepWaits.movingSteps = 0 }  // it stood still
         if !Task.isCancelled, now() - started >= most, StepWaits.moving || StepWaits.alwaysMoving || most >= StepWaits.longWait
             || recent && most >= StepWaits.recentCap, !StepWaits.countedThisStep {
             StepWaits.countedThisStep = true
@@ -128,6 +131,7 @@ extension ScreenSource {
             StepWaits.lastMoving = now()
             DebugLog.write(String(format: "settle: no still moment in %.1f s; the screen keeps moving, later waits this step are capped at %.1f s", most, StepWaits.movingCap))
         }
+        return stood
     }
 
     /// How late the shown frame arrived after the board got it (0 when unknown), capped.

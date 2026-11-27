@@ -150,6 +150,24 @@ extension AgentLoop {
             && checkpointReason == nil
     }
 
+    /// Whether a look-ahead started now, from the early frame, would stand. 2026-11-27: 201 of the day's Hy calls
+    /// (16%, 19% on an iPhone 8 Plus) were look-aheads thrown away and sent again: the screen was still moving at the
+    /// early settle and moved on in the rest of the wait ("screen moved"), or no frame from after the action had come
+    /// yet, so the early verdict was a guess the later one replaced ("prompt changed"; confirmStill's `noframe`).
+    /// Either way the early prompt is superseded: skip it, and the round looks once after the full settle, as it does
+    /// when a tap needs landing. A screen that stood still with a frame from after the action keeps its look-ahead.
+    func lookAheadStands(stood: Bool) -> Bool {
+        guard stood else {
+            DebugLog.write("look-ahead skipped: the screen was still moving at the early settle")
+            return false
+        }
+        guard frameSince(lastActed) else {
+            DebugLog.write("look-ahead skipped: no frame from after the action yet")
+            return false
+        }
+        return true
+    }
+
     func prepareFrame(_ jpeg: Data?) {
         guard let jpeg else { return }
         framePrep.start(jpeg, wantTree: wantsTree)

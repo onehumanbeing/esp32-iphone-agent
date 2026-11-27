@@ -167,3 +167,47 @@ import XCTest
         XCTAssertEqual(agent.steps.last?["reason"]?.str, StillRepeat.reason)
     }
 }
+
+/// A look-ahead from the early frame is skipped only when it would be thrown away: the screen still moving, or no
+/// frame from after the action yet (2026-11-27: 16% of the Hy calls were superseded look-aheads).
+@MainActor final class LookAheadGateTests: XCTestCase {
+    override func tearDown() {
+        StepWaits.reset()
+        StepWaits.movingSteps = 0
+        StepWaits.lastMoving = -1000
+        super.tearDown()
+    }
+
+    func testSettledSaysWhetherTheScreenStoodStill() async {
+        let screen = FakeScreen()
+        let still = await screen.settled(quiet: 0.1, least: 0, most: 0.5)
+        XCTAssertTrue(still)
+        screen.updated = now() + 100  // changes all the time
+        let moving = await screen.settled(quiet: 0.1, least: 0, most: 0.3)
+        XCTAssertFalse(moving)
+    }
+
+    func testStandsOnlyWithAStillScreenAndAFrameFromAfterTheAction() {
+        let screen = FakeScreen()
+        let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: nil, planner: nil, trace: nil)
+        agent.lastActed = 100
+        XCTAssertFalse(agent.lookAheadStands(stood: false))
+        screen.capturedAt = 99
+        XCTAssertFalse(agent.lookAheadStands(stood: true), "the early frame is from before the action")
+        screen.capturedAt = 101
+        XCTAssertTrue(agent.lookAheadStands(stood: true))
+    }
+
+    func testAStepStartsALookAheadOnlyWhenItWouldStand() async throws {
+        for (captured, expected) in [(0.0, true), (1.0, false)] {  // 0: unknown, counts as arrived; 1: long before
+            let screen = FakeScreen()
+            screen.capturedAt = captured
+            let actor = FakeModel { _ in "THINK: home\nDO: home" }
+            let agent = AgentLoop(phone: FakeGestures(), screen: screen, actor: actor, planner: nil, trace: nil)
+            agent.speculate = true
+            _ = try await agent.step()
+            XCTAssertEqual(agent.pendingLook != nil, expected, "captured \(captured)")
+            agent.cancelSpeculative("test end")
+        }
+    }
+}
