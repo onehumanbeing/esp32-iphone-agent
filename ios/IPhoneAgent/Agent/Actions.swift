@@ -126,12 +126,32 @@ enum Actions {
         // a bare `DO: fail` or `DO: done` told the user nothing (2026-11-26: 汽水音乐 not installed, the reason only
         // in THINK; 你好明天 written, done with no answer): the model's own words go in
         for (name, key) in [("fail", "reason"), ("done", "answer")] {
+            // an answer over several lines (a list): the lines after the DO line are part of it. Only the first was
+            // kept, "共有 2 个常规列表：" with the lists cut off (2026-11-27, case 13)
+            if let i = acts.firstIndex(where: { $0["action"]?.str == name }), let first = acts[i][key]?.str, !first.isEmpty,
+               let more = continuation(after: name, in: text) {
+                acts[i][key] = .str(first + "\n" + more)
+            }
             if let i = acts.firstIndex(where: { $0["action"]?.str == name }), (acts[i][key]?.str ?? "").isEmpty,
                let why = [zh, thought].compactMap({ $0 }).first(where: { !$0.isEmpty }) {
                 acts[i][key] = .str(why)
             }
         }
         return acts
+    }
+
+    /// The lines after the first `DO: <name> …` line up to the next THINK/DO/PLAN/ZH line, trimmed; nil if none.
+    static func continuation(after name: String, in text: String) -> String? {
+        let lines = text.components(separatedBy: "\n")
+        let tag = try! NSRegularExpression(pattern: #"^\s*(THINK|DO|PLAN|ZH)\s*[:：]"#, options: [.caseInsensitive])
+        func tagged(_ s: String) -> Bool { tag.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
+        let head = try! NSRegularExpression(pattern: #"^\s*DO\s*[:：]\s*"# + NSRegularExpression.escapedPattern(for: name) + #"\b"#,
+                                            options: [.caseInsensitive])
+        guard let at = lines.firstIndex(where: { head.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil })
+        else { return nil }
+        let rest = lines[(at + 1)...].prefix { !tagged($0) }.joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return rest.isEmpty ? nil : rest
     }
 
     /// The part of a batch that can run without a new look. `done` only counts on its own: after other actions the

@@ -179,6 +179,16 @@ import XCTest
         XCTAssertNil(model.onProgress)
     }
 
+    /// A done answer over several lines keeps all of them (2026-11-27, case 13: only "共有 2 个常规列表：" was kept);
+    /// a THINK or DO line after it ends it, and the blank lines at the end go.
+    func testAMultiLineDoneAnswerKeepsItsLines() throws {
+        let reply = "THINK: Read both lists.\nDO: done 共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）\n\n\n"
+        XCTAssertEqual(try Actions.parseActions(reply)[0]["answer"]?.str, "共有 2 个列表：\n1. Reminders（0 条）\n2. 任务（5 条）")
+        XCTAssertEqual(try Actions.parseActions("THINK: Done.\nDO: done 好了\n\n").first?["answer"]?.str, "好了")
+        let failed = try Actions.parseActions("THINK: Stuck.\nDO: fail 打不开：\n- 没装\nTHINK: x")
+        XCTAssertEqual(failed[0]["reason"]?.str, "打不开：\n- 没装")
+    }
+
     func testParseSingleAction() throws {
         let acts = try Actions.parseActions("THINK: The Search pill is visible, so I tap it.\nDO: tap 500 814")
         XCTAssertEqual(acts, [["thought": .str("The Search pill is visible, so I tap it."), "thought_zh": .str(""),
